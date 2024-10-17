@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import SideBar from "./component/SideBar";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -25,10 +26,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <div className="flex h-screen"> {/* Utiliser h-screen pour remplir la hauteur de l'écran */}
+          <SideBar className_props="min-h-full" /> {/* Assurer que la sidebar prend toute la hauteur */}
+          <main className="flex-1 overflow-y-auto"> {/* Le contenu principal avec un défilement si nécessaire */}
+            {children}
+          </main>
+        </div>  
       </body>
     </html>
   );
