@@ -3,13 +3,14 @@ import React from "react";
 
 const BandeauAPI = () => {
     //Pour l'instant on oublie la double authentification
-    //const client_id = encodeURIComponent("cm2d40bgh0a14zc6j9vovaypb");
-    //const redirect_uri = encodeURIComponent("http://localhost:3000/import_page/callback"); 
+    const client_id = encodeURIComponent("cm2d40bgh0a14zc6j9vovaypb");
+    //const client_secret = "Ef20DPUOQ4VpatzbEHyblvgHUvz2cuc8Uv5RGyNy";
+    const redirect_uri = encodeURIComponent("http://localhost:3000/api/auth/callback"); 
 
     const handleAPIConnection = () => {
         console.log("OAuth2 en attente, token en dur dans le code => aller direct à la demande de collecte");
-        //const url = `/api/auth_track_dechets?redirect_uri=${redirect_uri}&client_id=${client_id}`;
-        //window.location.href = url;
+        const url = `/api/auth_track_dechets?redirect_uri=${redirect_uri}&client_id=${client_id}`;
+        window.location.href = url;
     }
     
 
