@@ -2,6 +2,9 @@
 import React, { useState, createContext, useEffect } from "react";
 import TabBarAnalyses from "../component/Analyse/TabBarAnalyses";
 import FiltreFilieres from "../component/FiltreFilieres";
+import { supabase } from "../database/supabaseClient";
+import { useRouter } from "next/navigation";
+import { useSession } from "../component/SessionProvider";
 
 // Créer le contexte
 interface MaterialType {
@@ -17,6 +20,18 @@ const AnalysisPage = () => {
     const handleRadioValueChainChange = (event :React.ChangeEvent<HTMLInputElement>) => {
       setSelectedValueChain(event.target.value); // Mise à jour du state avec la valeur sélectionnée
     };
+
+
+    /*//Exemple pour utiliser une API Next
+    const [token, setToken] = useState(null);
+    useEffect(() => {
+      // Appel à l'API pour récupérer la donnée des cookies
+      fetch('/api/auth/token')
+        .then((response) => response.json())
+        .then((result) => setToken(result.data.value))
+        .catch((error) => console.error('Error:', error));
+    }, []);
+    console.log("Token : ", token);*/
 
     const [selectedMaterials, setSelectedMaterials] = useState([
         { id: 1, checked: false, color:'bg-blue-300', label: 'DIB'},
@@ -63,9 +78,16 @@ const AnalysisPage = () => {
           };
           fetchData();
       }, []);
-  
 
 
+
+      //Authentification
+
+      const router = useRouter();
+      const session = useSession();
+    
+
+    if (!session) return <p>Chargement de vos id de connexion...</p>;
     return (
         <AnalysisContext.Provider value={{ valueChain: selectedValueChain, selectedMaterials: selectedMaterials, serverData: serverData }}>
             <div className='m-5'>

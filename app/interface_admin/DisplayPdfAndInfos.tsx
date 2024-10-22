@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import Tesseract from 'tesseract.js';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/build/pdf';
 import ProgressBar from './ProgressBar'; // Import de la barre de progression
-import { extractInvoiceDetails } from './invoiceUtils'; // Importer les fonctions d'extraction
+//import { extractInvoiceDetails } from './invoiceUtils'; // Importer les fonctions d'extraction
+import { ExtractInfosFromTextOCR } from './ExtractInfosFromTextOCR';
 
 // Définir le chemin du worker de pdf.js
 GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.mjs'; // Assurez-vous que ce chemin est correct
@@ -13,17 +14,18 @@ interface Props {
 }
 
 
-const ClientComponent: React.FC<Props> = ({ pdfFiles }) => {
+const DisplayPdfAndInfos: React.FC<Props> = ({ pdfFiles }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [extractedTexts, setExtractedTexts] = useState<string[]>([]); // Pour stocker le texte extrait
-  const [invoiceDetails, setInvoiceDetails] = useState<any>(null); // Pour stocker les détails de la facture
+  const [infosFromPdf, setInfosFromPdf] = useState<any>(null); // Pour stocker les détails de la facture
   const [progress, setProgress] = useState<number>(0); // Pour suivre le progrès de l'extraction
   const [numPages, setNumPages] = useState<number>(0); // Pour stocker le nombre total de pages
+  const [fullText, setFullText] = useState<string>(''); // État pour stocker le texte complet
 
   const handleNext = () => {
     setCurrentIndex((prevIndex) => (prevIndex + 1) % pdfFiles.length);
-    setInvoiceDetails(null);
+    setInfosFromPdf(null);
     setExtractedTexts([]);
     setNumPages(0);
   };
@@ -31,8 +33,8 @@ const ClientComponent: React.FC<Props> = ({ pdfFiles }) => {
   const extractTextFromPdf = async (pdfFile: string) => {
     setLoading(true);
     setProgress(0); // Réinitialiser la progression
-    const pdfPath = `/pdfs/mes_docs/${pdfFile}`;
-    console.log('PDF Path:', pdfPath); // Log pour déboguer
+    const pdfPath = pdfFile;
+    console.log('PDF Path: ' + pdfPath); // Log pour déboguer
   
     try {
       // Charger le document PDF
@@ -68,31 +70,32 @@ const ClientComponent: React.FC<Props> = ({ pdfFiles }) => {
             if (info.status === 'recognizing text') {
               // Calculer la progression des pages
               const pageProgress = (i / pagesToExtract) * 100; // Progression jusqu'à 100%
-              // Progression de Tesseract normalisée pour la page courante
               const tesseractProgress = info.progress * (100 / pagesToExtract); 
-              // Mettre à jour la progression
-              const totalProgress = pageProgress + (i > 1 ? tesseractProgress : 0); // Ajout de la progression de Tesseract uniquement après la première page
-              setProgress(Math.min(Math.round(totalProgress), 100)); // Limiter la progression à 100%
+              const totalProgress = pageProgress + (i > 1 ? tesseractProgress : 0); 
+              setProgress(Math.min(Math.round(totalProgress), 100)); 
             }
           },
         });
 
-        // Log le texte extrait
-        //console.log(`Texte extrait de la page ${i}:`, result.data.text); 
-        texts.push(result.data.text); // Ajouter le texte extrait
+        // Remplacer les sauts de ligne par une chaîne identifiable
+        const formattedText = result.data.text.replace(/\n/g, '[NEWLINE]');
+        texts.push(formattedText); // Ajouter le texte extrait
+        texts.push('[PAGE_BREAK]'); //Séparateur de page
       }
   
       setExtractedTexts(texts); // Mettre à jour l'état avec le texte extrait
         
       // Combine all extracted texts to analyze invoice details
-      const fullText = texts.join('\n');
+      const combinedText = texts.join('\n');
+      setFullText(combinedText); // Mettre à jour l'état avec le texte complet
       
-      const details = extractInvoiceDetails(fullText);
-      
-      setInvoiceDetails(details); // Mettre à jour l'état avec les détails de la facture
-      
+      const results = ExtractInfosFromTextOCR(combinedText);
+      console.log("mes infos du pdf", results)
+      setInfosFromPdf(results); // Mettre à jour l'état avec les détails de la facture
+      console.log('Mon use state info pdf', infosFromPdf);
+
     } catch (error) {
-      console.error('Erreur lors de l\'extraction du texte :', error);
+      console.log('Erreur lors de l\'extraction du texte : ' + error);
     } finally {
       setLoading(false);
     }
@@ -110,9 +113,11 @@ const ClientComponent: React.FC<Props> = ({ pdfFiles }) => {
   }, [extractedTexts]);
   
   useEffect(() => {
-    console.log('Les détails de la facture sont mis à jour:', invoiceDetails);
-  }, [invoiceDetails]);
-  console.log('les details enregistré dans le state', invoiceDetails) //=> fonctionne mais pas si on lui demande directement après qu'on lui ai affecté parce que asynchrone
+    console.log('Les détails de la facture sont mis à jour:', infosFromPdf);
+  }, [infosFromPdf]);
+  console.log('les details enregistré dans le state', infosFromPdf) //=> fonctionne mais pas si on lui demande directement après qu'on lui ai affecté parce que asynchrone
+
+  //console.log("Voici mes pdfs",pdfFiles);
 
   return (
     <div className='m-5 flex'>
@@ -125,7 +130,7 @@ const ClientComponent: React.FC<Props> = ({ pdfFiles }) => {
       }}>
         {pdfFiles.length > 0 ? (
           <iframe
-            src={`/pdfs/mes_docs/${pdfFiles[currentIndex]}`}
+            src={pdfFiles[currentIndex]}
             width="100%"
             height="auto"
             style={{ 
@@ -161,27 +166,24 @@ const ClientComponent: React.FC<Props> = ({ pdfFiles }) => {
           ))*/} 
         </div>
 
-        {invoiceDetails && (
+        {infosFromPdf && (
           <div className='mt-4'>
             <h3>Détails de la Facture</h3>
-            <p><strong>Numéro de Facture :</strong> {invoiceDetails.invoiceNumber}</p>
-            <p><strong>Période de Facturation :</strong> {invoiceDetails.billingPeriod}</p>
-            <p><strong>Total HT :</strong> {invoiceDetails.totalHT} EUR</p>
-            <p><strong>Montant TTC :</strong> {invoiceDetails.totalTTC} EUR</p>
-            <p><strong>Date d'Échéance :</strong> {invoiceDetails.dueDate}</p>
+            <p><strong>Numéro de Facture :</strong> {infosFromPdf.facture}</p>
+            <p><strong>Période :</strong> {infosFromPdf.facturation_periode}</p>
+            
             
             
             <h4>Détails des Services</h4>
-            {invoiceDetails.serviceDetails && invoiceDetails.serviceDetails.length > 0 ? (
+            {infosFromPdf.results && infosFromPdf.results.length > 0 ? (
             <ul>
-                {invoiceDetails.serviceDetails.map((service, index) => (
+                {infosFromPdf.results.map((row, index) => (
                 <li key={index} className='pl-1 mb-2 ml-2 mt-2 bg-sky-300 text-gray-700 rounded-md'>
-                    <p><strong>Description :</strong> {service.description}</p>
-                    <p><strong>Quantité :</strong> {service.qty}</p>
-                    <p><strong>Unité :</strong> {service.unit}</p>
-                    <p><strong>Prix Unitaire :</strong> {service.pu} EUR</p>
-                    <p><strong>Total HT :</strong> {service.totalHT} EUR</p>
-                    <p><strong>TVA :</strong> {service.tva} %</p>
+                    <p><strong>Numéro de dossier :</strong> {row.dossierNumber}</p>
+                    <p><strong>Description + :</strong> {row.description_plus}</p>
+                    <p><strong>Total HT + :</strong> {row.total_ht_plus}</p>
+                    <p><strong>Description - :</strong> {row.description_minus}</p>
+                    <p><strong>Total HT - :</strong> {row.total_ht_minus}</p>
                 </li>
                 ))}
             </ul>
@@ -204,4 +206,4 @@ const ClientComponent: React.FC<Props> = ({ pdfFiles }) => {
   );
 };
 
-export default ClientComponent;
+export default DisplayPdfAndInfos;

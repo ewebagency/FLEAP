@@ -2,6 +2,7 @@ import React from "react";
 import TableImportedFiles from "../component/Import/TableImportedFiles";
 import ImportPDF from "../component/Import/ImportPDF";
 import BandeauAPI from "./BandeauAPI";
+import TableImportedFilesFunctional from "../component/Import/TableImportedFilesFunctional";
 
 const ImportPage = () => {
 
@@ -24,7 +25,7 @@ const ImportPage = () => {
             </div>
 
             <div>
-                <TableImportedFiles/>  
+                <TableImportedFilesFunctional/>  
             </div>
 
         </div>

@@ -1,6 +1,6 @@
 export const extractInvoiceDetails = (text: string) => {
     const invoiceNumberMatch = text.match(/Facture N° (\w+)/);
-    const billingPeriodMatch = text.match(/Période de facturation © (\d{2}\/\d{2}\/\d{4}) au (\d{2}\/\d{2}\/\d{4})/);
+    const billingPeriodMatch = text.match(/Période de facturation : (\d{2}\/\d{2}\/\d{4}) au (\d{2}\/\d{2}\/\d{4})/);
     const totalHTMatch = text.match(/Total HT (\d+.*\d+)/);
     const totalTTMatch = text.match(/Montant di TTC (\d+.*\d+)/);
     const dueDateMatch = text.match(/Echéance \| (\d{2}\/\d{2}\/\d{4})/);

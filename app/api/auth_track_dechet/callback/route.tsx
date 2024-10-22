@@ -1,4 +1,5 @@
 // app/api/auth/callback/route.ts
+//L'Oauth de la sandbox ne fonctionne pas !
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
       path: "/",
     });
 
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/analysis", request.url));
   } catch (error) {
     console.error("Erreur lors de l'authentification:", error);
     return NextResponse.json({ error: "Erreur lors de l'authentification" }, { status: 500 });
