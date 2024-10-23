@@ -5,7 +5,13 @@ import { useSession } from '../SessionProvider';
 import TableImportedFiles from './TableImportedFiles';
 import { Session } from '@supabase/supabase-js';
 
-interface PdfInfoInterface {id:string, user_id:string, pdf_path:string, created_at: string, name_pdf:string, name_pdf_in_bucket:string}
+interface PdfInfoInterface {
+    id: number;
+    name_pdf: string;
+    name_pdf_in_bucket:string;
+    pdf_path: string;
+    created_at: string;
+}
 
 const TableImportedFilesFunctional: React.FC = () => {
     const [pdfInfos, setPdfInfos] = useState<PdfInfoInterface[]>([]); // État pour stocker les informations des PDF
