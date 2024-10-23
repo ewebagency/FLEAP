@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext } from 'react';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { AnalysisContext } from '@/app/analysis/page';
@@ -9,6 +9,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 const AnalOpMainChart = () => {
 
   const {valueChain, selectedMaterials, serverData} = useContext(AnalysisContext);
+  console.log(valueChain);
 
 
   //if (loading) return <div>Chargement...</div>;

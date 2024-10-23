@@ -2,14 +2,12 @@
 import React, { useState, createContext, useEffect } from "react";
 import TabBarAnalyses from "../component/Analyse/TabBarAnalyses";
 import FiltreFilieres from "../component/FiltreFilieres";
-import { supabase } from "../database/supabaseClient";
-import { useRouter } from "next/navigation";
 import { useSession } from "../component/SessionProvider";
 
 // Créer le contexte
 interface MaterialType {
     valueChain: string;
-    materials: { id: number; checked: boolean; color: string; label: string; }[];
+    selectedMaterials: { id: number; checked: boolean; color: string; label: string; }[];
 }
 
 export const AnalysisContext = createContext<MaterialType>({ valueChain: '', selectedMaterials: [] });
@@ -59,7 +57,7 @@ const AnalysisPage = () => {
 
       const [serverData, setServerData] = useState<{ labels: string[]; datasets: any[] }>({ labels: [], datasets: [] });
       const [loading, setLoading] = useState(true);
-      const [error, setError] = useState(null);
+      //const [error, setError] = useState(null);
   
       useEffect(() => {
           const fetchData = async () => {
@@ -71,7 +69,7 @@ const AnalysisPage = () => {
                   const data_all = await response.json();
                   setServerData(data_all); // Assurez-vous que data_all a la structure attendue
               } catch (err) {
-                  setError(err.message);
+                  //console.log(err.message);
               } finally {
                   setLoading(false);
               }
@@ -82,8 +80,6 @@ const AnalysisPage = () => {
 
 
       //Authentification
-
-      const router = useRouter();
       const session = useSession();
     
 
@@ -101,7 +97,7 @@ const AnalysisPage = () => {
                 <div className="text-xl">My value chain is {selectedValueChain}</div>
 
                 <FiltreFilieres selectedMaterials={selectedMaterials} onMaterialsChange={handleMaterialsChange} />
-
+                {loading && <div>Loading</div>}
                 <TabBarAnalyses/>
             </div>
         </AnalysisContext.Provider>

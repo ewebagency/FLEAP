@@ -5,8 +5,10 @@ import { useSession } from '../SessionProvider';
 import TableImportedFiles from './TableImportedFiles';
 import { Session } from '@supabase/supabase-js';
 
+interface PdfInfoInterface {id:string, user_id:string, pdf_path:string, created_at: string, name_pdf:string, name_pdf_in_bucket:string}
+
 const TableImportedFilesFunctional: React.FC = () => {
-    const [pdfInfos, setPdfInfos] = useState<any[]>([]); // État pour stocker les informations des PDF
+    const [pdfInfos, setPdfInfos] = useState<PdfInfoInterface[]>([]); // État pour stocker les informations des PDF
     const [loading, setLoading] = useState(true); // État pour gérer le chargement
     const session = useSession() as Session | null; // Récupérer la session utilisateur
     const user_id = session?.user.id; // Récupérer l'ID de l'utilisateur
