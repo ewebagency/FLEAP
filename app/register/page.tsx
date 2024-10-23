@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import FiltreFilieres from "../component/FiltreFilieres";
 import CollecteDemande from "../component/Register/CollecteDemande";
+import TableRegistre from "./TableRegistre";
 
 const RegisterPage = () => {
 
@@ -50,6 +51,9 @@ const RegisterPage = () => {
                     <div className="mr-2">🖍</div>
                     <div>Détails filières</div>
                 </div>
+            </div>
+            <div>
+                <TableRegistre/>
             </div>
         </div>
     )

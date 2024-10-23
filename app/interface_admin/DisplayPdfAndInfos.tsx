@@ -47,7 +47,7 @@ const DisplayPdfAndInfos: React.FC<Props> = ({ pdfFiles }) => {
   
       // Extraire le texte de chaque page
       const texts: string[] = []; // Pour stocker le texte extrait de chaque page
-      const pagesToExtract = totalNumPages - 1; // Arrêter à l'avant-dernière page
+      const pagesToExtract = totalNumPages; // Arrêter à l'avant-dernière page
       for (let i = 1; i <= pagesToExtract; i++) { // Inclure l'avant-dernière page
         const page = await pdf.getPage(i);
         const viewport = page.getViewport({ scale: 1.5 });
@@ -82,7 +82,7 @@ const DisplayPdfAndInfos: React.FC<Props> = ({ pdfFiles }) => {
         texts.push(formattedText); // Ajouter le texte extrait
         texts.push('[PAGE_BREAK]'); //Séparateur de page
       }
-  
+      
       setExtractedTexts(texts); // Mettre à jour l'état avec le texte extrait
         
       // Combine all extracted texts to analyze invoice details
@@ -90,9 +90,9 @@ const DisplayPdfAndInfos: React.FC<Props> = ({ pdfFiles }) => {
       setFullText(combinedText); // Mettre à jour l'état avec le texte complet
       
       const results = ExtractInfosFromTextOCR(combinedText);
+
       console.log("mes infos du pdf", results)
       setInfosFromPdf(results); // Mettre à jour l'état avec les détails de la facture
-      console.log('Mon use state info pdf', infosFromPdf);
 
     } catch (error) {
       console.log('Erreur lors de l\'extraction du texte : ' + error);
@@ -100,24 +100,17 @@ const DisplayPdfAndInfos: React.FC<Props> = ({ pdfFiles }) => {
       setLoading(false);
     }
   };
-  
 
   useEffect(() => {
     if (pdfFiles.length > 0) {
       extractTextFromPdf(pdfFiles[currentIndex]);
     }
   }, [currentIndex, pdfFiles]);
-
-  useEffect(() => {
-    //console.log('Texte extrait mis à jour:', extractedTexts);
-  }, [extractedTexts]);
   
   useEffect(() => {
     console.log('Les détails de la facture sont mis à jour:', infosFromPdf);
   }, [infosFromPdf]);
-  console.log('les details enregistré dans le state', infosFromPdf) //=> fonctionne mais pas si on lui demande directement après qu'on lui ai affecté parce que asynchrone
 
-  //console.log("Voici mes pdfs",pdfFiles);
 
   return (
     <div className='m-5 flex'>
@@ -145,45 +138,33 @@ const DisplayPdfAndInfos: React.FC<Props> = ({ pdfFiles }) => {
         )}
       </div>
 
+      {/*Colonne pour les informations*/}
       <div className='bg-gray-200 rounded-md w-1/3 p-4 ml-4 mb-10 flex flex-col justify-between'>
         <div className='text-lg mb-4'>Veuillez valider les informations :</div>
 
         {/* Barre de chargement */}
-        <ProgressBar progress={progress} loading={loading} />
-
-        <div className='flex flex-col justify-start'>        
-          {/* Commenté pour ne pas afficher les textes extraits */}         
-          {/*extractedTexts.map((text, index) => (
-            <div key={index} className='flex my-2 justify-between items-center'>
-              <div className='flex justify-center'>
-                <div className='py-3 px-2 justify-center bg-white rounded-md text-xs'>Texte de la page {index + 1}</div>
-                <div className='ml-3 py-3 px-2 justify-center bg-white rounded-md text-xs'>{text}</div>
-              </div>
-              <button className='btn btn-success text-xs rounded-md px-2 py-1 ml-3'>
-                Valider
-              </button>
-            </div>
-          ))*/} 
-        </div>
+        <ProgressBar progress={progress} loading={loading} /> 
 
         {infosFromPdf && (
           <div className='mt-4'>
-            <h3>Détails de la Facture</h3>
-            <p><strong>Numéro de Facture :</strong> {infosFromPdf.facture}</p>
-            <p><strong>Période :</strong> {infosFromPdf.facturation_periode}</p>
-            
-            
             
             <h4>Détails des Services</h4>
-            {infosFromPdf.results && infosFromPdf.results.length > 0 ? (
+            {infosFromPdf && infosFromPdf.length > 0 ? (
             <ul>
-                {infosFromPdf.results.map((row, index) => (
+                {infosFromPdf.map((row, index) => (
                 <li key={index} className='pl-1 mb-2 ml-2 mt-2 bg-sky-300 text-gray-700 rounded-md'>
-                    <p><strong>Numéro de dossier :</strong> {row.dossierNumber}</p>
+                    <p><strong>Numéro de dossier :</strong> {row.cedNumber}</p>
+                    <p><strong>Numéro CED :</strong> {row.dossierNumber}</p>
                     <p><strong>Description + :</strong> {row.description_plus}</p>
+                    <p><strong>Prix unitaire + :</strong> {row.prix_unitaire_plus}</p>
+                    <p><strong>Quantité + :</strong> {row.quantite_plus}</p>
                     <p><strong>Total HT + :</strong> {row.total_ht_plus}</p>
+
                     <p><strong>Description - :</strong> {row.description_minus}</p>
+                    <p><strong>Prix unitaire - :</strong> {row.prix_unitaire_minus}</p>
+                    <p><strong>Quantité - :</strong> {row.quantite_minus}</p>
                     <p><strong>Total HT - :</strong> {row.total_ht_minus}</p>
+
                 </li>
                 ))}
             </ul>
@@ -202,6 +183,7 @@ const DisplayPdfAndInfos: React.FC<Props> = ({ pdfFiles }) => {
           Suivant
         </button>
       </div>
+      {/*fullText && <div>{fullText}</div>*/}
     </div>
   );
 };

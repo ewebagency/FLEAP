@@ -2,22 +2,22 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../database/supabaseClient';
 import { useSession } from '../component/SessionProvider';
-import DisplayPdfAndInfos from './DisplayPdfAndInfos';
+import DisplayPdfAndInfosPython from './DisplayPdfAndInfosPython';
 
 async function getPdfFromDB(user_id: string) {
     const { data, error } = await supabase
         .from('pdf_infos')
-        .select('name_pdf_in_bucket')
+        .select('id, name_pdf_in_bucket') // Ajout de l'ID dans la sélection
         .eq('user_id', user_id);
 
     if (error) {
         console.error("Erreur lors de la récupération des PDF du bucket:", error);
-        return [];
+        return { pdfUrls: [], pdfIds: [] }; // Retourne un objet avec des tableaux vides
     }
 
     // Récupérer les fichiers PDF directement depuis le bucket
     const pdfUrls = await Promise.all(data.map(async (pdf: any) => {
-        console.log("nom", pdf);
+        //console.log("nom", pdf);
         const { data: fileData, error } = await supabase
             .storage
             .from('pdfs_bucket') // Remplacez par le nom de votre bucket
@@ -31,12 +31,15 @@ async function getPdfFromDB(user_id: string) {
         return URL.createObjectURL(fileData); // Convertir le contenu en URL
     }));
 
-    return pdfUrls.filter(url => url !== null); // Filtrer les URLs nulles
+    const pdfIds = data.map(pdf => pdf.id); // Récupérer les IDs des PDF
+
+    return { pdfUrls: pdfUrls.filter(url => url !== null), pdfIds }; // Retourner les URLs et les IDs
 }
 
 const InterfaceAdminPage = () => { 
     const session = useSession();
     const [pdfFiles, setPdfFiles] = useState<string[]>([]);
+    const [pdfIds, setPdfIds] = useState<string[]>([]); // État pour les IDs des PDF
     const [loading, setLoading] = useState<boolean>(true); // État pour le chargement
 
     useEffect(() => {
@@ -44,18 +47,20 @@ const InterfaceAdminPage = () => {
             if (session && session.user?.id) {
                 setLoading(true); // Démarrer le chargement
                 const files = await getPdfFromDB(session.user.id);
-                setPdfFiles(files);
+                setPdfFiles(files.pdfUrls);
+                setPdfIds(files.pdfIds); // Mettre à jour les IDs des PDF
                 setLoading(false); // Fin du chargement
             }
         };
         fetchPdfFiles();
     }, [session]);
 
-    console.log("mes pdfs", pdfFiles.length);
+    //console.log("mes pdfs", pdfFiles.length);
 
     return (
         <div>
-            <DisplayPdfAndInfos pdfFiles={pdfFiles} />
+            <DisplayPdfAndInfosPython pdfFiles={pdfFiles} pdfIds={pdfIds} session_user_id={session?.user.id} />
+            {/* Vous pouvez également utiliser pdfIds ici si nécessaire */}
         </div>
     );
 };

@@ -15,6 +15,7 @@ export default function SignIn() {
     if (error) {
       alert(error.message);
     } else {
+      console.log('Sign in successful, redirecting...');
       router.push('/analysis');
     }
   };

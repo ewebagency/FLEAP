@@ -37,12 +37,16 @@ const SideBar = (props:SideBarProps) => {
 
 
     const handleLogout = async () => {
-        router.push('/auth/signin');
-        const { error } = await supabase.auth.signOut();
-        if (error) {
-            console.error('Error logging out:', error.message);
-        } else {
-            router.push('/auth/signin'); // Redirige vers la page de connexion après la déconnexion
+        try {
+            const { error } = await supabase.auth.signOut();
+            if (error) {
+                console.error('Error logging out:', error.message);
+            } else {
+                console.log("Déconnexion réussie, redirection en cours...");
+                router.push('/auth/signin');
+            }
+        } catch (err) {
+            console.error("Erreur inattendue lors de la déconnexion :", err);
         }
         console.log("Fin de la fonction handleLogout");
     };
