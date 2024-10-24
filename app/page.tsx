@@ -7,7 +7,7 @@ export default function Home() {
         <a href="/auth/signin" className="mt-4 btn btn-primary w-full bg-green-600 hover:bg-green-500 text-white text-lg border-white hover:border-white">Se connecter</a>
         <div className="mt-6 flex justify-between items-center">
           <div className="text-sm text-gray-200">Vous n&apos;avez pas de compte ?</div>
-          <a href="/auth/signup" className="btn btn-primary text-xs bg-green-600 hover:bg-green-500 text-white border-white hover:border-white">S'inscrire</a>
+          <a href="/auth/signup" className="btn btn-primary text-xs bg-green-600 hover:bg-green-500 text-white border-white hover:border-white">S&apos;inscrire</a>
         </div>
       </div>
     </div>
