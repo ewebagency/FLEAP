@@ -20,7 +20,7 @@ export default function UserSettings() {
     const handleChangePassword = async (e: React.FormEvent) => {
         e.preventDefault();
         const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: email,
+            email: email as string,
             password: pastPassword,
         });
 
