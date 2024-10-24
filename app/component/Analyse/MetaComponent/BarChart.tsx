@@ -36,28 +36,29 @@ const BarChart = () => {
     responsive: true,
     plugins: {
       legend: {
-        position: 'top', // Position de la légende
+        position: 'top' as const, // Specify as a constant
       },
       title: {
         display: true,
-        text: 'Revenus et Coûts par Mois', // Titre du graphique
+        text: 'Revenus et Coûts par Mois', // Title of the chart
       },
     },
     scales: {
       x: {
-        stacked: false, // Permet d'afficher les barres côte à côte
+        stacked: false, // Display bars side by side
       },
       y: {
-        stacked: false, // Permet d'afficher les barres côte à côte
+        stacked: false, // Display bars side by side
         beginAtZero: true,
         ticks: {
-          max: 10000, // Ajuste le maximum de l'axe Y pour rendre les barres plus petites
+          max: 10000, // Adjusts the maximum of the Y axis
         },
       },
     },
   };
+  
 
-  return <Bar data={data} options={options} height={60}/>;
+  return <Bar data={data} height={60}/> //options={options} />;
 };
 
 export default BarChart;
