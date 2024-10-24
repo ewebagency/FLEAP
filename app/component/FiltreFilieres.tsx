@@ -1,12 +1,15 @@
 "use client"
-import React from "react";
+import React, { useContext } from "react";
+import { AnalysisContext, useAnalysisContext } from "../analysis/AnalysisContext";
 
 interface FiltreFilieresProps {
-    selectedMaterials: { id: number; checked: boolean; color: string; label: string; }[];
+    //selectedMaterials: { id: number; checked: boolean; color: string; label: string; }[];
     onMaterialsChange: (id: number) => void;
 }
 
-const FiltreFilieres: React.FC<FiltreFilieresProps> = ({ selectedMaterials, onMaterialsChange }) => {
+const FiltreFilieres: React.FC<FiltreFilieresProps> = ({ onMaterialsChange }) => {
+    let { valueChain, selectedMaterials, serverData } = useAnalysisContext();
+    
     return (
         <div className="join m-5">
             {selectedMaterials.map((item, index) => (

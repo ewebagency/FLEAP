@@ -1,15 +1,16 @@
 "use client"
-import React, { useState, createContext, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import TabBarAnalyses from "../component/Analyse/TabBarAnalyses";
 import FiltreFilieres from "../component/FiltreFilieres";
 import { useSession } from "../component/SessionProvider";
+import { AnalysisContext } from "./AnalysisContext";
 
 // Créer le contexte
 interface MaterialType {
     valueChain: string;
     selectedMaterials: { id: number; checked: boolean; color: string; label: string; }[];
+    serverData : { labels: string[]; datasets: DatasetInterface[] }
 }
-
 interface DatasetInterface {
     id: number;
     label: string;
@@ -21,9 +22,8 @@ interface DatasetInterface {
     declassement: number;   // Valeur numérique
   }
 
-export const AnalysisContext = createContext<MaterialType>({ valueChain: '', selectedMaterials: [] });
-
 const AnalysisPage = () => {
+    
     const [selectedValueChain, setSelectedValueChain] = useState('Filières');
 
     const handleRadioValueChainChange = (event :React.ChangeEvent<HTMLInputElement>) => {
@@ -107,7 +107,7 @@ const AnalysisPage = () => {
                 </div>
                 <div className="text-xl">My value chain is {selectedValueChain}</div>
 
-                <FiltreFilieres selectedMaterials={selectedMaterials} onMaterialsChange={handleMaterialsChange} />
+                <FiltreFilieres onMaterialsChange={handleMaterialsChange} />
                 {loading && <div>Loading</div>}
                 <TabBarAnalyses/>
             </div>
@@ -116,3 +116,6 @@ const AnalysisPage = () => {
 }
 
 export default AnalysisPage
+
+
+//PArtie correcte !!

@@ -1,10 +1,10 @@
-import { AnalysisContext } from "@/app/analysis/page";
+import { useAnalysisContext } from "@/app/analysis/AnalysisContext";
 import { table } from "console";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 
 const AnalOpTable = () => {
-    const { valueChain, selectedMaterials, serverData } = useContext(AnalysisContext);
+    const { valueChain, selectedMaterials, serverData } = useAnalysisContext()
 
 
     // Assurez-vous que vous utilisez tableData correctement dans votre rendu
