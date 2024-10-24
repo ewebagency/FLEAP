@@ -4,6 +4,8 @@ import { supabase } from '../database/supabaseClient';
 import { useSession } from '../component/SessionProvider';
 import DisplayPdfAndInfosPython from './DisplayPdfAndInfosPython';
 
+interface PdfInterf {id: string, name_pdf_in_bucket: string}
+
 async function getPdfFromDB(user_id: string) {
     const { data, error } = await supabase
         .from('pdf_infos')
@@ -16,8 +18,8 @@ async function getPdfFromDB(user_id: string) {
     }
 
     // Récupérer les fichiers PDF directement depuis le bucket
-    const pdfUrls = await Promise.all(data.map(async (pdf: any) => {
-        //console.log("nom", pdf);
+    const pdfUrls = await Promise.all(data.map(async (pdf: PdfInterf) => {
+        console.log("nom", pdf);
         const { data: fileData, error } = await supabase
             .storage
             .from('pdfs_bucket') // Remplacez par le nom de votre bucket

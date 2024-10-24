@@ -1,8 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useSession } from '../component/SessionProvider'; // Assurez-vous d'importer le hook de session
 
+interface FactureInterface {
+    id: bigint;
+    created_at: string;
+    user_id: string | null;
+    pdf_infos_id: string | null;
+    infos_json: Record<string, any> | null;
+  }
+
 const TableRegistre = () => {
-    const [factures, setFactures] = useState<any[]>([]); // État pour stocker les factures
+    const [factures, setFactures] = useState<FactureInterface[]>([]); // État pour stocker les factures
     const [loading, setLoading] = useState(true); // État pour gérer le chargement
     const [error, setError] = useState<string | null>(null); // État pour gérer les erreurs
     const session = useSession(); // Récupérer la session utilisateur
