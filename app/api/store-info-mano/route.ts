@@ -28,10 +28,15 @@ export async function POST(request: Request) {
 
     // Attendre que toutes les insertions soient terminées
     try {
-      await Promise.all(insertPromises);
-    } catch (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+        await Promise.all(insertPromises);
+      } catch (error) {
+        // Assertion de type pour indiquer que error est de type Error
+        if (error instanceof Error) {
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        } else {
+          return NextResponse.json({ error: 'Une erreur inconnue est survenue.' }, { status: 500 });
+        }
+      }
   } else {
     // Si formValues n'est pas un tableau, insérer directement
     const { error } = await supabase
