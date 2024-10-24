@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+/*import React, { useState } from 'react';
 import { pdfjs } from 'pdfjs-dist';
 import Tesseract from 'tesseract.js';
 
@@ -70,3 +70,4 @@ const PdfOcrReader: React.FC = () => {
 };
 
 export default PdfOcrReader;
+*/

@@ -1,4 +1,4 @@
-'use client';
+/*'use client';
 import React, { useState } from 'react';
 import * as pdfjsLib from "pdfjs-dist/build/pdf";
 import { pdfjs } from 'pdfjs-dist';
@@ -72,3 +72,4 @@ const NewClientComponent: React.FC = () => {
 };
 
 export default NewClientComponent;
+*/

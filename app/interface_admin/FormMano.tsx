@@ -158,7 +158,7 @@ const PdfMano: React.FC<PdfManoProps> = ({handleChange, isCompleted, onNext, ses
               />
             </div>
             <div>
-              <label className="text-sm">Date d'enlèvement :</label>
+              <label className="text-sm">Date d&apos;enlèvement :</label>
               <input
                 type="date"
                 value={referencePerson.date}
