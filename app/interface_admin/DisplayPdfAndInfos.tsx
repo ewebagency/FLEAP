@@ -1,4 +1,4 @@
-'use client';
+/*'use client';
 import React, { useState, useEffect } from 'react';
 import Tesseract from 'tesseract.js';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/build/pdf';
@@ -133,7 +133,7 @@ const DisplayPdfAndInfos: React.FC<Props> = ({ pdfFiles }) => {
 
   return (
     <div className='m-5 flex'>
-      {/* Colonne pour le PDF */}
+    
       <div style={{ 
         transform: 'scale(0.9)',
         transformOrigin: 'top left',
@@ -157,11 +157,11 @@ const DisplayPdfAndInfos: React.FC<Props> = ({ pdfFiles }) => {
         )}
       </div>
 
-      {/*Colonne pour les informations*/}
+      
       <div className='bg-gray-200 rounded-md w-1/3 p-4 ml-4 mb-10 flex flex-col justify-between'>
         <div className='text-lg mb-4'>Veuillez valider les informations :</div>
 
-        {/* Barre de chargement */}
+      
         <ProgressBar progress={progress} loading={loading} /> 
 
         {infosFromPdf && (
@@ -202,9 +202,9 @@ const DisplayPdfAndInfos: React.FC<Props> = ({ pdfFiles }) => {
           Suivant
         </button>
       </div>
-      {/*fullText && <div>{fullText}</div>*/}
+    
     </div>
   );
 };
 
-export default DisplayPdfAndInfos;
+export default DisplayPdfAndInfos;*/

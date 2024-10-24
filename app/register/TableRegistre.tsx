@@ -2,13 +2,24 @@ import React, { useEffect, useState } from 'react';
 import { useSession } from '../component/SessionProvider'; // Assurez-vous d'importer le hook de session
 
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+interface InfosJson {
+    dossierNumber?: string;
+    quantite_plus?: number;
+    total_ht_plus?: number;
+    prix_unitaire_plus?: number;
+    quantite_minus?: number;
+    total_ht_minus?: number;
+    prix_unitaire_minus?: number;
+    tva_minus?: number;
+}
+
 interface FactureInterface {
     id: bigint;
     created_at: string;
     user_id: string | null;
     pdf_infos_id: string | null;
-    infos_json: Json | null;
-  }
+    infos_json: InfosJson | null;
+}
 
 const TableRegistre = () => {
     const [factures, setFactures] = useState<FactureInterface[]>([]); // État pour stocker les factures
@@ -37,7 +48,7 @@ const TableRegistre = () => {
                 const data = await response.json();
                 setFactures(data); // Mettre à jour l'état avec les données récupérées
             } catch (err) {
-                setError(err.message); // Gérer les erreurs
+                setError((err as Error).message); // Gérer les erreurs
             } finally {
                 setLoading(false); // Arrêter le chargement
             }
@@ -79,14 +90,14 @@ const TableRegistre = () => {
                             <td className="py-3 px-6">{facture.id}</td>
                             <td className="py-3 px-6">{facture.user_id}</td>
                             <td className="py-3 px-6">{facture.pdf_infos_id}</td>
-                            <td className="py-3 px-6">{facture.infos_json.dossierNumber}</td>
-                            <td className="py-3 px-6">{facture.infos_json.quantite_plus}</td>
-                            <td className="py-3 px-6">{facture.infos_json.total_ht_plus} €</td>
-                            <td className="py-3 px-6">{facture.infos_json.prix_unitaire_plus} €</td>
-                            <td className="py-3 px-6">{facture.infos_json.quantite_minus}</td>
-                            <td className="py-3 px-6">{facture.infos_json.total_ht_minus} €</td>
-                            <td className="py-3 px-6">{facture.infos_json.prix_unitaire_minus} €</td>
-                            <td className="py-3 px-6">{facture.infos_json.tva_minus}</td>
+                            <td className="py-3 px-6">{facture.infos_json?.dossierNumber}</td>
+                            <td className="py-3 px-6">{facture.infos_json?.quantite_plus}</td>
+                            <td className="py-3 px-6">{facture.infos_json?.total_ht_plus} €</td>
+                            <td className="py-3 px-6">{facture.infos_json?.prix_unitaire_plus} €</td>
+                            <td className="py-3 px-6">{facture.infos_json?.quantite_minus}</td>
+                            <td className="py-3 px-6">{facture.infos_json?.total_ht_minus} €</td>
+                            <td className="py-3 px-6">{facture.infos_json?.prix_unitaire_minus} €</td>
+                            <td className="py-3 px-6">{facture.infos_json?.tva_minus}</td>
                         </tr>
                     ))}
                 </tbody>

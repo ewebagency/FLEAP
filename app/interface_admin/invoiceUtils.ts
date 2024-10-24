@@ -1,4 +1,4 @@
-export const extractInvoiceDetails = (text: string) => {
+/*export const extractInvoiceDetails = (text: string) => {
     const invoiceNumberMatch = text.match(/Facture N° (\w+)/);
     const billingPeriodMatch = text.match(/Période de facturation : (\d{2}\/\d{2}\/\d{4}) au (\d{2}\/\d{2}\/\d{4})/);
     const totalHTMatch = text.match(/Total HT (\d+.*\d+)/);
@@ -43,4 +43,4 @@ export const extractInvoiceDetails = (text: string) => {
     }
     return details;
   };
-  
+  */

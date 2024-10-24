@@ -1,4 +1,4 @@
-'use client';
+/*'use client';
 import React from 'react';
 
 interface infosFromPdfInterface {
@@ -192,3 +192,4 @@ const PdfForm: React.FC<PdfFormProps> = ({ formValues, handleChange, handleSubmi
 };
 
 export default PdfForm;
+*/

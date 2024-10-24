@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../database/supabaseClient';
 import { useSession } from '../component/SessionProvider';
-import DisplayPdfAndInfosPython from './DisplayPdfAndInfosPython';
+//import DisplayPdfAndInfosPython from './DisplayPdfAndInfosPython';
 
 interface PdfInterf {id: string, name_pdf_in_bucket: string}
 
@@ -61,8 +61,9 @@ const InterfaceAdminPage = () => {
 
     return (
         <div>
-            <DisplayPdfAndInfosPython pdfFiles={pdfFiles} pdfIds={pdfIds} session_user_id={session?.user.id} />
-            {/* Vous pouvez également utiliser pdfIds ici si nécessaire */}
+            {/*<DisplayPdfAndInfosPython pdfFiles={pdfFiles} pdfIds={pdfIds} session_user_id={session?.user.id ?? null} />*/}
+            <h1>interface admin</h1>
+    
         </div>
     );
 };

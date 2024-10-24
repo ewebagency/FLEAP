@@ -1,5 +1,5 @@
 
-
+/*
 export const ExtractInfosFromTextOCR = (text:string) => {
 
     // Récupérer tous les textes entre chaque occurrence de "Dossier"
@@ -147,3 +147,4 @@ function extractDetails(line) {
         tva
     };
 }
+*/

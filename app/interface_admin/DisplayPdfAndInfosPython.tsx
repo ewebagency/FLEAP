@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+/*import React, { useState, useEffect } from 'react';
 import ProgressBar from './ProgressBar'; 
 import { ExtractInfosFromTextOCR } from './ExtractInfosFromTextOCR';
 import { supabase } from '@/app/database/supabaseClient';
-import PdfForm from './PdfForm';
 import PdfMano from './FormMano';
+import { FormValuesInterface } from './FormMano'; // Add this import
 
 interface Props {
   pdfFiles: string[];
-  session_user_id: string;
+  session_user_id: string | null;
   pdfIds: string[];
 }
 
@@ -31,12 +31,14 @@ interface infosFromPdfInterface {
   tva_minus:string | null,
 }
 
+
+
 const DisplayPdfAndInfosPython: React.FC<Props> = ({ pdfFiles, pdfIds, session_user_id }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [extractedTexts, setExtractedTexts] = useState<string[]>([]);
   const [infosFromPdf, setInfosFromPdf] = useState<infosFromPdfInterface | null>(null);
-  const [formValues, setFormValues] = useState<infosFromPdfInterface | null>(null);
+  const [formValues, setFormValues] = useState<FormValuesInterface>({ referencePerson: '', items: [] }); // Update the type of formValues
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
 
   const checkPdfExists = async (pdfId: string) => {
@@ -97,27 +99,22 @@ const DisplayPdfAndInfosPython: React.FC<Props> = ({ pdfFiles, pdfIds, session_u
       setExtractedTexts(texts);
       
       const results = ExtractInfosFromTextOCR(formattedText);
-      setInfosFromPdf(results);
+      setInfosFromPdf(results.length > 0 ? results[0] : null); // Set the first result
 
       
 
-      setFormValues(results.map(row => ({
-        dossierNumber: row.dossierNumber,
-        cedNumber: row.cedNumber,
-        uppercaseLine: row.uppercaseLine,
-        matterLine: row.matterLine,
-        description_plus: row.description_plus,
-        type_plus: row.type_plus,
-        total_ht_plus: row.total_ht_plus,
-        prix_unitaire_plus: row.prix_unitaire_plus,
-        quantite_plus: row.quantite_plus,
-        description_minus: row.description_minus,
-        type_minus: row.type_minus,
-        total_ht_minus: row.total_ht_minus,
-        prix_unitaire_minus: row.prix_unitaire_minus,
-        quantite_minus: row.quantite_minus,
-        tva_minus: row.tva_minus,
-      })));
+      setFormValues({
+        referencePerson: {siret: '', name: '', surname: '', date: ''},
+        items: results.map(row => ({
+          siteName: '', // Add default or map from row if available
+          cedCode: row.cedNumber || '', // Map from row or provide default
+          referenceDate: '', // Add default or map from row if available
+          preparation: { quantity: '', weight: '', unitPrice: '', totalHT: '' }, // Add default or map from row if available
+          transport: { quantity: '', weight: '', unitPrice: '', totalHT: '' }, // Add default or map from row if available
+          treatment: { quantity: '', weight: '', unitPrice: '', totalHT: '' }, // Add default or map from row if available
+          // Add other properties from row as needed
+        }))
+      });
 
     } catch (error) {
       console.log('Erreur lors de l\'extraction du texte depuis l\'API : ' + error);
@@ -211,14 +208,15 @@ const DisplayPdfAndInfosPython: React.FC<Props> = ({ pdfFiles, pdfIds, session_u
             )}
           </div>
 
-          {/*<PdfForm 
+          <PdfForm 
             formValues={formValues}
             handleChange={handleChange}
             handleSubmit={handleSubmit}
             isCompleted={isCompleted}
             onNext={handleNext}
-          />*/}
+          />
           <PdfMano
+            formValues={formValues}
             handleChange={(index, field, value) => {
               // Handle changes from PdfForm if needed
             }}
@@ -234,3 +232,4 @@ const DisplayPdfAndInfosPython: React.FC<Props> = ({ pdfFiles, pdfIds, session_u
 };
 
 export default DisplayPdfAndInfosPython;
+*/

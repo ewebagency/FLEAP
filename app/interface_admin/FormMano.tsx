@@ -1,4 +1,4 @@
-'use client';
+/*'use client';
 import React, { useState } from 'react';
 
 interface Item {
@@ -25,12 +25,14 @@ interface Item {
   };
 }
 interface ReferencePersonInterface { siret: string; name: string; surname: string; date: string }
-interface FormValuesInterface {referencePerson: ReferencePersonInterface, items: Item[]}
+export interface FormValuesInterface {referencePerson: ReferencePersonInterface, items: Item[]}
 interface PdfManoProps {
   formValues: FormValuesInterface;
   handleChange: (index: number, field: string, value: string | Item[]) => void;
   isCompleted: boolean;
   onNext: () => void; // Function to go to the next PDF
+  session_user_id: string | null;
+  pdfId: string;
 }
 
 const PdfMano: React.FC<PdfManoProps> = ({handleChange, isCompleted, onNext, session_user_id, pdfId }) => {
@@ -136,7 +138,7 @@ const PdfMano: React.FC<PdfManoProps> = ({handleChange, isCompleted, onNext, ses
       ) : (
         <form onSubmit={async (e) => { 
           e.preventDefault(); 
-          await handleSubmit(referencePerson, items, session_user_id, pdfId);
+          await handleSubmit(); // Remove parameters
           onNext(); // Call onNext to proceed to the next PDF
         }} className='space-y-1'>
           <div>
@@ -364,3 +366,4 @@ const PdfMano: React.FC<PdfManoProps> = ({handleChange, isCompleted, onNext, ses
 };
 
 export default PdfMano;
+*/

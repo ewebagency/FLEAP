@@ -107,7 +107,10 @@ const AnalysisPage = () => {
                 </div>
                 <div className="text-xl">My value chain is {selectedValueChain}</div>
 
-                <FiltreFilieres onMaterialsChange={handleMaterialsChange} />
+                <FiltreFilieres 
+                    selectedMaterials={selectedMaterials} 
+                    onMaterialsChange={handleMaterialsChange} 
+                />
                 {loading && <div>Loading</div>}
                 <TabBarAnalyses/>
             </div>

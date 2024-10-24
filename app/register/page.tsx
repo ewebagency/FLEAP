@@ -46,7 +46,10 @@ const RegisterPage = () => {
                 </div>
             </div>
             <div className="flex justify-between items-center">
-                <FiltreFilieres selectedMaterials={selectedMaterials} onMaterialsChange={handleMaterialsChange} />
+                <FiltreFilieres 
+                    selectedMaterials={selectedMaterials} 
+                    onMaterialsChange={handleMaterialsChange} 
+                />
                 <div className="flex justify-center items-center py-1 px-2 rounded-xl border-[1px] border-gray-600 bg-white text-gray-600 text-xs">
                     <div className="mr-2">🖍</div>
                     <div>Détails filières</div>
