@@ -30,7 +30,11 @@ export async function POST(request: Request) {
     try {
       await Promise.all(insertPromises);
     } catch (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+        if (error instanceof Error) {
+            return NextResponse.json({ error: error.message }, { status: 500 });
+          } else {
+            return NextResponse.json({ error: 'Une erreur inconnue est survenue.' }, { status: 500 });
+          }
     }
   } else {
     // Si formValues n'est pas un tableau, insérer directement
