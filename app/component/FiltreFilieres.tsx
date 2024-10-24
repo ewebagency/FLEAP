@@ -8,7 +8,7 @@ interface FiltreFilieresProps {
 }
 
 const FiltreFilieres: React.FC<FiltreFilieresProps> = ({ onMaterialsChange }) => {
-    let { valueChain, selectedMaterials, serverData } = useAnalysisContext();
+    const { valueChain, selectedMaterials, serverData } = useAnalysisContext();
     
     return (
         <div className="join m-5">
