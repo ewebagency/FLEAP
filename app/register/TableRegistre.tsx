@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useSession } from '../component/SessionProvider'; // Assurez-vous d'importer le hook de session
 
+type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 interface FactureInterface {
     id: bigint;
     created_at: string;
     user_id: string | null;
     pdf_infos_id: string | null;
-    infos_json: Record<string, any> | null;
+    infos_json: Json | null;
   }
 
 const TableRegistre = () => {

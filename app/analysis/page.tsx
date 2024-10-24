@@ -10,6 +10,17 @@ interface MaterialType {
     selectedMaterials: { id: number; checked: boolean; color: string; label: string; }[];
 }
 
+interface DatasetInterface {
+    id: number;
+    label: string;
+    data: number[];  // Tableau de données numériques
+    backgroundColor: string;
+    borderColor: string;
+    fill: boolean;
+    remplissage: number[];  // Tableau de pourcentages ou de valeurs numériques
+    declassement: number;   // Valeur numérique
+  }
+
 export const AnalysisContext = createContext<MaterialType>({ valueChain: '', selectedMaterials: [] });
 
 const AnalysisPage = () => {
@@ -55,7 +66,7 @@ const AnalysisPage = () => {
       };
 
 
-      const [serverData, setServerData] = useState<{ labels: string[]; datasets: any[] }>({ labels: [], datasets: [] });
+      const [serverData, setServerData] = useState<{ labels: string[]; datasets: DatasetInterface[] }>({ labels: [], datasets: [] });
       const [loading, setLoading] = useState(true);
       //const [error, setError] = useState(null);
   

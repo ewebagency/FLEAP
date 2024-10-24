@@ -13,12 +13,31 @@ interface Props {
   pdfFiles: string[];
 }
 
+interface infosFromPdfInterface {
+  dossierNumber:string | null,
+  uppercaseLine:string | null,
+  matterLine:string | null,
+  cedNumber:string | null,
+  plusLine:string | null,
+  description_plus:string | null,
+  type_plus:string | null,
+  total_ht_plus:string | null,
+  prix_unitaire_plus:string | null, 
+  quantite_plus:string | null,
+  minusLine:string | null,
+  description_minus:string | null, 
+  type_minus:string | null, 
+  total_ht_minus:string | null, 
+  prix_unitaire_minus:string | null,
+  quantite_minus:string | null, 
+  tva_minus:string | null,
+}
 
 const DisplayPdfAndInfos: React.FC<Props> = ({ pdfFiles }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [extractedTexts, setExtractedTexts] = useState<string[]>([]); // Pour stocker le texte extrait
-  const [infosFromPdf, setInfosFromPdf] = useState<any>(null); // Pour stocker les détails de la facture
+  const [infosFromPdf, setInfosFromPdf] = useState<infosFromPdfInterface | null>(null); // Pour stocker les détails de la facture
   const [progress, setProgress] = useState<number>(0); // Pour suivre le progrès de l'extraction
   const [numPages, setNumPages] = useState<number>(0); // Pour stocker le nombre total de pages
   const [fullText, setFullText] = useState<string>(''); // État pour stocker le texte complet

@@ -1,4 +1,4 @@
-"use client";
+/*"use client";
 import img_to_text_convertor from "../../lib/img_to_text_convertor";
 import React, { useRef, useState } from "react";
 import { BsImageFill } from "react-icons/bs";
@@ -76,4 +76,4 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default Home;*/

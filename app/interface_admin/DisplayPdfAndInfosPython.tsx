@@ -11,12 +11,32 @@ interface Props {
   pdfIds: string[];
 }
 
+interface infosFromPdfInterface {
+  dossierNumber:string | null,
+  uppercaseLine:string | null,
+  matterLine:string | null,
+  cedNumber:string | null,
+  plusLine:string | null,
+  description_plus:string | null,
+  type_plus:string | null,
+  total_ht_plus:string | null,
+  prix_unitaire_plus:string | null, 
+  quantite_plus:string | null,
+  minusLine:string | null,
+  description_minus:string | null, 
+  type_minus:string | null, 
+  total_ht_minus:string | null, 
+  prix_unitaire_minus:string | null,
+  quantite_minus:string | null, 
+  tva_minus:string | null,
+}
+
 const DisplayPdfAndInfosPython: React.FC<Props> = ({ pdfFiles, pdfIds, session_user_id }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [extractedTexts, setExtractedTexts] = useState<string[]>([]);
-  const [infosFromPdf, setInfosFromPdf] = useState<any>(null);
-  const [formValues, setFormValues] = useState<any[]>([]);
+  const [infosFromPdf, setInfosFromPdf] = useState<infosFromPdfInterface | null>(null);
+  const [formValues, setFormValues] = useState<infosFromPdfInterface | null>(null);
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
 
   const checkPdfExists = async (pdfId: string) => {

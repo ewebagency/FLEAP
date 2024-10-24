@@ -1,8 +1,28 @@
 'use client';
 import React from 'react';
 
+interface infosFromPdfInterface {
+    dossierNumber:string | null,
+    uppercaseLine:string | null,
+    matterLine:string | null,
+    cedNumber:string | null,
+    plusLine:string | null,
+    description_plus:string | null,
+    type_plus:string | null,
+    total_ht_plus:string | null,
+    prix_unitaire_plus:string | null, 
+    quantite_plus:string | null,
+    minusLine:string | null,
+    description_minus:string | null, 
+    type_minus:string | null, 
+    total_ht_minus:string | null, 
+    prix_unitaire_minus:string | null,
+    quantite_minus:string | null, 
+    tva_minus:string | null,
+  }
+
 interface PdfFormProps {
-  formValues: any[];
+  formValues: infosFromPdfInterface|null;
   handleChange: (index: number, field: string, value: string) => void;
   handleSubmit: () => Promise<void>;
   isCompleted: boolean;
