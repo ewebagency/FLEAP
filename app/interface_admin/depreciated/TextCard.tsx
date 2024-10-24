@@ -1,4 +1,4 @@
-import React from "react";
+/*import React from "react";
 
 const TextCard = ({ t, i }: { t: string; i: number }) => {
   const copyToCLipBoard = (txt: string) => {
@@ -28,4 +28,4 @@ const TextCard = ({ t, i }: { t: string; i: number }) => {
   );
 };
 
-export default TextCard;
+export default TextCard;*/

@@ -8,7 +8,7 @@ const AnalOpTable = () => {
 
 
     // Assurez-vous que vous utilisez tableData correctement dans votre rendu
-    const data = [];
+    const data: { id: number; type: string; collecte: number; remplissage: number; declassement: number }[] = [];
     serverData.datasets.map((row) => {
         data.push({
             id:row.id, type: row.label, collecte: row.data[0], remplissage: row.remplissage[0], declassement: row.declassement

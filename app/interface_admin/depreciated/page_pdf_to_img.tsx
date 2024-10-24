@@ -1,4 +1,4 @@
-"use client";
+/*"use client";
 import { useEffect, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { createCanvas } from 'canvas';
@@ -62,3 +62,4 @@ export default function Home() {
     </div>
   );
 }
+*/

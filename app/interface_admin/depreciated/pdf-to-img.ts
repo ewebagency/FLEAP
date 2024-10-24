@@ -1,4 +1,4 @@
-import { getDocument } from 'pdfjs-dist';
+/*import { getDocument } from 'pdfjs-dist';
 import { createCanvas } from 'canvas';
 
 export const pdfToImg = async (file: File): Promise<string[]> => {
@@ -27,3 +27,4 @@ export const pdfToImg = async (file: File): Promise<string[]> => {
 
   return images;
 };
+*/

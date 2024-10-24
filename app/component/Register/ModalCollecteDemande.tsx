@@ -2,20 +2,35 @@ import React, { useState } from "react";
 import InputDeroulant from './InputDeroulant';
 import InputText from './InputText';
 
+interface FormData {
+        filiere: string,
+        site: string,
+        adresse_enlevement: string,
+        personne_a_contacter_prenom_nom: string,
+        personne_a_contacter_email: string,
+        personne_a_contacter_tel: string,
+        nom_contenant: string,
+        nombre_contenant: string,
+        prestataire_destinataire: string,
+        modele_email: string,
+        a: string,
+        sujet: string,
+        message: string,
+}
 
 const ModalCollecteDemande = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
 
     const initialFormData: FormData = {
-        filiere: null,
-        site: null,
+        filiere: '',
+        site: '',
         adresse_enlevement: '',
-        personne_a_contacter_prenom_nom: null,
+        personne_a_contacter_prenom_nom: '',
         personne_a_contacter_email: '',
         personne_a_contacter_tel: '',
         nom_contenant: '',
         nombre_contenant: '',
-        prestataire_destinataire: null,
-        modele_email: null,
+        prestataire_destinataire: '',
+        modele_email: '',
         a: '',
         sujet: '',
         message: '',
@@ -24,7 +39,7 @@ const ModalCollecteDemande = ({ isOpen, onClose }: { isOpen: boolean, onClose: (
     const [formData, setFormData] = useState<FormData>(initialFormData);
 
     // Mise à jour de l'état à chaque modification
-    const handleChange = (e) => {
+    const handleChange = (e:React.ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData((prevData) => ({
             ...prevData,
@@ -32,7 +47,7 @@ const ModalCollecteDemande = ({ isOpen, onClose }: { isOpen: boolean, onClose: (
         }));
     };
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e:React.ChangeEvent<HTMLFormElement>) => {
         e.preventDefault(); // Empêcher le rechargement de la page
         // Envoi des données à l'API
         try {
