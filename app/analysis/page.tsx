@@ -5,6 +5,7 @@ import FiltreFilieres from "../component/FiltreFilieres";
 import { useSession } from "../component/SessionProvider";
 import { AnalysisContext } from "./AnalysisContext";
 
+//Juste to remove the vercel toolbar do a git push
 // Créer le contexte
 interface MaterialType {
     valueChain: string;
