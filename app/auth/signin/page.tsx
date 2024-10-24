@@ -7,11 +7,15 @@ import { useRouter } from 'next/navigation';
 export default function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false); // État de chargement
   const router = useRouter();
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true); // Démarrer le chargement
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false); // Arrêter le chargement
+
     if (error) {
       alert(error.message);
     } else {
@@ -30,6 +34,7 @@ export default function SignIn() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="border border-gray-300 p-2 mb-4 w-full rounded"
+          required
         />
         <input
           type="password"
@@ -37,8 +42,16 @@ export default function SignIn() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="border border-gray-300 p-2 mb-4 w-full rounded"
+          required
         />
-        <button type="submit" className="bg-blue-500 text-white p-2 rounded w-full">Sign In</button>
+        <button 
+          type="submit" 
+          className={`bg-blue-500 text-white p-2 rounded w-full ${loading ? 'opacity-50 cursor-not-allowed' : ''}`} 
+          disabled={loading} // Désactiver le bouton pendant le chargement
+        >
+          {loading ? 'Chargement...' : 'Se connecter'}
+        </button>
+        {loading && <div className="mt-2 text-center text-gray-500">Veuillez patienter...</div>} {/* Loader message */}
       </form>
     </div>
   );

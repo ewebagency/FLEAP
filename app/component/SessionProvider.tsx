@@ -1,9 +1,9 @@
-"use client"; // Nécessaire car on utilise des hooks client-side
+// SessionProvider.tsx
+"use client";
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '../database/supabaseClient';
 import { Session } from '@supabase/supabase-js';
-
 
 type SessionContextType = Session | null;
 const SessionContext = createContext<SessionContextType>(null);
@@ -11,32 +11,33 @@ const SessionContext = createContext<SessionContextType>(null);
 export const useSession = () => useContext(SessionContext);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+    const [session, setSession] = useState<Session | null>(null);
 
-  useEffect(() => {
-    // Fonction pour obtenir la session actuelle
-    const getSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session);
-    };
+    useEffect(() => {
+        const getSession = async () => {
+            try {
+                const { data } = await supabase.auth.getSession();
+                setSession(data?.session || null);
+            } catch (error) {
+                console.error('Erreur lors de la récupération de la session:', error);
+                setSession(null);
+            }
+        };
 
-    getSession();
+        getSession();
 
-    // Écoute les changements de session
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, sessionData) => {
-      const { data } = await supabase.auth.getSession(); // Récupère la session à chaque changement d'état
-      setSession(data.session);
-    });
+        const { data: authListener } = supabase.auth.onAuthStateChange((_event, sessionData) => {
+            setSession(sessionData); // Utilisation de sessionData directement
+        });
 
-    // Nettoyage de l'écouteur
-    return () => {
-      authListener.subscription?.unsubscribe();
-    };
-  }, []);
+        return () => {
+            authListener.subscription?.unsubscribe();
+        };
+    }, []);
 
-  return (
-    <SessionContext.Provider value={session}>
-      {children}
-    </SessionContext.Provider>
-  );
+    return (
+        <SessionContext.Provider value={session}>
+            {children}
+        </SessionContext.Provider>
+    );
 }
