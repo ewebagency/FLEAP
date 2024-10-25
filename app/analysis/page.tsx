@@ -106,7 +106,6 @@ const AnalysisPage = () => {
                         <input className="join-item btn btn-xs text-xs font-normal" type="radio" name="options_value_chaine" aria-label="Prestataires" value="Prestataires" checked={selectedValueChain=='Prestataires'} onChange={handleRadioValueChainChange} />
                     </div>
                 </div>
-                <div className="text-xl">My value chain is {selectedValueChain}</div>
 
                 <FiltreFilieres 
                     selectedMaterials={selectedMaterials} 

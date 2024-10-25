@@ -63,7 +63,7 @@ const SideBar = (props:SideBarProps) => {
                     <li><a href="/analysis" className="menu-item">Analyses</a></li>
                     <li><a href="/register" className="menu-item">Registre</a></li>
                     <li><a href="/import_page" className="menu-item">Importer</a></li>
-                    <li><a href="/interface_admin" className="menu-item">Vérification de factures</a></li>
+                    <li><a href="/interface_admin_2" className="menu-item">Vérification de factures</a></li>
                 </ul>
             </div>
             <DetailsSideBar 
