@@ -4,18 +4,20 @@
 import { supabase } from '@/app/database/supabaseClient';
 import { NextResponse } from 'next/server';
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<NextResponse> {
   const data_with_user_id = await request.json(); // Récupère les données envoyées
   const user_id = data_with_user_id.user_id;
 
-  const { data, error } = await supabase //get all pdfs from this user , (id, name_pdf_in_bucket)
+  const { data, error } = await supabase
   .from('pdf_infos')
   .select('id, name_pdf_in_bucket')
   .eq('user_id', user_id);
+  
   if (error) {
     console.error("Erreur lors de la récupération des PDF du bucket:", error);
-    return { pdfIds: [], pdfPaths: [] }; // Retourne un objet avec des tableaux vides
-    }
+    return NextResponse.json({ pdfIds: [], pdfPaths: [] }); // Ensure this returns a NextResponse
+  }
+  
   if (data.length === 0) {
     return NextResponse.json({ something_to_treat: false, pdf_id: '', pdf_path: '' }); // Handle case with no PDFs
   }
@@ -26,12 +28,12 @@ export async function POST(request: Request) {
       const is_treated = await check_if_pdf_already_treated(user_id, pdf_id);
       console.log("is_treated : ", is_treated);
       if(!is_treated){
-        return NextResponse.json({ something_to_treat: true, pdf_id:pdf_id, pdf_path:pdf_path });;
+        return NextResponse.json({ something_to_treat: true, pdf_id: pdf_id, pdf_path: pdf_path }); // Ensure this returns a NextResponse
       }
-    }
-    console.log("all pdfs already treated");
-    return NextResponse.json({ something_to_treat: false, pdf_id:'', pdf_path:'' });
-
+  }
+  
+  console.log("all pdfs already treated");
+  return NextResponse.json({ something_to_treat: false, pdf_id: '', pdf_path: '' }); // Ensure this returns a NextResponse
 }
 
 const check_if_pdf_already_treated = async (user_id: string, pdf_id: string) => {
