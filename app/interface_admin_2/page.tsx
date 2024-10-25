@@ -6,7 +6,7 @@ import { supabase } from "../database/supabaseClient";
 import FormulaireDisplayer from "../component/InterfaceAdmin2/FormulaireDisplayer";
 
 interface InfosJsonFromPdf {
-    [key: string]: string;
+    [key: string]: string | number | boolean; // Removed object type
 }
 
 const InterfaceAdmin2 = () => {
@@ -14,15 +14,15 @@ const InterfaceAdmin2 = () => {
     const [currentPdfPath, setCurrentPdfPath] = useState<string | null>(null);
     const [currentPdfBlob, setCurrentPdfBlob] = useState<Blob | null>(null);
     const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null);
-    const [infosJsonFromPdf, setInfosJsonFromPdf] = useState<string | null>(null);
+    const [infosJsonFromPdf, setInfosJsonFromPdf] = useState<InfosJsonFromPdf | null>(null);
     const [currentPdfId, setCurrentPdfId] = useState<string | null>(null);
-    const [loading, setLoading] = useState<boolean>(false); // État pour le loader
+    const [loading, setLoading] = useState<boolean>(false);
 
     const fetchCurrentPdfPath = async () => {
         if(session && session.user?.id){
             const user_id = session.user.id;
             try {
-                setLoading(true); // Commence le chargement
+                setLoading(true);
                 const res = await fetch('/api/interface_admin_2/fetch_current_pdf', {
                     method: 'POST',
                     headers: {
@@ -41,22 +41,20 @@ const InterfaceAdmin2 = () => {
             } catch (error) {
                 console.error('Erreur lors de la requête POST :', error);
             } finally {
-                setLoading(false); // Termine le chargement
+                setLoading(false);
             }
         }
     };
 
-    //Retrieve 1st PdfPath qui existe from API
     useEffect(() => {
         fetchCurrentPdfPath();
     }, [session]);
 
-    //Download blobPdf from supabase storage & create url
     useEffect(() => {
         const getPdfBlobAndUrl = async () => {
             if(currentPdfPath){
                 try {
-                    setLoading(true); // Commence le chargement
+                    setLoading(true);
                     const { data, error } = await supabase.storage.from('pdfs_bucket').download(encodeURIComponent(currentPdfPath));
                     if (error) {
                         console.error('Error downloading PDF:', error);
@@ -66,21 +64,20 @@ const InterfaceAdmin2 = () => {
                     setCurrentPdfUrl(url);
                     setCurrentPdfBlob(data);
                 } finally {
-                    setLoading(false); // Termine le chargement
+                    setLoading(false);
                 }
             }
         };
         getPdfBlobAndUrl();
     }, [currentPdfPath]);
 
-    //Send blobPdf to python server
     useEffect(() => {
         const sendBlobPdfToPythonServer = async () => {
             if(currentPdfBlob){
                 const formData = new FormData();
                 formData.append('file', currentPdfBlob);
                 try {
-                    setLoading(true); // Commence le chargement
+                    setLoading(true);
                     const response = await fetch('http://localhost:8000/treat-pdf/', {
                         method: 'POST',
                         body: formData,
@@ -93,7 +90,7 @@ const InterfaceAdmin2 = () => {
                 } catch (error) {
                     console.error('Erreur lors de l\'envoi du PDF:', error);
                 } finally {
-                    setLoading(false); // Termine le chargement
+                    setLoading(false);
                 }
             }
         };

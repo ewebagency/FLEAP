@@ -2,14 +2,24 @@ import React, { useEffect, useState } from 'react';
 import { useSession } from '../SessionProvider';
 import { supabase } from '@/app/database/supabaseClient';
 
-type FormDataType = { [key: string]: string | number | boolean | FormDataType | FormDataType[] }; // Définir un type pour formData
+type ValueType = string | number | FormDataType | FormDataType[];
 
-const renderField = (key: string, value: any, handleChange: (key: string, value: any) => void) => {
+type FormDataType = { [key: string]: string | number | boolean | FormDataType | FormDataType[] };
+
+interface JsonFormProps {
+    data: FormDataType;
+    currentPdfId: string | null;
+    onNextPdf: () => void;
+}
+
+const renderField = (key: string, value: ValueType, handleChange: (key: string, value: ValueType) => void) => {
   if (typeof value === 'object' && !Array.isArray(value)) {
     return (
       <fieldset key={key} className="mb-4 border p-2 rounded">
         <legend className="font-bold">{key}</legend>
-        {Object.entries(value).map(([subKey, subValue]) => renderField(subKey, subValue, (newKey, newValue) => handleChange(`${key}.${newKey}`, newValue)))}
+        {Object.entries(value).map(([subKey, subValue]) => 
+          renderField(subKey, subValue as ValueType, (newKey, newValue) => handleChange(`${key}.${newKey}`, newValue))
+        )}
       </fieldset>
     );
   }
@@ -20,9 +30,19 @@ const renderField = (key: string, value: any, handleChange: (key: string, value:
         {value.map((item, index) =>
           typeof item === 'object' ? (
             <div key={index} className="mb-2">
-              {Object.entries(item).map(([subKey, subValue]) => renderField(subKey, subValue, (newKey, newValue) => handleChange(`${key}[${index}].${newKey}`, newValue)))}
+              {Object.entries(item).map(([subKey, subValue]) => renderField(subKey, subValue as ValueType, (newKey, newValue) => handleChange(`${key}[${index}].${newKey}`, newValue)))}
             </div>
-          ) : null
+          ) : (
+            <div key={index} className="mb-2">
+              <label className="block text-sm font-medium text-gray-700">{key}[{index}]</label>
+              <input
+                type="text"
+                value={item}
+                onChange={(e) => handleChange(`${key}[${index}]`, e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+              />
+            </div>
+          )
         )}
       </fieldset>
     );
@@ -40,10 +60,10 @@ const renderField = (key: string, value: any, handleChange: (key: string, value:
   );
 };
 
-const JsonForm = ({ data, currentPdfId, onNextPdf }: { data: any, currentPdfId: string | null, onNextPdf: () => void }) => {
+const JsonForm: React.FC<JsonFormProps> = ({ data, currentPdfId, onNextPdf }) => {
     const [formData, setFormData] = useState<FormDataType>(data);
     const [userId, setUserId] = useState<string | null>(null);
-    const [loading, setLoading] = useState<boolean>(false); // État pour le loader
+    const [loading, setLoading] = useState<boolean>(false);
 
     const session = useSession();
 
@@ -53,7 +73,7 @@ const JsonForm = ({ data, currentPdfId, onNextPdf }: { data: any, currentPdfId: 
         }
     }, [session]);
 
-    const handleChange = (key: string, value: any) => {
+    const handleChange = (key: string, value: string|number|boolean) => {
         setFormData((prevData: FormDataType) => {
             const newData = { ...prevData };
             const keys = key.split('.');
@@ -71,9 +91,9 @@ const JsonForm = ({ data, currentPdfId, onNextPdf }: { data: any, currentPdfId: 
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        setLoading(true); // Commence le chargement
+        setLoading(true);
         try {
-            const {data :result, error} = await supabase
+            const { data: result, error } = await supabase
             .from('facture')
             .insert([{
                 user_id: userId,
@@ -84,10 +104,10 @@ const JsonForm = ({ data, currentPdfId, onNextPdf }: { data: any, currentPdfId: 
                 console.error("Error inserting facture", error);
             } else {
                 console.log("Facture inserted !");
-                onNextPdf(); // Appel de la fonction pour passer au prochain PDF
+                onNextPdf();
             }
         } finally {
-            setLoading(false); // Termine le chargement
+            setLoading(false);
         }
     };
 
@@ -99,7 +119,7 @@ const JsonForm = ({ data, currentPdfId, onNextPdf }: { data: any, currentPdfId: 
             </div>
         ) : (
             <>
-                {Object.entries(formData).map(([key, value]) => renderField(key, value, handleChange))}
+                {Object.entries(formData).map(([key, value]) => renderField(key, value as ValueType, handleChange as (key: string, value: ValueType) => void))}
                 <div className="flex justify-end">
                     <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">Valider & Passer à la suite</button>
                 </div>

@@ -1,12 +1,14 @@
 import JsonForm from "./JsonForm";
 
+type FormDataType = { [key: string]: string | number | boolean | FormDataType | FormDataType[] };
+
 interface FormulaireDisplayerProps {
-    infosJsonFromPdf: any; // Vous pouvez remplacer 'any' par un type plus spécifique si vous connaissez la structure exacte
+    infosJsonFromPdf: FormDataType; // Update to use the correct type
     currentPdfId: string | null;
-    onNextPdf: () => void; // Ajout de la fonction onNextPdf
+    onNextPdf: () => void;
 }
 
-const FormulaireDisplayer: React.FC<FormulaireDisplayerProps> = ({infosJsonFromPdf, currentPdfId, onNextPdf}) => {
+const FormulaireDisplayer: React.FC<FormulaireDisplayerProps> = ({ infosJsonFromPdf, currentPdfId, onNextPdf }) => {
     return (
         <div className="p-4">
             <JsonForm data={infosJsonFromPdf} currentPdfId={currentPdfId} onNextPdf={onNextPdf} />
