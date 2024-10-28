@@ -74,7 +74,7 @@ def header_from_text(text):
     # Expressions régulières pour extraire les informations
     invoice_number_match = re.search(r'Facture N° (\S+)', text)
     if invoice_number_match:
-        invoice_info['invoice_number'] = invoice_number_match.group(1)
+        invoice_info['num_facture'] = invoice_number_match.group(1)
 
     billing_period_match = re.search(r'Période de facturation : (\d{2}/\d{2}/\d{4} au \d{2}/\d{2}/\d{4})', text)
     if billing_period_match:
@@ -83,7 +83,7 @@ def header_from_text(text):
     # Recherche d'adresses génériques
     address_search = re.search(r'(\d+ .+?)(\d{5} .+?)\n', text, re.DOTALL)
     if address_search:
-        invoice_info['address'] = address_search.group(0).replace('\n', ', ').strip()
+        invoice_info['address'] = address_search.group(0).split('\n')[1:-1]
 
     # Téléphone et email génériques
     phone_match = re.search(r'Téléphone: (\S+)', text)
@@ -125,3 +125,12 @@ def header_from_text(text):
 
     return json.dumps(invoice_info, indent=4)
 
+
+## à rajouter dans mon fonctions parce que ça marche en dessous
+#print(header_from_text(text))
+
+#match = re.search(r'Période de facturation : \d{2}/\d{2}/\d{4} au\d{2}/\d{2}/\d{4}', text) # à revoir
+#print(match.group())
+
+match = re.search(r'Montant dû TTC\s+([\d,]+)', text)
+print(match.group())

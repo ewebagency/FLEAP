@@ -1,5 +1,5 @@
 // app/interface_admin_2/fetch_current_pdf/route.ts
-// Va chercher tous les pdfs, demande un par un à check_if_pdf_already_treated 
+// Va chercher tous les pdfs, demande un par un à check_if_pdf_already_treated_in_facture 
 // si il est traité ou pas et renvoie le premier qui n'est pas traité
 import { supabase } from '@/app/database/supabaseClient';
 import { NextResponse } from 'next/server';
@@ -11,7 +11,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const { data, error } = await supabase
   .from('pdf_infos')
   .select('id, name_pdf_in_bucket')
-  .eq('user_id', user_id);
+  //.eq('user_id', user_id); -> en fait on veut tous les pdfs (interface admin juste pour le cofounder, on vérifie les pdfs de tous les utilisateurs)
   
   if (error) {
     console.error("Erreur lors de la récupération des PDF du bucket:", error);
@@ -25,9 +25,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   for(let i = 0; i < data.length; i++){
       const pdf_id = data[i].id;
       const pdf_path = data[i].name_pdf_in_bucket;
-      const is_treated = await check_if_pdf_already_treated(user_id, pdf_id);
-      console.log("is_treated : ", is_treated);
-      if(!is_treated){
+      const is_treated_in_facture = await check_if_pdf_already_treated_in_facture(user_id, pdf_id);
+      const is_treated_in_bsd = await check_if_pdf_already_treated_in_bsd(user_id, pdf_id); 
+      console.log("is_treated_in_facture : ", is_treated_in_facture);
+      console.log("is_treated_in_bsd : ", is_treated_in_bsd);
+      if(!is_treated_in_facture && !is_treated_in_bsd){
         return NextResponse.json({ something_to_treat: true, pdf_id: pdf_id, pdf_path: pdf_path }); // Ensure this returns a NextResponse
       }
   }
@@ -36,7 +38,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   return NextResponse.json({ something_to_treat: false, pdf_id: '', pdf_path: '' }); // Ensure this returns a NextResponse
 }
 
-const check_if_pdf_already_treated = async (user_id: string, pdf_id: string) => {
+const check_if_pdf_already_treated_in_facture = async (user_id: string, pdf_id: string) => {
   const { data, error } = await supabase
   .from('facture')
   .select('id')
@@ -45,7 +47,7 @@ const check_if_pdf_already_treated = async (user_id: string, pdf_id: string) => 
   .maybeSingle();
 
   if(error){
-    console.error("Erreur lors de la vérification de l'existence du PDF :", error);
+    console.error("Erreur lors de la vérification de l'existence du PDF dans la table facture:", error);
     return false;
   }
   console.log("data retrieved : ", data);
@@ -55,3 +57,23 @@ const check_if_pdf_already_treated = async (user_id: string, pdf_id: string) => 
     return true; //pdf treated
   }
 }
+
+const check_if_pdf_already_treated_in_bsd = async (user_id: string, pdf_id: string) => {
+    const { data, error } = await supabase
+    .from('bsd')
+    .select('id')
+    .eq('pdf_infos_id', pdf_id)
+    .limit(1)
+    .maybeSingle();
+  
+    if(error){
+      console.error("Erreur lors de la vérification de l'existence du PDF dans la table bsd:", error);
+      return false;
+    }
+    console.log("data retrieved : ", data);
+    if(data===null){
+      return false; //pdf not treated
+    } else {
+      return true; //pdf treated
+    }
+  }

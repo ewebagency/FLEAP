@@ -4,6 +4,7 @@ import { useSession } from "../component/SessionProvider";
 import PdfDisplayer from "../component/InterfaceAdmin2/PdfDisplayer";
 import { supabase } from "../database/supabaseClient";
 import FormulaireDisplayer from "../component/InterfaceAdmin2/FormulaireDisplayer";
+import FormulaireManoJson from "../component/InterfaceAdmin2/FormulaireManoJson";
 
 interface InfosJsonFromPdf {
     [key: string]: string | number | boolean; // Removed object type
@@ -14,7 +15,7 @@ const InterfaceAdmin2 = () => {
     const [currentPdfPath, setCurrentPdfPath] = useState<string | null>(null);
     const [currentPdfBlob, setCurrentPdfBlob] = useState<Blob | null>(null);
     const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null);
-    const [infosJsonFromPdf, setInfosJsonFromPdf] = useState<InfosJsonFromPdf | null>(null);
+    //const [infosJsonFromPdf, setInfosJsonFromPdf] = useState<InfosJsonFromPdf | null>(null);
     const [currentPdfId, setCurrentPdfId] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
 
@@ -71,14 +72,16 @@ const InterfaceAdmin2 = () => {
         getPdfBlobAndUrl();
     }, [currentPdfPath]);
 
-    useEffect(() => {
+    /*useEffect(() => {
         const sendBlobPdfToPythonServer = async () => {
             if(currentPdfBlob){
                 const formData = new FormData();
                 formData.append('file', currentPdfBlob);
                 try {
                     setLoading(true);
-                    const response = await fetch('http://localhost:8000/treat-pdf/', {
+                    console.log('Envoi du PDF au serveur Python');
+                    const url_server_python_dyn = `${process.env.NEXT_PUBLIC_SERVER_PYTHON}/treat-pdf/`.toString();
+                    const response = await fetch(url_server_python_dyn, {
                         method: 'POST',
                         body: formData,
                     });
@@ -86,6 +89,7 @@ const InterfaceAdmin2 = () => {
                         throw new Error('Erreur lors de l\'envoi du PDF au serveur');
                     }
                     const result = await response.json();
+                    console.log("Réception du JSON du serveur Python");
                     setInfosJsonFromPdf(result);
                 } catch (error) {
                     console.error('Erreur lors de l\'envoi du PDF:', error);
@@ -95,13 +99,13 @@ const InterfaceAdmin2 = () => {
             }
         };
         sendBlobPdfToPythonServer();
-    }, [currentPdfBlob]);
+    }, [currentPdfBlob]);*/
 
     const handleNextPdf = () => {
         setCurrentPdfPath(null);
         setCurrentPdfBlob(null);
         setCurrentPdfUrl(null);
-        setInfosJsonFromPdf(null);
+        //setInfosJsonFromPdf(null);
         setCurrentPdfId(null);
         fetchCurrentPdfPath();
     };
@@ -118,7 +122,8 @@ const InterfaceAdmin2 = () => {
                         {currentPdfPath && <PdfDisplayer pdfUrl={currentPdfUrl} />}
                     </div>
                     <div className="w-2/5 pl-1 bg-gray-100 rounded-lg mt-2 mr-2 overflow-y-auto">
-                        {infosJsonFromPdf && <FormulaireDisplayer infosJsonFromPdf={infosJsonFromPdf} currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />}
+                        {/*infosJsonFromPdf && <FormulaireDisplayer infosJsonFromPdf={infosJsonFromPdf} currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />*/}
+                        <FormulaireManoJson currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />
                     </div>
                 </div>
             ) : (

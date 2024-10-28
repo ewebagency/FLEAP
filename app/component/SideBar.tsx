@@ -11,10 +11,26 @@ interface SideBarProps {
     className_props: string;
 }
 
+const cofounders_user_id = (user_id:string|null) => {
+    if (user_id){
+        if (user_id == "a0542794-bbae-4132-9dde-485595bfa2aa" || user_id == "8f05a291-f8b3-429d-839e-6f0b12f1bede" || user_id == "dd9acb15-4678-442f-af72-79331bc43d91"){
+            return true;
+        }
+    }
+    return false;
+}
+
 const SideBar = (props:SideBarProps) => {
     const session = useSession() as Session | null;
     const router = useRouter();
     const [userNames, setUserNames] = useState({first_name:'', last_name:''});
+    const [cofounderPermission, setCofounderPermission] = useState(false);
+
+    useEffect(()=>{
+        if (session && cofounders_user_id(session?.user?.id)){
+            setCofounderPermission(true);
+        }
+    }, [session]);
 
     useEffect(()=>{
         async function fetchUserNames(){
@@ -63,7 +79,7 @@ const SideBar = (props:SideBarProps) => {
                     <li><a href="/analysis" className="menu-item">Analyses</a></li>
                     <li><a href="/register" className="menu-item">Registre</a></li>
                     <li><a href="/import_page" className="menu-item">Importer</a></li>
-                    <li><a href="/interface_admin_2" className="menu-item">Vérification de factures</a></li>
+                    {cofounderPermission && <li><a href="/interface_admin_2" className="menu-item">Vérification de factures</a></li>}
                 </ul>
             </div>
             <DetailsSideBar 

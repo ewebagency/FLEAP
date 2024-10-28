@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import FiltreFilieres from "../component/FiltreFilieres";
 import CollecteDemande from "../component/Register/CollecteDemande";
 import TableRegistre from "./TableRegistre";
+import TableBSD from "./TableBSD";
 
 const RegisterPage = () => {
 
@@ -56,7 +57,8 @@ const RegisterPage = () => {
                 </div>
             </div>
             <div>
-                <TableRegistre/>
+                {/*<TableRegistre/>*/}
+                <TableBSD/>
             </div>
         </div>
     )
