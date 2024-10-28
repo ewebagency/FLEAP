@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 export async function GET(request: Request) {
+  console.log("GET AUTH CALLBACK");
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
 
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
       body: new URLSearchParams({
         grant_type: "authorization_code",
         code,
-        redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback`,
+        redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth_track_dechet/callback`,
       }),
     });
 
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
       path: "/",
     });
 
-    return NextResponse.redirect(new URL("/analysis", request.url));
+    return NextResponse.redirect(new URL("/import_page", request.url));
   } catch (error) {
     console.error("Erreur lors de l'authentification:", error);
     return NextResponse.json({ error: "Erreur lors de l'authentification" }, { status: 500 });

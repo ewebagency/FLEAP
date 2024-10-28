@@ -8,7 +8,7 @@ const BandeauAPI = () => {
     useEffect(() => {
         const fetchToken = async () => {
             try {
-                const res = await fetch('api/auth/token');
+                const res = await fetch('api/auth_track_dechet/token');
                 const result = await res.json();
                 setToken(result.data?.value || null);
             } catch (error) {
@@ -19,7 +19,7 @@ const BandeauAPI = () => {
     }, []);
 
     const client_id = process.env.NEXT_PUBLIC_TRACKDECHETS_CLIENT_ID;
-    const redirect_uri = encodeURIComponent(`${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback`);
+    const redirect_uri = encodeURIComponent(`${process.env.NEXT_PUBLIC_APP_URL}/api/auth_track_dechet/callback`);
 
     const handleAPIConnection = () => {
         console.log("OAuth2 en attente, token en dur dans le code => aller direct à la demande de collecte");
