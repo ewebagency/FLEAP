@@ -2,7 +2,27 @@ import { useEffect, useState } from "react";
 import { supabase } from "../database/supabaseClient";
 import { useSession } from "../component/SessionProvider";
 
-type FormDataType = { [key: string]: string | number | boolean | FormDataType | FormDataType[] };
+// Modifier le type FormDataType pour inclure un id
+type BSD = {
+    id: string;
+    infos_json: {
+        dechet_et_conditionnement: {
+            code_ced: string;
+            dechet_dangereux_facultatif: {
+                code_adr: string;
+                code_onu: string;
+            };
+            quantite: {
+                collectee: string | number;
+            };
+        };
+        acteurs: {
+            site_emeteur: {
+                adresse_collecte: string;
+            };
+        };
+    };
+};
 
 const fetchBSDs = async (user_id: string | null) => {
     console.log("user_id : ", user_id);
@@ -20,7 +40,7 @@ const fetchBSDs = async (user_id: string | null) => {
 
 const TableBSD = () => {
     const session = useSession();
-    const [bsds, setBSDs] = useState<FormDataType[]>([]);
+    const [bsds, setBSDs] = useState<BSD[]>([]);
 
     useEffect(() => {
         const loadBSDs = async () => {
