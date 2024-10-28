@@ -3,9 +3,37 @@ import { useSession } from "../../SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
 import { Session } from "@supabase/supabase-js";
 
+type JsonDataType = { [key: string]: string | number | boolean | JsonDataType | JsonDataType[] };
+
+type Facture = {
+    infos_json: {
+        facture_form: {
+            header: {
+                personne_de_reference: {
+                    prenom_nom: string;
+                }
+            },
+            departs: Array<{
+                infos_pour_filtrer: {
+                    description_adresse_site: string;
+                    description_dechet: string;
+                    code_ced: string;
+                    date_collecte: string;
+                },
+                ligne_compta_contenant: { montant_ht: number },
+                ligne_compta_preparation: { montant_ht: number },
+                ligne_compta_transport: { montant_ht: number },
+                ligne_compta_traitement: { montant_ht: number },
+                ligne_compta_tgap: { montant_ht: number },
+                ligne_compta_rachat_matiere: { montant_ht: number }
+            }>
+        }
+    }
+}
+
 const FacturesAnalyse = ({ active }: { active: boolean }) => {
     const session = useSession() as Session | null;
-    const [factures, setFactures] = useState<any[]>([]);
+    const [factures, setFactures] = useState<Facture[]>([]);
 
     useEffect(() => {
         const fetchFactures = async () => {
@@ -50,7 +78,7 @@ const FacturesAnalyse = ({ active }: { active: boolean }) => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                     {factures.flatMap((facture, factureIndex) => 
-                        facture.infos_json.facture_form.departs.map((depart: any, departIndex: number) => (
+                        facture.infos_json.facture_form.departs.map((depart, departIndex) => (
                             <tr key={`${factureIndex}-${departIndex}`} className="hover:bg-gray-50 transition duration-200">
                                 <td className="px-4 py-3 text-sm text-gray-900">
                                     {facture.infos_json.facture_form.header.personne_de_reference.prenom_nom}
