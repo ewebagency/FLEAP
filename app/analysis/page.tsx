@@ -74,7 +74,7 @@ const AnalysisPage = () => {
       useEffect(() => {
           const fetchData = async () => {
               try {
-                  const response = await fetch('http://localhost:3000/api/analysis');
+                  const response = await fetch('/api/analysis');
                   if (!response.ok) {
                       throw new Error('Erreur lors de la récupération des données');
                   }
