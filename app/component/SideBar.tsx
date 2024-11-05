@@ -5,6 +5,8 @@ import { supabase } from '../database/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { Session } from '@supabase/supabase-js';
 import DetailsSideBar from './DetailsSideBar';
+import FiltreSite from './FiltreSite';
+import FiltreDate from './FiltreDate';
 
 
 interface SideBarProps {
@@ -75,6 +77,8 @@ const SideBar = (props:SideBarProps) => {
         <div className={`menu h-screen bg-base-200 w-60 p-4 flex flex-col ${props.className_props}`}>
             <div className="flex-grow">
                 <h1 className="font-bold text-xl mb-4">Menu</h1>
+                <FiltreSite/>
+                <FiltreDate/>
                 <ul className="space-y-2">
                     <li><a href="/analysis" className="menu-item">Analyses</a></li>
                     <li><a href="/register" className="menu-item">Registre</a></li>

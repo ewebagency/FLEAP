@@ -2,16 +2,21 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from extract_text_from_pdf import extract_text
 from utils import compta_lines_from_text, header_from_text
+from extract_info_xlsx_autocompletion.test import info_completion_from_excel
+from typing import Optional
 
 app = FastAPI()
 
 # Configurer CORS pour autoriser les requêtes du frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Remplace par l'URL de ton frontend
+    allow_origins=[
+        "http://localhost:3000",  # Development
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Permet toutes les méthodes HTTP
+    allow_headers=["*"],  # Permet tous les headers
+    expose_headers=["*"]  # Expose tous les headers dans la réponse
 )
 
 @app.post("/treat-pdf/")
@@ -22,5 +27,14 @@ async def treat_pdf(file: UploadFile = File(...)):
     #infos_json = await extract_infos_json_from_text(text)
     compta_lines = compta_lines_from_text(text)
     header = header_from_text(text)
-    #return {'header':header, 'compta_lines':compta_lines}
+    result = {'header':header, 'compta_lines':compta_lines}
     return {'compta_lines':compta_lines}
+
+
+@app.get("/get-table-demande-collecte/")
+async def get_table_demande_collecte(
+                                    userId: Optional[str] = None,
+                                    site: Optional[str] = None,
+                                    filiere: Optional[str] = None,
+                                    dechet: Optional[str] = None):
+    return info_completion_from_excel(userId, site, filiere, dechet)

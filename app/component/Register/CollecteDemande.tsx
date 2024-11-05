@@ -14,7 +14,7 @@ const CollecteDemande = () => {
                 <div className="text-white font-thin text-xs">Demander une collecte</div>
             </button>
 
-            <ModalCollecteDemande isOpen={isOpen} onClose={toggleModal}/>
+            <ModalCollecteDemande isOpen={isOpen} setIsOpen={setIsOpen} onClose={toggleModal}/>
 
         </div>
         

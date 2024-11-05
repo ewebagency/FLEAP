@@ -2,8 +2,9 @@
 import React, { useState } from "react";
 import FiltreFilieres from "../component/FiltreFilieres";
 import CollecteDemande from "../component/Register/CollecteDemande";
-import TableRegistre from "./TableRegistre";
+//import TableRegistre from "./TableRegistre";
 import TableBSD from "./TableBSD";
+import { ModalProvider } from "../component/context/ModalReloadcontext";
 
 const RegisterPage = () => {
 
@@ -17,6 +18,7 @@ const RegisterPage = () => {
         { id: 7, checked: false, color:'bg-purple-500', label: 'Matériaux'},
         { id: 8, checked: false, color:'bg-purple-700', label: 'Bois'},
       ]);
+    
     
       // Fonction pour gérer les changements de checkbox
       const handleMaterialsChange = (id:number) => {
@@ -32,34 +34,36 @@ const RegisterPage = () => {
 
     return (
         <div className='m-5'>
-            <div className="flex justify-between items-center">
-                <div className="text-md font-bold">Registre</div>
-                <div className="flex justify-center items-center">
-                    <CollecteDemande/>
-                    <div className="flex justify-between items-center bg-gray-300 rounded-xl px-2 mx-1">
-                        <div className="text-white bg-green-600 mr-2 my-[3px] rounded-full px-2 font-thin">+</div>
-                        <div className="text-black font-thin text-xs">Ajouter une filière</div>
-                    </div>
-                    <div className="flex justify-between items-center bg-gray-300 rounded-xl px-2 mx-1">
-                        <div className="text-white bg-green-600 mr-2 my-[3px] rounded-full px-2 font-thin">✉</div>
-                        <div className="text-black font-thin text-xs">Exporter</div>
+                <ModalProvider>
+                <div className="flex justify-between items-center">
+                    <div className="text-md font-bold">Registre</div>
+                    <div className="flex justify-center items-center">
+                        <CollecteDemande/>
+                        <div className="flex justify-between items-center bg-gray-300 rounded-xl px-2 mx-1">
+                            <div className="text-white bg-green-600 mr-2 my-[3px] rounded-full px-2 font-thin">+</div>
+                            <div className="text-black font-thin text-xs">Ajouter une filière</div>
+                        </div>
+                        <div className="flex justify-between items-center bg-gray-300 rounded-xl px-2 mx-1">
+                            <div className="text-white bg-green-600 mr-2 my-[3px] rounded-full px-2 font-thin">✉</div>
+                            <div className="text-black font-thin text-xs">Exporter</div>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div className="flex justify-between items-center">
-                <FiltreFilieres 
-                    selectedMaterials={selectedMaterials} 
-                    onMaterialsChange={handleMaterialsChange} 
-                />
-                <div className="flex justify-center items-center py-1 px-2 rounded-xl border-[1px] border-gray-600 bg-white text-gray-600 text-xs">
-                    <div className="mr-2">🖍</div>
-                    <div>Détails filières</div>
+                <div className="flex justify-between items-center">
+                    <FiltreFilieres 
+                        selectedMaterials={selectedMaterials} 
+                        onMaterialsChange={handleMaterialsChange} 
+                    />
+                    <div className="flex justify-center items-center py-1 px-2 rounded-xl border-[1px] border-gray-600 bg-white text-gray-600 text-xs">
+                        <div className="mr-2">🖍</div>
+                        <div>Détails filières</div>
+                    </div>
                 </div>
-            </div>
-            <div>
-                {/*<TableRegistre/>*/}
-                <TableBSD/>
-            </div>
+                <div>
+                    {/*<TableRegistre/>*/}
+                    <TableBSD/>
+                </div>
+            </ModalProvider>
         </div>
     )
 }
