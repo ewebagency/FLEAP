@@ -2,7 +2,7 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from extract_text_from_pdf import extract_text
 from utils import compta_lines_from_text, header_from_text
-from extract_info_xlsx_autocompletion.test import info_completion_from_excel
+from extract_info_xlsx_autocompletion.lecture_excel_autocompletion import info_completion_from_excel
 from typing import Optional
 
 app = FastAPI()

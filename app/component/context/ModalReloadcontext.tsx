@@ -3,8 +3,8 @@ import { createContext, useContext, useState } from 'react';
 
 // Define the context type
 type ModalContextType = {
-    modalId: string;
-    setModalId: (value: string) => void;
+    modalId: string | null;
+    setModalId: (value: string | null) => void;
     modalType: string;
     setModalType: (value: string) => void;
     modalReload: boolean;
@@ -26,7 +26,7 @@ export const useModal = () => useContext(ModalContext);
 
 // Provider du contexte
 export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
-    const [modalId, setModalId] = useState("");
+    const [modalId, setModalId] = useState<string | null>("");
     const [modalType, setModalType] = useState("");
     const [modalReload, setModalReload] = useState(false);
 

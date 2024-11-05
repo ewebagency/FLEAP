@@ -39,11 +39,11 @@ interface FormData {
             nom : string[];
             adresse: {
                 street: string[];
-                postal_code: string;
-                city: string;
+                postal_code: string[];
+                city: string[];
             };
-            siret: string;
-        }[];
+            siret: string[];
+        };
         first: {
             nom: string;
             adresse: {
@@ -72,18 +72,6 @@ interface FormData {
             email: string;
         }[];
     };
-    site_details: {
-        first: {
-            adresse: string;
-            siret: string;
-            nom: string;
-        };
-        options: {
-            adresse: string[];
-            siret: string[];
-            nom: string[];
-        };
-    };
     prestataire_final: {
         first: {
             code_traitement: string;
@@ -105,11 +93,11 @@ interface FormData {
             nom: string[];
             adresse: string[];
             personne: {
-                nom: string[];
-                prenom: string[];
-                tel: string[];
-                email: string[];
-            };
+                nom: string;
+                prenom: string;
+                tel: string;
+                email: string;
+            }[];
         };
     };
     transporteur: {
@@ -195,13 +183,6 @@ interface FormDataWithoutOptions {
             email: string;
         };
     };
-    site_details: {
-        first: {
-            adresse: string;
-            siret: string;
-            nom: string;
-        };
-    };
     prestataire_final: {
         first: {
             code_traitement: string;
@@ -266,8 +247,24 @@ const initialFormData: FormData = {
         }
     },
     site: {
-        options: [],
-        first: ''
+        options: {
+            nom : [],
+            adresse: {
+                street: [],
+                postal_code: [],
+                city: []
+            },
+            siret: []
+        },
+        first: {
+            nom: '',
+            adresse: {
+                street: '',
+                postal_code: '',
+                city: ''
+            },
+            siret: ''
+        }
     },
     adresse_collecte: {
         options: [],
@@ -281,18 +278,6 @@ const initialFormData: FormData = {
             email: ''
         },
         options: []
-    },
-    site_details: {
-        first: {
-            adresse: '',
-            siret: '',
-            nom: ''
-        },
-        options: {
-            adresse: [],
-            siret: [],
-            nom: []
-        }
     },
     prestataire_final: {
         first: {
@@ -314,12 +299,12 @@ const initialFormData: FormData = {
             siret: [],
             nom: [],
             adresse: [],
-            personne: {
-                nom: [],
-                prenom: [],
-                tel: [],
-                email: []
-            }
+            personne: [{
+                nom: '',
+                prenom: '',
+                tel: '',
+                email: ''
+            }]
         }
     },
     transporteur: {
@@ -494,10 +479,10 @@ const removeOptions = (formData: FormData) => {
             },
         },
         mail: {
-            destinataire: formData.mail?.destinataire,
-            cc: formData.mail?.cc,
-            sujet: formData.mail?.sujet,
-            message: formData.mail?.message,
+            destinataire: formData.mail?.destinataire || '',
+            cc: formData.mail?.cc || [],
+            sujet: formData.mail?.sujet || '',
+            message: formData.mail?.message || '',
         },
     };
     return resultData;
@@ -565,7 +550,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
         const { name, value } = e.target;
         
         // Gestion des cas spéciaux (site, filiere, dechet)
-        if (name === "site" || name === "filiere" || name === "dechet") {
+        if (session && session.user && session.user.id && (name === "site" || name === "filiere" || name === "dechet")) {
             if (name === "site"){
                 console.log("site changée", name, value);
                 const result = await fetch(process.env.NEXT_PUBLIC_SERVER_PYTHON + `/get-table-demande-collecte/?userId=${session.user.id}&site=${value}`);
@@ -676,7 +661,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({user_id: session.user.id, data: {formAPI:formAPI, formData:formData_WithoutOptions}}),
+                body: JSON.stringify({user_id: session?.user.id, data: {formAPI:formAPI, formData:formData_WithoutOptions}}),
             });
 
             if (!response.ok) {
@@ -810,7 +795,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                     <InputDeroulant
                                         titre="Adresse d'enlèvement"
                                         placeholder="Adresse"
-                                        options={[formData.adresse_collecte.options]}
+                                        options={formData.adresse_collecte.options}
                                         width={2}
                                         name="adresse_enlevement"
                                         value={formData.adresse_collecte.options[0]}
@@ -822,7 +807,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                     <InputDeroulant
                                         titre="Personne référente"
                                         placeholder="Prénom Nom"
-                                        options={formData.personne_producteur.options.map((personne:any) => String(personne.prenom) + " " + String(personne.nom))}
+                                        options={formData.personne_producteur.options.map((personne:{prenom:string, nom:string}) => String(personne.prenom) + " " + String(personne.nom))}
                                         width={2}
                                         name="personne_a_contacter_prenom_nom"
                                         value={formData.personne_producteur.first.prenom + " " + formData.personne_producteur.first.nom}
@@ -845,7 +830,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                     <InputDeroulant
                                         titre="Déchet" 
                                         placeholder="Sélectionner un déchet" 
-                                        options={formData.dechet.options.map((dechet:any) => String(dechet.ced) + " - " + String(dechet.description))} 
+                                        options={formData.dechet.options.map((dechet:{ced:string, description:string}) => String(dechet.ced) + " - " + String(dechet.description))} 
                                         width={2} 
                                         name="dechet" 
                                         value={formData.dechet.first.ced.toString() + " - " + formData.dechet.first.description} 
@@ -856,7 +841,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                     <InputDeroulant
                                         titre="Contenant" 
                                         placeholder="Sélectionner un contenant" 
-                                        options={formData.contenant.options.map((contenant:any) => String(contenant.nom) + " - " + String(contenant.volume))} 
+                                        options={formData.contenant.options.map((contenant:{nom:string, volume:string, nombre:string}) => String(contenant.nom) + " - " + String(contenant.volume))} 
                                         width={1} 
                                         name="contenant" 
                                         value={formData.contenant.first.nom + " - " + formData.contenant.first.volume} 
@@ -865,7 +850,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                     <InputDeroulant
                                         titre="Nombre" 
                                         placeholder="Nombre" 
-                                        options={formData.contenant.options.length === 1 ? [1,2,3,4,5] : formData.contenant.options.map((contenant:any) => String(contenant.nombre))}
+                                        options={formData.contenant.options.length === 1 ? ['1','2','3','4','5'] : formData.contenant.options.map((contenant:{nombre:string}) => String(contenant.nombre))}
                                         width={1} 
                                         name="nombre_contenant" 
                                         value={formData.contenant.first.nombre} 
@@ -878,7 +863,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                 <InputDeroulant
                                     titre="Prestataire"
                                     placeholder="Sélectionner un prestataire final"
-                                    options={formData.prestataire_final.options.personne.map((personne:any) => String(personne.prenom) + " " + String(personne.nom))}
+                                    options={formData.prestataire_final.options.personne.map((personne:{prenom:string, nom:string}) => String(personne.prenom) + " " + String(personne.nom))}
                                     width={1}
                                     name="prestataire_final"
                                     value={formData.prestataire_final.first.personne.prenom + " " + formData.prestataire_final.first.personne.nom}
@@ -887,14 +872,14 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                 <InputDeroulant
                                     titre="Personne référente"
                                     placeholder="Prénom Nom"
-                                    options={formData.prestataire_final.options.personne.map((personne:any) => String(personne.prenom) + " " + String(personne.nom))}
+                                    options={formData.prestataire_final.options.personne.map((personne:{prenom:string, nom:string}) => String(personne.prenom) + " " + String(personne.nom))}
                                     width={1}
                                     name="personne_referente"
                                     value={formData.prestataire_final.first.personne.prenom + " " + formData.prestataire_final.first.personne.nom}
                                     onChange={handleChange}
                                 />
                             </div>
-                            <div className='bg-gray-300'>
+                            {/*<div className='bg-gray-300'>
                                 <h3 className="font-bold text-md mt-10">Envoie Mail -- plus tard</h3>
                                 <div className='flex justify-start gap-4 items-center'>
                                     <div className='mr-2 mt-9 text-md w-[80px]'>Email :</div>
@@ -904,7 +889,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                         options={['Incineration&Co', 'RecyclageInc']} 
                                         width={1} 
                                         name="prestataire_destinataire" 
-                                        value={formData.prestataire_destinataire} 
+                                        value={formData.mail?.prestataire_destinataire || ''} 
                                         onChange={handleChange} 
                                     />
                                     <InputDeroulant 
@@ -913,7 +898,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                         options={['Rapide', 'Long']} 
                                         width={1} 
                                         name="modele_email" 
-                                        value={formData.modele_email} 
+                                        value={formData.mail?.modele_email || ''} 
                                         onChange={handleChange} 
                                     />
                                 </div>
@@ -925,7 +910,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                         type="email" 
                                         width={2} 
                                         name="a" 
-                                        value={formData.a} 
+                                        value={formData.mail?.destinataire || ''} 
                                         onChange={handleChange} 
                                     />
                                 </div>
@@ -937,7 +922,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                         type="text" 
                                         width={2} 
                                         name="sujet" 
-                                        value={formData.sujet} 
+                                        value={formData.mail?.sujet || ''} 
                                         onChange={handleChange} 
                                     />
                                 </div>
@@ -948,11 +933,11 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                         placeholder="Votre message ici..." 
                                         rows={3} 
                                         name="message" 
-                                        value={formData.message} 
+                                        value={formData.mail?.message || ''} 
                                         onChange={handleChange} 
                                     ></textarea>
                                 </div>
-                            </div>
+                            </div>*/}
                         </div>}
                         
                         <ToggleDisplayInfosAPI data={formData} onChange={handleChange}/>
