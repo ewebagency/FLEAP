@@ -6,6 +6,7 @@ interface PdfInfo {
     name_pdf_in_bucket:string;
     pdf_path: string;
     created_at: string;
+    url: string;
 }
 
 interface TableImportedFilesProps {
@@ -20,7 +21,8 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                 <thead>
                     <tr>
                         <th className="border border-gray-300 p-2">Nom du PDF</th>
-                        <th className="border border-gray-300 p-2">Chemin du PDF</th>
+                        {/*<th className="border border-gray-300 p-2">Chemin du PDF</th>*/}
+                        <th className="border border-gray-300 p-2">URL</th>
                         <th className="border border-gray-300 p-2">Date de création</th>
                         <th className="border border-gray-300 p-2">Actions</th>
                     </tr>
@@ -29,7 +31,17 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                     {pdfInfos.map((pdf) => (
                         <tr key={pdf.id}>
                             <td className="border border-gray-300 p-2">{pdf.name_pdf}</td>
-                            <td className="border border-gray-300 p-2">{pdf.pdf_path}</td>
+                            {/*<td className="border border-gray-300 p-2">{pdf.pdf_path}</td>*/}
+                            <td className="border border-gray-300 p-2">
+                                <a 
+                                    href={pdf.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-blue-500 hover:text-blue-700 underline"
+                                >
+                                    Voir le PDF
+                                </a>
+                            </td>
                             <td className="border border-gray-300 p-2">{new Date(pdf.created_at).toLocaleString()}</td>
                             <td className="border border-gray-300 p-2">
                                 <button 

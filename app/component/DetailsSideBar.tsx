@@ -1,4 +1,5 @@
 import React from "react";
+import Assistance from "./Assistance";
 
 const DetailsSideBar = ({
   session,
@@ -24,6 +25,7 @@ return (
             <button className="mt-2 p-1 text-white bg-red-300 rounded-lg duration-300 active:scale-90" onClick={handleLogout}>Déconnexion</button>
             <button onClick={handleParameterPage} className='mt-2 mr-4 text-4xl font-bold text-gray-400'>⚙</button>
         </div>
+        <Assistance />
     </div>
     )
 }

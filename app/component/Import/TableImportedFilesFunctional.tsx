@@ -8,9 +8,10 @@ import { Session } from '@supabase/supabase-js';
 interface PdfInfoInterface {
     id: number;
     name_pdf: string;
-    name_pdf_in_bucket:string;
+    name_pdf_in_bucket: string;
     pdf_path: string;
     created_at: string;
+    url: string;
 }
 
 const TableImportedFilesFunctional: React.FC = () => {
@@ -28,8 +29,20 @@ const TableImportedFilesFunctional: React.FC = () => {
 
         if (error) {
             console.error("Erreur lors de la récupération des informations PDF:", error);
-        } else {
-            setPdfInfos(data); // Mettre à jour l'état avec les données récupérées
+        } else if (data) {
+            // Ajouter l'URL pour chaque PDF
+            const pdfInfosWithUrls = await Promise.all(data.map(async (pdf) => {
+                const { data: urlData } = await supabase
+                    .storage
+                    .from('pdfs_bucket')
+                    .createSignedUrl(pdf.name_pdf_in_bucket, 3600); // URL valide pendant 1 heure
+
+                return {
+                    ...pdf,
+                    url: urlData?.signedUrl || ''
+                };
+            }));
+            setPdfInfos(pdfInfosWithUrls);
         }
         setLoading(false); // Arrêter le chargement
     }, [user_id]); // Add user_id as a dependency
