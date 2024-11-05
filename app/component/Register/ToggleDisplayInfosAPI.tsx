@@ -234,7 +234,7 @@ export default function ToggleDisplayInfosAPI({data, onChange}:{data:FormDataWit
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td className="font-semibold w-1/2">Adresse d'enlèvement</td>
+                                        <td className="font-semibold w-1/2">Adresse d&apos;enlèvement</td>
                                         <td className="space-y-1">
                                             {renderInput('site.first.adresse.street', data.site.first.adresse.street)}
                                             {renderInput('site.first.adresse.postal_code', data.site.first.adresse.postal_code)}
