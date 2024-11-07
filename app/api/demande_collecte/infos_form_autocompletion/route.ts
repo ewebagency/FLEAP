@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const site = searchParams.get('site');
     
     try {
-        const response = await fetch(`http://localhost:8000/get-table-demande-collecte/?userId=${userId}&site=${site}`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_SERVER_PYTHON}/get-table-demande-collecte/?userId=${userId}&site=${site}`);
         const data = await response.json(); // Convertir la réponse en JSON une seule fois
         
         return NextResponse.json(data); // Renvoyer les données

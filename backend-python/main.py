@@ -12,6 +12,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",  # Development
+        "https://fleap-three.vercel.app", # Production
+        "https://fleap-arthurpouzcs-projects.vercel.app", # Production Arthur
+
     ],
     allow_credentials=True,
     allow_methods=["*"],  # Permet toutes les méthodes HTTP
