@@ -41,7 +41,7 @@ const InputDeroulant: React.FC<InputDeroulantProps> = ({titre, placeholder, opti
                         <div>
                             {enabled ?
                             <select className="w-[210px] flex-1 text-xs border border-black rounded-md p-2 whitespace-nowrap overflow-x-auto" name={name} value={value} onChange={onChange}>
-                                <option disabled selected>{placeholder}</option>
+                                {/*<option disabled selected>{placeholder}</option>*/}
                                 {options.map((option,index)=>(
                                     <option key={index}>{option}</option>
                                 ))}

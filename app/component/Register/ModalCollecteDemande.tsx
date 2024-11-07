@@ -288,11 +288,18 @@ function combineLists(separator: string, ...lists: string[][]) {
     );
   }
 
-  
-const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean, setIsOpen: (value: boolean) => void, onClose: () => void }) => {
+interface ModalCollecteDemandeProps {
+    isOpen: boolean;
+    setIsOpen: (value: boolean) => void;
+    onClose: () => void;
+    ready: boolean;
+    setReady: (value: boolean) => void;
+}
+
+const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: ModalCollecteDemandeProps) => {
     const { sites } = useSite();
     const session = useSession();
-    const [ready, setReady] = useState(false);
+    //const [ready, setReady] = useState(false);
     const [optionsInit, setOptionsInit] = useState<[]|null>(null);
     const [formData, setFormData] = useState<BSD_Data_Interface>(initialFormData);
     const [submitLoad, setSubmitLoad] = useState<boolean>(false);
@@ -579,9 +586,14 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
         }
     };
 
+    // Mettre à jour le parent quand ready change
+    useEffect(() => {
+        setReady(ready);
+    }, [ready, setReady]);
+
     return (
         <div>
-            {isOpen && ready && 
+            {isOpen && ready &&
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"> {/*onClick={handleClose}>*/}
                 <div className="bg-white p-6 rounded-lg shadow-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                     <h3 className="font-bold text-lg">Demande de collecte</h3>
