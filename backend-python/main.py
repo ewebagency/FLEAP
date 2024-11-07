@@ -2,7 +2,7 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from extract_text_from_pdf import extract_text
 from utils import compta_lines_from_text, header_from_text
-from extract_info_xlsx_autocompletion.lecture_excel_autocompletion import info_completion_from_excel
+from extract_info_xlsx_autocompletion.lecture_excel_autocompletion import data_from_excel
 from typing import Optional
 
 app = FastAPI()
@@ -37,4 +37,4 @@ async def get_table_demande_collecte(
                                     site: Optional[str] = None,
                                     filiere: Optional[str] = None,
                                     dechet: Optional[str] = None):
-    return info_completion_from_excel(userId, site, filiere, dechet)
+    return data_from_excel(userId, site, filiere, dechet)

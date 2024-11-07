@@ -6,346 +6,28 @@ import { useSite } from "../context/SiteContext";
 import ToggleDisplayInfosAPI from "./ToggleDisplayInfosAPI";
 import { useModal } from "../context/ModalReloadcontext";
 import { supabase } from "@/app/database/supabaseClient";
+import { BSD_Data_Interface, BSD_Data_Interface_WithoutOptions } from "@/app/register/interface/BSD_Interface";
 
-interface FormData {
-    filiere: {
-        options: string[];
-        first: string;
-    };
-    dechet: {
-        options: {
-            ced: string;
-            description: string;
-        }[];
-        first: {
-            ced: string;
-            description: string;
-        };
-    };
-    contenant: {
-        options: {
-            nom: string;
-            volume: string;
-            nombre: string;
-        }[];
-        first: {
-            nom: string;
-            volume: string;
-            nombre: string;
-        };
-    };
-    site: {
-        options: {
-            nom : string[];
-            adresse: {
-                street: string[];
-                postal_code: string[];
-                city: string[];
-            };
-            siret: string[];
-        };
-        first: {
-            nom: string;
-            adresse: {
-                street: string;
-                postal_code: string;
-                city: string;
-            };
-            siret: string;
-        };
-    };
-    adresse_collecte: {
-        options: string[];
-        first: string;
-    };
-    personne_producteur: {
-        first: {
-            nom: string;
-            prenom: string;
-            tel: string;
-            email: string;
-        };
-        options: {
-            nom: string;
-            prenom: string;
-            telephone: string;
-            email: string;
-        }[];
-    };
-    prestataire_final: {
-        first: {
-            code_traitement: string;
-            cap: string;
-            siret: string;
-            nom: string;
-            adresse: string;
-            personne: {
-                nom: string;
-                prenom: string;
-                tel: string;
-                email: string;
-            };
-        };
-        options: {
-            code_traitement: string[];
-            cap: string[];
-            siret: string[];
-            nom: string[];
-            adresse: string[];
-            personne: {
-                nom: string;
-                prenom: string;
-                tel: string;
-                email: string;
-            }[];
-        };
-    };
-    transporteur: {
-        first: {
-            siret: string;
-            nom: string;
-            adresse: string;
-            personne: {
-                nom: string;
-                prenom: string;
-                email: string;
-                tel: string;
-            };
-        };
-        options: {
-            siret: string[];
-            nom: string[];
-            adresse: string[];
-            personne: {
-                nom: string[];
-                prenom: string[];
-                email: string[];
-                tel: string[];
-            };
-        };
-    };
-    dechet_details: {
-        first: {
-            ced: string;
-            onu: string;
-            description: string;
-        };
-        options: {
-            ced: string[];
-            onu: string[];
-            description: string[];
-        };
-    };
-    mail?: {
-        destinataire: string;
-        cc: string[];
-        sujet: string;
-        message: string;
-    };
-}
+const getWeightEstimation = (
+  volume: string,        // Volume exprimé en L ou m3 (ex: '200L' ou '15m3')
+  consistance: string, // Consistance ('Solide' ou 'Liquide')
+  nbBacs: number         // Nombre de bacs
+): number => {
+  // Masse volumique en kg/L pour chaque type de déchet
+  const density = consistance === "Solide" ? 0.8 : 1;  // Solide = 0.8 kg/L, Liquide = 1 kg/L (approximation)
 
-interface FormDataWithoutOptions {
-    filiere: {
-        first: string;
-    };
-    dechet: {
-        first: {
-            ced: string;
-            description: string;
-        };
-    };
-    contenant: {
-        first: {
-            nom: string;
-            volume: string;
-            nombre: string;
-        };
-    };
-    site: {
-        first: {
-            nom: string;
-            adresse: {
-                street: string;
-                postal_code: string;
-                city: string;
-            };
-            siret: string;
-        };
-    };
-    adresse_collecte: {
-        first: string;
-    };
-    personne_producteur: {
-        first: {
-            nom: string;
-            prenom: string;
-            tel: string;
-            email: string;
-        };
-    };
-    prestataire_final: {
-        first: {
-            code_traitement: string;
-            cap: string;
-            siret: string;
-            nom: string;
-            adresse: string;
-            personne: {
-                nom: string;
-                prenom: string;
-                tel: string;
-                email: string;
-            };
-        };
-    };
-    transporteur: {
-        first: {
-            siret: string;
-            nom: string;
-            adresse: string;
-            personne: {
-                nom: string;
-                prenom: string;
-                email: string;
-                tel: string;
-            };
-        };
-    };
-    dechet_details: {
-        first: {
-            ced: string;
-            onu: string;
-            description: string;
-        };
-    };
-    mail?: {
-        destinataire: string;
-        cc: string[];
-        sujet: string;
-        message: string;
-    };
-}
+  // Convertir le volume en L si c'est en m3
+  const volumeInLiters = volume.includes('m3')
+    ? parseFloat(volume) * 1000  // Conversion m3 en L
+    : parseFloat(volume);        // Si volume est déjà en L
+  
+  // Poids estimé par bac
+  const totalWeight = volumeInLiters * density * nbBacs / 1000;  // Poids total estimé en tonnes
 
-const initialFormData: FormData = {
-    filiere: {
-        options: [],
-        first: ''
-    },
-    dechet: {
-        options: [],
-        first: {
-            ced: '',
-            description: ''
-        }
-    },
-    contenant: {
-        options: [],
-        first: {
-            nom: '',
-            volume: '',
-            nombre: ''
-        }
-    },
-    site: {
-        options: {
-            nom : [],
-            adresse: {
-                street: [],
-                postal_code: [],
-                city: []
-            },
-            siret: []
-        },
-        first: {
-            nom: '',
-            adresse: {
-                street: '',
-                postal_code: '',
-                city: ''
-            },
-            siret: ''
-        }
-    },
-    adresse_collecte: {
-        options: [],
-        first: ''
-    },
-    personne_producteur: {
-        first: {
-            nom: '',
-            prenom: '',
-            tel: '',
-            email: ''
-        },
-        options: []
-    },
-    prestataire_final: {
-        first: {
-            code_traitement: '',
-            cap: '',
-            siret: '',
-            nom: '',
-            adresse: '',
-            personne: {
-                nom: '',
-                prenom: '',
-                tel: '',
-                email: ''
-            }
-        },
-        options: {
-            code_traitement: [],
-            cap: [],
-            siret: [],
-            nom: [],
-            adresse: [],
-            personne: [{
-                nom: '',
-                prenom: '',
-                tel: '',
-                email: ''
-            }]
-        }
-    },
-    transporteur: {
-        first: {
-            siret: '',
-            nom: '',
-            adresse: '',
-            personne: {
-                nom: '',
-                prenom: '',
-                email: '',
-                tel: ''
-            }
-        },
-        options: {
-            siret: [],
-            nom: [],
-            adresse: [],
-            personne: {
-                nom: [],
-                prenom: [],
-                email: [],
-                tel: []
-            }
-        }
-    },
-    dechet_details: {
-        first: {
-            ced: '',
-            onu: '',
-            description: ''
-        },
-        options: {
-            ced: [],
-            onu: [],
-            description: []
-        }
-    }
+  return totalWeight;
 };
 
-interface FormAPI {
+interface Form_API_Interface {
     createFormInput: {
         emitter: {
             type: string,
@@ -403,100 +85,219 @@ interface FormAPI {
     }
 };
 
-const removeOptions = (formData: FormData) => {
-    const resultData: FormDataWithoutOptions = {
+const removeOptions = (formData: BSD_Data_Interface): BSD_Data_Interface_WithoutOptions => {
+    const resultData: BSD_Data_Interface_WithoutOptions = {
         filiere: {
-            first: formData.filiere.first,
+            nom: {first: formData.filiere.nom.first},
+            ced: {first: formData.filiere.ced.first},
+            consistance: {first: formData.filiere.consistance.first},
+            cap: {first: formData.filiere.cap.first},
         },
-        dechet: {
-            first: {
-                ced: formData.dechet.first.ced,
-                description: formData.dechet.first.description,
-            },
+        dechet_dangereux: {
+            ced: {first: formData.dechet_dangereux.ced.first},
+            onu: {first: formData.dechet_dangereux.onu.first},
+            denomination: {first: formData.dechet_dangereux.denomination.first},
+            danger: {first: formData.dechet_dangereux.danger.first},
+            emballage: {first: formData.dechet_dangereux.emballage.first},
+            collecte: {first: formData.dechet_dangereux.collecte.first},
         },
         contenant: {
-            first: {
-                nom: formData.contenant.first.nom,
-                volume: formData.contenant.first.volume,
-                nombre: formData.contenant.first.nombre,
-            },
+            nom: {first: formData.contenant.nom.first},
+            code: {first: formData.contenant.code.first},
+            identifiant: {first: formData.contenant.identifiant.first},
+            description: {first: formData.contenant.description.first},
+            unitaire: {first: formData.contenant.unitaire.first},
+            indicatif: {first: formData.contenant.indicatif.first},
+            location: {first: formData.contenant.location.first},
+            siret: {first: formData.contenant.siret.first},
         },
         site: {
-            first: {
-                nom: formData.site.first.nom,
-                adresse: {
-                    street: formData.site.first.adresse.street,
-                    postal_code: formData.site.first.adresse.postal_code,
-                    city: formData.site.first.adresse.city,
-                },
-                siret: formData.site.first.siret,
-            },
+            nom: {first: formData.site.nom.first},
+            siret: {first: formData.site.siret.first},
+            adresse: {first: formData.site.adresse.first},
+            gerep: {first: formData.site.gerep.first},
         },
-        adresse_collecte: {
-            first: formData.adresse_collecte.first,
+        producteur_personne: {
+            lastname: {first: formData.producteur_personne.lastname.first},
+            firstname: {first: formData.producteur_personne.firstname.first},
+            tel: {first: formData.producteur_personne.tel.first},
+            email: {first: formData.producteur_personne.email.first},
         },
-        personne_producteur: {
-            first: {
-                nom: formData.personne_producteur.first.nom,
-                prenom: formData.personne_producteur.first.prenom,
-                tel: formData.personne_producteur.first.tel,
-                email: formData.personne_producteur.first.email,
-            },
+        operationnelle_personne: {
+            lastname: {first: formData.operationnelle_personne.lastname.first},
+            firstname: {first: formData.operationnelle_personne.firstname.first},
+            tel: {first: formData.operationnelle_personne.tel.first},
+            email: {first: formData.operationnelle_personne.email.first},
         },
         prestataire_final: {
-            first: {
-                code_traitement: formData.prestataire_final.first.code_traitement,
-                cap: formData.prestataire_final.first.cap,
-                siret: formData.prestataire_final.first.siret,
-                nom: formData.prestataire_final.first.nom,
-                adresse: formData.prestataire_final.first.adresse,
-                personne: {
-                    nom: formData.prestataire_final.first.personne.nom,
-                    prenom: formData.prestataire_final.first.personne.prenom,
-                    tel: formData.prestataire_final.first.personne.tel,
-                    email: formData.prestataire_final.first.personne.email,
-                },
-            },
+            nom: {first: formData.prestataire_final.nom.first},
+            siret: {first: formData.prestataire_final.siret.first},
+            adresse: {first: formData.prestataire_final.adresse.first},
+            numero: {first: formData.prestataire_final.numero.first},
+            traitement: {first: formData.prestataire_final.traitement.first},
+            qualification: {first: formData.prestataire_final.qualification.first},
+            lastname: {first: formData.prestataire_final.lastname.first},
+            firstname: {first: formData.prestataire_final.firstname.first},
+            tel: {first: formData.prestataire_final.tel.first},
+            email: {first: formData.prestataire_final.email.first},
         },
         transporteur: {
-            first: {
-                siret: formData.transporteur.first.siret,
-                nom: formData.transporteur.first.nom,
-                adresse: formData.transporteur.first.adresse,
-                personne: {
-                    nom: formData.transporteur.first.personne.nom,
-                    prenom: formData.transporteur.first.personne.prenom,
-                    email: formData.transporteur.first.personne.email,
-                    tel: formData.transporteur.first.personne.tel,
-                },
-            },
+            siret: {first: formData.transporteur.siret.first},
+            nom: {first: formData.transporteur.nom.first},
+            adresse: {first: formData.transporteur.adresse.first},
+            numero: {first: formData.transporteur.numero.first},
+            lastname: {first: formData.transporteur.lastname.first},
+            firstname: {first: formData.transporteur.firstname.first},
+            tel: {first: formData.transporteur.tel.first},
+            email: {first: formData.transporteur.email.first},
         },
-        dechet_details: {
-            first: {
-                ced: formData.dechet_details.first.ced,
-                onu: formData.dechet_details.first.onu,
-                description: formData.dechet_details.first.description,
-            },
+        installation_intermediaire: {
+            nom: {first: formData.installation_intermediaire.nom.first},
+            siret: {first: formData.installation_intermediaire.siret.first},
+            adresse: {first: formData.installation_intermediaire.adresse.first},
+            numero: {first: formData.installation_intermediaire.numero.first},
+            traitement: {first: formData.installation_intermediaire.traitement.first},
+            lastname: {first: formData.installation_intermediaire.lastname.first},
+            firstname: {first: formData.installation_intermediaire.firstname.first},
+            tel: {first: formData.installation_intermediaire.tel.first},
+            email: {first: formData.installation_intermediaire.email.first},
         },
-        mail: {
-            destinataire: formData.mail?.destinataire || '',
-            cc: formData.mail?.cc || [],
-            sujet: formData.mail?.sujet || '',
-            message: formData.mail?.message || '',
+        eco_organisme: {
+            nom: {first: formData.eco_organisme.nom.first},
+            siret: {first: formData.eco_organisme.siret.first},
+        },
+        negociant: {
+            nom: {first: formData.negociant.nom.first},
+            siret: {first: formData.negociant.siret.first},
+            adresse: {first: formData.negociant.adresse.first},
+            numero: {first: formData.negociant.numero.first},
+            lastname: {first: formData.negociant.lastname.first},
+            firstname: {first: formData.negociant.firstname.first},
+            tel: {first: formData.negociant.tel.first},
+            email: {first: formData.negociant.email.first},
         },
     };
     return resultData;
-}
+};
 
+const initialFormData : BSD_Data_Interface = {
+    site: {
+        nom: {first: '', options: []},
+        siret: {first: null, options: []},
+        adresse: {
+            first: {
+                street: '',
+                postal_code: '',
+                city: '',
+                fulladdress: '',
+            },
+            options: []
+        },
+        gerep: {first: null, options: []},
+    },
+    filiere: {
+        nom: {first: '', options: []},
+        ced: {first: '', options: []}   ,
+        consistance: {first: '', options: []},
+        cap: {first: '', options: []},
+    },
+    dechet_dangereux: {
+        ced: {first: '', options: []},
+        onu: {first: '', options: []},
+        denomination: {first: '', options: []},
+        danger: {first: '', options: []},
+        emballage: {first: '', options: []},
+        collecte: {first: null, options: []},
+    },
+    producteur_personne: {
+        lastname: {first: '', options: []},
+        firstname: {first: '', options: []},
+        tel: {first: '', options: []},
+        email: {first: '', options: []},
+    },
+    operationnelle_personne: {
+        lastname: {first: '', options: []},
+        firstname: {first: '', options: []},
+        tel: {first: '', options: []},
+        email: {first: '', options: []},
+    },
+    contenant: {
+        nom: {first: null, options: []},
+        code: {first: '', options: []},
+        identifiant: {first: null, options: []},
+        description: {first: '', options: []},
+        unitaire: {first: '', options: []},
+        indicatif: {first: 0, options: []},
+        location: {first: '', options: []},
+        siret: {first: null, options: []},
+    },
+    eco_organisme: {
+        nom: {first: '', options: []},
+        siret: {first: '', options: []},
+    },
+    negociant: {
+        nom: {first: null, options: []},
+        siret: {first: null, options: []},
+        adresse: {first: '', options: []},
+        numero: {first: null, options: []},
+        lastname: {first: '', options: []},
+        firstname: {first: '', options: []},
+        tel: {first: null, options: []},
+        email: {first: null, options: []},
+    },
+    transporteur: {
+        nom: {first: '', options: []},
+        siret: {first: 0, options: []},
+        adresse: {first: '', options: []},
+        numero: {first: '', options: []},
+        lastname: {first: '', options: []},
+        firstname: {first: '', options: []},
+        tel: {first: '', options: []},
+        email: {first: '', options: []},
+    },
+    installation_intermediaire: {
+        nom: {first: '', options: []},
+        siret: {first: '', options: []},
+        adresse: {first: '', options: []},
+        numero: {first: null, options: []},
+        traitement: {first: '', options: []},
+        lastname: {first: '', options: []},
+        firstname: {first: '', options: []},
+        tel: {first: '', options: []},
+        email: {first: '', options: []},
+    },
+    prestataire_final: {
+        nom: {first: '', options: []},
+        siret: {first: null, options: []},
+        adresse: {first: '', options: []},
+        numero: {first: null, options: []},
+        traitement: {first: '', options: []},
+        qualification: {first: '', options: []},
+        lastname: {first: '', options: []},
+        firstname: {first: '', options: []},
+        tel: {first: '', options: []},
+        email: {first: '', options: []},
+    },
+};
 
+function combineLists(separator: string, ...lists: string[][]) {
+    const minLength = Math.max(...lists.map(list => list.length)); // Longueur minimale parmi toutes les listes
+  
+    return Array.from({ length: minLength }, (_, index) =>
+      lists.map(list => list[index]).join(separator) // Combine les éléments de chaque liste à l'index courant
+    );
+  }
+
+  
 const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean, setIsOpen: (value: boolean) => void, onClose: () => void }) => {
     const { sites } = useSite();
     const session = useSession();
     const [ready, setReady] = useState(false);
     const [optionsInit, setOptionsInit] = useState<[]|null>(null);
-    const [formData, setFormData] = useState<FormData>(initialFormData);
+    const [formData, setFormData] = useState<BSD_Data_Interface>(initialFormData);
     const [submitLoad, setSubmitLoad] = useState<boolean>(false);
     const { setModalReload, modalReload, modalId, setModalId, modalType, setModalType } = useModal();
+    const [changeLoad, setChangeLoad] = useState<boolean>(false);
 
     // Afficher le modal quand on clique sur le bouton "voir"
     useEffect(() => {
@@ -545,6 +346,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
 
     // Mise à jour de l'état à chaque modification
     const handleChange = async (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
+        setChangeLoad(true);
         if (!e.target || !e.target.name) return;
         
         const { name, value } = e.target;
@@ -562,14 +364,19 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
             else if(name === "filiere"){ 
                 console.log("filière changée", name, value);
                 console.log("formData.site", formData.site);
-                const result = await fetch(process.env.NEXT_PUBLIC_SERVER_PYTHON + `/get-table-demande-collecte/?userId=${session.user.id}&site=${formData.site.first.nom}&filiere=${value}`);
+                const result = await fetch(process.env.NEXT_PUBLIC_SERVER_PYTHON + `/get-table-demande-collecte/?userId=${session.user.id}&site=${formData.site.nom.first}&filiere=${value}`);
                 const data = await result.json();
                 console.log("data", data);
                 setFormData(data);
             } else if (name === "dechet") {
-                const result = await fetch(process.env.NEXT_PUBLIC_SERVER_PYTHON + `/get-table-demande-collecte/?userId=${session.user.id}&site=${formData.site.first.nom}&filiere=${formData.filiere.first}&dechet=${value}`);
-                const data = await result.json();
-                setFormData(data);
+                try{    
+                    console.log("dechet changé", name, value);
+                    const result = await fetch(process.env.NEXT_PUBLIC_SERVER_PYTHON + `/get-table-demande-collecte/?userId=${session.user.id}&site=${formData.site.nom.first}&filiere=${formData.filiere.nom.first}&dechet=${value}`);
+                    const data = await result.json();
+                    setFormData(data);
+                } catch (error) {
+                    alert("Veuillez remplir les champs filière avant");
+                }
             }
         } else {
             // Créer une copie profonde de formData
@@ -590,69 +397,70 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
             
             console.log('Updated formData:', newFormData); // Pour déboguer
         }
+        setChangeLoad(false);
     };
     
     const handleSubmit = async (e:React.ChangeEvent<HTMLFormElement>) => {
         e.preventDefault();
         setSubmitLoad(true);
-        const formAPI = {
+        const formAPI : Form_API_Interface = {
             "createFormInput": {
                 "emitter": {
                     "type": "PRODUCER",
                     "workSite": {
-                        "address": formData.site.first.adresse.street,
-                        "postalCode": formData.site.first.adresse.postal_code,
-                        "city": formData.site.first.adresse.city,
+                        "address": formData.site.adresse.first.street,
+                        "postalCode": formData.site.adresse.first.postal_code,
+                        "city": formData.site.adresse.first.city,
                         "infos": null
                     },
                     "company": {
-                        "siret": '00000063963334',//ça doit être mon siret pour qu'il s'envoie sinon ça marche pas //String(formData.site.first.siret),
-                        "name": formData.site.first.nom,
-                        "address": formData.site.first.adresse.street + " " + formData.site.first.adresse.postal_code + " " + formData.site.first.adresse.city,
-                        "contact": `${formData.personne_producteur.first.prenom} ${formData.personne_producteur.first.nom}`,
-                        "phone": formData.personne_producteur.first.tel,
-                        "mail": formData.personne_producteur.first.email
+                        "siret": '00000063963334',//ça doit être mon siret pour qu'il s'envoie sinon ça marche pas //String(formData.site.siret),
+                        "name": formData.site.nom.first,
+                        "address": formData.site.adresse.first.street + " " + formData.site.adresse.first.postal_code + " " + formData.site.adresse.first.city,
+                        "contact": `${formData.producteur_personne.firstname.first} ${formData.producteur_personne.lastname.first}`,
+                        "phone": formData.producteur_personne.tel.first,
+                        "mail": formData.producteur_personne.email.first
                     }
                 },
                 "recipient": {
-                    "processingOperation": formData.prestataire_final.first.code_traitement,
-                    "cap": formData.prestataire_final.first.cap,
+                    "processingOperation": formData.prestataire_final.traitement.first,
+                    "cap": formData.filiere.cap.first,
                     "company": {
-                        "siret": String(formData.prestataire_final.first.siret),
-                        "name": formData.prestataire_final.first.nom,
-                        "address": formData.prestataire_final.first.adresse,
-                        "contact": `${formData.prestataire_final.first.personne.prenom} ${formData.prestataire_final.first.personne.nom}`,
-                        "phone": formData.prestataire_final.first.personne.tel,
-                        "mail": formData.prestataire_final.first.personne.email
+                        "siret": String(formData.prestataire_final.siret.first),
+                        "name": formData.prestataire_final.nom.first,
+                        "address": formData.prestataire_final.adresse.first,
+                        "contact": `${formData.prestataire_final.firstname.first} ${formData.prestataire_final.lastname.first}`,
+                        "phone": formData.prestataire_final.tel.first,
+                        "mail": formData.prestataire_final.email.first
                     }
                 },
                 "transporter": {
                     "company": {
-                        "siret": String(formData.transporteur.first.siret),
-                        "name": formData.transporteur.first.nom,
-                        "address": formData.transporteur.first.adresse,
-                        "contact": `${formData.transporteur.first.personne.prenom} ${formData.transporteur.first.personne.nom}`,
-                        "mail": formData.transporteur.first.personne.email,
-                        "phone": formData.transporteur.first.personne.tel
+                        "siret": String(formData.transporteur.siret.first),
+                        "name": formData.transporteur.nom.first,
+                        "address": formData.transporteur.adresse.first,
+                        "contact": `${formData.transporteur.firstname.first} ${formData.transporteur.lastname.first}`,
+                        "mail": formData.transporteur.email.first,
+                        "phone": formData.transporteur.tel.first
                     }
                 },
                 "wasteDetails": {
-                    "code": formData.dechet_details.first.ced,
-                    "onuCode": formData.dechet_details.first.onu || "Non Soumis",
-                    "name": formData.dechet_details.first.description,
+                    "code": formData.dechet_dangereux.ced.first,
+                    "onuCode": String(formData.dechet_dangereux.onu.first) || "Non Soumis",
+                    "name": formData.dechet_dangereux.denomination.first,
                     "packagingInfos": [
                         {
-                            "type": 'FUT',//formData.contenant.first.nom, //FUT, GRV, CITERNE, BENNE, PIPELINE, AUTRE
-                            "quantity": 1 // il faut un nmbre //parseInt(formData.contenant.first.nombre)
+                            "type": formData.contenant.code.first, //FUT, GRV, CITERNE, BENNE, PIPELINE, AUTRE
+                            "quantity": formData.contenant.indicatif.first // il faut un nmbre //parseInt(formData.contenant.first.nombre)
                         }
                     ],
-                    "quantity": 1, //tonnes
+                    "quantity": getWeightEstimation(formData.contenant.unitaire.first, formData.filiere.consistance.first, formData.contenant.indicatif.first),
                     "quantityType": "ESTIMATED",
-                    "consistence": "LIQUID"
+                    "consistence": formData.filiere.consistance.first
                 }
             }
         };
-        const formData_WithoutOptions = removeOptions(formData);
+        const formData_WithoutOptions : BSD_Data_Interface_WithoutOptions = removeOptions(formData);
         console.log("formAPI", formAPI);
 
         try {
@@ -688,64 +496,64 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
     const handleModify = async () => {
         try {
             setSubmitLoad(true);
-            const formAPI = {
+            const formAPI : Form_API_Interface = {
                 "createFormInput": {
                     "emitter": {
                         "type": "PRODUCER",
                         "workSite": {
-                            "address": formData.site.first.adresse.street,
-                            "postalCode": formData.site.first.adresse.postal_code,
-                            "city": formData.site.first.adresse.city,
+                            "address": formData.site.adresse.first.street,
+                            "postalCode": formData.site.adresse.first.postal_code,
+                            "city": formData.site.adresse.first.city,
                             "infos": null
                         },
                         "company": {
-                            "siret": '00000063963334',//ça doit être mon siret pour qu'il s'envoie sinon ça marche pas //String(formData.site.first.siret),
-                            "name": formData.site.first.nom,
-                            "address": formData.site.first.adresse.street + " " + formData.site.first.adresse.postal_code + " " + formData.site.first.adresse.city,
-                            "contact": `${formData.personne_producteur.first.prenom} ${formData.personne_producteur.first.nom}`,
-                            "phone": formData.personne_producteur.first.tel,
-                            "mail": formData.personne_producteur.first.email
+                            "siret": '00000063963334',//ça doit être mon siret pour qu'il s'envoie sinon ça marche pas //String(formData.site.siret),
+                            "name": formData.site.nom.first,
+                            "address": formData.site.adresse.first.street + " " + formData.site.adresse.first.postal_code + " " + formData.site.adresse.first.city,
+                            "contact": `${formData.producteur_personne.firstname.first} ${formData.producteur_personne.lastname.first}`,
+                            "phone": formData.producteur_personne.tel.first,
+                            "mail": formData.producteur_personne.email.first
                         }
                     },
                     "recipient": {
-                        "processingOperation": formData.prestataire_final.first.code_traitement,
-                        "cap": formData.prestataire_final.first.cap,
+                        "processingOperation": formData.prestataire_final.traitement.first,
+                        "cap": formData.filiere.cap.first,
                         "company": {
-                            "siret": String(formData.prestataire_final.first.siret),
-                            "name": formData.prestataire_final.first.nom,
-                            "address": formData.prestataire_final.first.adresse,
-                            "contact": `${formData.prestataire_final.first.personne.prenom} ${formData.prestataire_final.first.personne.nom}`,
-                            "phone": formData.prestataire_final.first.personne.tel,
-                            "mail": formData.prestataire_final.first.personne.email
+                            "siret": String(formData.prestataire_final.siret.first),
+                            "name": formData.prestataire_final.nom.first,
+                            "address": formData.prestataire_final.adresse.first,
+                            "contact": `${formData.prestataire_final.firstname.first} ${formData.prestataire_final.lastname.first}`,
+                            "phone": formData.prestataire_final.tel.first,
+                            "mail": formData.prestataire_final.email.first
                         }
                     },
                     "transporter": {
                         "company": {
-                            "siret": String(formData.transporteur.first.siret),
-                            "name": formData.transporteur.first.nom,
-                            "address": formData.transporteur.first.adresse,
-                            "contact": `${formData.transporteur.first.personne.prenom} ${formData.transporteur.first.personne.nom}`,
-                            "mail": formData.transporteur.first.personne.email,
-                            "phone": formData.transporteur.first.personne.tel
+                            "siret": String(formData.transporteur.siret.first),
+                            "name": formData.transporteur.nom.first,
+                            "address": formData.transporteur.adresse.first,
+                            "contact": `${formData.transporteur.firstname.first} ${formData.transporteur.lastname.first}`,
+                            "mail": formData.transporteur.email.first,
+                            "phone": formData.transporteur.tel.first
                         }
                     },
                     "wasteDetails": {
-                        "code": formData.dechet_details.first.ced,
-                        "onuCode": formData.dechet_details.first.onu || "Non Soumis",
-                        "name": formData.dechet_details.first.description,
+                        "code": formData.dechet_dangereux.ced.first,
+                        "onuCode": String(formData.dechet_dangereux.onu.first) || "Non Soumis",
+                        "name": formData.dechet_dangereux.denomination.first,
                         "packagingInfos": [
                             {
-                                "type": 'FUT',//formData.contenant.first.nom, //FUT, GRV, CITERNE, BENNE, PIPELINE, AUTRE
-                                "quantity": 1 // il faut un nmbre //parseInt(formData.contenant.first.nombre)
+                                "type": formData.contenant.code.first, //FUT, GRV, CITERNE, BENNE, PIPELINE, AUTRE
+                                "quantity": formData.contenant.indicatif.first // il faut un nmbre //parseInt(formData.contenant.first.nombre)
                             }
                         ],
-                        "quantity": 1, //tonnes
+                        "quantity": getWeightEstimation(formData.contenant.unitaire.first, formData.filiere.consistance.first, formData.contenant.indicatif.first),
                         "quantityType": "ESTIMATED",
-                        "consistence": "LIQUID"
+                        "consistence": formData.filiere.consistance.first
                     }
                 }
             };
-            const formData_WithoutOptions = removeOptions(formData);
+            const formData_WithoutOptions : BSD_Data_Interface_WithoutOptions = removeOptions(formData);
             const { error } = await supabase
                 .from('bsd')
                 .update({ 
@@ -784,34 +592,39 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                             <div className='flex justify-start gap-4 ml-8'>
                                 <div>
                                     <InputDeroulant
-                                            titre="Site" 
+                                            titre="1. Site" 
                                             placeholder="Sélectionner un site" 
-                                            options={formData.site.options.nom} 
+                                            options={formData.site.nom.options} 
                                             width={2} 
                                             name="site" 
-                                            value={formData.site.first.nom} 
+                                            value={formData.site.nom.first} 
                                             onChange={handleChange} 
+                                            changeLoad={changeLoad}
                                         />
                                     <InputDeroulant
                                         titre="Adresse d'enlèvement"
                                         placeholder="Adresse"
-                                        options={formData.adresse_collecte.options}
+                                        options={formData.site.adresse.options}
                                         width={2}
                                         name="adresse_enlevement"
-                                        value={formData.adresse_collecte.options[0]}
+                                        value={formData.site.adresse.first.street + " " + formData.site.adresse.first.postal_code + " " + formData.site.adresse.first.city}
                                         onChange={handleChange}
+                                        enabled={false}
+                                        changeLoad={changeLoad}
                                     />
                                 </div>
                                 <div>
-                                    <div className="w-[200px] h-[35px]"></div>
+                                    <div className="mt-3 ml-4 w-[350px] h-[25px] text-xs text-gray-400">▶ Pour ajuster les informations, remplissez les champs plus bas</div>
                                     <InputDeroulant
                                         titre="Personne référente"
                                         placeholder="Prénom Nom"
-                                        options={formData.personne_producteur.options.map((personne:{prenom:string, nom:string}) => String(personne.prenom) + " " + String(personne.nom))}
+                                        options={combineLists(' ', formData.producteur_personne.firstname.options, formData.producteur_personne.lastname.options)}
                                         width={2}
                                         name="personne_a_contacter_prenom_nom"
-                                        value={formData.personne_producteur.first.prenom + " " + formData.personne_producteur.first.nom}
+                                        value={`${formData.producteur_personne.firstname.first} ${formData.producteur_personne.lastname.first}`}
                                         onChange={handleChange}
+                                        enabled={false}
+                                        changeLoad={changeLoad}
                                     />
                                 </div>
                             </div>  
@@ -819,43 +632,49 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                             <div className='flex justify-start gap-4 ml-8'>
                                 <div>
                                     <InputDeroulant 
-                                        titre="Filière" 
+                                        titre="2. Filière" 
                                         placeholder="Sélectionner une filière" 
-                                        options={formData.filiere.options} 
+                                        options={formData.filiere.nom.options}
                                         width={2} 
                                         name="filiere" 
-                                        value={formData.filiere.first} 
+                                        value={formData.filiere.nom.first} 
                                         onChange={handleChange} 
+                                        changeLoad={changeLoad}
                                     />
                                     <InputDeroulant
-                                        titre="Déchet" 
+                                        titre="3. Déchet" 
                                         placeholder="Sélectionner un déchet" 
-                                        options={formData.dechet.options.map((dechet:{ced:string, description:string}) => String(dechet.ced) + " - " + String(dechet.description))} 
+                                        options={formData.dechet_dangereux.ced.options}//{combineLists(' - ',formData.dechet_dangereux.ced.options, formData.dechet_dangereux.denomination.options)}
                                         width={2} 
                                         name="dechet" 
-                                        value={formData.dechet.first.ced.toString() + " - " + formData.dechet.first.description} 
-                                        onChange={handleChange} 
+                                        value={formData.dechet_dangereux.ced.first}//{formData.dechet_dangereux.ced.first.toString() + " - " + formData.dechet_dangereux.denomination.first} 
+                                        onChange={handleChange}
+                                        changeLoad={changeLoad}
                                     />
                                 </div>
                                 <div>
                                     <InputDeroulant
                                         titre="Contenant" 
                                         placeholder="Sélectionner un contenant" 
-                                        options={formData.contenant.options.map((contenant:{nom:string, volume:string, nombre:string}) => String(contenant.nom) + " - " + String(contenant.volume))} 
+                                        options={combineLists(' / ',formData.contenant.description.options, formData.contenant.location.options)}
                                         width={1} 
                                         name="contenant" 
-                                        value={formData.contenant.first.nom + " - " + formData.contenant.first.volume} 
+                                        value={formData.contenant.description.first + " / " + formData.contenant.location.first} 
                                         onChange={handleChange} 
-                                            />
+                                        enabled={false}
+                                        changeLoad={changeLoad}
+                                    />
                                     <InputDeroulant
                                         titre="Nombre" 
                                         placeholder="Nombre" 
-                                        options={formData.contenant.options.length === 1 ? ['1','2','3','4','5'] : formData.contenant.options.map((contenant:{nombre:string}) => String(contenant.nombre))}
+                                        options={formData.contenant.indicatif.options.map((indicatif:number) => String(indicatif))}
                                         width={1} 
                                         name="nombre_contenant" 
-                                        value={formData.contenant.first.nombre} 
+                                        value={String(formData.contenant.indicatif.first)} 
                                         onChange={handleChange} 
-                                        />
+                                        enabled={false}
+                                        changeLoad={changeLoad}
+                                    />
                                 </div>
                             </div>
                             <div className='text-md font-bold mt-4'>Contacte Collecte</div>
@@ -863,20 +682,24 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose }: { isOpen: boolean,
                                 <InputDeroulant
                                     titre="Prestataire"
                                     placeholder="Sélectionner un prestataire final"
-                                    options={formData.prestataire_final.options.personne.map((personne:{prenom:string, nom:string}) => String(personne.prenom) + " " + String(personne.nom))}
+                                    options={formData.prestataire_final.nom.options}
                                     width={1}
                                     name="prestataire_final"
-                                    value={formData.prestataire_final.first.personne.prenom + " " + formData.prestataire_final.first.personne.nom}
+                                    value={formData.prestataire_final.nom.first}
                                     onChange={handleChange}
+                                    enabled={false}
+                                    changeLoad={changeLoad}
                                 />
                                 <InputDeroulant
                                     titre="Personne référente"
                                     placeholder="Prénom Nom"
-                                    options={formData.prestataire_final.options.personne.map((personne:{prenom:string, nom:string}) => String(personne.prenom) + " " + String(personne.nom))}
+                                    options={combineLists(' ', formData.prestataire_final.firstname.options, formData.prestataire_final.lastname.options)}
                                     width={1}
                                     name="personne_referente"
-                                    value={formData.prestataire_final.first.personne.prenom + " " + formData.prestataire_final.first.personne.nom}
+                                    value={`${formData.prestataire_final.firstname.first} ${formData.prestataire_final.lastname.first}`}
                                     onChange={handleChange}
+                                    enabled={false}
+                                    changeLoad={changeLoad}
                                 />
                             </div>
                             {/*<div className='bg-gray-300'>
