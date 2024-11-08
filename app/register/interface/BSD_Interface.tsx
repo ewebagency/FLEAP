@@ -136,10 +136,15 @@ interface FirstField<T> {
     first: T;
 }
 
+export interface Gouv {
+    raison: FirstField<string>;
+    adresse: FirstField<string>;
+}
+
 interface SiteWithoutOptions {
     nom: FirstField<string>;
     siret: FirstField<number | null>;
-    raison: FirstField<string>;
+    gouv: Gouv;
     adresse: FirstField<Adresse>;
     gerep: FirstField<string | null>;
 }
@@ -176,19 +181,19 @@ interface ContenantWithoutOptions {
     indicatif: FirstField<number>;
     location: FirstField<string>;
     siret: FirstField<number | null>;
-    raison: FirstField<string>;
+    gouv: Gouv;
 }
 
 interface EcoOrganismeWithoutOptions {
     nom: FirstField<string>;
     siret: FirstField<string>;
-    raison: FirstField<string>;
+    gouv: Gouv;
 }
 
 interface NegociantWithoutOptions {
     nom: FirstField<string | null>;
     siret: FirstField<number | null>;
-    raison: FirstField<string>;
+    gouv: Gouv;
     adresse: FirstField<string>;
     numero: FirstField<string | null>;
     lastname: FirstField<string>;
@@ -200,7 +205,7 @@ interface NegociantWithoutOptions {
 interface TransporteurWithoutOptions {
     nom: FirstField<string>;
     siret: FirstField<number>;
-    raison: FirstField<string>;
+    gouv: Gouv;
     adresse: FirstField<string>;
     numero: FirstField<string>;
     lastname: FirstField<string>;
@@ -212,7 +217,7 @@ interface TransporteurWithoutOptions {
 interface InstallationIntermediaireWithoutOptions {
     nom: FirstField<string>;
     siret: FirstField<string>;
-    raison: FirstField<string>;
+    gouv: Gouv;
     adresse: FirstField<string>;
     numero: FirstField<string | null>;
     traitement: FirstField<string>;
@@ -225,7 +230,7 @@ interface InstallationIntermediaireWithoutOptions {
 interface PrestataireFinalWithoutOptions {
     nom: FirstField<string>;
     siret: FirstField<number | null>;
-    raison: FirstField<string>;
+    gouv: Gouv;
     adresse: FirstField<string>;
     numero: FirstField<string | null>;
     traitement: FirstField<string>;

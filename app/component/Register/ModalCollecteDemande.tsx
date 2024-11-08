@@ -6,7 +6,7 @@ import { useSite } from "../context/SiteContext";
 import ToggleDisplayInfosAPI from "./ToggleDisplayInfosAPI";
 import { useModal } from "../context/ModalReloadcontext";
 import { supabase } from "@/app/database/supabaseClient";
-import { BSD_Data_Interface, BSD_Data_Interface_WithoutOptions } from "@/app/register/interface/BSD_Interface";
+import { BSD_Data_Interface, BSD_Data_Interface_WithoutOptions, Gouv } from "@/app/register/interface/BSD_Interface";
 //import { type } from "os";
 
 const getWeightEstimation = (
@@ -114,21 +114,29 @@ const extractSiret = (number: string) => {
     return null;
 }
   
-const getRaisonSocial = async (siret_tva :string) => {
+const getRaisonSocial = async (siret_tva: string): Promise<Gouv> => {
     const siret = extractSiret(siret_tva);
     if (!siret) {
-        console.log("siret non trouvé", siret_tva);
-        return '';
+        //console.log("siret non trouvé", siret_tva);
+        return { raison: { first: '' }, adresse: { first: '' } };
     }
-    //const siret = "44306184100047";
-    const response = await fetch(`/api/demande_collecte/infos_siren?siret=${siret}`);
-    if (!response.ok) {
-        return '';
-    } else {
-        const raison_sociale = await response.json();
-        return raison_sociale;
+
+    try {
+        const response = await fetch(`/api/demande_collecte/infos_siren?siret=${siret}`);
+        if (!response.ok) {
+            //console.log('response non ok', response);
+            return { raison: { first: '' }, adresse: { first: '' } };
+        }
+        
+        const data = await response.json();
+        //console.log('gouuv', data);
+        return data; // L'API renvoie déjà le bon format
+        
+    } catch (error) {
+        console.error('Erreur getRaisonSocial:', error);
+        return { raison: { first: '' }, adresse: { first: '' } };
     }
-}
+};
 
 const removeOptions = async (formData: BSD_Data_Interface): Promise<BSD_Data_Interface_WithoutOptions> => {
     const resultData: BSD_Data_Interface_WithoutOptions = {
@@ -155,12 +163,12 @@ const removeOptions = async (formData: BSD_Data_Interface): Promise<BSD_Data_Int
             indicatif: {first: formData.contenant.indicatif.first}, //nombre indicatif
             location: {first: formData.contenant.location.first}, //proprio ou location
             siret: {first: formData.contenant.siret.first}, //siret de prestataire qui loue les contenants
-            raison: {first: await getRaisonSocial(String(formData.contenant.siret.first))},
+            gouv: await getRaisonSocial(String(formData.contenant.siret.first)),
         },
         site: {
             nom: {first: formData.site.nom.first},
             siret: {first: formData.site.siret.first},
-            raison: {first: await getRaisonSocial(String(formData.site.siret.first))},
+            gouv: await getRaisonSocial(String(formData.site.siret.first)),
             adresse: {first: formData.site.adresse.first},
             gerep: {first: formData.site.gerep.first},
         },
@@ -179,7 +187,7 @@ const removeOptions = async (formData: BSD_Data_Interface): Promise<BSD_Data_Int
         prestataire_final: {
             nom: {first: formData.prestataire_final.nom.first},
             siret: {first: formData.prestataire_final.siret.first},
-            raison: {first: await getRaisonSocial(String(formData.prestataire_final.siret.first))},
+            gouv: await getRaisonSocial(String(formData.prestataire_final.siret.first)),
             adresse: {first: formData.prestataire_final.adresse.first},
             numero: {first: formData.prestataire_final.numero.first},
             traitement: {first: formData.prestataire_final.traitement.first}, //code de traitement (R5)
@@ -191,7 +199,7 @@ const removeOptions = async (formData: BSD_Data_Interface): Promise<BSD_Data_Int
         },
         transporteur: {
             siret: {first: formData.transporteur.siret.first},
-            raison: {first: await getRaisonSocial(String(formData.transporteur.siret.first))},
+            gouv: await getRaisonSocial(String(formData.transporteur.siret.first)),
             nom: {first: formData.transporteur.nom.first},
             adresse: {first: formData.transporteur.adresse.first},
             numero: {first: formData.transporteur.numero.first},
@@ -203,7 +211,7 @@ const removeOptions = async (formData: BSD_Data_Interface): Promise<BSD_Data_Int
         installation_intermediaire: {
             nom: {first: formData.installation_intermediaire.nom.first},
             siret: {first: formData.installation_intermediaire.siret.first},
-            raison: {first: await getRaisonSocial(String(formData.installation_intermediaire.siret.first))},
+            gouv: await getRaisonSocial(String(formData.installation_intermediaire.siret.first)),
             adresse: {first: formData.installation_intermediaire.adresse.first},
             numero: {first: formData.installation_intermediaire.numero.first},
             traitement: {first: formData.installation_intermediaire.traitement.first},
@@ -215,12 +223,12 @@ const removeOptions = async (formData: BSD_Data_Interface): Promise<BSD_Data_Int
         eco_organisme: {
             nom: {first: formData.eco_organisme.nom.first},
             siret: {first: formData.eco_organisme.siret.first},
-            raison: {first: await getRaisonSocial(String(formData.eco_organisme.siret.first))},
+            gouv: await getRaisonSocial(String(formData.eco_organisme.siret.first)),
         },
         negociant: {
             nom: {first: formData.negociant.nom.first},
             siret: {first: formData.negociant.siret.first},
-            raison: {first: await getRaisonSocial(String(formData.negociant.siret.first))},
+            gouv: await getRaisonSocial(String(formData.negociant.siret.first)),
             adresse: {first: formData.negociant.adresse.first},
             numero: {first: formData.negociant.numero.first},
             lastname: {first: formData.negociant.lastname.first},
