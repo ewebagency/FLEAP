@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import InputDeroulant from './InputDeroulant';
-import InputText from './InputText';
+//import InputText from './InputText';
 import { useSession } from "../SessionProvider";
 import { useSite } from "../context/SiteContext";
 import ToggleDisplayInfosAPI from "./ToggleDisplayInfosAPI";
 import { useModal } from "../context/ModalReloadcontext";
 import { supabase } from "@/app/database/supabaseClient";
 import { BSD_Data_Interface, BSD_Data_Interface_WithoutOptions } from "@/app/register/interface/BSD_Interface";
+//import { type } from "os";
 
 const getWeightEstimation = (
   volume: string,        // Volume exprimé en L ou m3 (ex: '200L' ou '15m3')
@@ -26,6 +27,16 @@ const getWeightEstimation = (
 
   return totalWeight;
 };
+
+const getVolumeEstimation = (unitaire: string, indicatif: number) => {
+    let type = "L";
+    if (unitaire.includes("m3")) {
+        type = "m3";
+    }
+    const unitaire_number = Number(unitaire.replace(type, ""));
+    const multiplier = type === "m3" ? 1000 : 1;
+    return unitaire_number*indicatif*multiplier;
+}
 
 interface Form_API_Interface {
     createFormInput: {
@@ -85,7 +96,41 @@ interface Form_API_Interface {
     }
 };
 
-const removeOptions = (formData: BSD_Data_Interface): BSD_Data_Interface_WithoutOptions => {
+const extractSiret = (number: string) => {
+    // Vérifie si le numéro est un SIRET (14 chiffres consécutifs)
+    const siretPattern = /^\d{14}$/;
+    if (siretPattern.test(number)) {
+      return number;
+    }
+  
+    // Vérifie si le numéro est un numéro de TVA (FR + 2 chiffres + 9 chiffres pour le SIREN)
+    const tvaPattern = /^FR\d{2}(\d{9})$/;
+    const matchTva = number.match(tvaPattern);
+    if (matchTva) {
+      return matchTva[1] + '00000'; // Compléter avec 00000 pour obtenir un SIRET
+    }
+  
+    // Retourne null si aucun SIRET ou TVA valide trouvé
+    return null;
+}
+  
+const getRaisonSocial = async (siret_tva :string) => {
+    const siret = extractSiret(siret_tva);
+    if (!siret) {
+        console.log("siret non trouvé", siret_tva);
+        return '';
+    }
+    //const siret = "44306184100047";
+    const response = await fetch(`/api/demande_collecte/infos_siren?siret=${siret}`);
+    if (!response.ok) {
+        return '';
+    } else {
+        const raison_sociale = await response.json();
+        return raison_sociale;
+    }
+}
+
+const removeOptions = async (formData: BSD_Data_Interface): Promise<BSD_Data_Interface_WithoutOptions> => {
     const resultData: BSD_Data_Interface_WithoutOptions = {
         filiere: {
             nom: {first: formData.filiere.nom.first},
@@ -99,21 +144,23 @@ const removeOptions = (formData: BSD_Data_Interface): BSD_Data_Interface_Without
             denomination: {first: formData.dechet_dangereux.denomination.first},
             danger: {first: formData.dechet_dangereux.danger.first},
             emballage: {first: formData.dechet_dangereux.emballage.first},
-            collecte: {first: formData.dechet_dangereux.collecte.first},
+            collecte: {first: formData.dechet_dangereux.collecte.first}, //adresse de collecte
         },
         contenant: {
             nom: {first: formData.contenant.nom.first},
             code: {first: formData.contenant.code.first},
             identifiant: {first: formData.contenant.identifiant.first},
             description: {first: formData.contenant.description.first},
-            unitaire: {first: formData.contenant.unitaire.first},
-            indicatif: {first: formData.contenant.indicatif.first},
-            location: {first: formData.contenant.location.first},
-            siret: {first: formData.contenant.siret.first},
+            unitaire: {first: formData.contenant.unitaire.first}, //volume unitaire
+            indicatif: {first: formData.contenant.indicatif.first}, //nombre indicatif
+            location: {first: formData.contenant.location.first}, //proprio ou location
+            siret: {first: formData.contenant.siret.first}, //siret de prestataire qui loue les contenants
+            raison: {first: await getRaisonSocial(String(formData.contenant.siret.first))},
         },
         site: {
             nom: {first: formData.site.nom.first},
             siret: {first: formData.site.siret.first},
+            raison: {first: await getRaisonSocial(String(formData.site.siret.first))},
             adresse: {first: formData.site.adresse.first},
             gerep: {first: formData.site.gerep.first},
         },
@@ -132,10 +179,11 @@ const removeOptions = (formData: BSD_Data_Interface): BSD_Data_Interface_Without
         prestataire_final: {
             nom: {first: formData.prestataire_final.nom.first},
             siret: {first: formData.prestataire_final.siret.first},
+            raison: {first: await getRaisonSocial(String(formData.prestataire_final.siret.first))},
             adresse: {first: formData.prestataire_final.adresse.first},
             numero: {first: formData.prestataire_final.numero.first},
-            traitement: {first: formData.prestataire_final.traitement.first},
-            qualification: {first: formData.prestataire_final.qualification.first},
+            traitement: {first: formData.prestataire_final.traitement.first}, //code de traitement (R5)
+            qualification: {first: formData.prestataire_final.qualification.first}, //qualification du traitement (recyclage ou incinération)
             lastname: {first: formData.prestataire_final.lastname.first},
             firstname: {first: formData.prestataire_final.firstname.first},
             tel: {first: formData.prestataire_final.tel.first},
@@ -143,6 +191,7 @@ const removeOptions = (formData: BSD_Data_Interface): BSD_Data_Interface_Without
         },
         transporteur: {
             siret: {first: formData.transporteur.siret.first},
+            raison: {first: await getRaisonSocial(String(formData.transporteur.siret.first))},
             nom: {first: formData.transporteur.nom.first},
             adresse: {first: formData.transporteur.adresse.first},
             numero: {first: formData.transporteur.numero.first},
@@ -154,6 +203,7 @@ const removeOptions = (formData: BSD_Data_Interface): BSD_Data_Interface_Without
         installation_intermediaire: {
             nom: {first: formData.installation_intermediaire.nom.first},
             siret: {first: formData.installation_intermediaire.siret.first},
+            raison: {first: await getRaisonSocial(String(formData.installation_intermediaire.siret.first))},
             adresse: {first: formData.installation_intermediaire.adresse.first},
             numero: {first: formData.installation_intermediaire.numero.first},
             traitement: {first: formData.installation_intermediaire.traitement.first},
@@ -165,10 +215,12 @@ const removeOptions = (formData: BSD_Data_Interface): BSD_Data_Interface_Without
         eco_organisme: {
             nom: {first: formData.eco_organisme.nom.first},
             siret: {first: formData.eco_organisme.siret.first},
+            raison: {first: await getRaisonSocial(String(formData.eco_organisme.siret.first))},
         },
         negociant: {
             nom: {first: formData.negociant.nom.first},
             siret: {first: formData.negociant.siret.first},
+            raison: {first: await getRaisonSocial(String(formData.negociant.siret.first))},
             adresse: {first: formData.negociant.adresse.first},
             numero: {first: formData.negociant.numero.first},
             lastname: {first: formData.negociant.lastname.first},
@@ -176,8 +228,11 @@ const removeOptions = (formData: BSD_Data_Interface): BSD_Data_Interface_Without
             tel: {first: formData.negociant.tel.first},
             email: {first: formData.negociant.email.first},
         },
+        date: {collecte: {first: formData.date.collecte.first}},
+        volume: {first: getVolumeEstimation(formData.contenant.unitaire.first, formData.contenant.indicatif.first)}, //Volume toujours en litre
+        estimated_weight: {first: getWeightEstimation(formData.contenant.unitaire.first, formData.filiere.consistance.first, Number(formData.contenant.indicatif.first))},
     };
-    return resultData;
+    return Promise.resolve(resultData);
 };
 
 const initialFormData : BSD_Data_Interface = {
@@ -278,6 +333,7 @@ const initialFormData : BSD_Data_Interface = {
         tel: {first: '', options: []},
         email: {first: '', options: []},
     },
+    date: {collecte: {first: ''}}
 };
 
 function combineLists(separator: string, ...lists: string[][]) {
@@ -382,6 +438,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
                     const data = await result.json();
                     setFormData(data);
                 } catch (error) {
+                    console.error("Erreur lors de la récupération des données:", error);
                     alert("Veuillez remplir les champs filière avant");
                 }
             }
@@ -467,7 +524,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
                 }
             }
         };
-        const formData_WithoutOptions : BSD_Data_Interface_WithoutOptions = removeOptions(formData);
+        const formData_WithoutOptions : BSD_Data_Interface_WithoutOptions = await removeOptions(formData);
         console.log("formAPI", formAPI);
 
         try {
@@ -560,7 +617,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
                     }
                 }
             };
-            const formData_WithoutOptions : BSD_Data_Interface_WithoutOptions = removeOptions(formData);
+            const formData_WithoutOptions : BSD_Data_Interface_WithoutOptions = await removeOptions(formData);
             const { error } = await supabase
                 .from('bsd')
                 .update({ 

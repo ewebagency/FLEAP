@@ -126,7 +126,11 @@ export interface BSD_Data_Interface {
     transporteur: Transporteur;
     installation_intermediaire: InstallationIntermediaire;
     prestataire_final: PrestataireFinal;
+    date : { collecte: FirstField<string> }
 }
+
+
+//-----------------------------------------------------
 
 interface FirstField<T> {
     first: T;
@@ -135,6 +139,7 @@ interface FirstField<T> {
 interface SiteWithoutOptions {
     nom: FirstField<string>;
     siret: FirstField<number | null>;
+    raison: FirstField<string>;
     adresse: FirstField<Adresse>;
     gerep: FirstField<string | null>;
 }
@@ -171,16 +176,19 @@ interface ContenantWithoutOptions {
     indicatif: FirstField<number>;
     location: FirstField<string>;
     siret: FirstField<number | null>;
+    raison: FirstField<string>;
 }
 
 interface EcoOrganismeWithoutOptions {
     nom: FirstField<string>;
     siret: FirstField<string>;
+    raison: FirstField<string>;
 }
 
 interface NegociantWithoutOptions {
     nom: FirstField<string | null>;
     siret: FirstField<number | null>;
+    raison: FirstField<string>;
     adresse: FirstField<string>;
     numero: FirstField<string | null>;
     lastname: FirstField<string>;
@@ -192,6 +200,7 @@ interface NegociantWithoutOptions {
 interface TransporteurWithoutOptions {
     nom: FirstField<string>;
     siret: FirstField<number>;
+    raison: FirstField<string>;
     adresse: FirstField<string>;
     numero: FirstField<string>;
     lastname: FirstField<string>;
@@ -203,6 +212,7 @@ interface TransporteurWithoutOptions {
 interface InstallationIntermediaireWithoutOptions {
     nom: FirstField<string>;
     siret: FirstField<string>;
+    raison: FirstField<string>;
     adresse: FirstField<string>;
     numero: FirstField<string | null>;
     traitement: FirstField<string>;
@@ -215,6 +225,7 @@ interface InstallationIntermediaireWithoutOptions {
 interface PrestataireFinalWithoutOptions {
     nom: FirstField<string>;
     siret: FirstField<number | null>;
+    raison: FirstField<string>;
     adresse: FirstField<string>;
     numero: FirstField<string | null>;
     traitement: FirstField<string>;
@@ -237,4 +248,7 @@ export interface BSD_Data_Interface_WithoutOptions {
     transporteur: TransporteurWithoutOptions;
     installation_intermediaire: InstallationIntermediaireWithoutOptions;
     prestataire_final: PrestataireFinalWithoutOptions;
+    date: { collecte: FirstField<string> }
+    volume: FirstField<number>;
+    estimated_weight: FirstField<number>;
 }

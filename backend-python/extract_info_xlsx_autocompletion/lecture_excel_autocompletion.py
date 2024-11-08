@@ -388,9 +388,9 @@ def data_from_excel(userId: str, site: str, filiere: str, dechet: str):
     options_dict["site"]["nom"]["options"] = noms_site
     options_dict["filiere"]["nom"]["options"] = noms_filiere
 
-
 ######################
-
+    # Ajout de date de collecte pour plus tard
+    options_dict["date"] = {"collecte":{"first": ''}}
 
     #result = convert_numpy_types(options_dict)
     print('---------', convert_numpy_types(options_dict["site"]["nom"]["options"]))
