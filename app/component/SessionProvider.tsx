@@ -14,20 +14,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
 
     useEffect(() => {
-        const getSession = async () => {
-            try {
-                const { data } = await supabase.auth.getSession();
-                setSession(data?.session || null);
-            } catch (error) {
-                console.error('Erreur lors de la récupération de la session:', error);
-                setSession(null);
-            }
-        };
-
-        getSession();
+        supabase.auth.getSession().then(({ data }) => {
+            setSession(data?.session || null);
+        }).catch((error) => {
+            console.error('Erreur lors de la récupération de la session:', error);
+            setSession(null);
+        });
 
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, sessionData) => {
-            setSession(sessionData); // Utilisation de sessionData directement
+            setSession(sessionData);
         });
 
         return () => {
