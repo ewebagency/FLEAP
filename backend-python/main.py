@@ -7,15 +7,18 @@ from typing import Optional
 
 app = FastAPI()
 
+origins = [
+    "http://localhost:3000",  # Development
+    "https://fleap-three.vercel.app", # Production
+    "https://fleap-three.vercel.app/",
+    "https://fleap-arthurpouzcs-projects.vercel.app", # Production Arthur
+    "https://fleap-arthurpouzcs-projects.vercel.app/",
+]
+
 # Configurer CORS pour autoriser les requêtes du frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        #"http://localhost:3000",  # Development
-        #"https://fleap-three.vercel.app", # Production
-        #"https://fleap-arthurpouzcs-projects.vercel.app", # Production Arthur
-        "*",
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],  # Permet toutes les méthodes HTTP
     allow_headers=["*"],  # Permet tous les headers
