@@ -412,6 +412,9 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
             setFormData((prevData) => ({...prevData, ...optionsInit}));
             console.log("formData", formData);
             setReady(true);
+            /*if(!changeLoad){
+                setChangeLoad(true);
+            }*/
         }
     }, [optionsInit]);
 

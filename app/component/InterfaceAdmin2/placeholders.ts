@@ -91,62 +91,302 @@ export const jsonDefaultData = {
           }
     },
     bsd_formulaire: {
-        dechet_et_conditionnement : {
-            code_ced : "Code CED",
-            dechet_dangereux_facultatif : {
-                code_adr : "ADR",
-                code_onu : "Code ONU"
-            },
-            contenant : {
-                nom_contenant : "Nom contenant",
-                nombre_contenant : 0,
-                reference_contenant : "Reference contenant",
-                volume_unitaire_contenant : 0,
-            },
-            quantite : {
-                collectee : 0,
-                reception : 0
-            }
+      "formData": {
+        "date": {
+          "collecte": {
+            "first": ""
+          }
         },
-        acteurs : {
-            site_emeteur : {
-                siret : "SIRET site emetteur",
-                adresse_collecte : "Adresse collecte",
-                personne_de_reference : {
-                    prenom_nom : "Prénom Nom",
-                    tel : "06 00 00 00 00",
-                    mail : "mail@mail.com"
-                },
+        "site": {
+          "nom": {
+            "first": "Usine Achenheim"
+          },
+          "gouv": {
+            "raison": {
+              "first": "WIENERBERGER"
             },
-            transporteurs : [
-                {
-                    siret : "SIRET",
-                    num_recepisse : "Nunméro récépissé",
-                    personne_de_reference : {
-                        prenom_nom : "Prénom Nom",
-                        tel : "06 00 00 00 00",
-                        mail : "mail@mail.com"
-                    },
-                    date_de_prise_en_charge : "JJ/MM/AAAA",
-                    mode_de_transport : "Mode de transport",
-                    immatriculation : "Immatriculation"
-                }
-            ],
-            traitement : {
-                siret : "SIRET",
-                num_recepisse : "Nunméro récépissé",
-                num_cap : "Numéro CAP",
-                personne_de_reference : {
-                    prenom_nom : "Prénom Nom",
-                    tel : "06 00 00 00 00",
-                    mail : "mail@mail.com"
-                },
-                date_de_presentation : "JJ/MM/AAAA",
-                accepte_refuse : "Accepté/Refusé",
-                motif_de_refus : "Motif de refus/RAS",
-                code_d_r : "Code D/R",
-                date_traitement : "JJ/MM/AAAA"
+            "adresse": {
+              "first": "5 RUE DU CANAL 67204 ACHENHEIM"
             }
+          },
+          "gerep": {
+            "first": null
+          },
+          "siret": {
+            "first": 54850098200044
+          },
+          "adresse": {
+            "first": {
+              "city": "Achenheim",
+              "street": "5 rue du Canal",
+              "fulladdress": "5 rue du Canal 67204 Achenheim",
+              "postal_code": "67204"
+            }
+          }
         },
+        "volume": {
+          "first": 5000
+        },
+        "filiere": {
+          "cap": {
+            "first": "WEE2838942"
+          },
+          "ced": {
+            "first": "16 05 04*"
+          },
+          "nom": {
+            "first": "Aérosols et Gaz"
+          },
+          "consistance": {
+            "first": "Liquide"
+          }
+        },
+        "contenant": {
+          "nom": {
+            "first": "GRV"
+          },
+          "code": {
+            "first": "GRV"
+          },
+          "gouv": {
+            "raison": {
+              "first": ""
+            },
+            "adresse": {
+              "first": ""
+            }
+          },
+          "siret": {
+            "first": null
+          },
+          "location": {
+            "first": "Propriétaire"
+          },
+          "unitaire": {
+            "first": "1000L"
+          },
+          "indicatif": {
+            "first": 5
+          },
+          "description": {
+            "first": "Grand Récipient Pour Vrac"
+          },
+          "identifiant": {
+            "first": null
+          }
+        },
+        "negociant": {
+          "nom": {
+            "first": null
+          },
+          "tel": {
+            "first": null
+          },
+          "gouv": {
+            "raison": {
+              "first": ""
+            },
+            "adresse": {
+              "first": ""
+            }
+          },
+          "email": {
+            "first": null
+          },
+          "siret": {
+            "first": null
+          },
+          "numero": {
+            "first": null
+          },
+          "adresse": {
+            "first": null
+          },
+          "lastname": {
+            "first": null
+          },
+          "firstname": {
+            "first": null
+          }
+        },
+        "transporteur": {
+          "nom": {
+            "first": "Chimirec Est"
+          },
+          "tel": {
+            "first": "05 44 44 44 44"
+          },
+          "gouv": {
+            "raison": {
+              "first": "CHIMIREC-EST"
+            },
+            "adresse": {
+              "first": "ZI LA HAIE SORETTE 54450 DOMJEVIN"
+            }
+          },
+          "email": {
+            "first": "l.c@transpo.fr"
+          },
+          "siret": {
+            "first": 39933934000016
+          },
+          "numero": {
+            "first": "TR547592024"
+          },
+          "adresse": {
+            "first": "ZI La Haie Sorette 54450 Domjevin"
+          },
+          "lastname": {
+            "first": "Camion"
+          },
+          "firstname": {
+            "first": "Luc"
+          }
+        },
+        "eco_organisme": {
+          "nom": {
+            "first": "non concerné"
+          },
+          "gouv": {
+            "raison": {
+              "first": ""
+            },
+            "adresse": {
+              "first": ""
+            }
+          },
+          "siret": {
+            "first": "non concerné"
+          }
+        },
+        "dechet_dangereux": {
+          "ced": {
+            "first": "16 05 04*"
+          },
+          "onu": {
+            "first": 1789
+          },
+          "danger": {
+            "first": 7
+          },
+          "collecte": {
+            "first": null
+          },
+          "emballage": {
+            "first": "II"
+          },
+          "denomination": {
+            "first": "acide chlorhydrique"
+          }
+        },
+        "estimated_weight": {
+          "first": 5
+        },
+        "prestataire_final": {
+          "nom": {
+            "first": "Autorisation par arrêté préfectoral, à une rupture de traçabilité pour ce déchet"
+          },
+          "tel": {
+            "first": "87 56 76 87 98"
+          },
+          "gouv": {
+            "raison": {
+              "first": ""
+            },
+            "adresse": {
+              "first": ""
+            }
+          },
+          "email": {
+            "first": "lepoint@outlook.fr"
+          },
+          "siret": {
+            "first": null
+          },
+          "numero": {
+            "first": null
+          },
+          "adresse": {
+            "first": null
+          },
+          "lastname": {
+            "first": "Lepoint"
+          },
+          "firstname": {
+            "first": "Martin"
+          },
+          "traitement": {
+            "first": "R4"
+          },
+          "qualification": {
+            "first": "Recyclage"
+          }
+        },
+        "producteur_personne": {
+          "tel": {
+            "first": "06 12 33 76 40"
+          },
+          "email": {
+            "first": "laura.baumert@wienerberger.com"
+          },
+          "lastname": {
+            "first": "Baumert"
+          },
+          "firstname": {
+            "first": "Laura"
+          }
+        },
+        "operationnelle_personne": {
+          "tel": {
+            "first": "06 44 44 44 44"
+          },
+          "email": {
+            "first": "carinne.bauvier@wienerberger.com"
+          },
+          "lastname": {
+            "first": "Bauvier"
+          },
+          "firstname": {
+            "first": "Carinne"
+          }
+        },
+        "installation_intermediaire": {
+          "nom": {
+            "first": "Chimirec Est"
+          },
+          "tel": {
+            "first": "33 33 33 33 33"
+          },
+          "gouv": {
+            "raison": {
+              "first": ""
+            },
+            "adresse": {
+              "first": ""
+            }
+          },
+          "email": {
+            "first": "legrand@marcel.fr"
+          },
+          "siret": {
+            "first": "#############"
+          },
+          "numero": {
+            "first": null
+          },
+          "adresse": {
+            "first": "ZI La Haie Sorette 54450 Domjevin"
+          },
+          "lastname": {
+            "first": "Legrand"
+          },
+          "firstname": {
+            "first": "Marcel"
+          },
+          "traitement": {
+            "first": "R12"
+          }
+        }
+      }
     }
 };
