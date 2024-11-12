@@ -48,13 +48,72 @@ interface BSD_Export_Interface {
     "Coûts TTC": string | number | null
 }
 
+interface Facture_Info_Interface {
+    ligne_compta_tgap: {
+        tva: string,
+        titre: string,
+        unite: string,
+        pu_net: number,
+        quantite: number,
+        montant_ht: number
+    },
+    infos_pour_filtrer: {
+        bsd_id: null,
+        code_ced: string,
+        date_collecte: string,
+        linked_to_bsd: boolean,
+        description_dechet: string,
+        description_adresse_site: string
+    },
+    ligne_compta_contenant: {
+        tva: string,
+        titre: string,
+        unite: string,
+        pu_net: number,
+        quantite: number,
+        montant_ht: number
+    },
+    ligne_compta_transport: {
+        tva: string,
+        titre: string,
+        unite: string,
+        pu_net: number,
+        quantite: number,
+        montant_ht: number
+    },
+    ligne_compta_traitement: {
+        tva: string,
+        titre: string,
+        unite: string,
+        pu_net: number,
+        quantite: number,
+        montant_ht: number
+    },
+    ligne_compta_preparation: {
+        tva: string,
+        titre: string,
+        unite: string,
+        pu_net: number,
+        quantite: number,
+        montant_ht: number
+    },
+    ligne_compta_rachat_matiere: {
+        tva: string,
+        titre: string,
+        unite: string,
+        pu_net: number,
+        quantite: number,
+        montant_ht: number
+    }
+}
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const user_id = searchParams.get('user_id');
     console.log('laaaaa');
     const {data, error} = await supabase
     .from('bsd')
-    .select('infos_json')
+    .select('infos_json, facture_treated, facture_infos')
     .eq('user_id', user_id); //Attention à terme filtrer sur la  boite et pas le user id !!!! ⚠⚠⚠⚠⚠
 
     if(error) {
@@ -65,7 +124,11 @@ export async function GET(request: Request) {
     }
 }
 
-const formatBSDData = (data: {infos_json: {formData: BSD_Data_Interface_WithoutOptions}}[]) => {
+const formatBSDData = (data: {
+    infos_json: {formData: BSD_Data_Interface_WithoutOptions}, 
+    facture_treated: boolean, 
+    facture_infos: Facture_Info_Interface
+}[]) => {
     return data.map((item) => {
         const getValue = (accessor: () => string|number|null, defaultValue: string = 'Non trouvé') => {
             try {
@@ -112,13 +175,21 @@ const formatBSDData = (data: {infos_json: {formData: BSD_Data_Interface_WithoutO
             "Adresse de l'Eco-organisme": getValue(() => item.infos_json.formData.eco_organisme.gouv.adresse.first),
 
             // Informations financières
-            "Montant TTC": getValue(() => null, 'Pas encore disponible'),
-            "Coûts de préparation HT": getValue(() => null, 'Pas encore disponible'),
-            "Coûts de transport HT": getValue(() => null, 'Pas encore disponible'),
-            "Coûts de traitement HT": getValue(() => null, 'Pas encore disponible'),
-            "Coûts HT/tonne": getValue(() => null, 'Pas encore disponible'),
-            "TVA": getValue(() => null, 'Pas encore disponible'),
-            "Coûts TTC": getValue(() => null, 'Pas encore disponible')
+            "Montant TTC": item.facture_treated ? "Bientôt disponible" : "Pas encore disponible",
+            "Coûts de préparation HT": item.facture_treated ? 
+                getValue(() => item.facture_infos.ligne_compta_preparation.montant_ht.toString()) : 
+                "Pas encore disponible",
+            "Coûts de transport HT": item.facture_treated ? 
+                getValue(() => item.facture_infos.ligne_compta_transport.montant_ht.toString()) : 
+                "Pas encore disponible",
+            "Coûts de traitement HT": item.facture_treated ? 
+                getValue(() => item.facture_infos.ligne_compta_traitement.montant_ht.toString()) : 
+                "Pas encore disponible",
+            "Coûts HT/tonne": item.facture_treated ? 
+                getValue(() => item.facture_infos.ligne_compta_traitement.montant_ht.toString()) : 
+                "Pas encore disponible",
+            "TVA": item.facture_treated ? "Bientôt disponible" : "Pas encore disponible",
+            "Coûts TTC": item.facture_treated ? "Bientôt disponible" : "Pas encore disponible"
         };
     });
 };

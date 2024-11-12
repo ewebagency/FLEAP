@@ -84,6 +84,7 @@ const SideBar = (props:SideBarProps) => {
                     <li><a href="/register" className="menu-item">Registre</a></li>
                     <li><a href="/import_page" className="menu-item">Importer</a></li>
                     {cofounderPermission && <li><a href="/interface_admin_2" className="menu-item">Vérification de factures</a></li>}
+                    {cofounderPermission && <li><a href="/lien" className="menu-item">Lien entre Factures et BSDs</a></li>}
                 </ul>
             </div>
             <DetailsSideBar 

@@ -16,7 +16,9 @@ export const jsonDefaultData = {
                 description_adresse_site: "Adresse site",
                 description_dechet : "Cartons",
                 code_ced : "Code CED si possible",
-                date_collecte : "JJ/MM/AAAA"
+                date_collecte : "JJ/MM/AAAA",
+                linked_to_bsd : false,
+                bsd_id : null
               },
               ligne_compta_contenant: {
                   titre: "Titre contenant",

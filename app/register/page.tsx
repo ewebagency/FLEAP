@@ -5,7 +5,7 @@ import CollecteDemande from "../component/Register/CollecteDemande";
 //import TableRegistre from "./TableRegistre";
 import TableBSD from "./TableBSD";
 import { ModalProvider } from "../component/context/ModalReloadcontext";
-import ExportRegisterButton from "./xportRegisterButton";
+import ExportRegisterButton from "./ExportRegisterButton";
 
 const RegisterPage = () => {
 

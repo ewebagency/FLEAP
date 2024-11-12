@@ -7,6 +7,16 @@ import { useModal } from "../component/context/ModalReloadcontext";
 type BSD = {
     id: string;
     infos_json: {formAPI: FormAPI, formData: FormData};
+    facture_treated: boolean;
+    facture_infos: {
+        ligne_compta_traitement: {montant_ht: number}, 
+        ligne_compta_tgap: {montant_ht: number}, 
+        ligne_compta_contenant: {montant_ht: number},
+        ligne_compta_transport: {montant_ht: number},
+        ligne_compta_preparation: {montant_ht: number},
+        ligne_compta_rachat_matiere: {montant_ht: number}
+    };
+
 };
 
 interface FormData {
@@ -216,11 +226,15 @@ interface FormAPI {
         }
 }
 
+const getSommeBSD = (facture_infos: BSD['facture_infos']) => {
+    return facture_infos.ligne_compta_traitement.montant_ht + facture_infos.ligne_compta_tgap.montant_ht + facture_infos.ligne_compta_contenant.montant_ht + facture_infos.ligne_compta_transport.montant_ht + facture_infos.ligne_compta_preparation.montant_ht + facture_infos.ligne_compta_rachat_matiere.montant_ht;
+}
+
 const fetchBSDs = async (user_id: string | null) => {
     console.log("user_id : ", user_id);
     const { data, error } = await supabase
     .from('bsd')
-    .select('id, infos_json')
+    .select('id, created_at, infos_json, facture_treated, facture_infos')
     .eq('user_id', user_id);
     if(error){
         console.error("Error fetching BSD:", error);
@@ -242,10 +256,10 @@ const TableBSD = () => {
                 try {
                     const data = await fetchBSDs(session.user.id);
                     if (data) {
-                        console.log("fetchBSDs : ", data);
-                        setBSDs(data);
-                        console.log("bsds : ", bsds);
-
+                        const sortedData = data.sort((a, b) => 
+                            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                        );
+                        setBSDs(sortedData);
                     }
                 } catch (error) {
                     console.error("Error loading BSDs:", error);
@@ -285,7 +299,7 @@ const TableBSD = () => {
                     </tr>
                 </thead>
                 <tbody>
-                    {bsds.slice().reverse().map((bsd) => (
+                    {bsds.map((bsd) => (
                         <tr key={bsd.id} style={{ borderBottom: '1px solid #ddd' }}>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
                                 <div className="text-xs">
@@ -295,7 +309,12 @@ const TableBSD = () => {
                                 </div>
                             </td>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                                <div className="text-xs">Brouillon[fixe]</div>
+                                {
+                                bsd.facture_treated ? 
+                                    <div className="text-xs">Lié à une facture</div> 
+                                : 
+                                    <div className="text-xs">Brouillon</div>
+                                }
                             </td>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
                                 <div className="text-xs ml-2">
@@ -305,7 +324,14 @@ const TableBSD = () => {
                                 </div>
                             </td>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                                <div className="text-xs">- € HT[fixe]</div>
+                                {
+                                bsd.facture_treated ? 
+                                    <div className="text-xs">
+                                        {getSommeBSD(bsd.facture_infos)} € HT
+                                    </div> 
+                                : 
+                                    <div className="text-xs">Pas encore lié à une facture</div>
+                                }
                             </td>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
                                 <div className="flex justify-center items-center gap-2 text-xs">

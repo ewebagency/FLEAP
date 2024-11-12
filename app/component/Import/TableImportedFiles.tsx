@@ -28,7 +28,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                     </tr>
                 </thead>
                 <tbody>
-                    {pdfInfos.map((pdf) => (
+                    {[...pdfInfos].reverse().map((pdf) => (
                         <tr key={pdf.id}>
                             <td className="border border-gray-300 p-2">{pdf.name_pdf}</td>
                             {/*<td className="border border-gray-300 p-2">{pdf.pdf_path}</td>*/}
