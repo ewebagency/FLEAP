@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
-import { GetIdCompany } from '../get_webhooks/route';
 
 const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
 const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
@@ -81,5 +80,62 @@ const createWebHook = async (token:string, id_company:string, uri:string) => {
     } catch (error) {
         console.error("Erreur complète:", error);
         return {status: 500};
+    }
+}
+
+const GetIdCompany = async (token:string) => {
+    const query = `query {
+        myCompanies {
+            edges {
+            node {
+                id
+                name
+                siret
+                companyTypes
+            }
+            }
+        }
+}
+    `;
+
+    if (!url_sandbox) {
+        throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
+    }
+    try {
+        
+        interface Reponse {
+            data: {
+                data: {
+                    myCompanies: {
+                        edges: Array<{
+                            node: {
+                                id: string;
+                            };
+                        }>;
+                    };
+                };
+            };
+        }
+
+        const response : Reponse = await axios.post(
+            url_sandbox,
+            {   
+                query: query,
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        
+        //console.log('Response data:', response.data.data.myCompanies.edges[0].node.id);
+        const id_company = response.data.data.myCompanies.edges[0].node.id;
+        return {status: 200, id_company: id_company};
+
+    } catch (error) {
+        console.error('Error details:', error);
+        return {status: 500, id_company: 'null'};
     }
 }

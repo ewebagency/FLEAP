@@ -41,7 +41,7 @@ export async function GET() {
 
 } 
 
-export const GetIdCompany = async (token:string) => {
+const GetIdCompany = async (token:string) => {
     const query = `query {
         myCompanies {
             edges {
