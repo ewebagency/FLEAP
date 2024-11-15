@@ -218,17 +218,17 @@ interface DataTransfer {
     formData: FormData;
 }
 
-interface TrackDechetsResponse {
+interface ReponseData {
+    status: number,
     data: {
-        data: {
-            createForm: {
-                id: string;
-                status: string;
-                readableId: string;
-            }
+        createForm: {
+            id: string;
+            status: string;
+            readableId: string;
         }
     }
 }
+
 
 
 export async function POST(request: Request) {
@@ -238,13 +238,13 @@ export async function POST(request: Request) {
         // Appel à l'API TrackDéchets
         const trackDechetsResponse = await createBSDD_API(response.data.formAPI);
         
-        if (!trackDechetsResponse.success) {
+        if (trackDechetsResponse && !trackDechetsResponse.success) {
             return NextResponse.json({ 
                 success: false, 
                 message: `Erreur lors de l'envoi à l'API TrackDéchets : ${trackDechetsResponse.error}`,
                 error: trackDechetsResponse.error 
             }, { status: 400 });
-        } else if (trackDechetsResponse.data && 'createForm' in trackDechetsResponse.data.data) {
+        } else if(trackDechetsResponse && trackDechetsResponse.data){
             const {id, status, readableId} = trackDechetsResponse.data.data.createForm;
             await createBSD_Fleap(response.user_id, response.data, id, status, readableId);
             return NextResponse.json({ 
@@ -372,7 +372,7 @@ const createBSDD_API = async (data: FormAPI) => {
         if (!url_sandbox) {
             throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
         }
-        const response = await axios.post<TrackDechetsResponse>(
+        const response = await axios.post<ReponseData>(
             url_sandbox,
             { query: mutation, variables },
             {
@@ -382,13 +382,10 @@ const createBSDD_API = async (data: FormAPI) => {
                 }
             }
         );
-        if (response.data.data===null && 'errors' in response.data)  {
-            //console.log("-----\nErreur :", response.data.errors[0].message);
-            const message_erreur = String(response.data.errors);
-            return { success: false, error: message_erreur, data: null };
-        } else {    
-            console.log("-----\nResponse :", response.data);
-            return {success: true, data: response.data, error: null};
+        if (response.status==200)  {
+            console.log("-----\nResponse :", response);
+            const returned_response : ReponseData = response.data;
+            return {success: true, data: returned_response, error: null};
         }
     } catch (error) {
         console.error('Erreur lors de la création du BSD :', error);
