@@ -8,6 +8,7 @@ import { useModal } from "../context/ModalReloadcontext";
 import { supabase } from "@/app/database/supabaseClient";
 import { BSD_Data_Interface, BSD_Data_Interface_WithoutOptions, Gouv } from "@/app/register/interface/BSD_Interface";
 //import { type } from "os";
+import { toast, Toaster } from 'react-hot-toast';
 
 const getWeightEstimation = (
   volume: string,        // Volume exprimé en L ou m3 (ex: '200L' ou '15m3')
@@ -369,6 +370,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
     const [submitLoad, setSubmitLoad] = useState<boolean>(false);
     const { setModalReload, modalReload, modalId, setModalId, modalType, setModalType } = useModal();
     const [changeLoad, setChangeLoad] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null);
 
     // Afficher le modal quand on clique sur le bouton "voir"
     useEffect(() => {
@@ -475,10 +477,12 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
         setChangeLoad(false);
     };
     
-    const handleSubmit = async (e:React.ChangeEvent<HTMLFormElement>) => {
+    const handleSubmit = async (e: React.ChangeEvent<HTMLFormElement>) => {
         e.preventDefault();
         setSubmitLoad(true);
-        const formAPI : Form_API_Interface = {
+        setError(null);
+
+        const formAPI: Form_API_Interface = {
             "createFormInput": {
                 "emitter": {
                     "type": "PRODUCER",
@@ -489,7 +493,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
                         "infos": null
                     },
                     "company": {
-                        "siret": '00000063963334',//ça doit être mon siret pour qu'il s'envoie sinon ça marche pas //String(formData.site.siret),
+                        "siret": String(process.env.NEXT_PUBLIC_FLEAP_SIRET),//ça doit être mon siret pour qu'il s'envoie sinon ça marche pas //String(formData.site.siret),
                         "name": formData.site.nom.first,
                         "address": formData.site.adresse.first.street + " " + formData.site.adresse.first.postal_code + " " + formData.site.adresse.first.city,
                         "contact": `${formData.producteur_personne.firstname.first} ${formData.producteur_personne.lastname.first}`,
@@ -544,18 +548,31 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({user_id: session?.user.id, data: {formAPI:formAPI, formData:formData_WithoutOptions}}),
+                body: JSON.stringify({
+                    user_id: session?.user.id, 
+                    data: {
+                        formAPI: formAPI, 
+                        formData: formData_WithoutOptions
+                    }
+                }),
             });
 
-            if (!response.ok) {
-                throw new Error('Erreur lors de l\'envoi des données');
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Erreur lors de l\'envoi des données');
             }
 
+            toast.success('BSD créé avec succès dans TrackDéchets');
             handleClose();
+
         } catch (error) {
-            console.error("Erreur lors de l'envoi des données:", error);
+            console.error("Erreur:", error);
+            setError(error.message);
+            toast.error(`Erreur: ${error.message}`);
+        } finally {
+            setSubmitLoad(false);
         }
-        setSubmitLoad(false);
     };
 
     const handleClose = () => {
@@ -582,7 +599,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
                             "infos": null
                         },
                         "company": {
-                            "siret": '00000063963334',//ça doit être mon siret pour qu'il s'envoie sinon ça marche pas //String(formData.site.siret),
+                            "siret": String(process.env.NEXT_PUBLIC_FLEAP_SIRET),//ça doit être mon siret pour qu'il s'envoie sinon ça marche pas //String(formData.site.siret),
                             "name": formData.site.nom.first,
                             "address": formData.site.adresse.first.street + " " + formData.site.adresse.first.postal_code + " " + formData.site.adresse.first.city,
                             "contact": `${formData.producteur_personne.firstname.first} ${formData.producteur_personne.lastname.first}`,
@@ -855,6 +872,13 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
                 </div>
             </div>}
             
+            {error && (
+                <div className="text-red-500 text-sm mt-2 mb-4">
+                    {error}
+                </div>
+            )}
+
+            <Toaster position="top-right" />
         </div>
     )
 }

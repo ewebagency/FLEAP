@@ -2,10 +2,9 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { supabase } from '@/app/database/supabaseClient';
+import { cookies } from 'next/headers';
 
-
-const url = 'https://api.sandbox.trackdechets.beta.gouv.fr';
-const token = 'tCJJTq0Da55LuoJMc35QEqwomMRDwl10xT1hI2UV';
+const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
 
 interface FormAPI {
     createFormInput: {
@@ -219,143 +218,212 @@ interface DataTransfer {
     formData: FormData;
 }
 
-export async function POST(request: Request) {
-    //const token_sandbox = "tCJJTq0Da55LuoJMc35QEqwomMRDwl10xT1hI2UV";
-    const response = await request.json();
-    console.log("Données reçues :", response);
-    //who_am_i();
-    //createBSDD_API(response.data.formAPI);
-    createBSD_Fleap(response.user_id, response.data);
-
-
-    return NextResponse.json({ message: 'Données reçues avec succès', response });
-}
-
-
-const createBSD_Fleap = async (user_id:string, data:DataTransfer) => {
-    console.log("Données reçues :", data);
-    //stocker le json dans la base de données
-    const result = await supabase.from('bsd').insert({
-        user_id: user_id,
-        created_on_fleap: true,
-        infos_json: data
-    });
-    if (result.error) {
-        console.error('Erreur lors de l\'insertion dans la base de données :', result.error);
-    } else {
-        console.log('Insertion réussie dans la base de données');
+interface TrackDechetsResponse {
+    data: {
+        data: {
+            createForm: {
+                id: string;
+                status: string;
+                readableId: string;
+            }
+        }
     }
 }
 
 
-const createBSDD_API = async (data:FormAPI) => {
-    const mutation = `
-        mutation CreateForm($createFormInput: CreateFormInput!) {
-            createForm(createFormInput: $createFormInput) {
-                id
-                status
-            }
-        }
-    `;
-        
-    /*const variables = {
-        createFormInput: {
-            emitter: {
-                type: "PRODUCER",
-                workSite: {
-                    address: "5 rue du chantier",
-                    postalCode: "75010",
-                    city: "Paris",
-                    //infos: "Site de stockage de boues" //Infos optionnel askip
-                },
-                company: {
-                    siret: "00000063963334",
-                    name: "FLEAP",
-                    address: "1 rue de paradis, 75010 PARIS",
-                    contact: "Jean Dupont",
-                    phone: "01 00 00 00 00",
-                    mail: "test.blabla@dechets.org"
-                }
-            },
-            recipient: {
-                processingOperation: "D 10",
-                cap: "CAP",
-                company: {
-                    siret: "57202552610945",
-                    name: "Veolia - entreprise de traitement de déchet",
-                    address: "1 avenue de l'incinérateur 67100 Strasbourg",
-                    contact: "Thomas Largeron",
-                    phone: "03 00 00 00 00",
-                    mail: "thomas.largeron@incinerateur.fr"
-                }
-            },
-            transporter: {
-                company: {
-                    siret: "30832792300014",
-                    name: "Transport & Co trouvé sur internet",
-                    address: "1 rue des 6 chemins, 07100 ANNONAY",
-                    contact: "Claire Dupuis",
-                    mail: "claire.dupuis@transportco.fr",
-                    phone: "04 00 00 00 00"
-                }
-            },
-            wasteDetails: {
-                code: "06 05 02*",
-                //onuCode: "Non Soumis", //Askip optionnel
-                name: "Boues",
-                packagingInfos: [
-                    {
-                        type: "CITERNE",
-                        quantity: 1
-                    }
-                ],
-                quantity: 1,
-                quantityType: "ESTIMATED",
-                consistence: "LIQUID"
-            }
-        }
-    };*/
-    const variables = data;
-  
+export async function POST(request: Request) {
     try {
-        const response = await axios.post(
-            url,
-            { 
-                query: mutation, // Changer 'mutation' en 'query'
-                variables 
-            },
+        const response = await request.json();
+                
+        // Appel à l'API TrackDéchets
+        const trackDechetsResponse = await createBSDD_API(response.data.formAPI);
+        
+        if (!trackDechetsResponse.success) {
+            return NextResponse.json({ 
+                success: false, 
+                message: `Erreur lors de l'envoi à l'API TrackDéchets : ${trackDechetsResponse.error}`,
+                error: trackDechetsResponse.error 
+            }, { status: 400 });
+        } else if (trackDechetsResponse.data && 'createForm' in trackDechetsResponse.data.data) {
+            const {id, status, readableId} = trackDechetsResponse.data.data.createForm;
+            await createBSD_Fleap(response.user_id, response.data, id, status, readableId);
+            return NextResponse.json({ 
+            success: true, 
+            message: 'BSD créé avec succès',
+                trackDechetsData: trackDechetsResponse.data 
+            });
+        }
+
+    } catch (error) {
+        console.error('Error:', error);
+        return NextResponse.json({ 
+            success: false, 
+            message: 'Erreur lors de la création du BSD',
+            error: error 
+        }, { status: 500 });
+    }
+}
+
+
+const createBSD_Fleap = async (user_id:string, data:DataTransfer, id_track:string, status_track:string, readableId_track:string) => {
+    
+    console.log("BSD number : ", readableId_track);
+    //console.log("Données reçues :", data);
+    //stocker le json dans la base de données
+    console.log('Envoie sur BDD', id_track, status_track);
+    const result = await supabase.from('bsd').insert({
+        user_id: user_id,
+        created_on_fleap: true,
+        infos_json: data,
+        on_track_dechets: true,
+        id_track_dechets: id_track,
+        status_track_dechets: status_track,
+        readable_id_track_dechets: readableId_track
+    });
+    if (result.error) {
+        console.error('Erreur lors de l\'insertion dans la base de données :', result.error);
+    } else {
+        console.log('Insertion réussie dans la base de données Supabase');
+    }
+}
+
+
+
+
+const createBSDD_API = async (data: FormAPI) => {
+    try {
+        const token = 'tCJJTq0Da55LuoJMc35QEqwomMRDwl10xT1hI2UV';
+        
+        const mutation = `
+            mutation CreateForm($createFormInput: CreateFormInput!) {
+                createForm(createFormInput: $createFormInput) {
+                    id
+                    readableId
+                    status
+                }
+            }
+        `;        
+        /*const variables = {
+            createFormInput: {
+                emitter: {
+                    type: "PRODUCER",
+                    workSite: {
+                        address: "5 rue du chantier",
+                        postalCode: "75010",
+                        city: "Paris",
+                        //infos: "Site de stockage de boues" //Infos optionnel askip
+                    },
+                    company: {
+                        siret: "00000063963334",
+                        name: "FLEAP",
+                        address: "1 rue de paradis, 75010 PARIS",
+                        contact: "Jean Dupont",
+                        phone: "01 00 00 00 00",
+                        mail: "test.blabla@dechets.org"
+                    }
+                },
+                recipient: {
+                    processingOperation: "D 10",
+                    cap: "CAP",
+                    company: {
+                        siret: "57202552610945",
+                        name: "Veolia - entreprise de traitement de déchet",
+                        address: "1 avenue de l'incinérateur 67100 Strasbourg",
+                        contact: "Thomas Largeron",
+                        phone: "03 00 00 00 00",
+                        mail: "thomas.largeron@incinerateur.fr"
+                    }
+                },
+                transporter: {
+                    company: {
+                        siret: "30832792300014",
+                        name: "Transport & Co trouvé sur internet",
+                        address: "1 rue des 6 chemins, 07100 ANNONAY",
+                        contact: "Claire Dupuis",
+                        mail: "claire.dupuis@transportco.fr",
+                        phone: "04 00 00 00 00"
+                    }
+                },
+                wasteDetails: {
+                    code: "06 05 02*",
+                    //onuCode: "Non Soumis", //Askip optionnel
+                    name: "Boues",
+                    packagingInfos: [
+                        {
+                            type: "CITERNE",
+                            quantity: 1
+                        }
+                    ],
+                    quantity: 1,
+                    quantityType: "ESTIMATED",
+                    consistence: "LIQUID"
+                }
+            }
+        };*/
+        
+        console.log('----\nPrestataire Final : ',data.createFormInput.recipient.company.siret, '\nTransporteur : ',data.createFormInput.transporter.company.siret, '\nProducteur : ', data.createFormInput.emitter.company.siret);
+
+        data.createFormInput.recipient.company.siret = (data.createFormInput.recipient.company.siret) .replaceAll(" ", "");
+        data.createFormInput.transporter.company.siret = (data.createFormInput.recipient.company.siret) .replaceAll(" ", "");
+        const variables = data;
+
+        console.log("-----\nToken:", token, "\n-----\nData:", data);
+
+        if (!url_sandbox) {
+            throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
+        }
+        const response = await axios.post<TrackDechetsResponse>(
+            url_sandbox,
+            { query: mutation, variables },
             {
                 headers: {
-                    Authorization: `Bearer ${token}`, // Authentification par jeton
+                    Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             }
         );
-        console.log(response.data);
+        if (response.data.data===null && 'errors' in response.data)  {
+            //console.log("-----\nErreur :", response.data.errors[0].message);
+            const message_erreur = String(response.data.errors);
+            return { success: false, error: message_erreur, data: null };
+        } else {    
+            console.log("-----\nResponse :", response.data);
+            return {success: true, data: response.data, error: null};
+        }
     } catch (error) {
         console.error('Erreur lors de la création du BSD :', error);
+        return {
+            success: false,
+            error: 'An unknown error occurred',
+            data: null
+        };
     }
 };
 
 
 
-  async function who_am_i() {
+async function who_am_i() {
+    const cookieStore = cookies();
+    const token = cookieStore.get("trackdechets_token");
     const query = "query { me { name } }";
+    if (!url_sandbox) {
+        throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
+    }
     try {
-      const response = await axios.post(
-        url,
+        const response = await axios.post(
+        url_sandbox,
         { query },
         {
-          headers: {
+            headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
-          },
+            },
         }
-      );
-      
-      console.log(response.data);
-      return response.data;
+        );
+        
+        console.log(response.data);
+        return response.data;
     } catch (error) {
-      console.error('Error:', error);
+        console.error('Error:', error);
     }
-  }
+}

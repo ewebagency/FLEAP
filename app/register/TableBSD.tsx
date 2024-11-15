@@ -16,6 +16,8 @@ type BSD = {
         ligne_compta_preparation: {montant_ht: number},
         ligne_compta_rachat_matiere: {montant_ht: number}
     };
+    status_track_dechets: string;
+    id_track_dechets: string;
 
 };
 
@@ -234,7 +236,7 @@ const fetchBSDs = async (user_id: string | null) => {
     console.log("user_id : ", user_id);
     const { data, error } = await supabase
     .from('bsd')
-    .select('id, created_at, infos_json, facture_treated, facture_infos')
+    .select('id, created_at, infos_json, facture_treated, facture_infos, status_track_dechets, id_track_dechets')
     .eq('user_id', user_id);
     if(error){
         console.error("Error fetching BSD:", error);
@@ -248,6 +250,61 @@ const TableBSD = () => {
     const session = useSession();
     const [bsds, setBSDs] = useState<BSD[]>([]);
     const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
+    const [webhooksInitialized, setWebhooksInitialized] = useState(false);
+
+    // Fonction pour vérifier et initialiser les webhooks
+    const initializeWebhooks = async () => {
+        try {
+            // Vérifier si les webhooks existent
+            const response = await fetch('/api/demande_collecte/web_hook/get_webhooks');
+            const data = await response.json();
+            
+            console.log('condition 1', !data.webhooks);
+            console.log('condition 2',  data.webhooks.length === 0);
+            console.log('condition 3', data.webhooks.activated === false);
+            if (data.webhooks && data.webhooks.activated === false) {
+                //Activation du webhook
+                console.log('Activation du webhook');
+                await fetch('/api/demande_collecte/web_hook/activate_a_web_hook', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        webhook: data.webhooks
+                    })
+                });
+            }
+
+            if (!data.webhooks) {
+                // Créer le webhook si aucun n'existe
+                await fetch('/api/demande_collecte/web_hook/create_a_web_hook', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        url: '/api/demande_collecte/web_hook/receive_web_hook',
+                        id_company: data.webhooks.orgId
+                    })
+                });
+            }
+            setWebhooksInitialized(true);
+        } catch (error) {
+            //console.error("Error initializing webhooks:", error);
+        }
+    };
+
+    useEffect(() => {
+        // Exécution immédiate
+        if (!webhooksInitialized) {
+            initializeWebhooks();
+        }
+    
+        // Exécution périodique
+        const interval = setInterval(() => {
+            if (!webhooksInitialized) {
+                initializeWebhooks();
+            }
+        }, 10000); // 10 secondes
+    
+        return () => clearInterval(interval);
+    }, [webhooksInitialized, modalReload]);
+    
 
     // Récupérer les BSDs de l'utilisateur
     useEffect(() => {
@@ -270,10 +327,16 @@ const TableBSD = () => {
         //console.log('mon bsd', bsds);
     }, [session, modalReload, modalId, modalType]);
 
+
     const handleDelete = async (id: string) => {
-        const result = await supabase.from('bsd').delete().eq('id', id);
-        if (result.error) {
-            console.error("Error deleting BSD:", result.error);
+        const result = await fetch('/api/demande_collecte/delete_bsd', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        });
+        const data = await result.json();
+        if (data.error) {
+            console.error("Error deleting BSD:", data.error);
         } else {
             console.log("BSD deleted");
             setModalReload(!modalReload);
@@ -284,6 +347,36 @@ const TableBSD = () => {
         setModalId(id);
         setModalType("display");
         console.log("id : ", id);
+    }
+
+    const handleSeal = async (id: string) => {
+        const result = await fetch('/api/demande_collecte/seal_bsd', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        });
+        const data = await result.json();
+        if (data.error) {
+            console.error("Error sealing BSD:", data.error);
+        } else {
+            console.log("BSD sealed");
+            setModalReload(!modalReload);
+        }
+    }
+
+    const handleSign = async (id: string) => {
+        const result = await fetch('/api/demande_collecte/sign_bsd', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        });
+        const data = await result.json();
+        if (data.error) {
+            console.error("Error signing BSD:", data.error);
+        } else {
+            console.log("BSD signed");
+            setModalReload(!modalReload);
+        }
     }
 
     return (
@@ -310,10 +403,17 @@ const TableBSD = () => {
                             </td>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
                                 {
-                                bsd.facture_treated ? 
-                                    <div className="text-xs">Lié à une facture</div> 
-                                : 
-                                    <div className="text-xs">Brouillon</div>
+                                    bsd.status_track_dechets !== null ? 
+                                        <div className="flex items-center justify-center gap-4">
+                                            <div className="text-xs">{bsd.status_track_dechets}</div>
+                                            {bsd.status_track_dechets === "DRAFT" ?
+                                                <div className="btn btn-primary btn-sm" onClick={() => handleSeal(bsd.id)}>Seller</div>
+                                            : bsd.status_track_dechets === "SEALED" ?
+                                                <div className="btn btn-primary btn-sm" onClick={() => handleSign(bsd.id)}>Signer</div>
+                                            : null}
+                                        </div>
+                                    : 
+                                    <div className="text-xs">Sur FLEAP uniquement</div>
                                 }
                             </td>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
