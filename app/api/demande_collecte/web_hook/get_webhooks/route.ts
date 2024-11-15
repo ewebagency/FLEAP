@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 
-const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
-const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
-
-
 export async function GET() {
+    const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
+    const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
     if (!token_sandbox) {
         throw new Error('TRACKDECHETS_TOKEN_SANDBOX environment variable is not defined');
     }
@@ -42,6 +40,7 @@ export async function GET() {
 } 
 
 const GetIdCompany = async (token:string) => {
+    const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
     const query = `query {
         myCompanies {
             edges {
@@ -99,6 +98,8 @@ const GetIdCompany = async (token:string) => {
 }
 
 const getWebHooks = async (token:string, id_company:string) => {
+    const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
+    const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
     
     const query = `
         query WebHookSettings{
@@ -166,6 +167,8 @@ const getWebHooks = async (token:string, id_company:string) => {
 }
 
 const deleteWebHook = async (webhook: {id:string}) => {
+    const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
+    const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
     const mutation = `
         mutation deleteWebhookSetting($id: ID!) {
             deleteWebhookSetting(id: $id) {
@@ -206,6 +209,8 @@ const deleteWebHook = async (webhook: {id:string}) => {
 }
 
 const createWebHook = async (endpointUri:string, id_company:string) => {
+    const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
+    const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
     const mutation = `
     mutation createWebhookSetting($input: WebhookSettingInput!){
         createWebhookSetting(input:$input){
