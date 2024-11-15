@@ -568,8 +568,13 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
 
         } catch (error) {
             console.error("Erreur:", error);
-            setError(error.message);
-            toast.error(`Erreur: ${error.message}`);
+            if(error instanceof Error){
+                setError(error.message);
+                toast.error(`Erreur: ${error.message}`);
+            } else {
+                setError("Erreur inconnue");
+                toast.error(`Erreur: Erreur inconnue`);
+            }
         } finally {
             setSubmitLoad(false);
         }
