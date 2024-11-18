@@ -33,7 +33,7 @@ export async function GET() {
                 const web_hook_created = await createWebHook(token_sandbox, id_company, endpointUri_env);
                 console.log('web_hook_created', web_hook_created);
                 if(web_hook_created){
-                    return NextResponse.json({ message: 'Nouveau webhook créé', webhooks: web_hook_created }, { status: 200 });
+                    return NextResponse.json({ message: 'Nouveau webhook créé'}, { status: 200 });
                 } else {
                     return NextResponse.json({ message: 'Erreur lors de la création du webhook' }, { status: 500 });
                 }
@@ -263,8 +263,8 @@ const createWebHook = async (token:string, id_company:string, uri:string) => {
             throw new Error('Erreur GraphQL');
         }*/
 
-        //console.log('WebHook créé', response.data);
-        return {status: 200, data: response};
+        console.error('WebHook créé', response);
+        return {status: 200};
     } catch (error) {
         console.error("Erreur complète:", error);
         return {status: 500};
