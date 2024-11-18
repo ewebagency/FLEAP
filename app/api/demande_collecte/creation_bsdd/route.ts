@@ -5,6 +5,7 @@ import { supabase } from '@/app/database/supabaseClient';
 import { cookies } from 'next/headers';
 
 const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
+const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
 
 interface FormAPI {
     createFormInput: {
@@ -256,7 +257,7 @@ export async function POST(request: Request) {
         }
 
     } catch (error) {       
-        console.error('Error:', error, trackDechetsResponse);
+        console.error('Error:', error, trackDechetsResponse?.data?.errors[0]);
         return NextResponse.json({ 
             success: false, 
             message: `Erreur lors de la création du BSD : ${error}, ${trackDechetsResponse}`,
@@ -293,7 +294,6 @@ const createBSD_Fleap = async (user_id:string, data:DataTransfer, id_track:strin
 
 const createBSDD_API = async (data: FormAPI) => {
     try {
-        const token = 'tCJJTq0Da55LuoJMc35QEqwomMRDwl10xT1hI2UV';
         
         const mutation = `
             mutation CreateForm($createFormInput: CreateFormInput!) {
@@ -304,71 +304,14 @@ const createBSDD_API = async (data: FormAPI) => {
                 }
             }
         `;        
-        /*const variables = {
-            createFormInput: {
-                emitter: {
-                    type: "PRODUCER",
-                    workSite: {
-                        address: "5 rue du chantier",
-                        postalCode: "75010",
-                        city: "Paris",
-                        //infos: "Site de stockage de boues" //Infos optionnel askip
-                    },
-                    company: {
-                        siret: "00000063963334",
-                        name: "FLEAP",
-                        address: "1 rue de paradis, 75010 PARIS",
-                        contact: "Jean Dupont",
-                        phone: "01 00 00 00 00",
-                        mail: "test.blabla@dechets.org"
-                    }
-                },
-                recipient: {
-                    processingOperation: "D 10",
-                    cap: "CAP",
-                    company: {
-                        siret: "57202552610945",
-                        name: "Veolia - entreprise de traitement de déchet",
-                        address: "1 avenue de l'incinérateur 67100 Strasbourg",
-                        contact: "Thomas Largeron",
-                        phone: "03 00 00 00 00",
-                        mail: "thomas.largeron@incinerateur.fr"
-                    }
-                },
-                transporter: {
-                    company: {
-                        siret: "30832792300014",
-                        name: "Transport & Co trouvé sur internet",
-                        address: "1 rue des 6 chemins, 07100 ANNONAY",
-                        contact: "Claire Dupuis",
-                        mail: "claire.dupuis@transportco.fr",
-                        phone: "04 00 00 00 00"
-                    }
-                },
-                wasteDetails: {
-                    code: "06 05 02*",
-                    //onuCode: "Non Soumis", //Askip optionnel
-                    name: "Boues",
-                    packagingInfos: [
-                        {
-                            type: "CITERNE",
-                            quantity: 1
-                        }
-                    ],
-                    quantity: 1,
-                    quantityType: "ESTIMATED",
-                    consistence: "LIQUID"
-                }
-            }
-        };*/
-        
+      
         console.log('----\nPrestataire Final : ',data.createFormInput.recipient.company.siret, '\nTransporteur : ',data.createFormInput.transporter.company.siret, '\nProducteur : ', data.createFormInput.emitter.company.siret);
 
         data.createFormInput.recipient.company.siret = (data.createFormInput.recipient.company.siret) .replaceAll(" ", "");
         data.createFormInput.transporter.company.siret = (data.createFormInput.recipient.company.siret) .replaceAll(" ", "");
         const variables = data;
 
-        console.log("-----\nToken:", token, "\n-----\nData:", data);
+        console.log("-----\nToken:", token_sandbox, "\n-----\nData:", data);
 
         if (!url_sandbox) {
             throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
@@ -378,7 +321,7 @@ const createBSDD_API = async (data: FormAPI) => {
             { query: mutation, variables },
             {
                 headers: {
-                    Authorization: `Bearer ${token}`,
+                    Authorization: `Bearer ${token_sandbox}`,
                     'Content-Type': 'application/json'
                 }
             }
