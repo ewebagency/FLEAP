@@ -73,7 +73,7 @@ export async function POST(req: Request) {
         //console.log('signature : token', signature, ' : ', token);
         if (!signature || signature !== token_sandbox) {
             console.log('Signature invalide');
-            return NextResponse.json(JSON.stringify({ message: 'Signature invalide', status: 204 })); //Sinon on nous désactive le webhook
+            return NextResponse.json({ message: 'Signature invalide' }, { status: 204 }); //Sinon on nous désactive le webhook
         }
 
         // Lire le corps de la requête

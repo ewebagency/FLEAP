@@ -246,6 +246,7 @@ export async function POST(request: Request) {
             }, { status: 400 });
         } else if(trackDechetsResponse && trackDechetsResponse.data){
             const {id, status, readableId} = trackDechetsResponse.data.data.createForm;
+            console.error('trackDechetsRespoooonse', trackDechetsResponse);
             await createBSD_Fleap(response.user_id, response.data, id, status, readableId);
             return NextResponse.json({ 
             success: true, 
