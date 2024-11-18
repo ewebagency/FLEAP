@@ -285,7 +285,7 @@ const TableBSD = () => {
             }
             setWebhooksInitialized(true);
         } catch (error) {
-            //console.error("Error initializing webhooks:", error);
+            console.error("Error initializing webhooks:", error);
         }
     };
 
