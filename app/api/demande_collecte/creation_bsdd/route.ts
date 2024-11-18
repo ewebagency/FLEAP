@@ -256,10 +256,12 @@ export async function POST(request: Request) {
         }
 
     } catch (error) {
+        const response = await request.json();
+        const trackDechetsResponse = await createBSDD_API(response.data.formAPI);
         console.error('Error:', error);
         return NextResponse.json({ 
             success: false, 
-            message: `Erreur lors de la création du BSD : ${error}`,
+            message: `Erreur lors de la création du BSD : ${error}, ${trackDechetsResponse}`,
             error: error 
         }, { status: 500 });
     }
