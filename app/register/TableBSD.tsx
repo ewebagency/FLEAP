@@ -280,7 +280,7 @@ const TableBSD = () => {
                     method: 'POST',
                     body: JSON.stringify({
                         url: '/api/demande_collecte/web_hook/receive_web_hook',
-                        id_company: data.webhooks.orgId
+                        //id_company: data.webhooks.orgId
                     })
                 });
             }

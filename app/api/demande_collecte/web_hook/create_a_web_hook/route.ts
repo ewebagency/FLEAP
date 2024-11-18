@@ -11,8 +11,8 @@ export async function POST(req:Request) {
         throw new Error('TRACKDECHETS_TOKEN_SANDBOX environment variable is not defined');
     }
     console.log('Création d\'un webhook');
-    const { url, id_company } = await req.json();
-    console.log('id_company', id_company);
+    const { url, id_company_reçu } = await req.json(); // inutile car id lié au token
+    //console.log('id_company_reçu', id_company_reçu);
     const response_id_company = await GetIdCompany(token_sandbox); //Id de la companie lié au token
     if(response_id_company.status === 200){
         const id_company =  response_id_company.id_company;
