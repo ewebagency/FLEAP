@@ -260,7 +260,6 @@ const TableBSD = () => {
             const data = await response.json();
             
             console.log('condition 1', !data.webhooks);
-            console.log('condition 2',  data.webhooks.length === 0);
             console.log('condition 3', data.webhooks.activated === false);
             if (data.webhooks && data.webhooks.activated === false) {
                 //Activation du webhook
