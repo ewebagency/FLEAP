@@ -11,7 +11,7 @@ export async function GET() {
         console.error('Variables d\'environnement manquantes');
         return NextResponse.json({ error: 'Variables d\'environnement non définies' }, { status: 500 });
     }
-    
+
     const response_id_company : {status: number, id_company: string} = await GetIdCompany(token_sandbox);
     if(response_id_company.status === 200){
         const id_company =  response_id_company.id_company;
@@ -33,7 +33,7 @@ export async function GET() {
                 const web_hook_created = await createWebHook(token_sandbox, id_company, endpointUri_env);
                 console.log('web_hook_created', web_hook_created);
                 if(web_hook_created){
-                    return NextResponse.json({ message: 'Nouveau webhook créé' }, { status: 200 });
+                    return NextResponse.json({ message: 'Nouveau webhook créé', webhooks: web_hook_created }, { status: 200 });
                 } else {
                     return NextResponse.json({ message: 'Erreur lors de la création du webhook' }, { status: 500 });
                 }

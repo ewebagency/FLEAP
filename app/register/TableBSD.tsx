@@ -261,7 +261,7 @@ const TableBSD = () => {
             
             console.log('data_web_hooks', data);
             console.log('condition 1', !data.webhooks);
-            console.log('condition 3', data.webhooks.activated === false);
+            //console.log('condition 3', data.webhooks.activated === false);
             if (data.webhooks && data.webhooks.activated === false) {
                 //Activation du webhook
                 console.log('Activation du webhook');
@@ -275,6 +275,7 @@ const TableBSD = () => {
 
             if (!data.webhooks) {
                 // Créer le webhook si aucun n'existe
+                console.log('Création du webhook en client side');
                 await fetch('/api/demande_collecte/web_hook/create_a_web_hook', {
                     method: 'POST',
                     body: JSON.stringify({
