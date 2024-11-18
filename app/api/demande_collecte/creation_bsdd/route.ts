@@ -257,7 +257,7 @@ export async function POST(request: Request) {
         }
 
     } catch (error) {       
-        console.error('Error:', error, trackDechetsResponse?.data?.errors[0]);
+        console.error('Error:', error, trackDechetsResponse?.data);
         return NextResponse.json({ 
             success: false, 
             message: `Erreur lors de la création du BSD : ${error}, ${trackDechetsResponse}`,
