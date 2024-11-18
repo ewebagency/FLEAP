@@ -75,7 +75,7 @@ const createWebHook = async (token:string, id_company:string, uri:string) => {
             throw new Error('Erreur GraphQL');
         }*/
 
-        console.log('WebHook créé', response.data);
+        console.log('WebHook créé', response.data, uri_ngrok);
         return {status: 200};
     } catch (error) {
         console.error("Erreur complète:", error);

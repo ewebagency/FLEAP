@@ -261,7 +261,7 @@ const TableBSD = () => {
             
             console.log('data_web_hooks', data);
             console.log('condition 1', !data.webhooks);
-            //console.log('condition 3', data.webhooks.activated === false);
+            console.log('condition 3', data.webhooks.activated === false);
             if (data.webhooks && data.webhooks.activated === false) {
                 //Activation du webhook
                 console.log('Activation du webhook');

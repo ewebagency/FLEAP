@@ -258,7 +258,7 @@ export async function POST(request: Request) {
         console.error('Error:', error);
         return NextResponse.json({ 
             success: false, 
-            message: 'Erreur lors de la création du BSD',
+            message: `Erreur lors de la création du BSD : ${error}`,
             error: error 
         }, { status: 500 });
     }
