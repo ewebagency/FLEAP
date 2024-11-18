@@ -232,12 +232,12 @@ interface ReponseData {
 
 
 export async function POST(request: Request) {
-    try {
+    
         const response = await request.json();
                 
         // Appel à l'API TrackDéchets
         const trackDechetsResponse = await createBSDD_API(response.data.formAPI);
-        
+    try {
         if (trackDechetsResponse && !trackDechetsResponse.success) {
             return NextResponse.json({ 
                 success: false, 
@@ -255,9 +255,7 @@ export async function POST(request: Request) {
             });
         }
 
-    } catch (error) {
-        const response = await request.json();
-        const trackDechetsResponse = await createBSDD_API(response.data.formAPI);
+    } catch (error) {       
         console.error('Error:', error, trackDechetsResponse);
         return NextResponse.json({ 
             success: false, 
