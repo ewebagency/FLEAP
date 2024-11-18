@@ -258,7 +258,7 @@ export async function POST(request: Request) {
     } catch (error) {
         const response = await request.json();
         const trackDechetsResponse = await createBSDD_API(response.data.formAPI);
-        console.error('Error:', error);
+        console.error('Error:', error, trackDechetsResponse);
         return NextResponse.json({ 
             success: false, 
             message: `Erreur lors de la création du BSD : ${error}, ${trackDechetsResponse}`,
