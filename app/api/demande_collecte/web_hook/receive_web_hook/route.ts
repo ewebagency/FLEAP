@@ -7,7 +7,10 @@ const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
 const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
 
 interface formAPI_Track {
-        emitter: {
+    id: string,
+    status: string,
+    createdAt: string,
+    emitter: {
           company: {
             mail: string,
             name: string,
@@ -109,7 +112,9 @@ const HandleBSD_Supabase = async (action: string, id: string) => {
     const query = `
     query Form($readableId:String!){
         form(readableId:$readableId ){
-        
+        id
+        status
+        createdAt
         emitter {
             company {
                 mail
@@ -190,7 +195,7 @@ const HandleBSD_Supabase = async (action: string, id: string) => {
         if (action === "UPDATED"){
             return updateBSD_Supabase(id, response.data as {data: {form: formAPI_Track}});
         } else if (action === "CREATED"){
-            return createBSD_Supabase(id, response.data as {data: {form: formAPI_Track}});
+            return handleBSD_Created_on_Track(id, response.data as {data: {form: formAPI_Track}});
         }
         
 
@@ -203,38 +208,34 @@ const HandleBSD_Supabase = async (action: string, id: string) => {
 }
 
 
-const createBSD_Supabase = async (readableId: string, data: {data: {form: formAPI_Track}}) => {
+const createBSD_Supabase = async (readableId: string, data: {data: {form: formAPI_Track}}, user_ids_linked_to_its_siret: string[]) => {
     console.log("BSD créé : ", readableId);
-    console.log("Données du BSD : ", data.data.form);
-    const new_create_form_input = data.data.form;
+    const {id, status, ...new_create_form_input} = data.data.form;
     const new_bsd_json_supabase = {
         formAPI: {
           createFormInput: new_create_form_input
         }
     }
-    console.log("Nouveau JSON à mettre dans la BDD : ", new_bsd_json_supabase);
 
-    const result = await supabase
-    .from('bsd')
-    .insert({
-        infos_json: new_bsd_json_supabase, 
-        //user_id: user_id,
-        created_on_fleap: false,
-        on_track_dechets: true,
-        //id_track_dechet: 'nlnlnlkn',
-        status_track_dechets: 'DRAFT',
-        readable_id_track_dechets: readableId,    
-    })
-    .select();
+    // Créer un BSD pour chaque user_id
+    for (const user_id of user_ids_linked_to_its_siret) {
+        const result = await supabase
+        .from('bsd')
+        .insert({
+            infos_json: new_bsd_json_supabase, 
+            user_id: user_id, // Utiliser user_id de l'objet actuel
+            created_on_fleap: false,
+            on_track_dechets: true,
+            id_track_dechets: id,
+            status_track_dechets: status,
+            readable_id_track_dechets: readableId,    
+        })
+        .select();
 
-    console.log("Résultat de la création du BSD dans la BDD : ", result);
-    if (result.status === 201){
-        console.log("BSD créé dans la BDD");
-    } else {
-        console.log("Erreur lors de la création du BSD dans la BDD");
+        console.log(`Résultat de la création du BSD pour user ${user_id}: `, result);
     }
     
-    return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
+    return NextResponse.json({ status: 200 });
 }
 
 const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAPI_Track}}) => {
@@ -245,7 +246,8 @@ const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAP
     .eq('readable_id_track_dechets', readableId)
     .single();
 
-    const new_formAPI = data.data.form;
+    //const new_formAPI = data.data.form;
+    const {status, ...new_formAPI} = data.data.form;
     const past_infos_json = json_past.data?.infos_json;
     //console.log("Nouvelles Infos JSON reçus par WebHook : ", new_formAPI);
     //console.log("Infos JSON précédentes : ", past_infos_json?.formAPI.createFormInput);
@@ -260,7 +262,10 @@ const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAP
 
     const response = await supabase
     .from('bsd')
-    .update({infos_json: past_infos_json}) //Gros probleme avec formData et FormAPI (tout ressortir et remapper)
+    .update({
+        infos_json: past_infos_json,
+        status_track_dechets: status,
+    }) //Gros probleme avec formData et FormAPI (tout ressortir et remapper)
     .eq('readable_id_track_dechets', readableId);
 
     if (response.status === 204){
@@ -288,3 +293,41 @@ const deleteBSD_Supabase = async (readableId: string) => {
         return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
     }
 }
+
+const BSD_AlreadyExist = async (readableId: string) => {
+    const response = await supabase.from('bsd').select('id').eq('readable_id_track_dechets', readableId).single();
+    const bsd_already_exist = response.data ? true : false;
+    console.log("BSD already exist : ", bsd_already_exist);
+    return bsd_already_exist;
+}
+
+const handleBSD_Created_on_Track = async (readableId: string, data: {data: {form: formAPI_Track}}) => {
+    const bsd_already_exist = await BSD_AlreadyExist(readableId);
+    if (!bsd_already_exist || true){
+        const user_ids_linked_to_its_siret = await getUserIdsLinkedToItsSiret(data.data.form.emitter.company.siret);
+        return createBSD_Supabase(readableId, data, user_ids_linked_to_its_siret);
+    } else {
+        console.log("BSD déjà existant dans la BDD");
+        return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
+    }
+}
+
+const getUserIdsLinkedToItsSiret = async (siret: string) => {
+    const response = await supabase
+    .from('bsd')
+    .select('user_id, infos_json')
+    
+
+    const user_ids_linked_to_its_siret: string[] = [];
+    response.data?.forEach((item) => {
+        if (item.infos_json.formAPI.createFormInput.emitter.company.siret === siret){
+            user_ids_linked_to_its_siret.push(item.user_id);
+        }
+    });
+    const uniqueUserIds = Array.from(new Set(user_ids_linked_to_its_siret));
+    console.log("User IDs liés au siret : ", siret, uniqueUserIds);
+    return uniqueUserIds;
+}
+
+
+//Tester de créer un BSD depuis trackdechets uniquement et voir s'il se créer dans BDD et FLEAP

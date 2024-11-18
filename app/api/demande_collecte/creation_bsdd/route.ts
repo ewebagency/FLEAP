@@ -383,7 +383,7 @@ const createBSDD_API = async (data: FormAPI) => {
             }
         );
         if (response.status==200)  {
-            console.log("-----\nResponse :", response);
+            //console.log("-----\nResponse :", response);
             const returned_response : ReponseData = response.data;
             return {success: true, data: returned_response, error: null};
         }
