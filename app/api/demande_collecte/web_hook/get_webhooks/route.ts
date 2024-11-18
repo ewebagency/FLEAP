@@ -264,7 +264,7 @@ const createWebHook = async (token:string, id_company:string, uri:string) => {
         }*/
 
         console.log('WebHook créé', response.data);
-        return {status: 200, data: response.data};
+        return {status: 200, data: response};
     } catch (error) {
         console.error("Erreur complète:", error);
         return {status: 500};
