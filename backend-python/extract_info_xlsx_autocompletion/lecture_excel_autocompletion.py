@@ -319,7 +319,7 @@ def data_from_excel(userId: str, site: str, filiere: str, dechet: str):
     df = pd.read_excel(path, sheet_name="template_code")
     df.columns = df.iloc[6]
     df = df.iloc[7:]
-    df = df.ffill().infer_objects(copy=False)
+    df = df.ffill().infer_objects(copy=False) #Recent change !!
     df = df.replace({np.nan: None})
     df = df.where(pd.notna(df), None)
 

@@ -2,8 +2,8 @@ import { supabase } from "@/app/database/supabaseClient";
 import { NextResponse } from "next/server";
 import axios from "axios";
 
-const token_sandbox = 'tCJJTq0Da55LuoJMc35QEqwomMRDwl10xT1hI2UV';
-const url_sandbox = 'https://api.sandbox.trackdechets.beta.gouv.fr';
+const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
+const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
 
 interface FormAPI_en_gros {formAPI: {createFormInput: {emitter: {company: {contact: string}}, wasteDetails: {onuCode: string, quantity: number}}}};
 interface ReponseTrack {
@@ -59,6 +59,9 @@ const Sign_BSD_API = async (id:string, infos_json:FormAPI_en_gros) => {
         }
     `;
 
+    if(!url_sandbox || !token_sandbox) {
+        throw new Error("URL ou token Trackdéchets non définis");
+    }
     try {
         const response = await axios.post(
             url_sandbox,

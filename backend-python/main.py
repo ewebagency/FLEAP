@@ -1,6 +1,6 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from extract_text_from_pdf import extract_text
+from extract_text_from_pdf import extract_text, extract_text_only
 from utils import compta_lines_from_text, header_from_text
 from extract_info_xlsx_autocompletion.lecture_excel_autocompletion import data_from_excel
 from typing import Optional
@@ -9,6 +9,7 @@ app = FastAPI()
 
 origins = [
     "http://localhost:3000",  # Development
+    "http://localhost:3000/",
     "https://fleap-three.vercel.app", # Production
     "https://fleap-three.vercel.app/",
     "https://fleap-arthurpouzcs-projects.vercel.app", # Production Arthur
@@ -25,6 +26,7 @@ app.add_middleware(
     expose_headers=["*"]  # Expose tous les headers dans la réponse
 )
 
+
 @app.post("/treat-pdf/")
 async def treat_pdf(file: UploadFile = File(...)):
     # Appelle la fonction extract_text et retourne le résultat
@@ -35,6 +37,14 @@ async def treat_pdf(file: UploadFile = File(...)):
     header = header_from_text(text)
     result = {'header':header, 'compta_lines':compta_lines}
     return {'compta_lines':compta_lines}
+
+
+@app.post("/extract-text-only/")
+async def extract_text_only_endpoint(file: UploadFile = File(...)):
+    result = await extract_text_only(file)
+    text = result["text"]
+    print('Ce que retourne extract_text_only :', text)
+    return {'text':text}
 
 
 @app.get("/get-table-demande-collecte/")

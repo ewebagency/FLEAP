@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "../database/supabaseClient";
 import { useSession } from "../component/SessionProvider";
 import { useModal } from "../component/context/ModalReloadcontext";
+import { useModalContextNew } from "./RegisterComponents/Modal/ContextModal";
+import toast from "react-hot-toast";
 
 // Modifier le type FormDataType pour inclure un id
 type BSD = {
@@ -249,14 +251,23 @@ const fetchBSDs = async (user_id: string | null) => {
 const TableBSD = () => {
     const session = useSession();
     const [bsds, setBSDs] = useState<BSD[]>([]);
-    const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
+    //const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
+    //A faire passer sur useModalContextNew
+    const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModalContextNew();
+
     const [webhooksInitialized, setWebhooksInitialized] = useState(false);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
     // Fonction pour vérifier et initialiser les webhooks
     const initializeWebhooks = async () => {
         try {
+            const response_token_cookies = await fetch('/api/auth_track_dechet/token');
+            const token_cookies_data = await response_token_cookies.json();
+            const token_cookies = token_cookies_data.data;
+            const url_with_token = `/api/demande_collecte/web_hook/get_webhooks?token_cookies=${token_cookies}`;
+            
             // Vérifier si les webhooks existent
-            const response = await fetch('/api/demande_collecte/web_hook/get_webhooks');
+            const response = await fetch(url_with_token);
             const data = await response.json();
             
             console.log('data_web_hooks', data);
@@ -306,7 +317,6 @@ const TableBSD = () => {
         return () => clearInterval(interval);
     }, [webhooksInitialized, modalReload]);
     
-
     // Récupérer les BSDs de l'utilisateur
     useEffect(() => {
         const loadBSDs = async () => {
@@ -330,24 +340,33 @@ const TableBSD = () => {
 
 
     const handleDelete = async (id: string) => {
-        const result = await fetch('/api/demande_collecte/delete_bsd', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id })
-        });
-        const data = await result.json();
-        if (data.error) {
-            console.error("Error deleting BSD:", data.error);
-        } else {
-            console.log("BSD deleted");
-            setModalReload(!modalReload);
+        setDeletingId(id);
+        try {
+            const result = await fetch('/api/demande_collecte/delete_bsd', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id })
+            });
+            const data = await result.json();
+            if (data.error) {
+                console.error("Error deleting BSD:", data.error);
+            } else {
+                console.log("BSD deleted");
+                setModalReload(!modalReload);
+            }
+        } finally {
+            setDeletingId(null);
         }
     }
 
     const handleDisplay = (id: string) => {
-        setModalId(id);
+        setModalId(id); //=bsd.id clef primaire de la table bsd
         setModalType("display");
-        console.log("id : ", id);
+    }
+
+    const handleModify = (id: string) => {
+        setModalId(id); //=bsd.id clef primaire de la table bsd
+        setModalType("modify");
     }
 
     const handleSeal = async (id: string) => {
@@ -359,9 +378,11 @@ const TableBSD = () => {
         const data = await result.json();
         if (data.error) {
             console.error("Error sealing BSD:", data.error);
+            toast.error("Erreur : " + data.error);
         } else {
             console.log("BSD sealed");
             setModalReload(!modalReload);
+            toast.success("BSD scellé avec succès");
         }
     }
 
@@ -414,7 +435,7 @@ const TableBSD = () => {
                                             : null}
                                         </div>
                                     : 
-                                    <div className="text-xs">Sur FLEAP uniquement</div>
+                                    <div className="text-xs">...</div>
                                 }
                             </td>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
@@ -436,8 +457,29 @@ const TableBSD = () => {
                             </td>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
                                 <div className="flex justify-center items-center gap-2 text-xs">
-                                    <button id="display" className="bg-green-400 text-white rounded-lg h-[30px] w-[90px] p-1" onClick={() => handleDisplay(bsd.id)}>Voir et modifier</button>
-                                    <button id="delete" className="bg-red-400 text-white rounded-lg h-[30px] w-[70px] p-1" onClick={() => handleDelete(bsd.id)}>Supprimer</button>
+                                    <button 
+                                        className="bg-green-400 text-white rounded-lg h-[30px] w-[60px] p-1" 
+                                        onClick={() => handleDisplay(bsd.id)}
+                                    >
+                                        Voir
+                                    </button>
+                                    <button 
+                                        className="bg-blue-400 text-white rounded-lg h-[30px] w-[70px] p-1" 
+                                        onClick={() => handleModify(bsd.id)}
+                                    >
+                                        Modifier
+                                    </button>
+                                    <button 
+                                        className="bg-red-400 text-white rounded-lg h-[30px] w-[70px] p-1" 
+                                        onClick={() => handleDelete(bsd.id)}
+                                        disabled={deletingId === bsd.id}
+                                    >
+                                        {deletingId === bsd.id ? (
+                                            <span className="loading loading-spinner loading-xs"></span>
+                                        ) : (
+                                            'Supprimer'
+                                        )}
+                                    </button>
                                 </div>
                             </td>
                         </tr>

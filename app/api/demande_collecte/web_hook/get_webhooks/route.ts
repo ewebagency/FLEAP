@@ -1,11 +1,19 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
+import { cookies } from "next/headers";
 
-export async function GET() {
-
+export async function GET(req:Request) {
+    const { searchParams } = new URL(req.url);
+    const token_cookies = searchParams.get('token_cookies');
+    const result_cookies = cookies().get('trackdechets_token');
+    
     const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
     const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
     const ngrok_url = process.env.NGROK_URL;
+
+    
+    console.log("Le token des cookies par api route", token_cookies);
+    console.log("Le token des cookies par cookies", result_cookies.value);
 
     if (!token_sandbox || !url_sandbox || !ngrok_url) {
         console.error('Variables d\'environnement manquantes');
@@ -263,7 +271,7 @@ const createWebHook = async (token:string, id_company:string, uri:string) => {
             throw new Error('Erreur GraphQL');
         }*/
 
-        console.error('WebHook créé', response);
+        //console.error('WebHook créé', response);
         return {status: 200};
     } catch (error) {
         console.error("Erreur complète:", error);

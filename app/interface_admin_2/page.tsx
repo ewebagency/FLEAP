@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useSession } from "../component/SessionProvider";
-import PdfDisplayer from "../component/InterfaceAdmin2/PdfDisplayer";
+import PdfDisplayer from "./InterfaceAdmin2/PdfDisplayer";
 import { supabase } from "../database/supabaseClient";
-import FormulaireDisplayer from "../component/InterfaceAdmin2/FormulaireDisplayer";
-import FormulaireManoJson from "../component/InterfaceAdmin2/FormulaireManoJson";
+import FormulaireDisplayer from "./InterfaceAdmin2/FormulaireDisplayer";
+import FormulaireManoJson from "./InterfaceAdmin2/FormulaireManoJson";
+import DisplayInfosPython from "./DisplayInfosPython";
 
 interface InfosJsonFromPdf {
     [key: string]: string | number | boolean; // Removed object type
@@ -111,6 +112,7 @@ const InterfaceAdmin2 = () => {
     };
 
     return (
+    <div>
         <div className="container mx-auto h-screen flex">
             {loading ? (
                 <div className="flex justify-center items-center w-full">
@@ -132,6 +134,8 @@ const InterfaceAdmin2 = () => {
                 </div>
             )}
         </div>
+        {currentPdfBlob && <DisplayInfosPython currentPdfBlob={currentPdfBlob} />}
+    </div>
     )
 }
 

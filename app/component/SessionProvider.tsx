@@ -12,6 +12,7 @@ export const useSession = () => useContext(SessionContext);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
+    //const [user_id, setUserId] = useState<string | null>(null);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data }) => {
@@ -23,6 +24,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, sessionData) => {
             setSession(sessionData);
+            //setUserId(sessionData?.user?.id || null); --> à faire un jour pour cleaner le code
         });
 
         return () => {

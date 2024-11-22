@@ -1,14 +1,76 @@
 import React, { useEffect, useState } from "react";
 import InputDeroulant from './InputDeroulant';
 //import InputText from './InputText';
-import { useSession } from "../SessionProvider";
-import { useSite } from "../context/SiteContext";
+import { useSession } from "../../component/SessionProvider";
+import { useSite } from "../../component/context/SiteContext";
 import ToggleDisplayInfosAPI from "./ToggleDisplayInfosAPI";
-import { useModal } from "../context/ModalReloadcontext";
+import { useModal } from "../../component/context/ModalReloadcontext";
 import { supabase } from "@/app/database/supabaseClient";
 import { BSD_Data_Interface, BSD_Data_Interface_WithoutOptions, Gouv } from "@/app/register/interface/BSD_Interface";
 //import { type } from "os";
 import { toast, Toaster } from 'react-hot-toast';
+
+/*const formData_to_formAPI = (formData: BSD_Data_Interface): Form_API_Interface => {
+    return {
+        createFormInput: {
+            emitter: {
+                type: "PRODUCER",
+                workSite: {
+                    address: formData.site.adresse.first.street,
+                    postalCode: formData.site.adresse.first.postal_code,
+                    city: formData.site.adresse.first.city,
+                    infos: null
+                },
+                company: {
+                    siret: String(process.env.NEXT_PUBLIC_FLEAP_SIRET),
+                    name: formData.site.nom.first,
+                    address: formData.site.adresse.first.fulladdress,
+                    contact: `${formData.producteur_personne.firstname.first} ${formData.producteur_personne.lastname.first}`,
+                    phone: formData.producteur_personne.tel.first,
+                    mail: formData.producteur_personne.email.first
+                }
+            },
+            recipient: {
+                processingOperation: formData.prestataire_final.traitement.first,
+                cap: formData.filiere.cap.first,
+                company: {
+                    siret: String(formData.prestataire_final.siret.first),
+                    name: formData.prestataire_final.nom.first,
+                    address: formData.prestataire_final.adresse.first,
+                    contact: `${formData.prestataire_final.firstname.first} ${formData.prestataire_final.lastname.first}`,
+                    phone: formData.prestataire_final.tel.first,
+                    mail: formData.prestataire_final.email.first
+                }
+            },
+            transporter: {
+                company: {
+                    siret: String(formData.transporteur.siret.first),
+                    name: formData.transporteur.nom.first,
+                    address: formData.transporteur.adresse.first,
+                    contact: `${formData.transporteur.firstname.first} ${formData.transporteur.lastname.first}`,
+                    mail: formData.transporteur.email.first,
+                    phone: formData.transporteur.tel.first
+                }
+            },
+            wasteDetails: {
+                code: formData.dechet_dangereux.ced.first,
+                onuCode: String(formData.dechet_dangereux.onu.first) || "Non Soumis",
+                name: formData.dechet_dangereux.denomination.first,
+                packagingInfos: [{
+                    type: formData.contenant.code.first,
+                    quantity: formData.contenant.indicatif.first
+                }],
+                quantity: getWeightEstimation(
+                    formData.contenant.unitaire.first,
+                    formData.filiere.consistance.first,
+                    formData.contenant.indicatif.first
+                ),
+                quantityType: "ESTIMATED",
+                consistence: formData.filiere.consistance.first
+            }
+        }
+    };
+};*/
 
 const getWeightEstimation = (
   volume: string,        // Volume exprimé en L ou m3 (ex: '200L' ou '15m3')

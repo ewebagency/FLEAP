@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useSession } from '../SessionProvider';
+import { useSession } from '../../component/SessionProvider';
 import { supabase } from '@/app/database/supabaseClient';
 
 type ValueType = string | number | FormDataType | FormDataType[];

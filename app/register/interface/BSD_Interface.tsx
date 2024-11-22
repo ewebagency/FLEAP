@@ -257,3 +257,197 @@ export interface BSD_Data_Interface_WithoutOptions {
     volume: FirstField<number>;
     estimated_weight: FirstField<number>;
 }
+
+//---------------------Form API---------------------
+
+export type Anything = string | number | boolean;
+
+//Le format principal
+export interface Form_API_Interface_New {
+    formAPI: {
+        createFormInput: {
+            emitter: {
+                company: {
+                    siret: Anything;
+                    name: Anything;
+                    address: Anything;
+                    contact: Anything;
+                    phone: Anything;
+                    mail: Anything;
+                };
+                workSite: {
+                    address: Anything;
+                    postalCode: Anything;
+                    city: Anything;
+                };
+            };
+            recipient: {
+                cap: Anything;
+                company: {
+                    siret: Anything;
+                    name: Anything;
+                    address: Anything;
+                    contact: Anything;
+                    phone: Anything;
+                    mail: Anything;
+                };
+                processingOperation: Anything;
+            };
+            transporter: {
+                company: {
+                    siret: Anything;
+                    name: Anything;
+                    address: Anything;
+                    contact: Anything;
+                    phone: Anything;
+                    mail: Anything;
+                };
+            };
+            wasteDetails: {
+                code: Anything;
+                name: Anything;
+                onuCode: Anything;
+                quantity: Anything;
+                quantityType: Anything;
+                consistence: Anything;
+                packagingInfos: {
+                    type: Anything;
+                    quantity: Anything;
+                }[];
+            };
+        };
+    };
+}
+
+export interface Form_API_Interface_Short {
+    emitter: {
+        company: {
+            siret: Anything;
+            name: Anything;
+            address: Anything;
+            contact: Anything;
+            phone: Anything;
+            mail: Anything;
+        };
+        workSite: {
+            address: Anything;
+            postalCode: Anything;
+            city: Anything;
+        };
+    };
+    recipient: {
+        cap: Anything;
+        company: {
+            siret: Anything;
+            name: Anything;
+            address: Anything;
+            contact: Anything;
+            phone: Anything;
+            mail: Anything;
+        };
+        processingOperation: Anything;
+    };
+    transporter: {
+        company: {
+            siret: Anything;
+            name: Anything;
+            address: Anything;
+            contact: Anything;
+            phone: Anything;
+            mail: Anything;
+        };
+    };
+    wasteDetails: {
+        code: Anything;
+        name: Anything;
+        onuCode: Anything;
+        quantity: Anything;
+        quantityType: Anything;
+        consistence: Anything;
+        packagingInfos: {
+            type: Anything;
+            quantity: Anything;
+        }[];
+    };
+};
+
+export interface DataParametrageInterface {
+    adr: string;
+    cap: string;
+    ced: string;
+    onu: number;
+    site_nom: string;
+    site_siret: number;
+    consistance: string;
+    filiere_nom: string;
+    site_adresse: string;
+    contenant_nom: string;
+    contenant_code: string;
+    classe_de_danger: number;
+    denomination_ced: string;
+    description_ced: string;
+    groupe_emballage: string;
+    onu_denomination: string;
+    transporteur_nom: string;
+    eco_organisme_nom: string;
+    transporteur_siret: number | string;
+    eco_organisme_siret: number | string;
+    transporteur_adresse: string;
+    contenant_description: string;
+    prestataire_final_nom: string;
+    prestataire_final_siret: number | string;
+    prestataire_final_adresse: string;
+    producteur_personne_tel: string;
+    contenant_volume_unitaire: string;
+    producteur_personne_email: string;
+    transporteur_personne_tel: string;
+    contenant_nombre_indicatif: number;
+    operationelle_personne_tel: string;
+    transporteur_personne_email: string;
+    operationelle_personne_email: string;
+    producteur_personne_lastname: string;
+    producteur_nom: string;
+    contenant_proprio_ou_location: string;
+    producteur_personne_firstname: string;
+    transporteur_recipisse_numero: string;
+    installation_intermediaire_nom: string;
+    prestataire_final_personne_tel: string;
+    transporteur_personne_lastname: string;
+    operationelle_personne_lastname: string;
+    transporteur_personne_firstname: string;
+    installation_intermediaire_siret: string;
+    operationelle_personne_firstname: string;
+    prestataire_final_personne_email: string;
+    prestataire_final_code_traitement: string;
+    installation_intermediaire_adresse: string;
+    transporteur_personne_collecte_tel: string;
+    prestataire_final_personne_lastname: string;
+    prestataire_final_personne_firstname: string;
+    transporteur_personne_collecte_email: string;
+    installation_intermediaire_personne_tel: string;
+    transporteur_personne_collecte_lastname: string;
+    transporteur_personne_collecte_firstname: string;
+    installation_intermediaire_personne_email: string;
+    installation_intermediaire_code_traitement: string;
+    prestataire_final_traitement_qualification: string;
+    installation_intermediaire_personne_lastname: string;
+    installation_intermediaire_personne_firstname: string;
+  }
+  
+export interface DataSupplementaireInterface {
+    site: string;
+    filiere: string;
+    description: Anything;
+    unitVolume: Anything;
+}
+
+
+export interface DataTotalInterface {
+    dataFormAPI: Form_API_Interface_New;
+    dataSupplementaire: DataSupplementaireInterface;
+}
+
+export interface DataOnSupabase_infos_json {
+    formAPI: {createFormInput: Form_API_Interface_Short};
+    dataSupplementaire: DataSupplementaireInterface;
+}

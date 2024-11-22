@@ -247,7 +247,6 @@ export async function POST(request: Request) {
             }, { status: 400 });
         } else if(trackDechetsResponse && trackDechetsResponse.data){
             const {id, status, readableId} = trackDechetsResponse.data.data.createForm;
-            console.error('trackDechetsRespoooonse', trackDechetsResponse);
             await createBSD_Fleap(response.user_id, response.data, id, status, readableId);
             return NextResponse.json({ 
             success: true, 
@@ -257,10 +256,11 @@ export async function POST(request: Request) {
         }
 
     } catch (error) {       
-        console.error('Error:', error, trackDechetsResponse?.data);
+        console.error('Error ici:', trackDechetsResponse?.data);
+        console.log(trackDechetsResponse?.data?.errors[0].extensions);
         return NextResponse.json({ 
             success: false, 
-            message: `Erreur lors de la création du BSD : ${error}, ${trackDechetsResponse}`,
+            message: `Erreur lors de la création du BSD : ${trackDechetsResponse?.data?.errors[0].message}`,
             error: error 
         }, { status: 500 });
     }
@@ -312,6 +312,7 @@ const createBSDD_API = async (data: FormAPI) => {
         const variables = data;
 
         console.log("-----\nToken:", token_sandbox, "\n-----\nData:", data);
+        //console.log("-----\nVariables:", JSON.stringify(variables));
 
         if (!url_sandbox) {
             throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
@@ -342,7 +343,7 @@ const createBSDD_API = async (data: FormAPI) => {
 };
 
 
-
+/*
 async function who_am_i() {
     const cookieStore = cookies();
     const token = cookieStore.get("trackdechets_token");
@@ -367,4 +368,4 @@ async function who_am_i() {
     } catch (error) {
         console.error('Error:', error);
     }
-}
+}*/

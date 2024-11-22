@@ -1,5 +1,5 @@
 import { supabase } from "@/app/database/supabaseClient";
-import { BSD_Data_Interface_WithoutOptions } from "@/app/register/interface/BSD_Interface";
+import { DataOnSupabase_infos_json } from "@/app/register/interface/BSD_Interface";
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
@@ -110,10 +110,9 @@ interface Facture_Info_Interface {
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const user_id = searchParams.get('user_id');
-    console.log('laaaaa');
     const {data, error} = await supabase
     .from('bsd')
-    .select('infos_json, facture_treated, facture_infos')
+    .select('infos_json, facture_treated, facture_infos, readable_id_track_dechets')
     .eq('user_id', user_id); //Attention à terme filtrer sur la  boite et pas le user id !!!! ⚠⚠⚠⚠⚠
 
     if(error) {
@@ -125,12 +124,13 @@ export async function GET(request: Request) {
 }
 
 const formatBSDData = (data: {
-    infos_json: {formData: BSD_Data_Interface_WithoutOptions}, 
+    infos_json: DataOnSupabase_infos_json, 
     facture_treated: boolean, 
-    facture_infos: Facture_Info_Interface
+    facture_infos: Facture_Info_Interface,
+    readable_id_track_dechets: string
 }[]) => {
     return data.map((item) => {
-        const getValue = (accessor: () => string|number|null, defaultValue: string = 'Non trouvé') => {
+        const getValue = (accessor: () => string|number|boolean|null, defaultValue: string = 'Non trouvé') => {
             try {
                 const value = accessor()
                 return value ?? defaultValue;
@@ -140,39 +140,39 @@ const formatBSDData = (data: {
         };
 
         return {
-            "Code déchet": getValue(() => item.infos_json.formData.filiere.ced.first),
-            "Nom du déchet": getValue(() => item.infos_json.formData.dechet_dangereux.denomination.first),
-            "Volume estimé": getValue(() => item.infos_json.formData.volume.first.toString()),
+            "Code déchet": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.code),
+            "Nom du déchet": getValue(() => ''),
+            "Volume estimé": getValue(() => ''),
             "Code de convention Bâle": getValue(() => null, 'Pas encore disponible'),
-            "Date de collecte": getValue(() => String(item.infos_json.formData.date.collecte.first)),
-            "N° BSD": getValue(() => null, 'Pas encore disponible'),
+            "Date de collecte": getValue(() => ''),
+            "N° BSD": getValue(() => null, item.readable_id_track_dechets),
             "N° TrackDéchet": getValue(() => null, 'Pas encore disponible'),
             "Date de confirmation par le transporteur": getValue(() => null, 'Pas encore disponible').toString(),
 
-            "Adresse de collecte": getValue(() => item.infos_json.formData.dechet_dangereux.collecte.first),
+            "Adresse de collecte": getValue(() => item.infos_json.formAPI.createFormInput.emitter.workSite.address + ' ' + item.infos_json.formAPI.createFormInput.emitter.workSite.postalCode + ' ' + item.infos_json.formAPI.createFormInput.emitter.workSite.city),
             
-            "N° Siret du Producteur": getValue(() => item.infos_json.formData.site.siret.first),
-            "Raison sociale du Producteur": getValue(() => item.infos_json.formData.site.gouv.raison.first),
-            "Adresse du siège social du Producteur": getValue(() => item.infos_json.formData.site.gouv.adresse.first),
+            "N° Siret du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.siret),
+            "Raison sociale du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.name),
+            "Adresse du siège social du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.address),
 
-            "N° SIRET du transporteur": getValue(() => item.infos_json.formData.transporteur.siret.first.toString()),
-            "Raison sociale du transporteur": getValue(() => item.infos_json.formData.transporteur.gouv.raison.first),
-            "N° de récipissé du transporteur": getValue(() => item.infos_json.formData.transporteur.numero.first),
+            "N° SIRET du transporteur": getValue(() => item.infos_json.formAPI.createFormInput.transporter.company.siret),
+            "Raison sociale du transporteur": getValue(() => item.infos_json.formAPI.createFormInput.transporter.company.name),
+            "N° de récipissé du transporteur": getValue(() => null, 'Pas encore disponible'),
 
-            "N° SIRET du prestataire final": getValue(() => item.infos_json.formData.prestataire_final.siret.first),
-            "Raison sociale du prestataire final": getValue(() => item.infos_json.formData.prestataire_final.gouv.raison.first),
-            "Adresse du prestataire final": getValue(() => item.infos_json.formData.prestataire_final.gouv.adresse.first),
-            "N° de récipissé du prestataire final": getValue(() => item.infos_json.formData.prestataire_final.numero.first),
-            "Qualification de traitement": getValue(() => item.infos_json.formData.prestataire_final.qualification.first),
-            "Code de traitement": getValue(() => item.infos_json.formData.prestataire_final.traitement.first),
+            "N° SIRET du prestataire final": getValue(() => item.infos_json.formAPI.createFormInput.recipient.company.siret),
+            "Raison sociale du prestataire final": getValue(() => item.infos_json.formAPI.createFormInput.recipient.company.name),
+            "Adresse du prestataire final": getValue(() => item.infos_json.formAPI.createFormInput.recipient.company.address),
+            "N° de récipissé du prestataire final": getValue(() => null, 'Pas encore disponible'),
+            "Qualification de traitement": getValue(() => null, 'Pas encore disponible'),
+            "Code de traitement": getValue(() => null, item.infos_json.formAPI.createFormInput.recipient.processingOperation.toString()),
             
-            "N° SIRET de l'installation intermédiaire": getValue(() => item.infos_json.formData.installation_intermediaire.siret.first),
-            "Raison sociale de l'installation intermédiaire": getValue(() => item.infos_json.formData.installation_intermediaire.gouv.raison.first),
-            "N° de récipissé de l'installation intermédiaire": getValue(() => item.infos_json.formData.installation_intermediaire.numero.first),
+            "N° SIRET de l'installation intermédiaire": getValue(() => item.infos_json.formAPI.createFormInput.intermediary.company.siret),
+            "Raison sociale de l'installation intermédiaire": getValue(() => item.infos_json.formAPI.createFormInput.intermediary.company.name),
+            "N° de récipissé de l'installation intermédiaire": getValue(() => null, 'Pas encore disponible'),
 
-            "N° SIRET de l'Eco-organisme": getValue(() => item.infos_json.formData.eco_organisme.siret.first),
-            "Raison sociale de l'Eco-organisme": getValue(() => item.infos_json.formData.eco_organisme.nom.first),
-            "Adresse de l'Eco-organisme": getValue(() => item.infos_json.formData.eco_organisme.gouv.adresse.first),
+            "N° SIRET de l'Eco-organisme": getValue(() => item.infos_json.formAPI.createFormInput.ecoOrganism.company.siret),
+            "Raison sociale de l'Eco-organisme": getValue(() => item.infos_json.formAPI.createFormInput.ecoOrganism.company.name),
+            "Adresse de l'Eco-organisme": getValue(() => item.infos_json.formAPI.createFormInput.ecoOrganism.company.address),
 
             // Informations financières
             "Montant TTC": item.facture_treated ? "Bientôt disponible" : "Pas encore disponible",

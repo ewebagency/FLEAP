@@ -30,11 +30,11 @@ const PdfDisplayer = ({ pdfUrl }: PdfDisplayerProps) => {
     };
 
     // Send PDF when URL changes
-    useEffect(() => {
+    /*useEffect(() => {
         if (pdfUrl) {
             sendPdfToServer(pdfUrl);
         }
-    }, [pdfUrl]);
+    }, [pdfUrl]);*/
 
     return (
         <div style={{ 

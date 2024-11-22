@@ -1,4 +1,4 @@
-// app/api/auth/login/route.ts
+// app/api/auth_track_dechet/login/route.ts
 import { NextResponse } from "next/server";
 
 export async function GET() {

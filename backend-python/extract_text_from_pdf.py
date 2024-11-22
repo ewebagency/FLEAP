@@ -24,3 +24,21 @@ async def extract_text(file: UploadFile):
 
     text = text.replace("[PAGE_BREAK]", "[NEWLINE]")
     return {"text": text}
+
+
+async def extract_text_only(file: UploadFile):
+    try:
+        with pdfplumber.open(file.file) as pdf:
+            text = ""
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+            
+            if not text.strip():
+                return {"text": "Impossible"}
+                
+            return {"text": text.strip()}
+    except Exception as e:
+        print(f"Erreur lors de l'extraction du texte: {str(e)}")
+        return {"text": "Impossible"}

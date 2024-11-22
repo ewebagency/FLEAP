@@ -1,9 +1,10 @@
 'use client'
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/app/database/supabaseClient'; // Import Supabase client
-import { useSession } from '../SessionProvider';
+import { useSession } from '../../component/SessionProvider';
 import TableImportedFiles from './TableImportedFiles';
 import { Session } from '@supabase/supabase-js';
+import { useImport } from './ImportContext';
 
 interface PdfInfoInterface {
     id: number;
@@ -19,6 +20,7 @@ const TableImportedFilesFunctional: React.FC = () => {
     const [loading, setLoading] = useState(true); // État pour gérer le chargement
     const session = useSession() as Session | null; // Récupérer la session utilisateur
     const user_id = session?.user.id; // Récupérer l'ID de l'utilisateur
+    const { importReload } = useImport(); // Utiliser le contexte
 
     const fetchPdfInfos = useCallback(async () => { // Wrap in useCallback
         setLoading(true); // Démarrer le chargement
@@ -51,7 +53,7 @@ const TableImportedFilesFunctional: React.FC = () => {
         if (user_id) {
             fetchPdfInfos(); // Appeler la fonction pour récupérer les informations
         }
-    }, [user_id, fetchPdfInfos]);
+    }, [user_id, fetchPdfInfos, importReload]); // Ajouter importReload comme dépendance
 
     const handleDelete = async (pdfPath: string, id: number) => {
         // Supprimer le fichier du stockage
