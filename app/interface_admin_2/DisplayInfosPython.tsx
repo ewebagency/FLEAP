@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DataOnSupabase_infos_json } from "../register/interface/BSD_Interface";
 
 interface DisplayInfosPythonProps {
     currentPdfBlob: Blob;
@@ -6,7 +7,7 @@ interface DisplayInfosPythonProps {
 
 const DisplayInfosPython = ({ currentPdfBlob }: DisplayInfosPythonProps) => {
     const [loading, setLoading] = useState(false);
-    const [infosJsonFromPdf, setInfosJsonFromPdf] = useState<any>(null);
+    const [infosJsonFromPdf, setInfosJsonFromPdf] = useState<DataOnSupabase_infos_json | null>(null);
 
     useEffect(() => {
         const sendBlobPdfToPythonServer = async () => {
