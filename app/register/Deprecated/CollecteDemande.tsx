@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+/*import React, { useState } from 'react';
 import ModalCollecteDemande from './ModalCollecteDemande';
 
 const CollecteDemande = () => {
@@ -32,3 +32,4 @@ const CollecteDemande = () => {
 }
 
 export default CollecteDemande;
+*/
