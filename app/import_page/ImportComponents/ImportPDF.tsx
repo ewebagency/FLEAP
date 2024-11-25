@@ -57,16 +57,15 @@ const ImportPDF = () => {
                 const { data, error: uploadError } = await supabase.storage
                     .from('pdfs_bucket')
                     .upload(filePath, file, {
-                        onUploadProgress: (progress) => {
-                            const percent = (progress.loaded / progress.total) * 100;
-                            setUploadProgress(prev => ({ ...prev, [file.name]: percent }));
-                        }
+                        upsert: false
                     });
 
                 if (uploadError) {
                     console.error(`Erreur lors du téléchargement de ${file.name}:`, uploadError);
                     return { success: false, file: file.name, error: uploadError.message };
                 }
+
+                setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
 
                 const { error: insertError } = await supabase
                     .from('pdf_infos')
