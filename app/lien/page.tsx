@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "../component/SessionProvider";
 import ColonneFactures from "./components/ColonneFactures";
 import FactureLine from "./interface/facture_line";
-import { BSD_without_option_with_id_created_at } from "./interface/bsd_line";
+import { BSD_on_Supabase } from "./interface/bsd_line";
 import ColonneBSDs from "./components/ColonneBSDs";
 
 interface SelectedFacture {
@@ -14,7 +14,7 @@ interface SelectedFacture {
 const LienPage = () => {
     const session = useSession();
     const [factureLines, setFactureLines] = useState<FactureLine[]>([]);
-    const [BSDs, setBSDs] = useState<BSD_without_option_with_id_created_at[]>([]);
+    const [BSDs, setBSDs] = useState<BSD_on_Supabase[]>([]);
     const [selectedFacture, setSelectedFacture] = useState<SelectedFacture | null>(null);
     const [selectedBSD, setSelectedBSD] = useState<string | null>(null);
     const [loading, setLoading] = useState(false); // Loading state
