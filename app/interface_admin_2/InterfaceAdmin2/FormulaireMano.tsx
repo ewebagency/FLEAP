@@ -178,7 +178,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="block text-xs font-medium text-gray-700 mb-1">
-                                        Type d'opération
+                                        Type d&apos;opération
                                     </label>
                                     <input
                                         type="text"
