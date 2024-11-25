@@ -109,6 +109,7 @@ const API_Format = async (data_meta: {json_row: DataParametrageInterface}) => {
         "formAPI": {
           "createFormInput": {
             "emitter": {
+              "type": "PRODUCER",
               "company": {
                 "mail": data.producteur_personne_email,
                 "name": emitter_nom,
@@ -156,6 +157,7 @@ const API_Format = async (data_meta: {json_row: DataParametrageInterface}) => {
                 {
                   "type": data.contenant_code,
                   "quantity": data.contenant_nombre_indicatif,
+                  //"description": data.contenant_description
                 }
               ]
             }
@@ -182,12 +184,12 @@ export const API_Format_Array = async (data: {json_row: DataParametrageInterface
 }
 
 export const getDataAutocompletion = async (user_id:string, site?:string, filiere?:string, dechet_code?:string) => {
-  let {data, error} = await supabase
+  const {data: data_get, error} = await supabase
   .from('table_parametrage')
   .select('*')
   .eq('user_id', user_id)
   //.limit(3);
-  
+  let data = data_get;
   if (error) {
       toast.error(error.message);
   } else if(data){

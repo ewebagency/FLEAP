@@ -36,7 +36,7 @@ const ExportRegisterButton = () => {
                     setMessage('Erreur lors de l\'export');
                     setMessageType('error');
                 }
-            } catch (error) {
+            } catch {
                 setMessage('Erreur lors de l\'export');
                 setMessageType('error');
             } finally {
@@ -56,7 +56,7 @@ const ExportRegisterButton = () => {
                     {isLoading ? (
                         <span className="inline-block animate-spin">↻</span>
                     ) : (
-                        "✉"
+                        "⇪"
                     )}
                 </div>
                 <div className="text-black font-thin text-xs">

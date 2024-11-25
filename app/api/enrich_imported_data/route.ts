@@ -11,6 +11,7 @@ interface BSDRow {
     };
 }
 
+/*
 const findBestMatch = (bsd: BSDRow, paramData: any[]) => {
     const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
     const emitterSiret = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret;
@@ -202,3 +203,4 @@ export async function GET(request: Request) {
         });
     }
 }
+*/

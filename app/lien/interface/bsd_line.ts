@@ -1,7 +1,7 @@
-import { BSD_Data_Interface_WithoutOptions } from "../../register/interface/BSD_Interface";
+import { DataOnSupabase_infos_json } from "../../register/interface/BSD_Interface";
 
-export interface BSD_without_option_with_id_created_at {
+export interface BSD_on_Supabase {
     id: string, 
     created_at: string,
-    infos_json: { formData: BSD_Data_Interface_WithoutOptions }
+    infos_json: DataOnSupabase_infos_json
 };

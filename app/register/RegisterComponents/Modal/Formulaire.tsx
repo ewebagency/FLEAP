@@ -1,22 +1,20 @@
-import React, { useState, useCallback } from "react";
+import React from "react";
 import InputDeroulant from "../InputDeroulant";
 import { useModalContextNew } from "./ContextModal";
 import { formatText, getDataAutocompletion, sendData_to_Cloud } from "./utils";
 import { useSession } from "@/app/component/SessionProvider";
 import { DataTotalInterface } from "../../interface/BSD_Interface";
 import toast from "react-hot-toast";
-import ModifyCard from "./ModifyCard";
 import ModifyCardInFormulaire from './ModifyCardInFormulaire';
+
 
 const Formulaire = () => {
     const session = useSession();
     const user_id = session?.user.id;
-    const [submitLoad, setSubmitLoad] = useState(false);
+    //const [submitLoad, setSubmitLoad] = useState(false);
 
     const {             
         setModalReload, modalReload,
-        setModalType,
-        displayFormulaire,
         setDisplayFormulaire,
         dataTotal,
         setDataTotal,
@@ -25,7 +23,7 @@ const Formulaire = () => {
 
     // Fonction utilitaire pour obtenir des valeurs uniques
     const getUniqueOptions = (optionsArray: DataTotalInterface[], selector: (opt: DataTotalInterface) => string) => {
-        return [...new Set(optionsArray.map(selector))];
+        return Array.from(new Set(optionsArray.map(selector)));
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -60,33 +58,127 @@ const Formulaire = () => {
                     break;
             }
         } else {
-            // Mapping des noms de champs vers leurs chemins dans dataTotal
-            const pathMap: { [key: string]: string[] } = {
-                "adresse_enlevement": ["dataFormAPI", "formAPI", "createFormInput", "emitter", "workSite", "address"],
-                "personne_a_contacter_prenom_nom": ["dataFormAPI", "formAPI", "createFormInput", "emitter", "company", "contact"],
-                "contenant": ["dataFormAPI", "formAPI", "createFormInput", "wasteDetails", "packagingInfos", 0, "description"],
-                "nombre_contenant": ["dataFormAPI", "formAPI", "createFormInput", "wasteDetails", "packagingInfos", 0, "quantity"],
-                "prestataire_final": ["dataFormAPI", "formAPI", "createFormInput", "recipient", "company", "name"],
-                "personne_referente": ["dataFormAPI", "formAPI", "createFormInput", "recipient", "company", "contact"]
-            };
-            const path = pathMap[name];
-            if (path) {
-                setDataTotal(prevData => {
-                    const newData = { ...prevData };
-                    let current: any = newData;
-                    
-                    // Parcourt le chemin jusqu'à l'avant-dernière clé
-                    for (let i = 0; i < path.length - 1; i++) {
-                        if (!(path[i] in current)) {
-                            current[path[i]] = {};
+            const pathMap: { [key: string]: (data: DataTotalInterface, value: string) => DataTotalInterface } = {
+                "adresse_enlevement": (data, val) => ({
+                    ...data,
+                    dataFormAPI: {
+                        ...data.dataFormAPI,
+                        formAPI: {
+                            ...data.dataFormAPI.formAPI,
+                            createFormInput: {
+                                ...data.dataFormAPI.formAPI.createFormInput,
+                                emitter: {
+                                    ...data.dataFormAPI.formAPI.createFormInput.emitter,
+                                    workSite: {
+                                        ...data.dataFormAPI.formAPI.createFormInput.emitter.workSite,
+                                        address: val
+                                    }
+                                }
+                            }
                         }
-                        current = current[path[i]];
                     }
-                    
-                    // Définit la valeur à la dernière clé
-                    current[path[path.length - 1]] = value;
-                    return newData;
-                });
+                }),
+                "personne_a_contacter_prenom_nom": (data, val) => ({
+                    ...data,
+                    dataFormAPI: {
+                        ...data.dataFormAPI,
+                        formAPI: {
+                            ...data.dataFormAPI.formAPI,
+                            createFormInput: {
+                                ...data.dataFormAPI.formAPI.createFormInput,
+                                emitter: {
+                                    ...data.dataFormAPI.formAPI.createFormInput.emitter,
+                                    company: {
+                                        ...data.dataFormAPI.formAPI.createFormInput.emitter.company,
+                                        contact: val
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }),
+                "contenant": (data, val) => ({
+                    ...data,
+                    dataFormAPI: {
+                        ...data.dataFormAPI,
+                        formAPI: {
+                            ...data.dataFormAPI.formAPI,
+                            createFormInput: {
+                                ...data.dataFormAPI.formAPI.createFormInput,
+                                wasteDetails: {
+                                    ...data.dataFormAPI.formAPI.createFormInput.wasteDetails,
+                                    packagingInfos: data.dataFormAPI.formAPI.createFormInput.wasteDetails.packagingInfos.map(info => ({
+                                        ...info,
+                                        description: val
+                                    }))
+                                }
+                            }
+                        }
+                    }
+                }),
+                "nombre_contenant": (data, val) => ({
+                    ...data,
+                    dataFormAPI: {
+                        ...data.dataFormAPI,
+                        formAPI: {
+                            ...data.dataFormAPI.formAPI,
+                            createFormInput: {
+                                ...data.dataFormAPI.formAPI.createFormInput,
+                                wasteDetails: {
+                                    ...data.dataFormAPI.formAPI.createFormInput.wasteDetails,
+                                    packagingInfos: data.dataFormAPI.formAPI.createFormInput.wasteDetails.packagingInfos.map(info => ({
+                                        ...info,
+                                        quantity: val
+                                    }))
+                                }
+                            }
+                        }
+                    }
+                }),
+                "prestataire_final": (data, val) => ({
+                    ...data,
+                    dataFormAPI: {
+                        ...data.dataFormAPI,
+                        formAPI: {
+                            ...data.dataFormAPI.formAPI,
+                            createFormInput: {
+                                ...data.dataFormAPI.formAPI.createFormInput,
+                                recipient: {
+                                    ...data.dataFormAPI.formAPI.createFormInput.recipient,
+                                    company: {
+                                        ...data.dataFormAPI.formAPI.createFormInput.recipient.company,
+                                        name: val
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }),
+                "personne_referente": (data, val) => ({
+                    ...data,
+                    dataFormAPI: {
+                        ...data.dataFormAPI,
+                        formAPI: {
+                            ...data.dataFormAPI.formAPI,
+                            createFormInput: {
+                                ...data.dataFormAPI.formAPI.createFormInput,
+                                recipient: {
+                                    ...data.dataFormAPI.formAPI.createFormInput.recipient,
+                                    company: {
+                                        ...data.dataFormAPI.formAPI.createFormInput.recipient.company,
+                                        contact: val
+                                    }
+                                }
+                            }
+                        }
+                    }
+                })
+            };
+
+            const updateFn = pathMap[name];
+            if (updateFn) {
+                const newData = updateFn(dataTotal, value);
+                setDataTotal(newData);
             }
         }
     };
@@ -119,7 +211,12 @@ const Formulaire = () => {
         }
     };
 
-    const handleDetailChange = useCallback((path: string, value: string) => {
+    const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        await handleSubmit(dataTotal);
+    };
+
+    /*const handleDetailChange = useCallback((path: string, value: string) => {
         setDataTotal(prev => {
             if (!prev) return prev;
             const newData = JSON.parse(JSON.stringify(prev));
@@ -134,13 +231,13 @@ const Formulaire = () => {
             current[keys[keys.length - 1]] = value;
             return newData;
         });
-    }, []);
+    }, []);*/
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center overflow-y-auto py-4 z-50">
             <div className="bg-white p-6 rounded-lg shadow-lg mb-4 w-[90%] max-w-4xl" onClick={(e) => e.stopPropagation()}>
                 <h3 className="font-bold text-lg">Demande de collecte [NEW 🎇]</h3>
-                <form onSubmit={handleSubmit} className="my-2 p-6 border-[1px] border-gray-400 rounded-xl">
+                <form onSubmit={handleFormSubmit} className="my-2 p-6 border-[1px] border-gray-400 rounded-xl">
                     <div className="flex justify-between items-center gap-4 mr-5">
                         <div className='text-md font-bold'>Point de départ</div>
                         <button type="button" className="text-xs h-[25px] text-gray-500 font-thin hover:text-gray-700 active:font-bold" onClick={ResetData}>Réinitialiser</button>
@@ -176,10 +273,10 @@ const Formulaire = () => {
                             <InputDeroulant
                                 titre="Personne référente"
                                 placeholder="Prénom Nom"
-                                options={options.map(opt => opt.dataFormAPI.formAPI.createFormInput.emitter.company.contact)}
+                                options={options.map(opt => opt.dataFormAPI.formAPI.createFormInput.emitter.company.contact.toString())}
                                 width={2}
                                 name="personne_a_contacter_prenom_nom"
-                                value={dataTotal.dataFormAPI.formAPI.createFormInput.emitter.company.contact}
+                                value={dataTotal.dataFormAPI.formAPI.createFormInput.emitter.company.contact.toString()}
                                 onChange={handleChange}
                                 enabled={false}
                                 //changeLoad={changeLoad}
@@ -216,10 +313,10 @@ const Formulaire = () => {
                             <InputDeroulant
                                 titre="Contenant"
                                 placeholder="Sélectionner un contenant"
-                                options={options.map(opt => `${opt.dataFormAPI.formAPI.createFormInput.wasteDetails.packagingInfos[0].description} / ${opt.dataFormAPI.formAPI.createFormInput.wasteDetails.packagingInfos[0].type}`)}
+                                options={options.map(opt => `${opt.dataFormAPI.formAPI.createFormInput.wasteDetails.packagingInfos[0].type}`)}//`${opt.dataFormAPI.formAPI.createFormInput.wasteDetails.packagingInfos[0].description} / 
                                 width={1}
                                 name="contenant"
-                                value={`${dataTotal.dataFormAPI.formAPI.createFormInput.wasteDetails.packagingInfos[0].description} / ${dataTotal.dataFormAPI.formAPI.createFormInput.wasteDetails.packagingInfos[0].type}`}
+                                value={`${dataTotal.dataFormAPI.formAPI.createFormInput.wasteDetails.packagingInfos[0].type}`}
                                 onChange={handleChange}
                                 enabled={false}
                                 //changeLoad={changeLoad}
@@ -242,10 +339,10 @@ const Formulaire = () => {
                         <InputDeroulant
                             titre="Prestataire"
                             placeholder="Sélectionner un prestataire final"
-                            options={options.map(opt => opt.dataFormAPI.formAPI.createFormInput.recipient.company.name)}
+                            options={options.map(opt => opt.dataFormAPI.formAPI.createFormInput.recipient.company.name.toString())}
                             width={1}
                             name="prestataire_final"
-                            value={dataTotal.dataFormAPI.formAPI.createFormInput.recipient.company.name}
+                            value={dataTotal.dataFormAPI.formAPI.createFormInput.recipient.company.name.toString()}
                             onChange={handleChange}
                             enabled={false}
                             //changeLoad={changeLoad}
@@ -253,10 +350,10 @@ const Formulaire = () => {
                         <InputDeroulant
                             titre="Personne référente"
                             placeholder="Prénom Nom"
-                            options={options.map(opt => opt.dataFormAPI.formAPI.createFormInput.recipient.company.contact)}
+                            options={options.map(opt => opt.dataFormAPI.formAPI.createFormInput.recipient.company.contact.toString())}
                             width={1}
                             name="personne_referente"
-                            value={dataTotal.dataFormAPI.formAPI.createFormInput.recipient.company.contact}
+                            value={dataTotal.dataFormAPI.formAPI.createFormInput.recipient.company.contact.toString()}
                             onChange={handleChange}
                             enabled={false}
                             //changeLoad={changeLoad}

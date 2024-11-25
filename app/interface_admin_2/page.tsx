@@ -6,6 +6,7 @@ import { supabase } from "../database/supabaseClient";
 import FormulaireDisplayer from "./InterfaceAdmin2/FormulaireDisplayer";
 import FormulaireManoJson from "./InterfaceAdmin2/FormulaireManoJson";
 import DisplayInfosPython from "./DisplayInfosPython";
+import FormulaireMano from "./InterfaceAdmin2/FormulaireMano";
 
 interface InfosJsonFromPdf {
     [key: string]: string | number | boolean; // Removed object type
@@ -125,7 +126,8 @@ const InterfaceAdmin2 = () => {
                     </div>
                     <div className="w-2/5 pl-1 bg-gray-100 rounded-lg mt-2 mr-2 overflow-y-auto">
                         {/*infosJsonFromPdf && <FormulaireDisplayer infosJsonFromPdf={infosJsonFromPdf} currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />*/}
-                        <FormulaireManoJson currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />
+                        {/*<FormulaireManoJson currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />*/}
+                        <FormulaireMano currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />
                     </div>
                 </div>
             ) : (

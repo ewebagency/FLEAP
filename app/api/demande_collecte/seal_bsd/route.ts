@@ -52,15 +52,15 @@ const Seal_BSD_API = async (id:string) => {
             error: response.statusText
         }
     }
-    if(!response.data.data) {
-        console.log("Erreur dans le scellage du BSD :", response.data.errors[0].message);
+    if(!response.data) {
+        //console.log("Erreur dans le scellage du BSD :", response.data.errors[0].message);
         return {
             success: false,
-            error: response.data.errors[0].message
+            error: "Erreur lors du scellage du BSD sur Trackdéchets"//response.data.errors[0].message
         }
     }
     return {
         success: true,
-        data: response.data.data
+        //data: response.data.data
     };
 }

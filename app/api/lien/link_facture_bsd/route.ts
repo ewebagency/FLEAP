@@ -41,10 +41,10 @@ export async function POST(request: Request) {
         // 3.1 Mettre à jour le futur json du BSD en ne touchant qu'à la ligne concernée
 
         const updatedInfosJson = factureData.infos_json;
-        updatedInfosJson.departs[lineNumber - 1].infos_pour_filtrer.bsd_id = bsdId;
-        updatedInfosJson.departs[lineNumber - 1].infos_pour_filtrer.linked_to_bsd = true;
+        updatedInfosJson.departs[lineNumber - 1].bsd_id = bsdId;
+        updatedInfosJson.departs[lineNumber - 1].linked_to_bsd = true;
 
-        console.log("factureDataLine222", factureData.infos_json.departs[lineNumber - 1].infos_pour_filtrer);
+        console.log("factureDataLine222", factureData.infos_json.departs[lineNumber - 1]);
 
         // UPDATE FACTURE_JSON
         // 3.2 Mettre à jour le json-ligne de la facture dans la BDD en changeant tout le json (une seule ligne est réellement modifiée)

@@ -257,11 +257,20 @@ export async function POST(request: Request) {
 
     } catch (error) {       
         console.error('Error ici:', trackDechetsResponse?.data);
-        console.log(trackDechetsResponse?.data?.errors[0].extensions);
+        //console.log(trackDechetsResponse?.data?.errors[0].extensions);
+        let error_message = 'Erreur inconnue';
+        if(trackDechetsResponse && trackDechetsResponse.data) {
+            if('errors' in trackDechetsResponse.data) {
+                const reponse_error = trackDechetsResponse.data.errors;
+                if(Array.isArray(reponse_error) && reponse_error.length > 0) {
+                    error_message = reponse_error[0].message;
+                }
+            }
+        }
         return NextResponse.json({ 
             success: false, 
-            message: `Erreur lors de la création du BSD : ${trackDechetsResponse?.data?.errors[0].message}`,
-            error: error 
+            message: `Erreur lors de la création du BSD : ${error_message}`,
+            error: error_message 
         }, { status: 500 });
     }
 }

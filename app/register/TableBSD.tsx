@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../database/supabaseClient";
 import { useSession } from "../component/SessionProvider";
-import { useModal } from "../component/context/ModalReloadcontext";
 import { useModalContextNew } from "./RegisterComponents/Modal/ContextModal";
 import toast from "react-hot-toast";
 
@@ -11,12 +10,13 @@ type BSD = {
     infos_json: {formAPI: FormAPI, formData: FormData};
     facture_treated: boolean;
     facture_infos: {
-        ligne_compta_traitement: {montant_ht: number}, 
+        montant_ht: number;
+        /*ligne_compta_traitement: {montant_ht: number}, 
         ligne_compta_tgap: {montant_ht: number}, 
         ligne_compta_contenant: {montant_ht: number},
         ligne_compta_transport: {montant_ht: number},
         ligne_compta_preparation: {montant_ht: number},
-        ligne_compta_rachat_matiere: {montant_ht: number}
+        ligne_compta_rachat_matiere: {montant_ht: number}*/
     };
     status_track_dechets: string;
     id_track_dechets: string;
@@ -230,8 +230,9 @@ interface FormAPI {
         }
 }
 
-const getSommeBSD = (facture_infos: BSD['facture_infos']) => {
-    return facture_infos.ligne_compta_traitement.montant_ht + facture_infos.ligne_compta_tgap.montant_ht + facture_infos.ligne_compta_contenant.montant_ht + facture_infos.ligne_compta_transport.montant_ht + facture_infos.ligne_compta_preparation.montant_ht + facture_infos.ligne_compta_rachat_matiere.montant_ht;
+const getSommeBSD = (facture_infos: {montant_ht: number}) => {
+    //return facture_infos.ligne_compta_traitement.montant_ht + facture_infos.ligne_compta_tgap.montant_ht + facture_infos.ligne_compta_contenant.montant_ht + facture_infos.ligne_compta_transport.montant_ht + facture_infos.ligne_compta_preparation.montant_ht + facture_infos.ligne_compta_rachat_matiere.montant_ht;
+    return facture_infos.montant_ht;
 }
 
 const fetchBSDs = async (user_id: string | null) => {

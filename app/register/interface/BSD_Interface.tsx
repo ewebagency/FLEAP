@@ -267,6 +267,7 @@ export interface Form_API_Interface_New {
     formAPI: {
         createFormInput: {
             emitter: {
+                type: string;
                 company: {
                     siret: Anything;
                     name: Anything;
@@ -313,6 +314,7 @@ export interface Form_API_Interface_New {
                 packagingInfos: {
                     type: Anything;
                     quantity: Anything;
+                    //description: Anything;
                 }[];
             };
         };
@@ -321,6 +323,7 @@ export interface Form_API_Interface_New {
 
 export interface Form_API_Interface_Short {
     emitter: {
+        type: string;
         company: {
             siret: Anything;
             name: Anything;
@@ -451,3 +454,4 @@ export interface DataOnSupabase_infos_json {
     formAPI: {createFormInput: Form_API_Interface_Short};
     dataSupplementaire: DataSupplementaireInterface;
 }
+

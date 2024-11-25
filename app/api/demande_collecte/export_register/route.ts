@@ -106,7 +106,7 @@ interface Facture_Info_Interface {
         montant_ht: number
     }
 }
-
+/*
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const user_id = searchParams.get('user_id');
@@ -212,3 +212,4 @@ const exportToExcel = (data : BSD_Export_Interface[], fileName: string) => {
         },
     });
 };
+*/

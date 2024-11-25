@@ -24,6 +24,7 @@ const mapToBsdFormat = (row: Row): Form_API_Interface_New => {
       formAPI: {
         createFormInput: {
           emitter: {
+            type: "PRODUCER",
             company: {
               siret: row["siretEmetteur"] || "",
               name: row["raisonSocialeEmetteur"] || "",
@@ -33,10 +34,14 @@ const mapToBsdFormat = (row: Row): Form_API_Interface_New => {
               mail: row["emailContact"] || ""
             },
             workSite: row["siteEmetteur"] ? {
-              address: row["adresseCollecte"] || "",
-              postalCode: row["codePostalCollecte"] || "",
-              city: row["communeCollecte"] || "",
-            } : null
+              address: row["adresseCollecte"]?.toString() || "",
+              postalCode: row["codePostalCollecte"]?.toString() || "",
+              city: row["communeCollecte"]?.toString() || "",
+            } : {
+              address: "",
+              postalCode: "",
+              city: ""
+            },
           },
           recipient: {
             cap: row["numeroCap"] || "",
@@ -70,7 +75,8 @@ const mapToBsdFormat = (row: Row): Form_API_Interface_New => {
             packagingInfos: [
               {
                 type: row["typeContenant"] || "FUT",
-                quantity: row["nbContenants"] || 0
+                quantity: row["nbContenants"] || 0,
+               // description: row["descContenant"] || ""
               }
             ]
           }
@@ -219,6 +225,7 @@ const ImportRegisterButton = () => {
 
     return (
         <div className="relative">
+        {display && (
             <button 
                 onClick={handleButtonClick}
                 className="flex justify-between items-center bg-gray-300 rounded-xl px-2 mx-1 cursor-pointer active:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -228,14 +235,14 @@ const ImportRegisterButton = () => {
                     {isLoading ? (
                         <span className="inline-block animate-spin">↻</span>
                     ) : (
-                        "✉"
+                        "▼"
                     )}
                 </div>
                 <div className="text-black font-thin text-xs">
                     {isLoading ? 'Import en cours...' : 'Importer'}
                 </div>
             </button>
-
+            )}
             <input
                 ref={fileInputRef}
                 type="file"
@@ -244,7 +251,6 @@ const ImportRegisterButton = () => {
                 className="hidden"
                 disabled={isLoading}
             />
-
             {showModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white p-6 rounded-lg shadow-lg">

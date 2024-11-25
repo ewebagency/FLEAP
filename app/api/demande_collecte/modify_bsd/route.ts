@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { supabase } from '@/app/database/supabaseClient';
+import { DataOnSupabase_infos_json } from '@/app/register/interface/BSD_Interface';
 
 const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
 const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
 
-const updateTrackdechets = async (data: any, bsdId: string) => {
+const updateTrackdechets = async (data: DataOnSupabase_infos_json, bsdId: string) => {
+    console.log('datalaaaaa', data);
     try {
         const mutation = `
             mutation UpdateForm($updateFormInput: UpdateFormInput!) {
@@ -50,12 +52,12 @@ const updateTrackdechets = async (data: any, bsdId: string) => {
         } else {
             return {
                 success: false,
-                error: response.data.errors[0].message,
+                error: "Erreur lors de la modification du BSD sur Trackdéchets",//response.data.errors[0].message,
                 data: null
             };
         }
     } catch (error) {
-        console.error('Erreur lors de la modification du BSD sur Trackdéchets:', error.response.data);
+        console.error('Erreur lors de la modification du BSD sur Trackdéchets:');//, error.response.data);
         return {
             success: false,
             error: error instanceof Error ? error.message : 'Une erreur inconnue est survenue',

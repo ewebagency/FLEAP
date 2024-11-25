@@ -13,7 +13,7 @@ export async function GET(req:Request) {
 
     
     console.log("Le token des cookies par api route", token_cookies);
-    console.log("Le token des cookies par cookies", result_cookies.value);
+    //console.log("Le token des cookies par cookies", result_cookies.value);
 
     if (!token_sandbox || !url_sandbox || !ngrok_url) {
         console.error('Variables d\'environnement manquantes');

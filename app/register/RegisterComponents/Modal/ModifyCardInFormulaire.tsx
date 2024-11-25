@@ -10,7 +10,7 @@ interface ModifyCardInFormulaireProps {
 
 const LabelInput = ({ label, value, onChange, path }: { 
     label: string, 
-    value: string | number | undefined,
+    value: string | number | boolean | null | undefined,
     onChange: (path: string, value: string) => void,
     path: string
 }) => (
@@ -18,7 +18,7 @@ const LabelInput = ({ label, value, onChange, path }: {
         <span className="font-medium text-gray-700">{label}: </span>
         <input 
             type="text"
-            value={value || ''}
+            value={value?.toString() || ''}
             onChange={(e) => onChange(path, e.target.value)}
             className="border rounded px-2 py-1 text-gray-600"
         />
@@ -37,10 +37,13 @@ const ModifyCardInFormulaire = ({ dataTotal, setDataTotal, onSubmit, onClose }: 
         setLocalData(prev => {
             const newData = { ...prev };
             const keys = path.split('.');
-            let current = newData;
+            let current: Record<string, unknown> = newData as Record<string, unknown>;
             
             for (let i = 0; i < keys.length - 1; i++) {
-                current = current[keys[i]];
+                if (typeof current[keys[i]] !== 'object') {
+                    current[keys[i]] = {};
+                }
+                current = current[keys[i]] as Record<string, unknown>;
             }
             
             current[keys[keys.length - 1]] = value;
@@ -238,7 +241,7 @@ const ModifyCardInFormulaire = ({ dataTotal, setDataTotal, onSubmit, onClose }: 
 
                 {/* Site d'enlèvement */}
                 <div className="bg-green-50 p-3 rounded border border-green-100">
-                    <h3 className="font-semibold text-green-800 mb-2">Site d'enlèvement</h3>
+                    <h3 className="font-semibold text-green-800 mb-2">Site d&apos;enlèvement</h3>
                     <LabelInput 
                         label="Adresse" 
                         value={localData.dataFormAPI.formAPI.createFormInput.emitter.workSite.address}

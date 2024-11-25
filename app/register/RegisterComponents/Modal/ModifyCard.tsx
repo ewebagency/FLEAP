@@ -3,10 +3,11 @@ import { useModalContextNew } from "./ContextModal";
 import { toast } from "react-hot-toast";
 import { useSession } from "@/app/component/SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
+import { DataOnSupabase_infos_json, DataSupplementaireInterface, DataTotalInterface, Form_API_Interface_Short } from "../../interface/BSD_Interface";
 
 const LabelInput = ({ label, value, onChange, path }: { 
     label: string, 
-    value: string | number | undefined,
+    value?: string,
     onChange: (path: string, value: string) => void,
     path: string
 }) => (
@@ -14,7 +15,7 @@ const LabelInput = ({ label, value, onChange, path }: {
         <span className="font-medium text-gray-700">{label}: </span>
         <input 
             type="text"
-            value={value || ''}
+            value={value ?? ''}
             onChange={(e) => onChange(path, e.target.value)}
             className="border rounded px-2 py-1 text-gray-600"
         />
@@ -24,7 +25,7 @@ const LabelInput = ({ label, value, onChange, path }: {
 const ModifyCard = () => {
     const { modalId, modalType, setModalType, dataTotal, setDataTotal, modalReload, setModalReload } = useModalContextNew();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [localData, setLocalData] = useState<any>(null);
+    const [localData, setLocalData] = useState<DataOnSupabase_infos_json | null>(null);
     const session = useSession();
 
     const getBSD = async (userId: string) => {
@@ -37,7 +38,7 @@ const ModifyCard = () => {
 
         if (result.data) {
             //setBSDAutresInfos(result.data);
-            setLocalData(result.data.infos_json.formAPI.createFormInput);
+            setLocalData(result.data.infos_json);
         }
     }
 
@@ -50,15 +51,16 @@ const ModifyCard = () => {
 
     const handleChange = (path: string, value: string) => {
         setLocalData(prev => {
+            if (!prev) return prev;
             const newData = { ...prev };
             const keys = path.split('.');
-            let current = newData;
+            let current: Record<string, unknown> = newData as Record<string, unknown>;
             
             for (let i = 0; i < keys.length - 1; i++) {
-                if (current[keys[i]] === undefined) {
+                if (typeof current[keys[i]] !== 'object') {
                     current[keys[i]] = {};
                 }
-                current = current[keys[i]];
+                current = current[keys[i]] as Record<string, unknown>;
             }
             
             current[keys[keys.length - 1]] = value;
@@ -67,17 +69,13 @@ const ModifyCard = () => {
     };
 
     const handleSubmit = async () => {
-        if (!session?.user?.id) {
-            toast.error("Utilisateur non connecté");
+        if (!session?.user?.id || !localData) {
+            toast.error("Utilisateur non connecté ou données manquantes");
             return;
         }
 
         setIsSubmitting(true);
-        const dataToSend = {
-            formAPI: {
-                createFormInput: localData
-            }
-        }
+
         try {
             const response = await fetch('/api/demande_collecte/modify_bsd', {
                 method: 'POST',
@@ -87,13 +85,19 @@ const ModifyCard = () => {
                 body: JSON.stringify({
                     user_id: session.user.id,
                     bsd_id: modalId,
-                    data: dataToSend
+                    data: localData
                 }),
             });
 
             const result = await response.json();
             if (result.success) {
-                setDataTotal(localData);
+                // Mise à jour correcte du dataTotal
+                const data_form_api_here: Form_API_Interface_Short = localData.formAPI.createFormInput;
+                const data_supplementaire_here: DataSupplementaireInterface = localData.dataSupplementaire;
+                const local_data_here: DataTotalInterface = {dataFormAPI: { formAPI: { createFormInput: data_form_api_here } }, dataSupplementaire: data_supplementaire_here};
+                console.log('local_data_here', local_data_here);
+                console.log('dataTotal', dataTotal);
+                setDataTotal(local_data_here);
                 toast.success("BSD modifié avec succès");
                 setModalType("");
                 setModalReload(!modalReload);
@@ -118,9 +122,9 @@ const ModifyCard = () => {
                         <h2 className="text-xl font-bold text-gray-800">Bordereau de Suivi des Déchets</h2>
                         <LabelInput 
                             label="Code déchet"
-                            value={localData.wasteDetails.code}
+                            value={localData.formAPI.createFormInput.wasteDetails.code.toString()}
                             onChange={handleChange}
-                            path="wasteDetails.code"
+                            path="formAPI.createFormInput.wasteDetails.code"
                         />
                     </div>
                     <button 
@@ -139,39 +143,39 @@ const ModifyCard = () => {
                             <h3 className="font-semibold text-blue-800 mb-2">Émetteur</h3>
                             <LabelInput 
                                 label="Nom"
-                                value={localData.emitter.company.name}
+                                value={localData.formAPI.createFormInput.emitter.company.name.toString()}
                                 onChange={handleChange}
-                                path="emitter.company.name"
+                                path="formAPI.createFormInput.emitter.company.name"
                             />
                             <LabelInput 
                                 label="Adresse"
-                                value={localData.emitter.company.address}
+                                value={localData.formAPI.createFormInput.emitter.company.address.toString()}
                                 onChange={handleChange}
-                                path="emitter.company.address"
+                                path="formAPI.createFormInput.emitter.company.address"
                             />
                             <LabelInput 
                                 label="SIRET"
-                                value={localData.emitter.company.siret}
+                                value={localData.formAPI.createFormInput.emitter.company.siret.toString()}
                                 onChange={handleChange}
-                                path="emitter.company.siret"
+                                path="formAPI.createFormInput.emitter.company.siret"
                             />
                             <LabelInput 
                                 label="Contact"
-                                value={localData.emitter.company.contact}
+                                value={localData.formAPI.createFormInput.emitter.company.contact.toString()}
                                 onChange={handleChange}
-                                path="emitter.company.contact"
+                                path="formAPI.createFormInput.emitter.company.contact"
                             />
                             <LabelInput 
                                 label="Téléphone"
-                                value={localData.emitter.company.phone}
+                                value={localData.formAPI.createFormInput.emitter.company.phone.toString()}
                                 onChange={handleChange}
-                                path="emitter.company.phone"
+                                path="formAPI.createFormInput.emitter.company.phone"
                             />
                             <LabelInput 
                                 label="Email"
-                                value={localData.emitter.company.mail}
+                                value={localData.formAPI.createFormInput.emitter.company.mail.toString()}
                                 onChange={handleChange}
-                                path="emitter.company.mail"
+                                path="formAPI.createFormInput.emitter.company.mail"
                             />
                         </div>
 
@@ -180,62 +184,62 @@ const ModifyCard = () => {
                             <h3 className="font-semibold text-yellow-800 mb-2">Transporteur</h3>
                             <LabelInput 
                                 label="Nom"
-                                value={localData.transporter.company.name}
+                                value={localData.formAPI.createFormInput.transporter.company.name.toString()}
                                 onChange={handleChange}
-                                path="transporter.company.name"
+                                path="formAPI.createFormInput.transporter.company.name"
                             />
                             <LabelInput 
                                 label="Adresse"
-                                value={localData.transporter.company.address}
+                                value={localData.formAPI.createFormInput.transporter.company.address.toString()}
                                 onChange={handleChange}
-                                path="transporter.company.address"
+                                path="formAPI.createFormInput.transporter.company.address"
                             />
                             <LabelInput 
                                 label="SIRET"
-                                value={localData.transporter.company.siret}
+                                value={localData.formAPI.createFormInput.transporter.company.siret.toString()}
                                 onChange={handleChange}
-                                path="transporter.company.siret"
+                                path="formAPI.createFormInput.transporter.company.siret"
                             />
                             <LabelInput 
                                 label="Contact"
-                                value={localData.transporter.company.contact}
+                                value={localData.formAPI.createFormInput.transporter.company.contact.toString()}
                                 onChange={handleChange}
-                                path="transporter.company.contact"
+                                path="formAPI.createFormInput.transporter.company.contact"
                             />
                             <LabelInput 
                                 label="Téléphone"
-                                value={localData.transporter.company.phone}
+                                value={localData.formAPI.createFormInput.transporter.company.phone.toString()}
                                 onChange={handleChange}
-                                path="transporter.company.phone"
+                                path="formAPI.createFormInput.transporter.company.phone"
                             />
                             <LabelInput 
                                 label="Email"
-                                value={localData.transporter.company.mail}
+                                value={localData.formAPI.createFormInput.transporter.company.mail.toString()}
                                 onChange={handleChange}
-                                path="transporter.company.mail"
+                                path="formAPI.createFormInput.transporter.company.mail"
                             />
                         </div>
 
                         {/* Site d'enlèvement */}
                         <div className="bg-green-50 p-3 rounded border border-green-100">
-                            <h3 className="font-semibold text-green-800 mb-2">Site d'enlèvement</h3>
+                            <h3 className="font-semibold text-green-800 mb-2">Site d&apos;enlèvement</h3>
                             <LabelInput 
                                 label="Adresse"
-                                value={localData.emitter?.workSite?.address}
+                                value={localData.formAPI.createFormInput.emitter.workSite.address.toString()}
                                 onChange={handleChange}
-                                path="emitter.workSite.address"
+                                path="formAPI.createFormInput.emitter.workSite.address"
                             />
                             <LabelInput 
                                 label="Code postal"
-                                value={localData.emitter?.workSite?.postalCode}
+                                value={localData.formAPI.createFormInput.emitter.workSite.postalCode.toString()}
                                 onChange={handleChange}
-                                path="emitter.workSite.postalCode"
+                                path="formAPI.createFormInput.emitter.workSite.postalCode"
                             />
                             <LabelInput 
                                 label="Ville"
-                                value={localData.emitter?.workSite?.city}
+                                value={localData.formAPI.createFormInput.emitter.workSite.city.toString()}
                                 onChange={handleChange}
-                                path="emitter.workSite.city"
+                                path="formAPI.createFormInput.emitter.workSite.city"
                             />
                         </div>
                     </div>
@@ -247,51 +251,51 @@ const ModifyCard = () => {
                             <h3 className="font-semibold text-purple-800 mb-2">Destinataire</h3>
                             <LabelInput 
                                 label="Nom"
-                                value={localData.recipient.company.name}
+                                value={localData.formAPI.createFormInput.recipient.company.name.toString()}
                                 onChange={handleChange}
-                                path="recipient.company.name"
+                                path="formAPI.createFormInput.recipient.company.name"
                             />
                             <LabelInput 
                                 label="Adresse"
-                                value={localData.recipient.company.address}
+                                value={localData.formAPI.createFormInput.recipient.company.address.toString()}
                                 onChange={handleChange}
-                                path="recipient.company.address"
+                                path="formAPI.createFormInput.recipient.company.address"
                             />
                             <LabelInput 
                                 label="SIRET"
-                                value={localData.recipient.company.siret}
+                                value={localData.formAPI.createFormInput.recipient.company.siret.toString()}
                                 onChange={handleChange}
-                                path="recipient.company.siret"
+                                path="formAPI.createFormInput.recipient.company.siret"
                             />
                             <LabelInput 
                                 label="Contact"
-                                value={localData.recipient.company.contact}
+                                value={localData.formAPI.createFormInput.recipient.company.contact.toString()}
                                 onChange={handleChange}
-                                path="recipient.company.contact"
+                                path="formAPI.createFormInput.recipient.company.contact"
                             />
                             <LabelInput 
                                 label="Téléphone"
-                                value={localData.recipient.company.phone}
+                                value={localData.formAPI.createFormInput.recipient.company.phone.toString()}
                                 onChange={handleChange}
-                                path="recipient.company.phone"
+                                path="formAPI.createFormInput.recipient.company.phone"
                             />
                             <LabelInput 
                                 label="Email"
-                                value={localData.recipient.company.mail}
+                                value={localData.formAPI.createFormInput.recipient.company.mail.toString()}
                                 onChange={handleChange}
-                                path="recipient.company.mail"
+                                path="formAPI.createFormInput.recipient.company.mail"
                             />
                             <LabelInput 
                                 label="CAP"
-                                value={localData.recipient.cap}
+                                value={localData.formAPI.createFormInput.recipient.cap.toString()}
                                 onChange={handleChange}
-                                path="recipient.cap"
+                                path="formAPI.createFormInput.recipient.cap"
                             />
                             <LabelInput 
                                 label="Code traitement"
-                                value={localData.recipient.processingOperation}
+                                value={localData.formAPI.createFormInput.recipient.processingOperation.toString()}
                                 onChange={handleChange}
-                                path="recipient.processingOperation"
+                                path="formAPI.createFormInput.recipient.processingOperation"
                             />
                         </div>
 
@@ -300,45 +304,45 @@ const ModifyCard = () => {
                             <h3 className="font-semibold text-red-800 mb-2">Détails du déchet</h3>
                             <LabelInput 
                                 label="Code CED"
-                                value={localData.wasteDetails.code}
+                                value={localData.formAPI.createFormInput.wasteDetails.code.toString()}
                                 onChange={handleChange}
-                                path="wasteDetails.code"
+                                path="formAPI.createFormInput.wasteDetails.code"
                             />
                             <LabelInput 
                                 label="Code ONU"
-                                value={localData.wasteDetails.onuCode}
+                                value={localData.formAPI.createFormInput.wasteDetails.onuCode.toString()}
                                 onChange={handleChange}
-                                path="wasteDetails.onuCode"
+                                path="formAPI.createFormInput.wasteDetails.onuCode"
                             />
                             <LabelInput 
                                 label="Consistance"
-                                value={localData.wasteDetails.consistence}
+                                value={localData.formAPI.createFormInput.wasteDetails.consistence.toString()}
                                 onChange={handleChange}
-                                path="wasteDetails.consistence"
+                                path="formAPI.createFormInput.wasteDetails.consistence"
                             />
                             <LabelInput 
                                 label="Quantité"
-                                value={localData.wasteDetails.quantity}
+                                value={localData.formAPI.createFormInput.wasteDetails.quantity.toString()}
                                 onChange={handleChange}
-                                path="wasteDetails.quantity"
+                                path="formAPI.createFormInput.wasteDetails.quantity"
                             />
                             <LabelInput 
                                 label="Type de quantité"
-                                value={localData.wasteDetails.quantityType}
+                                value={localData.formAPI.createFormInput.wasteDetails.quantityType.toString()}
                                 onChange={handleChange}
-                                path="wasteDetails.quantityType"
+                                path="formAPI.createFormInput.wasteDetails.quantityType"
                             />
                             <LabelInput 
                                 label="Type de contenant"
-                                value={localData.wasteDetails.packagingInfos[0].type}
+                                value={localData.formAPI.createFormInput.wasteDetails.packagingInfos[0].type.toString()}
                                 onChange={handleChange}
-                                path="wasteDetails.packagingInfos.0.type"
+                                path="formAPI.createFormInput.wasteDetails.packagingInfos.0.type"
                             />
                             <LabelInput 
                                 label="Nombre de contenants"
-                                value={localData.wasteDetails.packagingInfos[0].quantity}
+                                value={localData.formAPI.createFormInput.wasteDetails.packagingInfos[0].quantity.toString()}
                                 onChange={handleChange}
-                                path="wasteDetails.packagingInfos.0.quantity"
+                                path="formAPI.createFormInput.wasteDetails.packagingInfos.0.quantity"
                             />
                         </div>
                     </div>

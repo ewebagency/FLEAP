@@ -1,5 +1,5 @@
 export const jsonDefaultData = {
-    facture_form : {
+    /*facture_form : {
         header : {
             siret: "SIRET prestataire",
             personne_de_reference : {
@@ -91,6 +91,24 @@ export const jsonDefaultData = {
             montant_tva: 0,
             total_ttc : 0
           }
+    },*/
+    facture_form : {
+      header: {
+        prestataire_nom: "Nom du prestataire",
+      },
+      footer: {
+        total_ht: 0,
+      },
+      departs: [
+        {
+          type_operation: "Type d'opération",
+          type_dechet: "Type de déchet",
+          code_dechet: "Code CED si possible",
+          date_collecte: "JJ/MM/AAAA",
+          lieu_collecte: "Lieu de collecte",
+          montant_ht: 0,
+        }
+      ],
     },
     bsd_formulaire: {
       "formData": {

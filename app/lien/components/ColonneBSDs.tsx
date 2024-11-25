@@ -1,11 +1,11 @@
-import { BSD_without_option_with_id_created_at } from "../interface/bsd_line";
+import { BSD_on_Supabase } from "../interface/bsd_line";
 
 const ColonneBSDs = ({ 
     BSDs, 
     selectedBSD, 
     setSelectedBSD 
 }: { 
-    BSDs: BSD_without_option_with_id_created_at[],
+    BSDs: BSD_on_Supabase[],
     selectedBSD: string | null,
     setSelectedBSD: (id: string | null) => void
 }) => {
@@ -37,8 +37,9 @@ const ColonneBSDs = ({
                         })}
                     </div>
                     <div className="text-xs text-gray-600 mt-2">ID : {bsd.id}</div>
-                    <div className="text-gray-600 mt-2">CED: {bsd.infos_json.formData.dechet_dangereux.ced.first}</div>
-                    <div className="text-gray-600 mt-1">Date collecte: {bsd.infos_json.formData.date.collecte.first}</div>
+                    <div className="text-gray-600 mt-2">Prestataire: {bsd.infos_json.formAPI.createFormInput.recipient.company.name}</div>
+                    <div className="text-gray-600 mt-2">CED: {bsd.infos_json.formAPI.createFormInput.wasteDetails.code}</div>
+                    <div className="text-gray-600 mt-1">Date collecte: {bsd.infos_json.formAPI.createFormInput.wasteDetails.name}</div>
                 </div>
             ))}
         </div>

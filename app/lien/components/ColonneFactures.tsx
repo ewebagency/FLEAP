@@ -46,13 +46,20 @@ const ColonneFactures = ({
                             minute: '2-digit',
                         })}
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between mb-4">
                         <div className="text-xs text-gray-600 mt-2">ID : {factureLine.factureId}</div>
                         <div className="text-xs text-gray-600 mt-2">Ligne n°{factureLine.lineNumber}</div>
                     </div>
         
-                    <div className="text-gray-600 mt-2">Code CED: {factureLine.infos.code_ced}</div>
-                    <div className="text-gray-600 mt-1">{factureLine.infos.description_adresse_site}</div>
+                    <div className="text-xs text-gray-600 mt-2">Prestataire : {factureLine.infos.prestataire_nom}</div>
+                    <div className="flex justify-between gap-2">
+                        <div className="text-xs text-gray-600 mt-2">{factureLine.infos.code_dechet} / {factureLine.infos.type_dechet}</div>
+                        <div className="text-xs text-gray-600 mt-2">Opération: {factureLine.infos.type_operation}</div>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                        <div className="text-xs text-gray-600 mt-2">{factureLine.infos.lieu_collecte} / {factureLine.infos.date_collecte}</div>
+                        <div className="text-xs text-gray-600 mt-2">Montant HT: {factureLine.infos.montant_ht}</div>
+                    </div>
                 </div>
             ))}
         </div>
@@ -60,3 +67,25 @@ const ColonneFactures = ({
 };
 
 export default ColonneFactures;
+
+
+/*
+    facture_form : {
+      header: {
+        prestataire_nom: "Nom du prestataire",
+      },
+      footer: {
+        total_ht: 0,
+      },
+      departs: [
+        {
+          type_operation: "Type d'opération",
+          type_dechet: "Type de déchet",
+          code_dechet: "Code CED si possible",
+          date_collecte: "JJ/MM/AAAA",
+          lieu_collecte: "Lieu de collecte",
+          montant_ht: 0,
+        }
+      ],
+    },
+*/

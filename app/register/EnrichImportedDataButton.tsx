@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSession } from "../component/SessionProvider";
 import toast from "react-hot-toast";
 
+
 const EnrichImportedDataButton = () => {
     const session = useSession();
     const [isLoading, setIsLoading] = useState(false);
@@ -11,12 +12,12 @@ const EnrichImportedDataButton = () => {
             setIsLoading(true);
             try {
                 const response = await fetch(`/api/enrich_imported_data?user_id=${session.user.id}`);
-                if(response.success) {
+                if('success' in response && response.success) {
                     toast.success('Enrichissement réussi');
-                } else {
+                } else if ("message" in response) {
                     toast.error('Erreur lors de l\'enrichissement : ' + response.message);
                 }
-            } catch (error) {
+            } catch {
                 toast.error('Erreur inconnue lors de l\'enrichissement');
             } finally {
                 setIsLoading(false);
