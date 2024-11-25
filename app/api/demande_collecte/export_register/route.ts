@@ -30,6 +30,7 @@ interface BSD_Export_Interface {
     "Qualification de traitement": string | number | null,
     "Code de traitement": string | number | null,
     
+    /*
     "N° SIRET de l'installation intermédiaire": string | number | null,
     "Raison sociale de l'installation intermédiaire": string | number | null,
     "N° de récipissé de l'installation intermédiaire": string | number | null,
@@ -37,6 +38,7 @@ interface BSD_Export_Interface {
     "N° SIRET de l'Eco-organisme": string | number | null,
     "Raison sociale de l'Eco-organisme": string | number | null,
     "Adresse de l'Eco-organisme": string | number | null,
+    */
 
     // Informations financières
     "Montant TTC": string | number | null,
@@ -106,7 +108,7 @@ interface Facture_Info_Interface {
         montant_ht: number
     }
 }
-/*
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const user_id = searchParams.get('user_id');
@@ -130,9 +132,12 @@ const formatBSDData = (data: {
     readable_id_track_dechets: string
 }[]) => {
     return data.map((item) => {
-        const getValue = (accessor: () => string|number|boolean|null, defaultValue: string = 'Non trouvé') => {
+        const getValue = (accessor: () => string|number|boolean|null, defaultValue: string = 'Non trouvé'): string|number|null => {
             try {
-                const value = accessor()
+                const value = accessor();
+                if (typeof value === 'boolean') {
+                    return value.toString();
+                }
                 return value ?? defaultValue;
             } catch {
                 return defaultValue;
@@ -147,9 +152,14 @@ const formatBSDData = (data: {
             "Date de collecte": getValue(() => ''),
             "N° BSD": getValue(() => null, item.readable_id_track_dechets),
             "N° TrackDéchet": getValue(() => null, 'Pas encore disponible'),
-            "Date de confirmation par le transporteur": getValue(() => null, 'Pas encore disponible').toString(),
+            "Date de confirmation par le transporteur": getValue(() => null, 'Pas encore disponible')?.toString() ?? 'Pas encore disponible',
 
-            "Adresse de collecte": getValue(() => item.infos_json.formAPI.createFormInput.emitter.workSite.address + ' ' + item.infos_json.formAPI.createFormInput.emitter.workSite.postalCode + ' ' + item.infos_json.formAPI.createFormInput.emitter.workSite.city),
+            "Adresse de collecte": getValue(() => {
+                const workSite = item.infos_json.formAPI.createFormInput.emitter.workSite;
+                return workSite ? 
+                    `${workSite.address} ${workSite.postalCode} ${workSite.city}` : 
+                    'Non trouvé';
+            }),
             
             "N° Siret du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.siret),
             "Raison sociale du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.name),
@@ -166,13 +176,13 @@ const formatBSDData = (data: {
             "Qualification de traitement": getValue(() => null, 'Pas encore disponible'),
             "Code de traitement": getValue(() => null, item.infos_json.formAPI.createFormInput.recipient.processingOperation.toString()),
             
-            "N° SIRET de l'installation intermédiaire": getValue(() => item.infos_json.formAPI.createFormInput.intermediary.company.siret),
+            /*"N° SIRET de l'installation intermédiaire": getValue(() => item.infos_json.formAPI.createFormInput.intermediary.company.siret),
             "Raison sociale de l'installation intermédiaire": getValue(() => item.infos_json.formAPI.createFormInput.intermediary.company.name),
             "N° de récipissé de l'installation intermédiaire": getValue(() => null, 'Pas encore disponible'),
 
             "N° SIRET de l'Eco-organisme": getValue(() => item.infos_json.formAPI.createFormInput.ecoOrganism.company.siret),
             "Raison sociale de l'Eco-organisme": getValue(() => item.infos_json.formAPI.createFormInput.ecoOrganism.company.name),
-            "Adresse de l'Eco-organisme": getValue(() => item.infos_json.formAPI.createFormInput.ecoOrganism.company.address),
+            "Adresse de l'Eco-organisme": getValue(() => item.infos_json.formAPI.createFormInput.ecoOrganism.company.address),*/
 
             // Informations financières
             "Montant TTC": item.facture_treated ? "Bientôt disponible" : "Pas encore disponible",
@@ -212,4 +222,3 @@ const exportToExcel = (data : BSD_Export_Interface[], fileName: string) => {
         },
     });
 };
-*/

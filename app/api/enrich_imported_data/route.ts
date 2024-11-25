@@ -1,24 +1,74 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/app/database/supabaseClient';
-import { DataParametrageInterface, Form_API_Interface_Short } from '@/app/register/interface/BSD_Interface';
+import { Anything, DataOnSupabase_infos_json, DataParametrageInterface } from '@/app/register/interface/BSD_Interface';
 
 interface BSDRow {
     id: string;
-    infos_json: {
-        formAPI: {
-            createFormInput: Form_API_Interface_Short
-        }
+    infos_json: DataOnSupabase_infos_json;
+}
+
+interface EmitterType {
+    company: {
+        mail: Anything;
+        name: Anything;
+        phone: Anything;
+        siret: Anything;
+        address: Anything;
+        contact: Anything;
+    };
+    workSite: {
+        address: Anything;
+        postalCode: Anything;
+        city: Anything;
     };
 }
 
-/*
-const findBestMatch = (bsd: BSDRow, paramData: any[]) => {
+interface RecipientType {
+    company: {
+        mail: Anything;
+        name: Anything;
+        phone: Anything;
+        siret: Anything;
+        address: Anything;
+        contact: Anything;
+    };
+    cap: Anything;
+    processingOperation: Anything;
+}
+
+interface TransporterType {
+    company: {
+        mail: Anything;
+        name: Anything;
+        phone: Anything;
+        siret: Anything;
+        address: Anything;
+        contact: Anything;
+    };
+}
+
+interface WasteDetailsType {
+    code: Anything;
+    name: Anything;
+    onuCode: Anything;
+    consistence: Anything;
+    packagingInfos: {
+        type: Anything;
+        quantity: Anything;
+    }[];
+}
+
+interface DataParametrageInterfaceWithJsonRow extends DataParametrageInterface {
+    json_row: DataParametrageInterface;
+}
+
+const findBestMatch = (bsd: BSDRow, paramData: DataParametrageInterfaceWithJsonRow[]) => {
     const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
     const emitterSiret = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret;
     const recipientSiret = bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret;
 
     // Filtrer d'abord par code déchet (critère obligatoire)
-    let matches = paramData.filter((param: { json_row: DataParametrageInterface }) => 
+    let matches = paramData.filter((param: DataParametrageInterfaceWithJsonRow) => 
         param.json_row.ced === wasteCode
     );
 
@@ -40,7 +90,7 @@ const findBestMatch = (bsd: BSDRow, paramData: any[]) => {
     return matches[0];
 };
 
-const mergeEmitter = (existing: any, param: DataParametrageInterface) => {
+const mergeEmitter = (existing: EmitterType, param: DataParametrageInterface) => {
     return {
         ...existing,
         company: {
@@ -61,7 +111,7 @@ const mergeEmitter = (existing: any, param: DataParametrageInterface) => {
     };
 };
 
-const mergeRecipient = (existing: any, param: DataParametrageInterface) => {
+const mergeRecipient = (existing: RecipientType, param: DataParametrageInterface) => {
     return {
         ...existing,
         company: {
@@ -79,7 +129,7 @@ const mergeRecipient = (existing: any, param: DataParametrageInterface) => {
     };
 };
 
-const mergeTransporter = (existing: any, param: DataParametrageInterface) => {
+const mergeTransporter = (existing: TransporterType, param: DataParametrageInterface) => {
     return {
         ...existing,
         company: {
@@ -95,7 +145,7 @@ const mergeTransporter = (existing: any, param: DataParametrageInterface) => {
     };
 };
 
-const mergeWasteDetails = (existing: any, param: DataParametrageInterface) => {
+const mergeWasteDetails = (existing: WasteDetailsType, param: DataParametrageInterface) => {
     return {
         ...existing,
         code: existing.code || param.ced,
@@ -136,7 +186,7 @@ export async function GET(request: Request) {
         if (paramError) throw new Error("Erreur lors de la récupération des données de paramétrage");
 
         const enrichedBSDs = bsdData.map((bsd: BSDRow) => {
-            const matchingParam = findBestMatch(bsd, paramData);
+            const matchingParam: {json_row: DataParametrageInterface} = findBestMatch(bsd, paramData);
             if (!matchingParam) return bsd;
 
             const enrichedBSD = {
@@ -203,4 +253,3 @@ export async function GET(request: Request) {
         });
     }
 }
-*/

@@ -55,7 +55,7 @@ const RegisterPage = () => {
                             </div>
                             <ExportRegisterButton/>
                             <ImportRegisterButton/>
-                            {/*<EnrichImportedDataButton/>*/}
+                            <EnrichImportedDataButton/>
                         </div>
                     </div>
                     <div className="flex justify-between items-center">
