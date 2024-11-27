@@ -11,6 +11,7 @@ import { AnalysisContext, useAnalysisContext } from "@/app/analysis/AnalysisCont
 import { supabase } from "@/app/database/supabaseClient";
 import { useSession } from "../../SessionProvider";
 import { useFilterContext } from "@/app/FilterContext";
+import { TooltipItem } from 'chart.js';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -18,10 +19,31 @@ interface Props {
     active: boolean;
 }
 
+interface FactureBDD {
+    infos_json: {
+        depart: {
+          bsd_id: number;
+          montant_ht: number;
+          code_dechet: string;
+          type_dechet: string;
+          date_collecte: string;
+          lieu_collecte: string;
+          linked_to_bsd: boolean;
+          type_operation: string;
+        },
+        footer: {
+          total_ht: number;
+        },
+        header: {
+          prestataire_nom: string;
+        }
+      }
+}
+
 const FinancialAnalyse = ({active}: Props) => {
     const session = useSession();
     const { filieres_ou_prestataires } = useFilterContext();
-    const [financialData, setFinancialData] = useState<any[]>([]);
+    const [financialData, setFinancialData] = useState<FactureBDD[]>([]);
 
     const getFinancialData = async (user_id: string) => {
         const {data, error} = await supabase
@@ -115,10 +137,10 @@ const FinancialAnalyse = ({active}: Props) => {
                 },
                 tooltip: {
                     callbacks: {
-                        label: function(context: any) {
+                        label: function(context: TooltipItem<'pie'>) {
                             const label = context.label || '';
-                            const value = context.raw || 0;
-                            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                            const value = context.raw as number || 0;
+                            const total = (context.dataset.data as number[]).reduce((a, b) => a + b, 0);
                             const percentage = Math.round((value / total) * 100);
                             return `${label}: ${value.toLocaleString('fr-FR')}€ (${percentage}%)`;
                         }

@@ -62,7 +62,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
     const [formData, setFormData] = useState<FactureFormData>(jsonDefaultData.facture_form);
     const [loading, setLoading] = useState(false);
     const [typeForm, setTypeForm] = useState('facture_form');
-    const [myOptions, setMyOptions] = useState<string[][]>([[],[],[],[],[]]);
+    const [myOptions, setMyOptions] = useState<(string | number)[][]>([[], [], [], [], []]);
     const session = useSession();
 
     useEffect(() => {
@@ -73,13 +73,13 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
     }, [session]);
 
     // prestataire_final, transporteur_final, lieu_collecte, nom_dechet, code_dechet
-    const PRESTATAIRE_FINAL_NOM = myOptions[0];
-    const TRANSPORTEUR_FINAL_NOM = myOptions[1];
+    const PRESTATAIRE_FINAL_NOM = myOptions[0].map(String);
+    const TRANSPORTEUR_FINAL_NOM = myOptions[1].map(String);
     const PRESTATAIRE = Array.from(new Set([...PRESTATAIRE_FINAL_NOM, ...TRANSPORTEUR_FINAL_NOM]));
     const TYPE_OPERATIONS = ['Traitement', 'Transport', 'Rachat'];
-    const LIEU_COLLECTE = myOptions[2];
-    const NOM_DECHET = myOptions[3];
-    const CODE_CED = myOptions[4];
+    const LIEU_COLLECTE = myOptions[2].map(String);
+    const NOM_DECHET = myOptions[3].map(String);
+    const CODE_CED = myOptions[4].map(String);
     
 
     const handleHeaderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -383,7 +383,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
 }
 
 
-const getMyOptions = async (user_id:string) => {
+const getMyOptions = async (user_id: string): Promise<(string | number)[][]> => {
     // prestataire_final, transporteur_final, lieu_collecte, nom_dechet, code_dechet
     const myOptions = ["formAPI.createFormInput.recipient.company.name", "formAPI.createFormInput.recipient.company.name", "formAPI.createFormInput.emitter.workSite", "formAPI.createFormInput.wasteDetails.name", "formAPI.createFormInput.wasteDetails.code"];
     return await getSelectOptions(myOptions, user_id);
@@ -411,17 +411,25 @@ const getAllBSDs = async (user_id:string) => {
 };
 
 
-const getUniqueListeOptions = (BSDs:{infos_json:DataOnSupabase_infos_json}[]|null, champ_options:string[]) => {
-    if(BSDs==null) return [];
+const getUniqueListeOptions = (BSDs: { infos_json: DataOnSupabase_infos_json }[] | null, champ_options: string[]) => {
+    if (BSDs == null) return [];
     const liste_options = champ_options.map(champ => {
-        return Array.from(new Set(BSDs.map(bsd => {
-            return champ.split('.').reduce((obj: any, key) => obj?.[key], bsd.infos_json);
-        })));
+        const values = BSDs.map(bsd => {
+            return champ.split('.').reduce((obj: unknown, key: string) => {
+                if (obj && typeof obj === 'object' && key in obj) {
+                    return (obj as Record<string, unknown>)[key];
+                }
+                return undefined;
+            }, bsd.infos_json as unknown);
+        }).filter((value): value is string | number => 
+            typeof value === 'string' || typeof value === 'number'
+        );
+        return Array.from(new Set(values));
     });
     return liste_options;
 };
 
-const linearizeOptions = (liste_options: any[][]) => {
+const linearizeOptions = (liste_options: (string | number | object | null | undefined)[][]) => {
     return liste_options.map(optionList => 
         optionList.map(option => {
             if (option === null || option === undefined) return "Non défini";
@@ -434,7 +442,7 @@ const linearizeOptions = (liste_options: any[][]) => {
     );
 };
 
-const cleanOptions = (liste_options:string[][]) => {
+const cleanOptions = (liste_options: (string | number)[][]) => {
     return liste_options.map(option => 
         option.filter(opt => 
             opt !== "Inconnu" && 
@@ -445,6 +453,6 @@ const cleanOptions = (liste_options:string[][]) => {
     );
 };
 
-const addInconnuChamp = (liste_options:string[][]) => {
+const addInconnuChamp = (liste_options: (string | number)[][]) => {
     return liste_options.map(option => [...option, "Inconnu"]);
 };
