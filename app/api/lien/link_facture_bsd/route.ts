@@ -3,7 +3,7 @@ import { supabase } from "@/app/database/supabaseClient";
 
 export async function POST(request: Request) {
     try {
-        const { factureId, lineNumber, bsdId } = await request.json();
+        const { factureId, bsdId } = await request.json();
 
         // GET FACTURE_JSON
         // 1. Récupérer l'infos_json de la facture
@@ -18,17 +18,18 @@ export async function POST(request: Request) {
 
         // GET FACTURE_JSON_LINE
         // 1.2 Récupérer la ligne de l'infos_json de la facture
-
+        /* -> on le fait plus car chaque ligne d'une vraie facture devient une ligne à part entère dans la BDD
         console.log("factureDataaaa", factureData);
         const factureLineData = factureData.infos_json.departs[lineNumber - 1];
         console.log("factureLineDataaaa", factureLineData);
+        */
 
         // UPDATE BSD_INFOS_COUTS - OK !
         // 2. Mettre à jour le BSD avec les nouvelles infos
         const { error: updateError } = await supabase
             .from('bsd')
             .update({ 
-                facture_infos: factureLineData,
+                facture_infos: factureData.infos_json,
                 facture_treated: true 
             })
             .eq('id', bsdId);
@@ -41,10 +42,10 @@ export async function POST(request: Request) {
         // 3.1 Mettre à jour le futur json du BSD en ne touchant qu'à la ligne concernée
 
         const updatedInfosJson = factureData.infos_json;
-        updatedInfosJson.departs[lineNumber - 1].bsd_id = bsdId;
-        updatedInfosJson.departs[lineNumber - 1].linked_to_bsd = true;
+        updatedInfosJson.depart.bsd_id = bsdId;
+        updatedInfosJson.depart.linked_to_bsd = true;
 
-        console.log("factureDataLine222", factureData.infos_json.departs[lineNumber - 1]);
+        console.log("factureDataLine222", factureData.infos_json.depart);
 
         // UPDATE FACTURE_JSON
         // 3.2 Mettre à jour le json-ligne de la facture dans la BDD en changeant tout le json (une seule ligne est réellement modifiée)

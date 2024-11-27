@@ -1,13 +1,39 @@
 import { useState } from "react";
 import { useSession } from "../component/SessionProvider";
 import toast from "react-hot-toast";
-
+import Swal from 'sweetalert2';
 
 const EnrichImportedDataButton = () => {
     const session = useSession();
     const [isLoading, setIsLoading] = useState(false);
 
     const handleEnrich = async () => {
+        // Afficher la confirmation SweetAlert2
+        const result = await Swal.fire({
+            title: 'Confirmation d\'enrichissement',
+            html: `
+                <p>Êtes-vous sûr de vouloir enrichir les données ?</p>
+                <p style="color: #dc2626; font-size: 0.875rem; margin-top: 0.5rem;">
+                    Cette action est irréversible.
+                </p>
+            `,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#22c55e',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Confirmer',
+            cancelButtonText: 'Annuler',
+            customClass: {
+                popup: 'rounded-lg',
+                confirmButton: 'rounded-lg',
+                cancelButton: 'rounded-lg'
+            }
+        });
+
+        if (!result.isConfirmed) {
+            return;
+        }
+        
         if(session && session.user && session.user.id) {
             setIsLoading(true);
             try {

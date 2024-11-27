@@ -3,7 +3,8 @@ import React, { useState, useEffect } from "react";
 import TabBarAnalyses from "../component/Analyse/TabBarAnalyses";
 import FiltreFilieres from "../component/FiltreFilieres";
 import { useSession } from "../component/SessionProvider";
-import { AnalysisContext } from "./AnalysisContext";
+import { supabase } from "../database/supabaseClient";
+import { useFilterContext } from "../FilterContext";
 
 //Juste to remove the vercel toolbar do a git push
 // Créer le contexte
@@ -25,10 +26,12 @@ interface DatasetInterface {
 
 const AnalysisPage = () => {
     
-    const [selectedValueChain, setSelectedValueChain] = useState('Filières');
+    const { filieres_ou_prestataires, setFilieresOuPrestataires } = useFilterContext();
+    const session = useSession();
 
     const handleRadioValueChainChange = (event :React.ChangeEvent<HTMLInputElement>) => {
-      setSelectedValueChain(event.target.value); // Mise à jour du state avec la valeur sélectionnée
+      setFilieresOuPrestataires({ nom: event.target.value as 'filiere' | 'prestataire' }); // Mise à jour du state avec la valeur sélectionnée
+      console.log('laaaaa',filieres_ou_prestataires);
     };
 
 
@@ -53,6 +56,32 @@ const AnalysisPage = () => {
         { id: 7, checked: false, color:'bg-purple-500', label: 'Matériaux'},
         { id: 8, checked: false, color:'bg-purple-700', label: 'Bois'},
       ]);
+
+      const getFilieres = async (user_id:string) => {
+        const { data, error } = await supabase
+        .from('bsd')
+        .select('infos_json')
+        .eq('user_id', user_id);
+        if(error) console.error("Error fetching filieres:", error);
+        const filieres = data?.map((bsd) => bsd.infos_json.dataSupplementaire?.filiere);
+        const filieres_unique = Array.from(new Set(filieres));
+        const colors = ['bg-blue-300', 'bg-blue-400', 'bg-blue-500', 'bg-green-300', 'bg-green-500', 'bg-purple-300', 'bg-purple-500', 'bg-purple-700', 'bg-orange-300', 'bg-orange-500', 'bg-orange-700'];
+        const this_materials = [];
+        let autres = false;
+        for(let i=0; i<filieres_unique.length; i++){
+          if(filieres_unique[i]===undefined){
+            autres = true;
+          }else{
+            this_materials.push({ id: i, checked: false, color:colors[i], label: filieres_unique[i]});
+          }
+        }
+        if(autres) this_materials.push({ id: filieres_unique.length, checked: false, color:'bg-red-300', label: 'Autres'});
+        return this_materials;
+      }
+
+      useEffect(() => {
+        if(session?.user?.id) getFilieres(session?.user?.id).then((filieres) => setSelectedMaterials(filieres));
+      }, [session]);
     
       // Fonction pour gérer les changements de checkbox
       const handleMaterialsChange = (id:number) => {
@@ -91,30 +120,21 @@ const AnalysisPage = () => {
 
 
 
-      //Authentification
-      const session = useSession();
-    
-
     if (!session) return <p>Chargement de vos id de connexion...</p>;
     return (
-        <AnalysisContext.Provider value={{ valueChain: selectedValueChain, selectedMaterials: selectedMaterials, serverData: serverData }}>
             <div className='m-5'>
                 <div className="flex justify-between items-center">
                     <div className="text-xl">Analyse</div>
                     <div className="join">
-                        <input className="join-item btn btn-xs text-xs font-normal" type="radio" name="options_value_chaine" aria-label="Filières" value="Filières" checked={selectedValueChain == 'Filières'} onChange={handleRadioValueChainChange}/>
-                        <input className="join-item btn btn-xs text-xs font-normal" type="radio" name="options_value_chaine" aria-label="Prestataires" value="Prestataires" checked={selectedValueChain=='Prestataires'} onChange={handleRadioValueChainChange} />
+                        <input className="join-item btn btn-xs text-xs font-normal" type="radio" name="options_value_chaine" aria-label="Filières" value="filiere" checked={filieres_ou_prestataires.nom == 'filiere'} onChange={handleRadioValueChainChange}/>
+                        <input className="join-item btn btn-xs text-xs font-normal" type="radio" name="options_value_chaine" aria-label="Prestataires" value="prestataire" checked={filieres_ou_prestataires.nom=='prestataire'} onChange={handleRadioValueChainChange} />
                     </div>
                 </div>
 
-                <FiltreFilieres 
-                    selectedMaterials={selectedMaterials} 
-                    onMaterialsChange={handleMaterialsChange} 
-                />
+                <FiltreFilieres/>
                 {loading && <div>Loading</div>}
                 <TabBarAnalyses/>
             </div>
-        </AnalysisContext.Provider>
     )
 }
 

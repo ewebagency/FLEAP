@@ -223,6 +223,8 @@ export async function GET(request: Request) {
                 }
             };
 
+            console.log("enrichedBSD", enrichedBSD);
+
             return enrichedBSD;
         });
 

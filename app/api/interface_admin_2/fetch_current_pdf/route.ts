@@ -11,7 +11,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   const { data, error } = await supabase
   .from('pdf_infos')
   .select('id, name_pdf_in_bucket')
-  //.eq('user_id', user_id); -> en fait on veut tous les pdfs (interface admin juste pour le cofounder, on vérifie les pdfs de tous les utilisateurs)
+  .eq('status', 'unread')
+  .eq('user_id', user_id); //-> à voir comment on fait pour les utilisateurs (en fait on veut tous les pdfs (interface admin juste pour le cofounder, on vérifie les pdfs de tous les utilisateurs))
   
   if (error) {
     console.error("Erreur lors de la récupération des PDF du bucket:", error);

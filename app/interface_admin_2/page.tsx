@@ -112,6 +112,30 @@ const InterfaceAdmin2 = () => {
         fetchCurrentPdfPath();
     };
 
+    const handleResetSkipped = async () => {
+        if(session && session.user?.id){
+            try {
+                setLoading(true);
+                const response = await fetch('/api/interface_admin_2/reset_skipped_pdf', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ user_id: session.user.id }),
+                });
+                
+                if (!response.ok) throw new Error('Erreur lors de la réinitialisation');
+                
+                // Rafraîchir après réinitialisation
+                fetchCurrentPdfPath();
+            } catch (error) {
+                console.error('Erreur lors de la réinitialisation des PDFs skipped:', error);
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
     return (
     <div>
         <div className="container mx-auto h-screen flex">
@@ -131,8 +155,17 @@ const InterfaceAdmin2 = () => {
                     </div>
                 </div>
             ) : (
-                <div className="m-60 flex w-full m-5 justify-center items-center bg-green-600 text-xl border-2 border-white rounded-xl text-white font-bold">
-                    Tous les PDF ont été traités.
+                <div className="flex flex-col items-center justify-center w-full">
+                    <div className="m-4 bg-green-600 text-xl border-2 border-white rounded-xl text-white font-bold p-4">
+                        Tous les PDF ont été traités ou skipped.
+                    </div>
+                    <button
+                        onClick={handleResetSkipped}
+                        disabled={loading}
+                        className="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                        Réinitialiser les PDFs skipped
+                    </button>
                 </div>
             )}
         </div>

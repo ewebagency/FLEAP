@@ -3,11 +3,11 @@ import { BSD_on_Supabase } from "../interface/bsd_line";
 const ColonneBSDs = ({ 
     BSDs, 
     selectedBSD, 
-    setSelectedBSD 
+    setSelectedBSD,
 }: { 
     BSDs: BSD_on_Supabase[],
     selectedBSD: string | null,
-    setSelectedBSD: (id: string | null) => void
+    setSelectedBSD: (id: string | null) => void,
 }) => {
     return (
         <div className="space-y-4">
@@ -27,7 +27,7 @@ const ColonneBSDs = ({
                             className="w-4 h-4 text-blue-600"
                         />
                     </div>
-                    <div className="font-semibold text-gray-800">
+                    <div className="font-semibold text-gray-800 ml-5">
                         {new Date(bsd.created_at).toLocaleDateString('fr-FR', {
                             year: 'numeric',
                             month: 'long',
@@ -36,14 +36,34 @@ const ColonneBSDs = ({
                             minute: '2-digit',
                         })}
                     </div>
-                    <div className="text-xs text-gray-600 mt-2">ID : {bsd.id}</div>
-                    <div className="text-gray-600 mt-2">Prestataire: {bsd.infos_json.formAPI.createFormInput.recipient.company.name}</div>
-                    <div className="text-gray-600 mt-2">CED: {bsd.infos_json.formAPI.createFormInput.wasteDetails.code}</div>
-                    <div className="text-gray-600 mt-1">Date collecte: {bsd.infos_json.formAPI.createFormInput.wasteDetails.name}</div>
+                    <div className="flex justify-between mb-4">
+                        <div className="text-xs text-gray-600 mt-2">ID : {bsd.id}</div>
+                    </div>
+        
+                    <div className="text-xs text-gray-600 mt-2 mb-4">
+                        {bsd.infos_json.formAPI.createFormInput.recipient.company.name}
+                    </div>
+                    <div className="flex justify-between gap-2 mb-2">
+                        <div className="text-xs text-gray-600 mt-2">
+                            <p>CED : {bsd.infos_json.formAPI.createFormInput.wasteDetails.code}</p>
+                            <p>{bsd.infos_json.formAPI.createFormInput.wasteDetails.name}</p>
+                        </div>
+                        <div className="text-xs text-gray-600 mt-2">
+                            {bsd.infos_json.formAPI.createFormInput.transporter.company.name}
+                        </div>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                        <div className="text-xs text-gray-600 mt-2">
+                            Lieu : {bsd.infos_json.formAPI.createFormInput.emitter.workSite.address}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-2">
+                            {bsd.infos_json.formAPI.createFormInput.emitter.workSite.city}
+                        </div>
+                    </div>
                 </div>
             ))}
         </div>
-    )
-}
+    );
+};
 
 export default ColonneBSDs;

@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     .eq('user_id', user_id);
 
   const factures_non_traitees = [];
-  if (data) {
+  /*if (data) {
     for (const facture of data) {
       const lignes = facture.infos_json.departs;
       for (let i = 0; i < lignes.length; i++) {
@@ -29,11 +29,19 @@ export async function GET(request: Request) {
         }
       }
     }
-  }
+  }*/
+ if(data){
+    for(const facture of data){
+      if(facture.infos_json.depart.linked_to_bsd === false){
+        factures_non_traitees.push(facture);
+      }
+    }
+ }
+ 
 
   if (error) {
     return NextResponse.json({ error: 'Erreur lors de la récupération des données' }, { status: 500 });
   }
-
+  //console.log("factures non traitées", factures_non_traitees);
   return NextResponse.json({ lignes: factures_non_traitees }, { status: 200 });
 }

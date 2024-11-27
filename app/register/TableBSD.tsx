@@ -3,6 +3,7 @@ import { supabase } from "../database/supabaseClient";
 import { useSession } from "../component/SessionProvider";
 import { useModalContextNew } from "./RegisterComponents/Modal/ContextModal";
 import toast from "react-hot-toast";
+import { Filiere, useFilterContext } from "../FilterContext";
 
 // Modifier le type FormDataType pour inclure un id
 type BSD = {
@@ -235,16 +236,33 @@ const getSommeBSD = (facture_infos: {montant_ht: number}) => {
     return facture_infos.montant_ht;
 }
 
-const fetchBSDs = async (user_id: string | null) => {
+const fetchBSDs = async (user_id: string | null, filieres: Filiere[]) => {
     console.log("user_id : ", user_id);
     const { data, error } = await supabase
     .from('bsd')
     .select('id, created_at, infos_json, facture_treated, facture_infos, status_track_dechets, id_track_dechets')
     .eq('user_id', user_id);
+
     if(error){
         console.error("Error fetching BSD:", error);
     } else {
         console.log("BSDs fetched");
+        
+        // Filtrer les BSDs si des filières sont sélectionnées
+        const checkedFilieres = filieres.filter(f => f.checked).map(f => f.name);
+        
+        
+        if (checkedFilieres.length > 0) {
+            return data.filter(bsd => {
+                if("dataSupplementaire" in bsd.infos_json){
+                    const filiere = bsd.infos_json.dataSupplementaire.filiere;
+                    return filiere && checkedFilieres.includes(filiere);
+                }
+            return false
+            });
+        }
+        
+        // Si aucune filière n'est sélectionnée, retourner tous les BSDs
         return data;
     }
 }
@@ -255,6 +273,7 @@ const TableBSD = () => {
     //const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
     //A faire passer sur useModalContextNew
     const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModalContextNew();
+    const { filieres } = useFilterContext();
 
     const [webhooksInitialized, setWebhooksInitialized] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -323,7 +342,7 @@ const TableBSD = () => {
         const loadBSDs = async () => {
             if (session?.user?.id) {
                 try {
-                    const data = await fetchBSDs(session.user.id);
+                    const data = await fetchBSDs(session.user.id, filieres);
                     if (data) {
                         const sortedData = data.sort((a, b) => 
                             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -337,7 +356,7 @@ const TableBSD = () => {
         };
         loadBSDs();
         //console.log('mon bsd', bsds);
-    }, [session, modalReload, modalId, modalType]);
+    }, [session, modalReload, modalId, modalType, filieres]);
 
 
     const handleDelete = async (id: string) => {

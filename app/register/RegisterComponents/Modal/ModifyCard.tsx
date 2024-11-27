@@ -11,13 +11,13 @@ const LabelInput = ({ label, value, onChange, path }: {
     onChange: (path: string, value: string) => void,
     path: string
 }) => (
-    <div className="text-sm flex flex-col mb-2">
-        <span className="font-medium text-gray-700">{label}: </span>
+    <div className="flex items-center text-sm">
+        <span className="font-medium text-gray-700 w-[120px] text-right mr-2">{label}: </span>
         <input 
             type="text"
             value={value ?? ''}
             onChange={(e) => onChange(path, e.target.value)}
-            className="border rounded px-2 py-1 text-gray-600"
+            className="text-gray-600 rounded-md px-2 py-[3px] w-[320px]"
         />
     </div>
 );
@@ -116,16 +116,19 @@ const ModifyCard = () => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-lg p-6 max-w-4xl w-[90%] max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-lg p-6 max-w-6xl w-[80%] max-h-[90vh] overflow-y-auto">
                 <div className="border-b pb-2 flex justify-between items-center">
                     <div>
                         <h2 className="text-xl font-bold text-gray-800">Bordereau de Suivi des Déchets</h2>
-                        <LabelInput 
-                            label="Code déchet"
-                            value={localData.formAPI.createFormInput.wasteDetails.code.toString()}
-                            onChange={handleChange}
-                            path="formAPI.createFormInput.wasteDetails.code"
-                        />
+                        <div className="flex items-center text-md mt-2 ml-6">
+                            <span className="font-medium text-gray-700 mr-3">Code déchet: </span>
+                            <input 
+                                type="text"
+                                value={localData.formAPI.createFormInput.wasteDetails.code.toString()}
+                                onChange={(e) => handleChange("formAPI.createFormInput.wasteDetails.code", e.target.value)}
+                                className="text-gray-700 border-b-2 border-gray-300 focus:border-blue-500 focus:outline-none px-2 w-[90px] text-md font-medium"
+                            />
+                        </div>
                     </div>
                     <button 
                         onClick={() => setModalType("")} 
@@ -135,112 +138,118 @@ const ModifyCard = () => {
                     </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6 mt-4">
+                <div className="grid grid-cols-2 gap-4">
                     {/* Colonne gauche */}
                     <div className="space-y-4">
                         {/* Émetteur */}
                         <div className="bg-blue-50 p-3 rounded border border-blue-100">
                             <h3 className="font-semibold text-blue-800 mb-2">Émetteur</h3>
-                            <LabelInput 
-                                label="Nom"
-                                value={localData.formAPI.createFormInput.emitter.company.name.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.emitter.company.name"
-                            />
-                            <LabelInput 
-                                label="Adresse"
-                                value={localData.formAPI.createFormInput.emitter.company.address.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.emitter.company.address"
-                            />
-                            <LabelInput 
-                                label="SIRET"
-                                value={localData.formAPI.createFormInput.emitter.company.siret.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.emitter.company.siret"
-                            />
-                            <LabelInput 
-                                label="Contact"
-                                value={localData.formAPI.createFormInput.emitter.company.contact.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.emitter.company.contact"
-                            />
-                            <LabelInput 
-                                label="Téléphone"
-                                value={localData.formAPI.createFormInput.emitter.company.phone.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.emitter.company.phone"
-                            />
-                            <LabelInput 
-                                label="Email"
-                                value={localData.formAPI.createFormInput.emitter.company.mail.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.emitter.company.mail"
-                            />
+                            <div className="space-y-2 mr-4">
+                                <LabelInput 
+                                    label="Nom"
+                                    value={localData.formAPI.createFormInput.emitter.company.name.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.emitter.company.name"
+                                />
+                                <LabelInput 
+                                    label="Adresse"
+                                    value={localData.formAPI.createFormInput.emitter.company.address.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.emitter.company.address"
+                                />
+                                <LabelInput 
+                                    label="SIRET"
+                                    value={localData.formAPI.createFormInput.emitter.company.siret.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.emitter.company.siret"
+                                />
+                                <LabelInput 
+                                    label="Contact"
+                                    value={localData.formAPI.createFormInput.emitter.company.contact.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.emitter.company.contact"
+                                />
+                                <LabelInput 
+                                    label="Téléphone"
+                                    value={localData.formAPI.createFormInput.emitter.company.phone.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.emitter.company.phone"
+                                />
+                                <LabelInput 
+                                    label="Email"
+                                    value={localData.formAPI.createFormInput.emitter.company.mail.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.emitter.company.mail"
+                                />
+                            </div>
                         </div>
 
                         {/* Transporteur */}
                         <div className="bg-yellow-50 p-3 rounded border border-yellow-100">
                             <h3 className="font-semibold text-yellow-800 mb-2">Transporteur</h3>
-                            <LabelInput 
-                                label="Nom"
-                                value={localData.formAPI.createFormInput.transporter.company.name.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.transporter.company.name"
-                            />
-                            <LabelInput 
-                                label="Adresse"
-                                value={localData.formAPI.createFormInput.transporter.company.address.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.transporter.company.address"
-                            />
-                            <LabelInput 
-                                label="SIRET"
-                                value={localData.formAPI.createFormInput.transporter.company.siret.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.transporter.company.siret"
-                            />
-                            <LabelInput 
-                                label="Contact"
-                                value={localData.formAPI.createFormInput.transporter.company.contact.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.transporter.company.contact"
-                            />
-                            <LabelInput 
-                                label="Téléphone"
-                                value={localData.formAPI.createFormInput.transporter.company.phone.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.transporter.company.phone"
-                            />
-                            <LabelInput 
-                                label="Email"
-                                value={localData.formAPI.createFormInput.transporter.company.mail.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.transporter.company.mail"
-                            />
+                            <div className="space-y-2 mr-4">
+                                <LabelInput 
+                                    label="Nom"
+                                    value={localData.formAPI.createFormInput.transporter.company.name.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.transporter.company.name"
+                                />
+                                <LabelInput 
+                                    label="Adresse"
+                                    value={localData.formAPI.createFormInput.transporter.company.address.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.transporter.company.address"
+                                />
+                                <LabelInput 
+                                    label="SIRET"
+                                    value={localData.formAPI.createFormInput.transporter.company.siret.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.transporter.company.siret"
+                                />
+                                <LabelInput 
+                                    label="Contact"
+                                    value={localData.formAPI.createFormInput.transporter.company.contact.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.transporter.company.contact"
+                                />
+                                <LabelInput 
+                                    label="Téléphone"
+                                    value={localData.formAPI.createFormInput.transporter.company.phone.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.transporter.company.phone"
+                                />
+                                <LabelInput 
+                                    label="Email"
+                                    value={localData.formAPI.createFormInput.transporter.company.mail.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.transporter.company.mail"
+                                />
+                            </div>
                         </div>
 
                         {/* Site d'enlèvement */}
                         <div className="bg-green-50 p-3 rounded border border-green-100">
                             <h3 className="font-semibold text-green-800 mb-2">Site d&apos;enlèvement</h3>
-                            <LabelInput 
-                                label="Adresse"
-                                value={localData.formAPI.createFormInput.emitter.workSite.address.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.emitter.workSite.address"
-                            />
-                            <LabelInput 
-                                label="Code postal"
-                                value={localData.formAPI.createFormInput.emitter.workSite.postalCode.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.emitter.workSite.postalCode"
-                            />
-                            <LabelInput 
-                                label="Ville"
-                                value={localData.formAPI.createFormInput.emitter.workSite.city.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.emitter.workSite.city"
-                            />
+                            <div className="space-y-2 mr-4">
+                                <LabelInput 
+                                    label="Adresse"
+                                    value={localData.formAPI.createFormInput.emitter.workSite.address.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.emitter.workSite.address"
+                                />
+                                <LabelInput 
+                                    label="Code postal"
+                                    value={localData.formAPI.createFormInput.emitter.workSite.postalCode.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.emitter.workSite.postalCode"
+                                />
+                                <LabelInput 
+                                    label="Ville"
+                                    value={localData.formAPI.createFormInput.emitter.workSite.city.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.emitter.workSite.city"
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -249,101 +258,105 @@ const ModifyCard = () => {
                         {/* Destinataire */}
                         <div className="bg-purple-50 p-3 rounded border border-purple-100">
                             <h3 className="font-semibold text-purple-800 mb-2">Destinataire</h3>
-                            <LabelInput 
-                                label="Nom"
-                                value={localData.formAPI.createFormInput.recipient.company.name.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.recipient.company.name"
-                            />
-                            <LabelInput 
-                                label="Adresse"
-                                value={localData.formAPI.createFormInput.recipient.company.address.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.recipient.company.address"
-                            />
-                            <LabelInput 
-                                label="SIRET"
-                                value={localData.formAPI.createFormInput.recipient.company.siret.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.recipient.company.siret"
-                            />
-                            <LabelInput 
-                                label="Contact"
-                                value={localData.formAPI.createFormInput.recipient.company.contact.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.recipient.company.contact"
-                            />
-                            <LabelInput 
-                                label="Téléphone"
-                                value={localData.formAPI.createFormInput.recipient.company.phone.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.recipient.company.phone"
-                            />
-                            <LabelInput 
-                                label="Email"
-                                value={localData.formAPI.createFormInput.recipient.company.mail.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.recipient.company.mail"
-                            />
-                            <LabelInput 
-                                label="CAP"
-                                value={localData.formAPI.createFormInput.recipient.cap.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.recipient.cap"
-                            />
-                            <LabelInput 
-                                label="Code traitement"
-                                value={localData.formAPI.createFormInput.recipient.processingOperation.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.recipient.processingOperation"
-                            />
+                            <div className="space-y-2 mr-4">
+                                <LabelInput 
+                                    label="Nom"
+                                    value={localData.formAPI.createFormInput.recipient.company.name.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.recipient.company.name"
+                                />
+                                <LabelInput 
+                                    label="Adresse"
+                                    value={localData.formAPI.createFormInput.recipient.company.address.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.recipient.company.address"
+                                />
+                                <LabelInput 
+                                    label="SIRET"
+                                    value={localData.formAPI.createFormInput.recipient.company.siret.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.recipient.company.siret"
+                                />
+                                <LabelInput 
+                                    label="Contact"
+                                    value={localData.formAPI.createFormInput.recipient.company.contact.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.recipient.company.contact"
+                                />
+                                <LabelInput 
+                                    label="Téléphone"
+                                    value={localData.formAPI.createFormInput.recipient.company.phone.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.recipient.company.phone"
+                                />
+                                <LabelInput 
+                                    label="Email"
+                                    value={localData.formAPI.createFormInput.recipient.company.mail.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.recipient.company.mail"
+                                />
+                                <LabelInput 
+                                    label="CAP"
+                                    value={localData.formAPI.createFormInput.recipient.cap.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.recipient.cap"
+                                />
+                                <LabelInput 
+                                    label="Code traitement"
+                                    value={localData.formAPI.createFormInput.recipient.processingOperation.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.recipient.processingOperation"
+                                />
+                            </div>
                         </div>
 
                         {/* Détails du déchet */}
                         <div className="bg-red-50 p-3 rounded border border-red-100">
                             <h3 className="font-semibold text-red-800 mb-2">Détails du déchet</h3>
-                            <LabelInput 
-                                label="Code CED"
-                                value={localData.formAPI.createFormInput.wasteDetails.code.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.wasteDetails.code"
-                            />
-                            <LabelInput 
-                                label="Code ONU"
-                                value={localData.formAPI.createFormInput.wasteDetails.onuCode.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.wasteDetails.onuCode"
-                            />
-                            <LabelInput 
-                                label="Consistance"
-                                value={localData.formAPI.createFormInput.wasteDetails.consistence.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.wasteDetails.consistence"
-                            />
-                            <LabelInput 
-                                label="Quantité"
-                                value={localData.formAPI.createFormInput.wasteDetails.quantity.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.wasteDetails.quantity"
-                            />
-                            <LabelInput 
-                                label="Type de quantité"
-                                value={localData.formAPI.createFormInput.wasteDetails.quantityType.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.wasteDetails.quantityType"
-                            />
-                            <LabelInput 
-                                label="Type de contenant"
-                                value={localData.formAPI.createFormInput.wasteDetails.packagingInfos[0].type.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.wasteDetails.packagingInfos.0.type"
-                            />
-                            <LabelInput 
-                                label="Nombre de contenants"
-                                value={localData.formAPI.createFormInput.wasteDetails.packagingInfos[0].quantity.toString()}
-                                onChange={handleChange}
-                                path="formAPI.createFormInput.wasteDetails.packagingInfos.0.quantity"
-                            />
+                            <div className="space-y-2 mr-4">
+                                <LabelInput 
+                                    label="Code CED"
+                                    value={localData.formAPI.createFormInput.wasteDetails.code.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.wasteDetails.code"
+                                />
+                                <LabelInput 
+                                    label="Code ONU"
+                                    value={localData.formAPI.createFormInput.wasteDetails.onuCode.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.wasteDetails.onuCode"
+                                />
+                                <LabelInput 
+                                    label="Consistance"
+                                    value={localData.formAPI.createFormInput.wasteDetails.consistence.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.wasteDetails.consistence"
+                                />
+                                <LabelInput 
+                                    label="Quantité"
+                                    value={localData.formAPI.createFormInput.wasteDetails.quantity.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.wasteDetails.quantity"
+                                />
+                                <LabelInput 
+                                    label="Type de quantité"
+                                    value={localData.formAPI.createFormInput.wasteDetails.quantityType.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.wasteDetails.quantityType"
+                                />
+                                <LabelInput 
+                                    label="Type de contenant"
+                                    value={localData.formAPI.createFormInput.wasteDetails.packagingInfos[0].type.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.wasteDetails.packagingInfos.0.type"
+                                />
+                                <LabelInput 
+                                    label="Nombre de contenants"
+                                    value={localData.formAPI.createFormInput.wasteDetails.packagingInfos[0].quantity.toString()}
+                                    onChange={handleChange}
+                                    path="formAPI.createFormInput.wasteDetails.packagingInfos.0.quantity"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>

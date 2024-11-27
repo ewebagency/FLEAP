@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import InputDeroulant from "../InputDeroulant";
 import { useModalContextNew } from "./ContextModal";
 import { formatText, getDataAutocompletion, sendData_to_Cloud } from "./utils";
@@ -20,6 +20,17 @@ const Formulaire = () => {
         setDataTotal,
         options,
         setOptions } = useModalContextNew();
+
+    // Ajouter une référence pour la section de modification
+    const modifyCardRef = useRef<HTMLDivElement>(null);
+
+    // Fonction pour gérer le défilement
+    const scrollToModifyCard = () => {
+        modifyCardRef.current?.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'start'
+        });
+    };
 
     // Fonction utilitaire pour obtenir des valeurs uniques
     const getUniqueOptions = (optionsArray: DataTotalInterface[], selector: (opt: DataTotalInterface) => string) => {
@@ -235,8 +246,8 @@ const Formulaire = () => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center overflow-y-auto py-4 z-50">
-            <div className="bg-white p-6 rounded-lg shadow-lg mb-4 w-[90%] max-w-4xl" onClick={(e) => e.stopPropagation()}>
-                <h3 className="font-bold text-lg">Demande de collecte [NEW 🎇]</h3>
+            <div className="bg-white p-6 rounded-lg shadow-lg mb-4 w-[80%] max-w-8xl" onClick={(e) => e.stopPropagation()}>
+                <h3 className="font-bold text-lg">Demande de collecte ♻</h3>
                 <form onSubmit={handleFormSubmit} className="my-2 p-6 border-[1px] border-gray-400 rounded-xl">
                     <div className="flex justify-between items-center gap-4 mr-5">
                         <div className='text-md font-bold'>Point de départ</div>
@@ -269,7 +280,10 @@ const Formulaire = () => {
                             />
                         </div>
                         <div>
-                            <div className="mt-3 ml-4 w-[350px] h-[25px] text-xs text-gray-400">▶ Pour ajuster les informations, remplissez les champs plus bas</div>
+                            <div className="mt-3 ml-4 w-[350px] h-[25px] text-xs text-gray-400 cursor-pointer hover:text-gray-600" 
+                                 onClick={scrollToModifyCard}>
+                                ▶ Pour ajuster les informations, remplissez les champs plus bas
+                            </div>
                             <InputDeroulant
                                 titre="Personne référente"
                                 placeholder="Prénom Nom"
@@ -359,12 +373,14 @@ const Formulaire = () => {
                             //changeLoad={changeLoad}
                         />
                     </div>
-                    <ModifyCardInFormulaire 
-                        dataTotal={dataTotal}
-                        setDataTotal={setDataTotal}
-                        onSubmit={handleSubmit}
-                        onClose={handleClose}
-                    />
+                    <div ref={modifyCardRef}>
+                        <ModifyCardInFormulaire 
+                            dataTotal={dataTotal}
+                            setDataTotal={setDataTotal}
+                            onSubmit={handleSubmit}
+                            onClose={handleClose}
+                        />
+                    </div>
                     {/*<div className="modal-action mt-6">
                         <button type="button" id="fermer-btn" className="btn" onClick={handleClose}>Fermer</button>
                         <button type="submit" id="envoyer-btn" className="btn" disabled={submitLoad}>

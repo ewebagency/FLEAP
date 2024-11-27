@@ -5,10 +5,10 @@ import ColonneFactures from "./components/ColonneFactures";
 import FactureLine from "./interface/facture_line";
 import { BSD_on_Supabase } from "./interface/bsd_line";
 import ColonneBSDs from "./components/ColonneBSDs";
+import { supabase } from "../database/supabaseClient";
 
 interface SelectedFacture {
-    factureId: string;
-    lineNumber: number;
+    id: string;
 }
 
 const LienPage = () => {
@@ -26,10 +26,44 @@ const LienPage = () => {
     }
 
     const fetchDataBSDs = async (user_id: string) => {
+        const getFactureInfos = async (factureId: string) => {
+            const { data, error } = await supabase
+                .from('facture')
+                .select('infos_json')
+                .eq('id', factureId)
+                .single();
+            if (error) return null;
+            return data?.infos_json;
+        }
+        const filterBSDsOnSelectedFacture = async (bsds: BSD_on_Supabase[], selectedFacture: SelectedFacture | null) => {
+            //console.log("bsds avant filtrage", bsds);
+            //console.log("facture sélectionnée", selectedFacture);
+            if (!selectedFacture) return bsds;
+            const facture_infos = await getFactureInfos(selectedFacture.id);
+            console.log("facture_infos", facture_infos);
+            console.log("bsds", bsds);
+            const bsdsFilteredOnPrestatairesOR = bsds.filter(bsd => (
+                (bsd.infos_json.formAPI.createFormInput.transporter.company.name === facture_infos.header.prestataire_nom ||
+                bsd.infos_json.formAPI.createFormInput.recipient.company.name === facture_infos.header.prestataire_nom) 
+            ));
+            const bsdsFilteredOnDechet = bsdsFilteredOnPrestatairesOR.filter(bsd => (
+                (bsd.infos_json.formAPI.createFormInput.wasteDetails.name === facture_infos.depart.nom_dechet ||
+                bsd.infos_json.formAPI.createFormInput.wasteDetails.code === facture_infos.depart.code_dechet) 
+            ));
+            if(bsdsFilteredOnPrestatairesOR.length === 0) return bsds;
+            else if(bsdsFilteredOnPrestatairesOR.length === 1) return bsdsFilteredOnPrestatairesOR;
+            else { // SI bsdsFilteredOnPrestatairesOR.length > 1
+                if(bsdsFilteredOnDechet.length === 0) return bsdsFilteredOnPrestatairesOR;
+                else return bsdsFilteredOnDechet // SI bsdsFilteredOnDechet.length >= 1
+            }
+        }
+
         const response = await fetch(`/api/lien/get_bsds_non_linked?user_id=${user_id}`);
         const data = await response.json();
-        setBSDs(data.bsds);
-        console.log('dataaaaa', data);
+        const bsdsAll = data.bsds;
+        const bsdsFiltered = await filterBSDsOnSelectedFacture(bsdsAll, selectedFacture);
+        console.log("bsds après filtrage", bsdsFiltered);
+        setBSDs(bsdsFiltered);
     }
 
     // Route API pour récupérer les lignes de factures non traitées
@@ -44,7 +78,7 @@ const LienPage = () => {
         if (session && session.user && session.user.id) {
             fetchDataBSDs(session.user.id);
         }
-    }, [session]);
+    }, [session, selectedFacture]);
 
     const handleLink = async () => {
         if (!selectedFacture || !selectedBSD) {
@@ -61,8 +95,7 @@ const LienPage = () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    factureId: selectedFacture.factureId,
-                    lineNumber: selectedFacture.lineNumber,
+                    factureId: selectedFacture.id,
                     bsdId: selectedBSD,
                 }),
             });

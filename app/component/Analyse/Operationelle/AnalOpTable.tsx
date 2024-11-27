@@ -1,4 +1,4 @@
-import { useAnalysisContext } from "@/app/analysis/AnalysisContext";
+import { useAnalysisContext } from "@/app/analysis/AnalysisContext_deprecated";
 import { table } from "console";
 import React, { useEffect, useState } from "react";
 

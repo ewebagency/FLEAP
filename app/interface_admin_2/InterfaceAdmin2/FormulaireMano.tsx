@@ -1,8 +1,11 @@
 // components/FormulaireMano.tsx
 
-import { useState } from 'react';
-import { supabase } from '@/app/database/supabaseClient';
+import { useEffect, useState } from 'react';
+
 import { jsonDefaultData } from './placeholders';
+import { supabase } from '@/app/database/supabaseClient';
+import { DataOnSupabase_infos_json } from '@/app/register/interface/BSD_Interface';
+import { useSession } from '@/app/component/SessionProvider';
 
 interface FormulaireManoProps { 
     currentPdfId: string | null;
@@ -28,10 +31,56 @@ interface FactureFormData {
     departs: DepartLine[];
 }
 
+interface SelectInputProps {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    options: string[];
+    className?: string;
+}
+
+const SelectInput = ({ label, value, onChange, options, className = "" }: SelectInputProps) => (
+    <div>
+        <label className="block text-xs font-medium text-gray-700 mb-1">
+            {label}
+        </label>
+        <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className={`w-full p-1 text-xs border rounded ${className}`}
+        >
+            {options.map((option) => (
+                <option key={option} value={option}>
+                    {option}
+                </option>
+            ))}
+        </select>
+    </div>
+);
+
 export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireManoProps) {
     const [formData, setFormData] = useState<FactureFormData>(jsonDefaultData.facture_form);
     const [loading, setLoading] = useState(false);
     const [typeForm, setTypeForm] = useState('facture_form');
+    const [myOptions, setMyOptions] = useState<string[][]>([[],[],[],[],[]]);
+    const session = useSession();
+
+    useEffect(() => {
+        if(session && session.user && session.user.id){
+            getMyOptions(session.user.id).then(setMyOptions);
+            //console.log('options', myOptions);
+        }
+    }, [session]);
+
+    // prestataire_final, transporteur_final, lieu_collecte, nom_dechet, code_dechet
+    const PRESTATAIRE_FINAL_NOM = myOptions[0];
+    const TRANSPORTEUR_FINAL_NOM = myOptions[1];
+    const PRESTATAIRE = Array.from(new Set([...PRESTATAIRE_FINAL_NOM, ...TRANSPORTEUR_FINAL_NOM]));
+    const TYPE_OPERATIONS = ['Traitement', 'Transport', 'Rachat'];
+    const LIEU_COLLECTE = myOptions[2];
+    const NOM_DECHET = myOptions[3];
+    const CODE_CED = myOptions[4];
+    
 
     const handleHeaderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData(prev => ({
@@ -42,6 +91,13 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
 
     const handleDepartChange = (index: number, field: keyof DepartLine, value: string | number) => {
         const newDeparts = [...formData.departs];
+        
+        // Si c'est le champ type_operation, vérifier que la valeur est valide
+        if (field === 'type_operation' && !TYPE_OPERATIONS.includes(value as string)) {
+            // Si la valeur n'est pas valide, utiliser 'Traitement' par défaut
+            value = 'Traitement';
+        }
+
         newDeparts[index] = {
             ...newDeparts[index],
             [field]: field === 'montant_ht' ? Number(value) : value
@@ -97,6 +153,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
         setLoading(true);
         
         try {
+            // Récupérer le user_id du pdf
             const { data, error: pdfError } = await supabase
                 .from('pdf_infos')
                 .select('user_id')
@@ -109,16 +166,14 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
 
             const user_id = data.user_id;
 
-            // Créer une copie profonde de formData et ajouter linked_to_bsd
-            const dataToSend = {
-                ...formData,
-                departs: formData.departs.map(depart => ({
-                    ...depart,
-                    linked_to_bsd: false
-                }))
-            };
+            // Pour chaque ligne de départ, créer et insérer une facture
+            for(let i = 0; i < formData.departs.length; i++) {
+                const dataToSend = {
+                    header: formData.header,
+                    depart: { ...formData.departs[i], linked_to_bsd: false },
+                    footer: formData.footer,
+                };
 
-            if (typeForm === 'facture_form') {
                 const { error } = await supabase
                     .from('facture')
                     .insert([{
@@ -128,13 +183,63 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                     }]);
 
                 if (error) throw error;
-                console.log("Facture insérée avec succès");
-                onNextPdf();
             }
+
+            // Mettre à jour le statut du PDF à 'read'
+            const { error: updateError } = await supabase
+                .from('pdf_infos')
+                .update({ status: 'read' })
+                .eq('id', currentPdfId);
+
+            if (updateError) throw updateError;
+
+            console.log("Factures insérées avec succès");
+            onNextPdf();
         } catch (error) {
             console.error("Erreur lors de la soumission:", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSkip = async () => {
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('pdf_infos')
+                .update({ status: 'skipped' })
+                .eq('id', currentPdfId);
+            
+            if (error) throw error;
+            onNextPdf();
+        } catch (error) {
+            console.error("Erreur lors du skip:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleResetSkipped = async () => {
+        if(session && session.user?.id){
+            try {
+                setLoading(true);
+                const response = await fetch('/api/interface_admin_2/reset_skipped_pdf', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ user_id: session.user.id }),
+                });
+                
+                if (!response.ok) throw new Error('Erreur lors de la réinitialisation');
+                
+                // Rafraîchir après réinitialisation
+                onNextPdf();
+            } catch (error) {
+                console.error('Erreur lors de la réinitialisation des PDFs skipped:', error);
+            } finally {
+                setLoading(false);
+            }
         }
     };
 
@@ -146,18 +251,17 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                 {/* En-tête */}
                 <div className="bg-white p-3 rounded shadow text-sm">
                     <h3 className="text-base font-semibold mb-2">Informations générales</h3>
-                    <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Nom du prestataire
-                        </label>
-                        <input
-                            type="text"
-                            name="prestataire_nom"
-                            value={formData.header.prestataire_nom}
-                            onChange={handleHeaderChange}
-                            className="w-full p-1 text-sm border rounded"
-                        />
-                    </div>
+                    <SelectInput
+                        label="Prestataire"
+                        value={formData.header.prestataire_nom}
+                        onChange={(value) => handleHeaderChange({ 
+                            target: { 
+                                name: 'prestataire_nom', 
+                                value: value 
+                            }
+                        } as React.ChangeEvent<HTMLInputElement>)}
+                        options={PRESTATAIRE}
+                    />
                 </div>
 
                 {/* Lignes de départ */}
@@ -176,39 +280,24 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                     {formData.departs.map((depart, index) => (
                         <div key={index} className="border p-2 rounded mb-2">
                             <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                                        Type d&apos;opération
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={depart.type_operation}
-                                        onChange={(e) => handleDepartChange(index, 'type_operation', e.target.value)}
-                                        className="w-full p-1 text-xs border rounded"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                                        Type de déchet
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={depart.type_dechet}
-                                        onChange={(e) => handleDepartChange(index, 'type_dechet', e.target.value)}
-                                        className="w-full p-1 text-xs border rounded"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                                        Code CED
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={depart.code_dechet}
-                                        onChange={(e) => handleDepartChange(index, 'code_dechet', e.target.value)}
-                                        className="w-full p-1 text-xs border rounded"
-                                    />
-                                </div>
+                                <SelectInput
+                                    label="Type d'opération"
+                                    value={depart.type_operation}
+                                    onChange={(value) => handleDepartChange(index, 'type_operation', value)}
+                                    options={TYPE_OPERATIONS}
+                                />
+                                <SelectInput
+                                    label="Type de déchet"
+                                    value={depart.type_dechet}
+                                    onChange={(value) => handleDepartChange(index, 'type_dechet', value)}
+                                    options={NOM_DECHET}
+                                />
+                                <SelectInput
+                                    label="Code CED"
+                                    value={depart.code_dechet}
+                                    onChange={(value) => handleDepartChange(index, 'code_dechet', value)}
+                                    options={CODE_CED}
+                                />
                                 <div>
                                     <label className="block text-xs font-medium text-gray-700 mb-1">
                                         Date de collecte
@@ -220,17 +309,12 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                                         className="w-full p-1 text-xs border rounded"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                                        Lieu de collecte
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={depart.lieu_collecte}
-                                        onChange={(e) => handleDepartChange(index, 'lieu_collecte', e.target.value)}
-                                        className="w-full p-1 text-xs border rounded"
-                                    />
-                                </div>
+                                <SelectInput
+                                    label="Lieu de collecte"
+                                    value={depart.lieu_collecte}
+                                    onChange={(value) => handleDepartChange(index, 'lieu_collecte', value)}
+                                    options={LIEU_COLLECTE}
+                                />
                                 <div>
                                     <label className="block text-xs font-medium text-gray-700 mb-1">
                                         Montant HT
@@ -265,17 +349,102 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                     </div>
                 </div>
 
-                {/* Bouton de soumission */}
-                <div className="flex justify-end">
+                {/* Boutons en bas */}
+                <div className="flex justify-between items-center gap-2">
                     <button
-                        type="submit"
+                        type="button"
+                        onClick={handleResetSkipped}
                         disabled={loading}
-                        className="bg-green-500 text-white px-3 py-1 text-xs rounded hover:bg-green-600 disabled:bg-gray-400"
+                        className="bg-blue-500 text-white px-3 py-1 text-xs rounded hover:bg-blue-600 disabled:bg-gray-400"
                     >
-                        {loading ? "Chargement..." : "Suivant"}
+                        Réinitialiser les PDFs passés
                     </button>
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={handleSkip}
+                            disabled={loading}
+                            className="bg-gray-500 text-white px-3 py-1 text-xs rounded hover:bg-gray-600 disabled:bg-gray-400"
+                        >
+                            {loading ? "Chargement..." : "Passer"}
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="bg-green-500 text-white px-3 py-1 text-xs rounded hover:bg-green-600 disabled:bg-gray-400"
+                        >
+                            {loading ? "Chargement..." : "Suivant"}
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
     );
 }
+
+
+const getMyOptions = async (user_id:string) => {
+    // prestataire_final, transporteur_final, lieu_collecte, nom_dechet, code_dechet
+    const myOptions = ["formAPI.createFormInput.recipient.company.name", "formAPI.createFormInput.recipient.company.name", "formAPI.createFormInput.emitter.workSite", "formAPI.createFormInput.wasteDetails.name", "formAPI.createFormInput.wasteDetails.code"];
+    return await getSelectOptions(myOptions, user_id);
+};
+
+const getSelectOptions = async (champ_options: string[], user_id:string) => {
+    if(user_id!=null){
+        const BSDs = await getAllBSDs(user_id);
+        let liste_options = getUniqueListeOptions(BSDs, champ_options)
+        liste_options = linearizeOptions(liste_options);
+        liste_options = cleanOptions(liste_options);
+        liste_options = addInconnuChamp(liste_options)
+        return liste_options;
+    }
+    return [];
+};
+
+const getAllBSDs = async (user_id:string) => {
+    const {data, error} = await supabase
+        .from('bsd')
+        .select('infos_json')
+        .eq('user_id', user_id);
+    if (error) return null
+    return data;
+};
+
+
+const getUniqueListeOptions = (BSDs:{infos_json:DataOnSupabase_infos_json}[]|null, champ_options:string[]) => {
+    if(BSDs==null) return [];
+    const liste_options = champ_options.map(champ => {
+        return Array.from(new Set(BSDs.map(bsd => {
+            return champ.split('.').reduce((obj: any, key) => obj?.[key], bsd.infos_json);
+        })));
+    });
+    return liste_options;
+};
+
+const linearizeOptions = (liste_options: any[][]) => {
+    return liste_options.map(optionList => 
+        optionList.map(option => {
+            if (option === null || option === undefined) return "Non défini";
+            if (typeof option === 'string' || typeof option === 'number') return option.toString();
+            if (typeof option === 'object') {
+                return Object.values(option).join(' - ');
+            }
+            return "Format inconnu";
+        })
+    );
+};
+
+const cleanOptions = (liste_options:string[][]) => {
+    return liste_options.map(option => 
+        option.filter(opt => 
+            opt !== "Inconnu" && 
+            opt !== undefined && 
+            opt !== "undefined" && 
+            opt !== "Non défini"
+        )
+    );
+};
+
+const addInconnuChamp = (liste_options:string[][]) => {
+    return liste_options.map(option => [...option, "Inconnu"]);
+};

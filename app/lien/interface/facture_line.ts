@@ -1,17 +1,22 @@
 interface FactureLine {
-    factureId: string;
-    lineNumber: number;
+    id: string;
     created_at: string;
-    infos: {
-        code_dechet: string;
-        type_dechet: string;
-        type_operation: string;
-        lieu_collecte: string;
-        date_collecte: string;
-        montant_ht: number;
-        linked_to_bsd: boolean;
-        prestataire_nom: string;
-        // autres propriétés...
+    infos_json: {
+        header: {
+            prestataire_nom: string;
+        };
+        depart: {
+            type_operation: string;
+            type_dechet: string;
+            code_dechet: string;
+            date_collecte: string;
+            lieu_collecte: string;
+            montant_ht: number;
+            linked_to_bsd: boolean;
+        };
+        footer: {
+            total_ht: number;
+        };
     };
 }
 
