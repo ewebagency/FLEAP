@@ -3,12 +3,9 @@ import { Profil, useAccessOtherAccount } from './AccessOtherAccountContext';
 export function AccountSelector() {
     const { accounts, selectedAccounts, setSelectedAccounts } = useAccessOtherAccount();
 
-    const handleCheckboxChange = (account: Profil) => {
-        if (selectedAccounts.find(a => a.user_id === account.user_id)) {
-            setSelectedAccounts(selectedAccounts.filter(a => a.user_id !== account.user_id));
-        } else {
-            setSelectedAccounts([...selectedAccounts, account]);
-        }
+    const handleRadioChange = (account: Profil) => {
+        setSelectedAccounts([account]);
+        window.location.reload();
     };
 
     return (
@@ -18,10 +15,10 @@ export function AccountSelector() {
                 {accounts.map((account) => (
                     <div key={account.user_id} className="flex items-center">
                         <input
-                            type="checkbox"
+                            type="radio"
                             id={account.user_id}
                             checked={selectedAccounts.some(a => a.user_id === account.user_id)}
-                            onChange={() => handleCheckboxChange(account)}
+                            onChange={() => handleRadioChange(account)}
                             className="mr-2"
                         />
                         <label htmlFor={account.user_id}>

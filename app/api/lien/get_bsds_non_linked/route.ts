@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/app/database/supabaseClient";
 
 export async function GET(request: NextRequest) {
-    const user_id = request.nextUrl.searchParams.get('user_id');
+    const user_ids: string[] = JSON.parse(request.nextUrl.searchParams.get('user_ids') || '[]');
 
-    if (!user_id) {
+    if (!user_ids || user_ids.length === 0) {
         return NextResponse.json({ error: 'user_id is required' }, { status: 400 });
     } else {
         const { data, error } = await supabase
         .from('bsd')
         .select('id, created_at, infos_json')
-        .eq('user_id', user_id)
+        .in('user_id', user_ids)
         .eq('facture_treated', false);
         
         if (error) {

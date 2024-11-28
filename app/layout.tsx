@@ -5,6 +5,7 @@ import SideBar from "./component/SideBar";
 import { SessionProvider } from "./component/SessionProvider";
 import { SiteProvider } from "./component/context/SiteContext";
 import { FilterProvider } from "./FilterContext";
+import { AccessOtherAccountProvider } from "./interface_admin_2/AccessOtherAccounts/AccessOtherAccountContext";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -33,12 +34,14 @@ export default function RootLayout({
         <SessionProvider>
           <FilterProvider>
             <SiteProvider> {/* A terme Site provider viendra de filter provider */}
-              <div className="flex h-screen"> {/* Utiliser h-screen pour remplir la hauteur de l'écran */}
-                <SideBar className_props="min-h-full" /> {/* Assurer que la sidebar prend toute la hauteur */}
-                <main className="flex-1 overflow-y-auto"> {/* Le contenu principal avec un défilement si nécessaire */}
-                  {children}
-              </main>
-            </div>
+              <AccessOtherAccountProvider>
+                <div className="flex h-screen"> {/* Utiliser h-screen pour remplir la hauteur de l'écran */}
+                  <SideBar className_props="min-h-full" /> {/* Assurer que la sidebar prend toute la hauteur */}
+                  <main className="flex-1 overflow-y-auto"> {/* Le contenu principal avec un défilement si nécessaire */}
+                    {children}
+                  </main>
+                </div>
+              </AccessOtherAccountProvider>
             </SiteProvider>
           </FilterProvider>
         </SessionProvider>  

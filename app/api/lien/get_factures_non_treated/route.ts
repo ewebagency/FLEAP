@@ -3,16 +3,16 @@ import { supabase } from '@/app/database/supabaseClient';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const user_id = searchParams.get('user_id');
+  const user_ids: string[] = JSON.parse(searchParams.get('user_ids') || '[]');
 
-  if (!user_id) {
+  if (!user_ids || user_ids.length === 0) {
     return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
   }
 
   const { data, error } = await supabase
     .from('facture')
     .select('id, created_at, infos_json')
-    .eq('user_id', user_id);
+    .in('user_id', user_ids);
 
   const factures_non_traitees = [];
   /*if (data) {

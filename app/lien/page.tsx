@@ -6,7 +6,7 @@ import { FactureLine, FactureLineOnSupabase } from "./interface/facture_line";
 import { BSD_on_Supabase } from "./interface/bsd_line";
 import ColonneBSDs from "./components/ColonneBSDs";
 import { supabase } from "../database/supabaseClient";
-import { AccessOtherAccountProvider } from "../interface_admin_2/AccessOtherAccounts/AccessOtherAccountContext";
+import { AccessOtherAccountProvider, useAccessOtherAccount } from "../interface_admin_2/AccessOtherAccounts/AccessOtherAccountContext";
 
 interface SelectedFacture {
     id: string;
@@ -19,14 +19,17 @@ const LienPage = () => {
     const [selectedFacture, setSelectedFacture] = useState<SelectedFacture | null>(null);
     const [selectedBSD, setSelectedBSD] = useState<string | null>(null);
     const [loading, setLoading] = useState(false); // Loading state
+    const { selectedAccounts } = useAccessOtherAccount();
 
-    const fetchDataFactures = async (user_id: string) => {
-        const response = await fetch(`/api/lien/get_factures_non_treated?user_id=${user_id}`);
+    const fetchDataFactures = async () => {
+        const user_ids = selectedAccounts.map(account => account.user_id);
+        const response = await fetch(`/api/lien/get_factures_non_treated?user_ids=${user_ids}`);
         const data = await response.json();
         setFactureLines(data.lignes);
     }
 
-    const fetchDataBSDs = async (user_id: string) => {
+    const fetchDataBSDs = async () => {
+        const user_ids = selectedAccounts.map(account => account.user_id);
         const getFactureInfos = async (factureId: string) => {
             const { data, error } = await supabase
                 .from('facture')
@@ -59,7 +62,7 @@ const LienPage = () => {
             }
         }
 
-        const response = await fetch(`/api/lien/get_bsds_non_linked?user_id=${user_id}`);
+        const response = await fetch(`/api/lien/get_bsds_non_linked?user_ids=${user_ids}`);
         const data = await response.json();
         const bsdsAll = data.bsds;
         const bsdsFiltered = await filterBSDsOnSelectedFacture(bsdsAll, selectedFacture);
@@ -69,17 +72,17 @@ const LienPage = () => {
 
     // Route API pour récupérer les lignes de factures non traitées
     useEffect(() => {
-        if (session && session.user && session.user.id) {
-            fetchDataFactures(session.user.id);
+        if (selectedAccounts.length > 0) {
+            fetchDataFactures();
         }
-    }, [session]);
+    }, [selectedAccounts]);
 
     // Route API pour récupérer les BSDs non linkés
     useEffect(() => {
-        if (session && session.user && session.user.id) {
-            fetchDataBSDs(session.user.id);
+        if (selectedAccounts.length > 0) {
+            fetchDataBSDs();
         }
-    }, [session, selectedFacture]);
+    }, [selectedAccounts, selectedFacture]);
 
     const handleLink = async () => {
         if (!selectedFacture || !selectedBSD) {
@@ -103,9 +106,9 @@ const LienPage = () => {
 
             if (response.ok) {
                 // Refresh data after successful linking
-                if (session && session.user && session.user.id) {
-                    fetchDataFactures(session.user.id);
-                    fetchDataBSDs(session.user.id);
+                if (selectedAccounts.length > 0) {
+                    fetchDataFactures();
+                    fetchDataBSDs();
                 }
                 setSelectedFacture(null);
                 setSelectedBSD(null);

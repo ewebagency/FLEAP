@@ -5,14 +5,14 @@ import { supabase } from '@/app/database/supabaseClient';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request): Promise<NextResponse> {
-  const data_with_user_id = await request.json(); // Récupère les données envoyées
-  const user_id = data_with_user_id.user_id;
+  const data_with_user_ids = await request.json(); // Récupère les données envoyées
+  const user_ids = data_with_user_ids.user_ids;
 
   const { data, error } = await supabase
   .from('pdf_infos')
   .select('id, name_pdf_in_bucket')
   .eq('status', 'unread')
-  .eq('user_id', user_id); //-> à voir comment on fait pour les utilisateurs (en fait on veut tous les pdfs (interface admin juste pour le cofounder, on vérifie les pdfs de tous les utilisateurs))
+  .in('user_id', user_ids); //on prend les pdfs des utilisateurs sélectionnés dans AccessOtherAccount
   
   if (error) {
     console.error("Erreur lors de la récupération des PDF du bucket:", error);
@@ -26,8 +26,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   for(let i = 0; i < data.length; i++){
       const pdf_id = data[i].id;
       const pdf_path = data[i].name_pdf_in_bucket;
-      const is_treated_in_facture = await check_if_pdf_already_treated_in_facture(user_id, pdf_id);
-      const is_treated_in_bsd = await check_if_pdf_already_treated_in_bsd(user_id, pdf_id); 
+      const is_treated_in_facture = await check_if_pdf_already_treated_in_facture(pdf_id);
+      const is_treated_in_bsd = await check_if_pdf_already_treated_in_bsd(pdf_id); 
       console.log("is_treated_in_facture : ", is_treated_in_facture);
       console.log("is_treated_in_bsd : ", is_treated_in_bsd);
       if(!is_treated_in_facture && !is_treated_in_bsd){
@@ -39,7 +39,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   return NextResponse.json({ something_to_treat: false, pdf_id: '', pdf_path: '' }); // Ensure this returns a NextResponse
 }
 
-const check_if_pdf_already_treated_in_facture = async (user_id: string, pdf_id: string) => {
+const check_if_pdf_already_treated_in_facture = async (pdf_id: string) => {
   const { data, error } = await supabase
   .from('facture')
   .select('id')
@@ -59,7 +59,7 @@ const check_if_pdf_already_treated_in_facture = async (user_id: string, pdf_id: 
   }
 }
 
-const check_if_pdf_already_treated_in_bsd = async (user_id: string, pdf_id: string) => {
+const check_if_pdf_already_treated_in_bsd = async (pdf_id: string) => {
     const { data, error } = await supabase
     .from('bsd')
     .select('id')

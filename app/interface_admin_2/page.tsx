@@ -7,7 +7,7 @@ import FormulaireDisplayer from "./InterfaceAdmin2/FormulaireDisplayer";
 import FormulaireManoJson from "./InterfaceAdmin2/FormulaireManoJson";
 import DisplayInfosPython from "./DisplayInfosPython";
 import FormulaireMano from "./InterfaceAdmin2/FormulaireMano";
-import { AccessOtherAccountProvider } from "./AccessOtherAccounts/AccessOtherAccountContext";
+import { AccessOtherAccountProvider, useAccessOtherAccount } from "./AccessOtherAccounts/AccessOtherAccountContext";
 import { AccountSelector } from "./AccessOtherAccounts/AccountSelector";
 
 interface InfosJsonFromPdf {
@@ -22,18 +22,19 @@ const InterfaceAdmin2 = () => {
     //const [infosJsonFromPdf, setInfosJsonFromPdf] = useState<InfosJsonFromPdf | null>(null);
     const [currentPdfId, setCurrentPdfId] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
+    const { selectedAccounts } = useAccessOtherAccount();
 
     const fetchCurrentPdfPath = async () => {
-        if(session && session.user?.id){
-            const user_id = session.user.id;
+        if(selectedAccounts.length > 0){
             try {
                 setLoading(true);
+                const user_ids = selectedAccounts.map(account => account.user_id);
                 const res = await fetch('/api/interface_admin_2/fetch_current_pdf', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ user_id: user_id }),
+                    body: JSON.stringify({ user_ids: user_ids }),
                 });
                 const { something_to_treat, pdf_id, pdf_path } = await res.json();
                 if(something_to_treat){
@@ -138,17 +139,18 @@ const InterfaceAdmin2 = () => {
         }
     };
 
+    console.log(selectedAccounts, currentPdfId, currentPdfPath);
     return (
     <div>
-        <AccessOtherAccountProvider>
+        
             <div className="h-screen w-full">
+                <AccountSelector />
                 {loading ? (
                     <div className="flex justify-center items-center w-full">
                         <div className="loader">Chargement...</div>
                     </div>
                 ) : currentPdfId ? (
                     <div className="w-full">
-                        <AccountSelector />
                         <div className="flex w-full">
                             <div className="flex-1">
                                 {currentPdfPath && <PdfDisplayer pdfUrl={currentPdfUrl} />}
@@ -174,7 +176,7 @@ const InterfaceAdmin2 = () => {
                 )}
             </div>
             {currentPdfBlob && <DisplayInfosPython currentPdfBlob={currentPdfBlob} />}
-        </AccessOtherAccountProvider>
+
     </div>
     )
 }

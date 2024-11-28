@@ -1,3 +1,4 @@
+'use client'
 import { createContext, useContext, useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { supabase } from '@/app/database/supabaseClient';
@@ -19,7 +20,14 @@ const AccessOtherAccountContext = createContext<AccessOtherAccountContextType | 
 
 export function AccessOtherAccountProvider({ children }: { children: React.ReactNode }) {
     const [accounts, setAccounts] = useState<Profil[]>([]);
-    const [selectedAccounts, setSelectedAccounts] = useState<Profil[]>([]);
+    const [selectedAccounts, setSelectedAccounts] = useState<Profil[]>(() => {
+        // Initialiser avec les données du localStorage si elles existent
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('selectedAccounts');
+            return saved ? JSON.parse(saved) : [];
+        }
+        return [];
+    });
 
     useEffect(() => {
         async function fetchProfiles() {
@@ -33,10 +41,19 @@ export function AccessOtherAccountProvider({ children }: { children: React.React
             }
             
             setAccounts(data || []);
+            // Ne définir selectedAccounts que s'il n'y a pas de données dans le localStorage
+            if (!localStorage.getItem('selectedAccounts')) {
+                setSelectedAccounts(data || []);
+            }
         }
 
         fetchProfiles();
     }, []);
+
+    // Sauvegarder dans le localStorage quand selectedAccounts change
+    useEffect(() => {
+        localStorage.setItem('selectedAccounts', JSON.stringify(selectedAccounts));
+    }, [selectedAccounts]);
 
     return (
         <AccessOtherAccountContext.Provider value={{ accounts, selectedAccounts, setAccounts, setSelectedAccounts }}>

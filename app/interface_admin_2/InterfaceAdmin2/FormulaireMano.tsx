@@ -8,6 +8,7 @@ import { supabase } from '@/app/database/supabaseClient';
 import { DataOnSupabase_infos_json } from '@/app/register/interface/BSD_Interface';
 import { useSession } from '@/app/component/SessionProvider';
 import {FactureLine, DepartLine, DepartLineBody, DepartLineHeader } from '@/app/lien/interface/facture_line';
+import { useAccessOtherAccount } from '../AccessOtherAccounts/AccessOtherAccountContext';
 
 interface FormulaireManoProps { 
     currentPdfId: string | null;
@@ -58,18 +59,24 @@ const EXPANDED_OPERATIONS = [
 ];
 
 export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireManoProps) {
-    const [formData, setFormData] = useState<FactureLine>(jsonDefaultData.facture_form);
+    const [formData, setFormData] = useState<FactureLine>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('formData');
+            return saved ? JSON.parse(saved) : jsonDefaultData.facture_form;
+        }
+        return jsonDefaultData.facture_form;
+    });
     const [loading, setLoading] = useState(false);
     const [typeForm, setTypeForm] = useState('facture_form');
     const [myOptions, setMyOptions] = useState<(string | number)[][]>([[], [], [], [], []]);
-    const session = useSession();
+    const { selectedAccounts } = useAccessOtherAccount();
 
     useEffect(() => {
-        if(session && session.user && session.user.id){
-            getMyOptions(session.user.id).then(setMyOptions);
+        if(selectedAccounts.length > 0){
+            getMyOptions(selectedAccounts[0].user_id).then(setMyOptions);
             //console.log('options', myOptions);
         }
-    }, [session]);
+    }, [selectedAccounts]);
 
     // prestataire_final, transporteur_final, lieu_collecte, nom_dechet, code_dechet
     const PRESTATAIRE_FINAL_NOM = myOptions[0].map(String);
@@ -278,6 +285,8 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
 
             if (updateError) throw updateError;
 
+            // Nettoyer le localStorage après succès
+            localStorage.removeItem('formData');
             console.log("Factures insérées avec succès");
             onNextPdf();
         } catch (error) {
@@ -311,7 +320,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
 
         if (!result.isConfirmed) return;
 
-        if(session && session.user?.id){
+        if(selectedAccounts.length > 0){
             try {
                 setLoading(true);
                 const response = await fetch('/api/interface_admin_2/reset_skipped_pdf', {
@@ -319,7 +328,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ user_id: session.user.id }),
+                    body: JSON.stringify({ user_id: selectedAccounts[0].user_id }),
                 });
                 
                 if (!response.ok) throw new Error('Erreur lors de la réinitialisation');
@@ -366,6 +375,11 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
             setLoading(false);
         }
     };
+
+    // Sauvegarder formData dans localStorage quand il change
+    useEffect(() => {
+        localStorage.setItem('formData', JSON.stringify(formData));
+    }, [formData]);
 
     return (
         <div className="w-full p-2">
