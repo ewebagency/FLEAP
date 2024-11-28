@@ -7,7 +7,7 @@ import { jsonDefaultData } from './placeholders';
 import { supabase } from '@/app/database/supabaseClient';
 import { DataOnSupabase_infos_json } from '@/app/register/interface/BSD_Interface';
 import { useSession } from '@/app/component/SessionProvider';
-import FactureLine, { DepartLine, DepartLineBody, DepartLineHeader } from '@/app/lien/interface/facture_line';
+import {FactureLine, DepartLine, DepartLineBody, DepartLineHeader } from '@/app/lien/interface/facture_line';
 
 interface FormulaireManoProps { 
     currentPdfId: string | null;
