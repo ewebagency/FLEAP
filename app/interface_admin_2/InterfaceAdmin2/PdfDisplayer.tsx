@@ -38,25 +38,25 @@ const PdfDisplayer = ({ pdfUrl }: PdfDisplayerProps) => {
 
     return (
         <div style={{ 
-            margin: '5px',
+            marginRight: '5px',
             border: '2px solid gray',
             borderRadius: '10px',
-            transform: 'scale(1)',
-            transformOrigin: 'top left',
-            overflow: 'hidden'
-          }}>
-              {pdfUrl && <iframe
+            overflow: 'hidden',
+            height: '95vh',
+            flex: '1',
+            display: 'flex'
+        }}>
+            {pdfUrl && <iframe
                 src={pdfUrl}
-                width="100%"
-                height="auto"
                 style={{ 
-                  border: 'none', 
-                  aspectRatio: '210 / 297',
-                  maxHeight: '92vh'
+                    border: 'none',
+                    width: '100%',
+                    height: '100%',
+                    display: 'block'
                 }}
                 title="Mon PDF"
-              />}
-          </div>
+            />}
+        </div>
     );
 };
 

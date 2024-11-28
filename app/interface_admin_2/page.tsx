@@ -7,6 +7,8 @@ import FormulaireDisplayer from "./InterfaceAdmin2/FormulaireDisplayer";
 import FormulaireManoJson from "./InterfaceAdmin2/FormulaireManoJson";
 import DisplayInfosPython from "./DisplayInfosPython";
 import FormulaireMano from "./InterfaceAdmin2/FormulaireMano";
+import { AccessOtherAccountProvider } from "./AccessOtherAccounts/AccessOtherAccountContext";
+import { AccountSelector } from "./AccessOtherAccounts/AccountSelector";
 
 interface InfosJsonFromPdf {
     [key: string]: string | number | boolean; // Removed object type
@@ -138,38 +140,41 @@ const InterfaceAdmin2 = () => {
 
     return (
     <div>
-        <div className="container mx-auto h-screen flex">
-            {loading ? (
-                <div className="flex justify-center items-center w-full">
-                    <div className="loader">Chargement...</div>
-                </div>
-            ) : currentPdfId ? (
-                <div className="flex w-full m-5">
-                    <div className="w-3/5 pr-1">
-                        {currentPdfPath && <PdfDisplayer pdfUrl={currentPdfUrl} />}
+        <AccessOtherAccountProvider>
+            <div className="h-screen w-full">
+                {loading ? (
+                    <div className="flex justify-center items-center w-full">
+                        <div className="loader">Chargement...</div>
                     </div>
-                    <div className="w-2/5 pl-1 bg-gray-100 rounded-lg mt-2 mr-2 overflow-y-auto">
-                        {/*infosJsonFromPdf && <FormulaireDisplayer infosJsonFromPdf={infosJsonFromPdf} currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />*/}
-                        {/*<FormulaireManoJson currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />*/}
-                        <FormulaireMano currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />
+                ) : currentPdfId ? (
+                    <div className="w-full">
+                        <AccountSelector />
+                        <div className="flex w-full">
+                            <div className="flex-1">
+                                {currentPdfPath && <PdfDisplayer pdfUrl={currentPdfUrl} />}
+                            </div>
+                            <div className="w-[400px] bg-gray-100 rounded-lg overflow-y-auto">
+                                <FormulaireMano currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />
+                            </div>
+                        </div>
                     </div>
-                </div>
-            ) : (
-                <div className="flex flex-col items-center justify-center w-full">
-                    <div className="m-4 bg-green-600 text-xl border-2 border-white rounded-xl text-white font-bold p-4">
-                        Tous les PDF ont été traités ou skipped.
+                ) : (
+                    <div className="flex flex-col items-center justify-center w-full">
+                        <div className="m-4 bg-green-600 text-xl border-2 border-white rounded-xl text-white font-bold p-4">
+                            Tous les PDF ont été traités ou skipped.
+                        </div>
+                        <button
+                            onClick={handleResetSkipped}
+                            disabled={loading}
+                            className="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                        >
+                            Réinitialiser les PDFs skipped
+                        </button>
                     </div>
-                    <button
-                        onClick={handleResetSkipped}
-                        disabled={loading}
-                        className="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                    >
-                        Réinitialiser les PDFs skipped
-                    </button>
-                </div>
-            )}
-        </div>
-        {currentPdfBlob && <DisplayInfosPython currentPdfBlob={currentPdfBlob} />}
+                )}
+            </div>
+            {currentPdfBlob && <DisplayInfosPython currentPdfBlob={currentPdfBlob} />}
+        </AccessOtherAccountProvider>
     </div>
     )
 }

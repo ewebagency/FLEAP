@@ -1,34 +1,17 @@
 // components/FormulaireMano.tsx
 
 import { useEffect, useState } from 'react';
+import Swal from 'sweetalert2';
 
 import { jsonDefaultData } from './placeholders';
 import { supabase } from '@/app/database/supabaseClient';
 import { DataOnSupabase_infos_json } from '@/app/register/interface/BSD_Interface';
 import { useSession } from '@/app/component/SessionProvider';
+import FactureLine, { DepartLine, DepartLineBody, DepartLineHeader } from '@/app/lien/interface/facture_line';
 
 interface FormulaireManoProps { 
     currentPdfId: string | null;
     onNextPdf: () => void;
-}
-
-interface DepartLine {
-    type_operation: string;
-    type_dechet: string;
-    code_dechet: string;
-    date_collecte: string;
-    lieu_collecte: string;
-    montant_ht: number;
-}
-
-interface FactureFormData {
-    header: {
-        prestataire_nom: string;
-    };
-    footer: {
-        total_ht: number;
-    };
-    departs: DepartLine[];
 }
 
 interface SelectInputProps {
@@ -58,8 +41,24 @@ const SelectInput = ({ label, value, onChange, options, className = "" }: Select
     </div>
 );
 
+// Constantes pour les types d'opérations
+const MAIN_OPERATIONS = [
+    'Préparation',
+    'Transport',
+    'Traitement',
+    'Gestion global',
+    'TGAP',
+    'Déclassement'
+];
+
+const EXPANDED_OPERATIONS = [
+    'Rachat',
+    'Contenant',
+    'Non expliqués'
+];
+
 export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireManoProps) {
-    const [formData, setFormData] = useState<FactureFormData>(jsonDefaultData.facture_form);
+    const [formData, setFormData] = useState<FactureLine>(jsonDefaultData.facture_form);
     const [loading, setLoading] = useState(false);
     const [typeForm, setTypeForm] = useState('facture_form');
     const [myOptions, setMyOptions] = useState<(string | number)[][]>([[], [], [], [], []]);
@@ -89,7 +88,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
         }));
     };
 
-    const handleDepartChange = (index: number, field: keyof DepartLine, value: string | number) => {
+    /*const handleDepartChange = (index: number, field: keyof DepartLine, value: string | number) => {
         const newDeparts = [...formData.departs];
         
         // Si c'est le champ type_operation, vérifier que la valeur est valide
@@ -111,21 +110,27 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
             departs: newDeparts,
             footer: { ...prev.footer, total_ht: newTotal }
         }));
-    };
+    };*/
 
     const addDepartLine = () => {
         setFormData(prev => {
-            // Récupère les valeurs du dernier départ
             const lastDepart = prev.departs[prev.departs.length - 1];
             
-            // Crée un nouveau départ avec les mêmes valeurs que le dernier
-            const newDepart = {
-                type_operation: lastDepart.type_operation,
-                type_dechet: lastDepart.type_dechet,
-                code_dechet: lastDepart.code_dechet,
-                date_collecte: lastDepart.date_collecte,
-                lieu_collecte: lastDepart.lieu_collecte,
-                montant_ht: lastDepart.montant_ht
+            // Créer tous les line_body avec les valeurs par défaut
+            const defaultLineBody = [...MAIN_OPERATIONS, ...EXPANDED_OPERATIONS].map(operation => ({
+                type_operation: operation,
+                montant_ht: 0,
+                is_expanded: EXPANDED_OPERATIONS.includes(operation)
+            }));
+
+            const newDepart: DepartLine = {
+                line_header: {
+                    type_dechet: lastDepart.line_header.type_dechet,
+                    code_dechet: lastDepart.line_header.code_dechet,
+                    date_collecte: lastDepart.line_header.date_collecte,
+                    lieu_collecte: lastDepart.line_header.lieu_collecte
+                },
+                line_body: defaultLineBody
             };
 
             return {
@@ -138,7 +143,9 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
     const removeDepartLine = (index: number) => {
         if (formData.departs.length > 1) {
             const newDeparts = formData.departs.filter((_, i) => i !== index);
-            const newTotal = newDeparts.reduce((sum, depart) => sum + depart.montant_ht, 0);
+            const newTotal = newDeparts.reduce((sum, depart) => 
+                sum + depart.line_body.reduce((lineSum, body) => lineSum + body.montant_ht, 0)
+            , 0);
             
             setFormData(prev => ({
                 ...prev,
@@ -148,10 +155,83 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
         }
     };
 
+    const handleDepartHeaderChange = (departIndex: number, field: keyof DepartLineHeader, value: string) => {
+        setFormData(prev => {
+            const newDeparts = [...prev.departs];
+            newDeparts[departIndex] = {
+                ...newDeparts[departIndex],
+                line_header: {
+                    ...newDeparts[departIndex].line_header,
+                    [field]: value
+                }
+            };
+            return { ...prev, departs: newDeparts };
+        });
+    };
+
+    const handleDepartBodyChange = (departIndex: number, bodyIndex: number, field: keyof DepartLineBody, value: string | number) => {
+        setFormData(prev => {
+            const newDeparts = [...prev.departs];
+            const newLineBody = [...newDeparts[departIndex].line_body];
+            newLineBody[bodyIndex] = {
+                ...newLineBody[bodyIndex],
+                [field]: field === 'montant_ht' ? Number(value) : value
+            };
+            
+            newDeparts[departIndex] = {
+                ...newDeparts[departIndex],
+                line_body: newLineBody
+            };
+
+            // Recalculer le total
+            const newTotal = newDeparts.reduce((sum, depart) => 
+                sum + depart.line_body.reduce((lineSum, body) => lineSum + body.montant_ht, 0)
+            , 0);
+
+            return {
+                ...prev,
+                departs: newDeparts,
+                footer: { ...prev.footer, total_ht: newTotal }
+            };
+        });
+    };
+
+    const handleDepartCommentaireChange = (index: number, value: string) => {
+        setFormData(prev => {
+            const newDeparts = [...prev.departs];
+            newDeparts[index] = {
+                ...newDeparts[index],
+                commentaire: value
+            };
+            return {
+                ...prev,
+                departs: newDeparts
+            };
+        });
+    };
+
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        setLoading(true);
         
+        const result = await Swal.fire({
+            title: 'Valider le formulaire',
+            html: 'Êtes-vous sûr de vouloir valider ce formulaire ?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#22c55e',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Confirmer',
+            cancelButtonText: 'Annuler',
+            customClass: {
+                popup: 'rounded-lg',
+                confirmButton: 'rounded-lg',
+                cancelButton: 'rounded-lg'
+            }
+        });
+
+        if (!result.isConfirmed) return;
+
+        setLoading(true);
         try {
             // Récupérer le user_id du pdf
             const { data, error: pdfError } = await supabase
@@ -168,6 +248,11 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
 
             // Pour chaque ligne de départ, créer et insérer une facture
             for(let i = 0; i < formData.departs.length; i++) {
+                formData.departs[i].line_body.forEach(body => {
+                    if ('is_expanded' in body) {
+                        delete body.is_expanded;
+                    }
+                });
                 const dataToSend = {
                     header: formData.header,
                     depart: { ...formData.departs[i], linked_to_bsd: false },
@@ -202,7 +287,70 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
         }
     };
 
+    const handleResetSkipped = async () => {
+        const result = await Swal.fire({
+            title: 'Réinitialisation des PDFs passés',
+            html: `
+                <p>Êtes-vous sûr de vouloir réinitialiser tous les PDFs passés ?</p>
+                <p style="color: #dc2626; font-size: 0.875rem; margin-top: 0.5rem;">
+                    Cette action est irréversible.
+                </p>
+            `,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#22c55e',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Confirmer',
+            cancelButtonText: 'Annuler',
+            customClass: {
+                popup: 'rounded-lg',
+                confirmButton: 'rounded-lg',
+                cancelButton: 'rounded-lg'
+            }
+        });
+
+        if (!result.isConfirmed) return;
+
+        if(session && session.user?.id){
+            try {
+                setLoading(true);
+                const response = await fetch('/api/interface_admin_2/reset_skipped_pdf', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ user_id: session.user.id }),
+                });
+                
+                if (!response.ok) throw new Error('Erreur lors de la réinitialisation');
+                onNextPdf();
+            } catch (error) {
+                console.error('Erreur lors de la réinitialisation des PDFs skipped:', error);
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
     const handleSkip = async () => {
+        const result = await Swal.fire({
+            title: 'Passer ce PDF',
+            html: 'Êtes-vous sûr de vouloir passer ce PDF ?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#22c55e',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Confirmer',
+            cancelButtonText: 'Annuler',
+            customClass: {
+                popup: 'rounded-lg',
+                confirmButton: 'rounded-lg',
+                cancelButton: 'rounded-lg'
+            }
+        });
+
+        if (!result.isConfirmed) return;
+
         setLoading(true);
         try {
             const { data, error } = await supabase
@@ -216,30 +364,6 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
             console.error("Erreur lors du skip:", error);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleResetSkipped = async () => {
-        if(session && session.user?.id){
-            try {
-                setLoading(true);
-                const response = await fetch('/api/interface_admin_2/reset_skipped_pdf', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ user_id: session.user.id }),
-                });
-                
-                if (!response.ok) throw new Error('Erreur lors de la réinitialisation');
-                
-                // Rafraîchir après réinitialisation
-                onNextPdf();
-            } catch (error) {
-                console.error('Erreur lors de la réinitialisation des PDFs skipped:', error);
-            } finally {
-                setLoading(false);
-            }
         }
     };
 
@@ -279,23 +403,18 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
 
                     {formData.departs.map((depart, index) => (
                         <div key={index} className="border p-2 rounded mb-2">
-                            <div className="grid grid-cols-2 gap-2">
-                                <SelectInput
-                                    label="Type d'opération"
-                                    value={depart.type_operation}
-                                    onChange={(value) => handleDepartChange(index, 'type_operation', value)}
-                                    options={TYPE_OPERATIONS}
-                                />
+                            {/* Header */}
+                            <div className="grid grid-cols-2 gap-2 mb-3">
                                 <SelectInput
                                     label="Type de déchet"
-                                    value={depart.type_dechet}
-                                    onChange={(value) => handleDepartChange(index, 'type_dechet', value)}
+                                    value={depart.line_header.type_dechet}
+                                    onChange={(value) => handleDepartHeaderChange(index, 'type_dechet', value)}
                                     options={NOM_DECHET}
                                 />
                                 <SelectInput
                                     label="Code CED"
-                                    value={depart.code_dechet}
-                                    onChange={(value) => handleDepartChange(index, 'code_dechet', value)}
+                                    value={depart.line_header.code_dechet}
+                                    onChange={(value) => handleDepartHeaderChange(index, 'code_dechet', value)}
                                     options={CODE_CED}
                                 />
                                 <div>
@@ -304,38 +423,60 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                                     </label>
                                     <input
                                         type="date"
-                                        value={depart.date_collecte}
-                                        onChange={(e) => handleDepartChange(index, 'date_collecte', e.target.value)}
+                                        value={depart.line_header.date_collecte}
+                                        onChange={(e) => handleDepartHeaderChange(index, 'date_collecte', e.target.value)}
                                         className="w-full p-1 text-xs border rounded"
                                     />
                                 </div>
                                 <SelectInput
                                     label="Lieu de collecte"
-                                    value={depart.lieu_collecte}
-                                    onChange={(value) => handleDepartChange(index, 'lieu_collecte', value)}
+                                    value={depart.line_header.lieu_collecte}
+                                    onChange={(value) => handleDepartHeaderChange(index, 'lieu_collecte', value)}
                                     options={LIEU_COLLECTE}
                                 />
-                                <div>
+                            </div>
+
+                            {/* Body */}
+                            <div className="space-y-2">
+                                {/* Toutes les opérations dans une grille */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    {depart.line_body.map((body, bodyIndex) => (
+                                        <div key={bodyIndex} className="flex justify-between items-center">
+                                            <div className="text-sm font-medium">{body.type_operation}</div>
+                                            <input
+                                                type="number"
+                                                value={body.montant_ht || ''}
+                                                onChange={(e) => handleDepartBodyChange(index, bodyIndex, 'montant_ht', e.target.value)}
+                                                className="w-[60px] p-1 text-xs border rounded"
+                                                onFocus={(e) => e.target.value === '0' && e.target.select()}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Champ de commentaires */}
+                                <div className="mt-3">
                                     <label className="block text-xs font-medium text-gray-700 mb-1">
-                                        Montant HT
+                                        Commentaires
                                     </label>
-                                    <input
-                                        type="number"
-                                        value={depart.montant_ht}
-                                        onChange={(e) => handleDepartChange(index, 'montant_ht', e.target.value)}
-                                        className="w-full p-1 text-xs border rounded"
+                                    <textarea
+                                        value={depart.commentaire || ''}
+                                        onChange={(e) => handleDepartCommentaireChange(index, e.target.value)}
+                                        className="w-full p-2 text-xs border rounded"
+                                        rows={2}
+                                        placeholder="Ajoutez vos commentaires ici..."
                                     />
                                 </div>
                             </div>
-                            {formData.departs.length > 1 && (
-                                <button
-                                    type="button"
-                                    onClick={() => removeDepartLine(index)}
-                                    className="mt-1 text-xs text-red-600 hover:text-red-800"
-                                >
-                                    Supprimer
-                                </button>
-                            )}
+
+                            {/* Button to remove the depart line */}
+                            <button
+                                type="button"
+                                onClick={() => removeDepartLine(index)}
+                                className="mt-2 bg-red-500 text-white px-2 py-1 text-xs rounded hover:bg-red-600"
+                            >
+                                Supprimer la ligne
+                            </button>
                         </div>
                     ))}
                 </div>
