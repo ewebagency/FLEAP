@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useSession } from "../../SessionProvider";
+import { SessionMore, useSession } from "../../SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
 import { Session } from "@supabase/supabase-js";
 
@@ -32,7 +32,7 @@ type Facture = {
 }
 
 const FacturesAnalyse = ({ active }: { active: boolean }) => {
-    const session = useSession() as Session | null;
+    const session = useSession() as SessionMore;
     const [factures, setFactures] = useState<Facture[]>([]);
 
     /*useEffect(() => {
