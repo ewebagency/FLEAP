@@ -220,9 +220,13 @@ const TableBSD = () => {
             });
             const data = await result.json();
             if (data.error) {
-                !silent && Swal.fire('Erreur !', data.error, 'error');
+                if (!silent) {
+                    Swal.fire('Erreur !', data.error, 'error');
+                }
             } else {
-                !silent && toast.success("BSD supprimé avec succès");
+                if (!silent) {
+                    toast.success("BSD supprimé avec succès");
+                }
                 setModalReload(!modalReload);
             }
         } finally {
