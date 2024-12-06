@@ -1,36 +1,35 @@
-import Formulaire from "./Formulaire";
 import { useModalContextNew } from "./ContextModal";
-import { getDataAutocompletion } from "./utils";
+import { getDataAutocompletion } from "./utils_new";
 import { useSession } from "@/app/component/SessionProvider";
 import { useEffect } from "react";
-import { DataTotalInterface } from "../../interface/BSD_Interface";
-import ModifyCard from "./ModifyCard";
+import { FormInput } from "../../interface/BSD_Interface";
+import FormulaireNew from "./FormulaireNew";
 
 
 const ModalSource = () => {
     const session = useSession();
-    const { setDataTotal, setOptions, setModalType, displayFormulaire } = useModalContextNew();
+    const { setDataToogle, setOptions, setModalType, displayFormulaire } = useModalContextNew();
     
-    useEffect(() => {
+    /*useEffect(() => {
         const fetchData = async () => {
-            if (session && session.user && session.user.id) {
-                const data = await getDataAutocompletion(session.user.id) as DataTotalInterface[];
+            if (session && session.user_id && session.entreprise_id) {
+                const data = await getDataAutocompletion(session.entreprise_id) as FormInput[];
                 if (data && data.length > 0) {  
-                    setDataTotal(data[0]);
+                    //setDataToogle(data[0]);
                     setOptions(data);
                     //setModalType('modify');
                 }
             }
         };
         fetchData();
-    }, [session]);
+    }, [session]);*/
 
     
     return (
         <div>
             {displayFormulaire && 
                 <div>
-                    <Formulaire/>
+                    <FormulaireNew/>
                 </div>
             }
         </div>

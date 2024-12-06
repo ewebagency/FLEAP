@@ -33,6 +33,8 @@ export interface DepartLineHeader {
     code_dechet: string;
     date_collecte: string;
     lieu_collecte: string;
+    periode_debut: string;
+    periode_fin: string;
 }
 
 export interface DepartLineBody {

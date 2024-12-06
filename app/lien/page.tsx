@@ -7,6 +7,7 @@ import { BSD_on_Supabase } from "./interface/bsd_line";
 import ColonneBSDs from "./components/ColonneBSDs";
 import { supabase } from "../database/supabaseClient";
 import { AccessOtherAccountProvider, useAccessOtherAccount } from "../interface_admin_2/AccessOtherAccounts/AccessOtherAccountContext";
+import { AccountSelector } from "../interface_admin_2/AccessOtherAccounts/AccountSelector";
 
 interface SelectedFacture {
     id: string;
@@ -24,8 +25,10 @@ const LienPage = () => {
     const fetchDataFactures = async () => {
         const user_ids = selectedAccounts.map(account => account.user_id);
         const response = await fetch(`/api/lien/get_factures_non_treated?user_ids=${user_ids}`);
-        const data = await response.json();
-        setFactureLines(data.lignes);
+        if(response.ok){
+            const data = await response.json();
+            setFactureLines(data.lignes);
+        }
     }
 
     const fetchDataBSDs = async () => {
@@ -62,12 +65,14 @@ const LienPage = () => {
             }
         }
 
-        const response = await fetch(`/api/lien/get_bsds_non_linked?user_ids=${user_ids}`);
-        const data = await response.json();
-        const bsdsAll = data.bsds;
-        const bsdsFiltered = await filterBSDsOnSelectedFacture(bsdsAll, selectedFacture);
-        //console.log("bsds après filtrage", bsdsFiltered);
-        setBSDs(bsdsFiltered);
+        const response = await fetch(`/api/lien/get_bsds_non_linked?user_ids=${encodeURIComponent(JSON.stringify(user_ids))}`);
+        if(response.ok){
+            const data = await response.json();
+            const bsdsAll = data.bsds;
+            const bsdsFiltered = await filterBSDsOnSelectedFacture(bsdsAll, selectedFacture);
+            //console.log("bsds après filtrage", bsdsFiltered);
+            setBSDs(bsdsFiltered);
+        }
     }
 
     // Route API pour récupérer les lignes de factures non traitées
@@ -122,55 +127,54 @@ const LienPage = () => {
 
     return (
         <div className="container mx-auto px-4 py-8">
-            <AccessOtherAccountProvider>
-                <h1 className="text-2xl font-bold mb-6 text-center">Liaison Factures - BSDs</h1>
-                <div className="flex justify-center items-start space-x-8">
-                    <div className="w-1/3">
-                        <h2 className="text-xl font-semibold mb-4 text-center">Factures</h2>
-                        <div className="bg-white rounded-lg shadow-lg p-4 max-h-[70vh] overflow-y-auto">
-                            <ColonneFactures 
-                                factureLines={factureLines} 
-                                selectedFacture={selectedFacture}
-                                setSelectedFacture={setSelectedFacture}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col justify-center items-center w-1/6">
-                        <button 
-                            onClick={handleLink}
-                            disabled={!selectedFacture || !selectedBSD || loading} // Disable button while loading
-                            className={`px-6 py-3 rounded-lg shadow-md text-white font-semibold
-                                ${(!selectedFacture || !selectedBSD || loading) 
-                                    ? 'bg-gray-400 cursor-not-allowed' 
-                                    : 'bg-blue-500 hover:bg-blue-600'}`}
-                        >
-                            {loading ? (
-                                <span className="flex items-center">
-                                    <svg className="animate-spin h-5 w-5 mr-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                                    </svg>
-                                    Chargement...
-                                </span>
-                            ) : (
-                                "Lier →"
-                            )}
-                        </button>
-                    </div>
-
-                    <div className="w-1/3">
-                        <h2 className="text-xl font-semibold mb-4 text-center">BSDs</h2>
-                        <div className="bg-white rounded-lg shadow-lg p-4 max-h-[70vh] overflow-y-auto">
-                            <ColonneBSDs 
-                                BSDs={BSDs} 
-                                selectedBSD={selectedBSD}
-                                setSelectedBSD={setSelectedBSD}
-                            />
-                        </div>
+            <AccountSelector/>
+            <h1 className="text-2xl font-bold mb-6 text-center">Liaison Factures - BSDs</h1>
+            <div className="flex justify-center items-start space-x-4">
+                <div className="w-[45%]">
+                    <h2 className="text-xl font-semibold mb-4 text-center">Factures</h2>
+                    <div className="bg-white rounded-lg shadow-lg p-4 max-h-[70vh] overflow-y-auto">
+                        <ColonneFactures 
+                            factureLines={factureLines} 
+                            selectedFacture={selectedFacture}
+                            setSelectedFacture={setSelectedFacture}
+                        />
                     </div>
                 </div>
-            </AccessOtherAccountProvider>
+
+                <div className="flex flex-col justify-center items-center w-[10%]">
+                    <button 
+                        onClick={handleLink}
+                        disabled={!selectedFacture || !selectedBSD || loading}
+                        className={`px-4 py-2 rounded-lg shadow-md text-white font-semibold
+                            ${(!selectedFacture || !selectedBSD || loading) 
+                                ? 'bg-gray-400 cursor-not-allowed' 
+                                : 'bg-blue-500 hover:bg-blue-600'}`}
+                    >
+                        {loading ? (
+                            <span className="flex items-center">
+                                <svg className="animate-spin h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                </svg>
+                                Chargement...
+                            </span>
+                        ) : (
+                            "Lier →"
+                        )}
+                    </button>
+                </div>
+
+                <div className="w-[45%]">
+                    <h2 className="text-xl font-semibold mb-4 text-center">BSDs</h2>
+                    <div className="bg-white rounded-lg shadow-lg p-4 max-h-[70vh] overflow-y-auto">
+                        <ColonneBSDs 
+                            BSDs={BSDs} 
+                            selectedBSD={selectedBSD}
+                            setSelectedBSD={setSelectedBSD}
+                        />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

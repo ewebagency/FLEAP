@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useModalContextNew } from "./ContextModal";
-import { Anything, DataTotalInterface, Form_API_Interface_Short } from "../../interface/BSD_Interface";
+import { Anything, BSDD_TrackDechets, DataTotalInterface, Form_API_Interface_Short } from "../../interface/BSD_Interface";
 import { supabase } from "@/app/database/supabaseClient";
 import { useSession } from "@/app/component/SessionProvider";
 
 const DisplayCard = () => {
     const { modalId, modalType, setModalType, modalReload } = useModalContextNew();
-    const [bsdAutresInfos, setBSDAutresInfos] = useState<DataTotalInterface | null>(null);
-    const [bsd, setBSD] = useState<Form_API_Interface_Short | null>(null); //infos_json.formAPI.createFormInput pour alléger l'html après
+    const [bsdAutresInfos, setBSDAutresInfos] = useState<BSDD_TrackDechets | null>(null);
+    const [bsd, setBSD] = useState<BSDD_TrackDechets | null>(null);
     const session = useSession();
 
     const getBSD = async (userId: string) => {
@@ -25,17 +25,31 @@ const DisplayCard = () => {
     }
 
     useEffect(() => {
-        if (session && session.user.id) {
-            getBSD(session.user.id);
+        if (session && session.user_id) {
+            getBSD(session.user_id);
         }
     }, [modalId, modalReload, session]);
 
-    const LabelValue = ({ label, value }: { label: string, value: Anything|null }) => (
-        <p className="text-sm">
-            <span className="font-medium text-gray-700">{label}: </span>
-            <span className="text-gray-600">{value ?? ''}</span>
-        </p>
-    );
+    const formatDate = (dateString: string | undefined | null) => {
+        if (!dateString) return null;
+        return new Date(dateString).toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const LabelValue = ({ label, value }: { label: string, value: Anything|null }) => {
+        if (value === null || value === undefined || value === '') return null;
+        return (
+            <p className="text-sm">
+                <span className="font-medium text-gray-700">{label}: </span>
+                <span className="text-gray-600">{value}</span>
+            </p>
+        );
+    };
 
     return (
     <div>
@@ -113,6 +127,35 @@ const DisplayCard = () => {
                                     <LabelValue label="Quantité" value={`${bsd.wasteDetails.quantity} ${bsd.wasteDetails.quantityType}`} />
                                     <LabelValue label="Type de contenant" value={bsd.wasteDetails.packagingInfos[0].type} />
                                     <LabelValue label="Nombre de contenants" value={bsd.wasteDetails.packagingInfos[0].quantity} />
+                                </div>
+
+                                {/* Suivi */}
+                                <div className="bg-gray-50 p-3 rounded border border-gray-100">
+                                    <h3 className="font-semibold text-gray-800 mb-2">Suivi</h3>
+                                    <LabelValue label="ID" value={bsd.readableId} />
+                                    <LabelValue label="ID Système" value={bsd.id} />
+                                    <LabelValue label="Statut" value={bsd.status} />
+                                    <LabelValue label="Créé le" value={formatDate(bsd.createdAt)} />
+                                    <LabelValue label="Mis à jour le" value={formatDate(bsd.updatedAt)} />
+                                    <LabelValue label="Signé le" value={formatDate(bsd.signedAt)} />
+                                    <LabelValue label="Émis le" value={formatDate(bsd.emittedAt)} />
+                                    <LabelValue label="Émis par" value={bsd.emittedBy} />
+                                    <LabelValue label="Pris en charge le" value={formatDate(bsd.takenOverAt)} />
+                                    <LabelValue label="Pris en charge par" value={bsd.takenOverBy} />
+                                    <LabelValue label="Reçu le" value={formatDate(bsd.receivedAt)} />
+                                    <LabelValue label="Reçu par" value={bsd.receivedBy} />
+                                    <LabelValue label="Traité le" value={formatDate(bsd.processedAt)} />
+                                    <LabelValue label="Traité par" value={bsd.processedBy} />
+                                    <LabelValue label="Quantité acceptée" value={bsd.quantityAccepted} />
+                                    <LabelValue label="Quantité reçue" value={bsd.quantityReceived} />
+                                    <LabelValue label="Type de quantité reçue" value={bsd.quantityReceivedType} />
+                                    <LabelValue label="Quantité refusée" value={bsd.quantityRefused} />
+                                    <LabelValue label="Statut d'acceptation" value={bsd.wasteAcceptationStatus} />
+                                    <LabelValue label="Raison du refus" value={bsd.wasteRefusalReason} />
+                                    <LabelValue label="Opération de traitement effectuée" value={bsd.processingOperationDone} />
+                                    <LabelValue label="Description du traitement" value={bsd.processingOperationDescription} />
+                                    <LabelValue label="Importé depuis papier" value={bsd.isImportedFromPaper ? 'Oui' : 'Non'} />
+                                    <LabelValue label="Émis par eco-organisme" value={bsd.emittedByEcoOrganisme ? 'Oui' : 'Non'} />
                                 </div>
                             </div>
                         </div>

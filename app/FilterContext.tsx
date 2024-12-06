@@ -7,17 +7,17 @@ export interface Filiere {
     checked: boolean;
 }
 
-interface Site {
+export interface Site {
   name: string;
   checked: boolean;
 }
 
-interface Prestataire {
+export interface Prestataire {
   name: string;
   checked: boolean;
 }
 
-interface SegmentDates {
+export interface SegmentDates {
   debut: Date | null;
   fin: Date | null;
 }
@@ -90,9 +90,9 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   };
 
   const resetAllFilters = () => {
-    setFilieres(prev => prev.map(f => ({ ...f, checked: false })));
-    setSites(prev => prev.map(s => ({ ...s, checked: false })));
-    setPrestataires(prev => prev.map(p => ({ ...p, checked: false })));
+    setFilieres(prev => prev.map(f => ({ ...f, checked: true })));
+    setSites(prev => prev.map(s => ({ ...s, checked: true })));
+    setPrestataires(prev => prev.map(p => ({ ...p, checked: true })));
     setSegmentDates({ debut: null, fin: null });
   };
 

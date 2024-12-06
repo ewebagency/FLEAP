@@ -35,7 +35,7 @@ const FacturesAnalyse = ({ active }: { active: boolean }) => {
     const session = useSession() as Session | null;
     const [factures, setFactures] = useState<Facture[]>([]);
 
-    useEffect(() => {
+    /*useEffect(() => {
         const fetchFactures = async () => {
             if (session && session.user.id) {
                 try {
@@ -53,7 +53,7 @@ const FacturesAnalyse = ({ active }: { active: boolean }) => {
         };
 
         fetchFactures();
-    }, [session]);
+    }, [session]);*/
 
     if (!active) return null;
 

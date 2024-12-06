@@ -1,9 +1,9 @@
-import { toast } from "react-hot-toast";
-import { Gouv, DataParametrageInterface, Form_API_Interface_New, Anything, DataSupplementaireInterface, DataTotalInterface } from "../../interface/BSD_Interface";
+/*import { toast } from "react-hot-toast";
+import { Gouv, DataParametrageInterface, Form_API_Interface_New, Anything, DataSupplementaireInterface, DataTotalInterface, BSDD_TrackDechets } from "../../../interface/BSD_Interface";
 import { supabase } from "@/app/database/supabaseClient";
 
 
-const extractSiret = (number: string | number | boolean): string | null => {
+export const extractSiret = (number: string | number | boolean | null): string | null => {
     //console.error('extractSiret', number);
     // Convert input to string and check if it exists
     if (!number) return null;
@@ -26,8 +26,8 @@ const extractSiret = (number: string | number | boolean): string | null => {
     return null;
 }
   
-const getRaisonSocial = async (siret_tva: string|number|boolean): Promise<Gouv|null> => {
-  const siret = extractSiret(siret_tva);
+export const getRaisonSocial = async (siret_tva: string|number|boolean|null): Promise<Gouv|null> => {
+  const siret = extractSiret(String(siret_tva).replaceAll(' ', ''));
     if (!siret) {
         //console.log("siret non trouvé", siret_tva);
         return null;
@@ -51,21 +51,24 @@ const getRaisonSocial = async (siret_tva: string|number|boolean): Promise<Gouv|n
 };
 
 
-const parseAddress = (address: string) : {fullAddress: string; street: string; postalCode: string; city: string} => {
-    const regex = /^(.*)\s(\d{5})\s(.*)$/;
-    const match = address.match(regex);
+export const parseAddress = (address: string) : {fullAddress:string, street: string; postalCode: string; city: string} => {
+    try {
+        const regex = /^(.*)\s(\d{5})\s(.*)$/;
+        const match = address.match(regex);
   
     if (match) {
       const street = match[1].trim();
       const postalCode = match[2];
       const city = match[3].trim();
   
-      return {
+      const result = {
         fullAddress: address,
         street: street,
         postalCode: postalCode,
         city: city,
       };
+
+      return result;
     } else {
       console.log("The address does not match the expected format : ", address);
       return  {
@@ -74,8 +77,12 @@ const parseAddress = (address: string) : {fullAddress: string; street: string; p
         postalCode: '',
         city: '',
       };
+        }
+    } catch (error) {
+        console.error('Erreur parseAddress:', error);
+        return {fullAddress: address, street: '', postalCode: '', city: ''};
     }
-  }
+}
   
 const int = (value: number | string | boolean) => {
     return parseInt(String(value));
@@ -83,17 +90,17 @@ const int = (value: number | string | boolean) => {
 
 const API_Format = async (data_meta: {json_row: DataParametrageInterface}) => {
     const data = data_meta.json_row;
-    /*const emitter_raison = await getRaisonSocial(data.site_siret);
-    const emitter_nom = emitter_raison.raison.first;
-    const emitter_adresse = emitter_raison.adresse.first;
+    //const emitter_raison = await getRaisonSocial(data.site_siret);
+    //const emitter_nom = emitter_raison.raison.first;
+    //const emitter_adresse = emitter_raison.adresse.first;
 
-    const recipient_raison = await getRaisonSocial(data.prestataire_final_siret);
-    const recipient_nom = recipient_raison.raison.first;
-    const recipient_adresse = recipient_raison.adresse.first;
+    //const recipient_raison = await getRaisonSocial(data.prestataire_final_siret);
+    //const recipient_nom = recipient_raison.raison.first;
+    //const recipient_adresse = recipient_raison.adresse.first;
 
-    const transporter_raison = await getRaisonSocial(data.transporteur_siret);
-    const transporter_nom = transporter_raison.raison.first;
-    const transporter_adresse = transporter_raison.adresse.first;*/
+    //const transporter_raison = await getRaisonSocial(data.transporteur_siret);
+    //const transporter_nom = transporter_raison.raison.first;
+    //const transporter_adresse = transporter_raison.adresse.first;
     const emitter_nom = data.producteur_nom;
     const emitter_adresse = data.site_adresse; //attention site_adresse != adresse du siège social trouvé par api mais trop long pour l'instant  
     const recipient_nom = data.prestataire_final_nom;
@@ -105,7 +112,7 @@ const API_Format = async (data_meta: {json_row: DataParametrageInterface}) => {
     //console.log('transporter_nom', transporter_nom, data.transporteur_siret);
     //console.log('recipient_nom', recipient_nom, data.prestataire_final_siret);
     
-    const dataFormAPI : Form_API_Interface_New = {
+    const dataFormAPI : {formAPI: {createFormInput: BSDD_TrackDechets}} = {
         "formAPI": {
           "createFormInput": {
             "emitter": {
@@ -114,11 +121,14 @@ const API_Format = async (data_meta: {json_row: DataParametrageInterface}) => {
                 "mail": data.producteur_personne_email,
                 "name": emitter_nom,
                 "phone": data.producteur_personne_tel,
-                "siret": data.site_siret,
+                "siret": extractSiret(data.site_siret)?? "",
+                "orgId": data.site_siret.toString(),
+                "country": "FRANCE",
                 "address": emitter_adresse,
                 "contact": data.producteur_personne_firstname + " " + data.producteur_personne_lastname
               },
               "workSite": {
+                "name": data.site_nom,
                 "city": parseAddress(String(emitter_adresse)).city,
                 "address": parseAddress(String(emitter_adresse)).street,
                 "postalCode": parseAddress(String(emitter_adresse)).postalCode
@@ -313,3 +323,4 @@ const getVolumeEstimation = (unitaire: string, indicatif: number) => {
 const getInfosFromMyCompany = async () => {
   return {siret: "00000063963334", nom: "TestCompany"};
 }
+*/

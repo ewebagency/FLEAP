@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { DataTotalInterface } from '../../interface/BSD_Interface';
-
+import { FormInput } from '../../interface/BSD_Interface';
 /*interface this_FormAPI {
   formAPI?: {
       createFormInput?: {
@@ -64,10 +63,10 @@ import { DataTotalInterface } from '../../interface/BSD_Interface';
 interface ModalContextType {
     displayFormulaire: boolean;
     setDisplayFormulaire: (value: boolean) => void;
-    dataTotal: DataTotalInterface;
-    setDataTotal: (data: DataTotalInterface) => void;
-    options: DataTotalInterface[];
-    setOptions: (options: DataTotalInterface[]) => void;
+    dataToogle: FormInput;
+    setDataToogle: (data: FormInput) => void;
+    options: FormInput[];
+    setOptions: (options: FormInput[]) => void;
 
     modalId: string | null;
     setModalId: (modalId: string | null) => void;
@@ -83,21 +82,81 @@ const ModalContextNew = createContext<ModalContextType>({} as ModalContextType);
 // Créer un fournisseur de contexte
 export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
     const [displayFormulaire, setDisplayFormulaire] = useState<boolean>(false);
-    
-    const [dataTotal, setDataTotal] = useState<DataTotalInterface>({} as DataTotalInterface);
-    const [options, setOptions] = useState<DataTotalInterface[]>([]);
+
+    const initialToogleData: FormInput = {
+        emitter: {
+          type: "PRODUCER",
+          workSite: { name: "", fullAddress: "", address: "", postalCode: "", city: "", infos: "" },
+          company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+          isPrivateIndividual: false,
+          isForeignShip: false,
+        },
+        recipient: {
+          company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+          cap: "",
+          processingOperation: "",
+          isTempStorage: false,
+        },
+        transporter: {
+          company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+          isExemptedOfReceipt: false,
+          receipt: "",
+          numberPlate: "",
+          customInfo: "",
+        },
+        wasteDetails: {
+          code: "",
+          name: "",
+          isSubjectToADR: false,
+          onuCode: "",
+          packagingInfos: [{ type: "AUTRE", quantity: 0 }],
+          quantity: 0,
+          quantityType: "ESTIMATED",
+          consistence: "",
+          pop: false,
+          isDangerous: false,
+          parcelNumbers: { city: "", postalCode: "", prefix: "", section: "", number: "" },
+          analysisReferences: "",
+          landIdentifiers: "",
+          sampleNumber: "",
+        },
+        trader: {
+          receipt: "",
+          department: "",
+          //validityLimit: "",
+          company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+        },
+        broker: {
+          receipt: "",
+          department: "",
+          //validityLimit: "",
+          company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+        },
+        //grouping: { form: { id: "" }, quantity: 0 },//Pour l'instant on va dire qu'on ne permet pas de grouper les déchets
+        ecoOrganisme: { name: "", siret: "" },
+        temporaryStorageDetail: {
+          company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+          cap: "",
+          processingOperation: "",
+        }, //Si le recipient est un stockage provisoire, on va mettre les infos du destinataire final pour le traitement 
+        //intermediaries: [],
+      };
+    const [dataToogle, setDataToogle] = useState<FormInput>(initialToogleData);
+    const [options, setOptions] = useState<FormInput[]>([]);
 
     const [modalId, setModalId] = useState<string | null>("");
     const [modalType, setModalType] = useState("");
     const [modalReload, setModalReload] = useState(false);
+
+    
 
 
     return (
         <ModalContextNew.Provider value={{
             displayFormulaire,
             setDisplayFormulaire,
-            dataTotal,
-            setDataTotal,
+            dataToogle,
+            setDataToogle,
             options,
             setOptions,
             modalId,

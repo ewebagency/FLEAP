@@ -11,11 +11,11 @@ const FiltreSite = () => {
     const containerRef = useRef<HTMLDivElement>(null);
 
     const getSitesFromUser = async () => {
-        if (session?.user.id) {
+        if (session?.user_id) {
             const { data, error } = await supabase
             .from('bsd')
             .select('infos_json')
-            .eq('user_id', session.user.id);
+            .eq('user_id', session.user_id);
             
             if (error) {
                 console.error('Error fetching sites:', error);
@@ -29,14 +29,14 @@ const FiltreSite = () => {
                     )
                     .map(bsd => {
                         const workSite = bsd.infos_json.formAPI.createFormInput.emitter.workSite;
-                        return `${workSite.address} ${workSite.postalCode} ${workSite.city}`;
+                        return workSite.name; //`${workSite.address} ${workSite.postalCode} ${workSite.city}`;
                     })
                     .filter(Boolean);
 
                 const sites_uniques = Array.from(new Set(sites));
                 const formattedSites = sites_uniques.map(site => ({
                     name: site,
-                    checked: false
+                    checked: true
                 }));
                 setSites(formattedSites);
             }

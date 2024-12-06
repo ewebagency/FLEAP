@@ -34,10 +34,10 @@ const EnrichImportedDataButton = () => {
             return;
         }
         
-        if(session && session.user && session.user.id) {
+        if(session && session.user_id) {
             setIsLoading(true);
             try {
-                const response = await fetch(`/api/enrich_imported_data?user_id=${session.user.id}`);
+                const response = await fetch(`/api/enrich_imported_data?user_id=${session.user_id}`);
                 if('success' in response && response.success) {
                     toast.success('Enrichissement réussi');
                 } else if ("message" in response) {

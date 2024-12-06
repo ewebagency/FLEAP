@@ -25,7 +25,8 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (session && session.user.id) {
+        //console.log('Sessiooooon', session);
+        if (session && session.user_id) {
             // Charger les sites depuis l'API seulement si pas déjà en cache
             const cachedSites = localStorage.getItem('sites');
             if (cachedSites) {
@@ -33,7 +34,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
                 setIsLoading(false);
             } else {
                 setIsLoading(true);
-                fetch(`/api/filtres_globales/filtre_sites?userId=${session.user.id}`)
+                fetch(`/api/filtres_globales/filtre_sites?userId=${session.user_id}`)
                     .then(res => res.json())
                     .then(data => {
                         setSites(data);

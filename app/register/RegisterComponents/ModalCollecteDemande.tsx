@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+/*import React, { useEffect, useState } from "react";
 import InputDeroulant from './InputDeroulant';
 //import InputText from './InputText';
 import { useSession } from "../../component/SessionProvider";
@@ -71,7 +71,7 @@ import { toast, Toaster } from 'react-hot-toast';
         }
     };
 };*/
-
+/*
 const getWeightEstimation = (
   volume: string,        // Volume exprimé en L ou m3 (ex: '200L' ou '15m3')
   consistance: string, // Consistance ('Solide' ou 'Liquide')
@@ -479,6 +479,7 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
             /*if(!changeLoad){
                 setChangeLoad(true);
             }*/
+           /*
         }
     }, [optionsInit]);
 
@@ -746,8 +747,8 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
     return (
         <div>
             {isOpen && ready &&
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"> {/*onClick={handleClose}>*/}
-                <div className="bg-white p-6 rounded-lg shadow-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"> {/*onClick={handleClose}>
+                /*<div className="bg-white p-6 rounded-lg shadow-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                     <h3 className="font-bold text-lg">Demande de collecte</h3>
                     <form className="my-2 p-6 border-[1px] border-gray-400 rounded-xl" onSubmit={handleSubmit}>
                             { !(modalType==='display') && <div>
@@ -924,8 +925,9 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
                                         onChange={handleChange} 
                                     ></textarea>
                                 </div>
-                            </div>*/}
-                        </div>}
+                            </div>*/
+                        /*</div>}*/
+                        /*
                         
                         <ToggleDisplayInfosAPI data={formData} onChange={handleChange}/>
 
@@ -950,4 +952,4 @@ const ModalCollecteDemande = ({ isOpen, setIsOpen, onClose, ready, setReady }: M
     )
 }
 
-export default ModalCollecteDemande;
+export default ModalCollecteDemande;*/

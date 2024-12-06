@@ -16,6 +16,7 @@ export async function GET(request: Request) {
             });
 
             const data = await response.json();
+
             
             const raison_sociale = data.etablissement.uniteLegale.denominationUniteLegale || '';
             const adresse_siege = [
@@ -23,20 +24,24 @@ export async function GET(request: Request) {
                 data.etablissement.adresseEtablissement.typeVoieEtablissement,
                 data.etablissement.adresseEtablissement.libelleVoieEtablissement,
                 data.etablissement.adresseEtablissement.codePostalEtablissement,
-                data.etablissement.adresseEtablissement.libelleCommuneEtablissement
+                data.etablissement.adresseEtablissement.libelleCommuneEtablissement,
+                data.etablissement.adresseEtablissement.libellePaysEtrangerEtablissement || 'FRANCE'
             ]
             .filter(part => part)
             .join(' ') || '';
+
+            const pays = data.etablissement.adresseEtablissement.libellePaysEtrangerEtablissement || 'FRANCE';
             
             // Formatage selon l'interface Gouv
             const formattedResponse = {
                 raison: { first: raison_sociale },
-                adresse: { first: adresse_siege }
+                adresse: { first: adresse_siege },
+                pays: { first: pays}
             };
             
             return NextResponse.json(formattedResponse);
         } catch (error) {
-            console.error('Erreur:', error);
+            //console.error('Erreur:', error);
             return NextResponse.json({ 
                 raison: { first: '' }, 
                 adresse: { first: '' } 

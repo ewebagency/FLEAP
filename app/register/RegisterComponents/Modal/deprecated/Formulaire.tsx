@@ -1,16 +1,17 @@
-import React, { useRef } from "react";
-import InputDeroulant from "../InputDeroulant";
-import { useModalContextNew } from "./ContextModal";
+/*import React, { useRef } from "react";
+import InputDeroulant from "../../InputDeroulant";
+import { useModalContextNew } from "../ContextModal";
 import { formatText, getDataAutocompletion, sendData_to_Cloud } from "./utils";
 import { useSession } from "@/app/component/SessionProvider";
-import { DataTotalInterface } from "../../interface/BSD_Interface";
+import { DataTotalInterface } from "../../../interface/BSD_Interface";
 import toast from "react-hot-toast";
 import ModifyCardInFormulaire from './ModifyCardInFormulaire';
+import ModifyCardInFormulaireNew from "../ModifyCardInFormulaireNew";
 
 
 const Formulaire = () => {
     const session = useSession();
-    const user_id = session?.user.id;
+    const user_id = session?.user_id;
     //const [submitLoad, setSubmitLoad] = useState(false);
 
     const {             
@@ -242,7 +243,7 @@ const Formulaire = () => {
             current[keys[keys.length - 1]] = value;
             return newData;
         });
-    }, []);*/
+    }, []);//
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center overflow-y-auto py-4 z-50">
@@ -374,23 +375,17 @@ const Formulaire = () => {
                         />
                     </div>
                     <div ref={modifyCardRef}>
-                        <ModifyCardInFormulaire 
+                        <ModifyCardInFormulaireNew 
                             dataTotal={dataTotal}
                             setDataTotal={setDataTotal}
                             onSubmit={handleSubmit}
                             onClose={handleClose}
                         />
                     </div>
-                    {/*<div className="modal-action mt-6">
-                        <button type="button" id="fermer-btn" className="btn" onClick={handleClose}>Fermer</button>
-                        <button type="submit" id="envoyer-btn" className="btn" disabled={submitLoad}>
-                            {submitLoad ? "En cours..." : "Envoyer"}
-                        </button>
-                    </div>*/}
                 </form>
             </div>
         </div>
     );
 }
 
-export default Formulaire;
+export default Formulaire;*/

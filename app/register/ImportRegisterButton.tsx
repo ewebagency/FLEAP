@@ -4,10 +4,25 @@ import { useModal } from "../component/context/ModalReloadcontext";
 import * as XLSX from 'xlsx';
 import toast from "react-hot-toast";
 import { supabase } from "../database/supabaseClient";
-import { Form_API_Interface_New } from "./interface/BSD_Interface";
+import { BSDD_TrackDechets, FormInput } from "./interface/BSD_Interface";
+import { pushOnTableParametrage } from "../api/demande_collecte/creation_bsdd/route";
 
 interface Row {
     [key: string]: string | number | boolean;
+}
+
+function siretFunction(input: string | number): string {
+    const inputStr = String(input).replace(/\s+/g, '').trim(); // Suppression des espaces
+    const siretRegex = /^[0-9]{14}$/; // Le SIRET est un numéro à 14 chiffres
+  
+    return siretRegex.test(inputStr) ? inputStr : ""; // Retourne le SIRET valide ou ""
+  }
+
+function tvaFunction(input: string | number): string {
+const inputStr = String(input).replace(/\s+/g, '').trim(); // Suppression des espaces
+const tvaRegex = /^[A-Z]{2}[0-9A-Z]{2,12}$/; // Format typique : FR + 11 caractères (peut varier selon pays)
+
+return tvaRegex.test(inputStr) ? inputStr : ""; // Retourne le numéro TVA valide ou ""
 }
 
 const cofounders_user_id = (user_id:string|null) => {
@@ -19,103 +34,402 @@ const cofounders_user_id = (user_id:string|null) => {
     return false;
 }
 
-const mapToBsdFormat = (row: Row): Form_API_Interface_New => {
+const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDechets } } => {
     return {
-      formAPI: {
-        createFormInput: {
-          emitter: {
-            type: "PRODUCER",
-            company: {
-              siret: row["siretEmetteur"] || "",
-              name: row["raisonSocialeEmetteur"] || "",
-              address: `${row["adresseCollecte"] || ""} ${row["codePostalCollecte"] || ""} ${row["communeCollecte"] || ""}`,
-              contact: `${row["prenomContact"] || ""} ${row["nomContact"] || ""}`,
-              phone: row["telephoneContact"] || "",
-              mail: row["emailContact"] || ""
-            },
-            workSite: row["siteEmetteur"] ? {
-              address: row["adresseCollecte"]?.toString() || "",
-              postalCode: row["codePostalCollecte"]?.toString() || "",
-              city: row["communeCollecte"]?.toString() || "",
-            } : {
-              address: "",
-              postalCode: "",
-              city: ""
-            },
-          },
-          recipient: {
-            cap: row["numeroCap"] || "",
-            company: {
-              siret: row["siretInstallationDestination1"] || "",
-              name: row["nomInstallationDestination1"] || "",
-              address: `${row["adresseInstallationDestination1"] || ""} ${row["codePostalInstallationDestination1"] || ""} ${row["communeInstallationDestination1"] || ""}`,
-              contact: `${row["prenomContact"] || ""} ${row["nomContact"] || ""}`,
-              phone: row["telephoneContact"] || "",
-              mail: row["emailContact"] || ""
-            },
-            processingOperation: row["codeTraitementPrevuInstallationDestination1"] || "D1"
-          },
-          transporter: {
-            company: {
-              siret: row["siretTransporteur"] || "",
-              name: row["raisonSocialeTransporteur"] || "",
-              address: `${row["adresseTransporteur"] || ""} ${row["codePostalTransporteur"] || ""} ${row["communeTransporteur"] || ""}`,
-              contact: `${row["prenomContact1Transporteur"] || ""} ${row["nomContact1Transporteur"] || ""}`,
-              phone: row["telephoneContact1Transporteur"] || "",
-              mail: row["emailContact1Transporteur"] || ""
+        formAPI: {
+            createFormInput: {
+                id: "IMPORTED",
+                readableId: row["numeroBsd"]?.toString() || "", //celui sur track
+                customId: row["idSecondaire"]?.toString() || "",
+                
+                status: row["statutBordereauCode"]?.toString() || "",
+
+                //isImportedFromPaper: false,
+
+                // Émetteur
+                emitter: {
+                    type: "PRODUCER",
+                    workSite: {
+                        name: row["siteEmetteur"]?.toString() || "",
+                        address: row["adresseCollecte"]?.toString() || "",
+                        postalCode: row["codePostalCollecte"]?.toString() || "",
+                        city: row["communeCollecte"]?.toString() || "",
+                        infos: row["infosCollecte"]?.toString() || ""
+                    },
+                    company: {
+                        name: row["raisonSocialeEmetteur"]?.toString() || "", //nomEntrepriseEmettrice
+                        orgId: row["siretEmetteur"]?.toString() || "",
+                        siret: siretFunction(row["siretEmetteur"]?.toString()) || "",
+                        address: `${row["adresseEmetteur"] || ""} ${row["codePostalEmetteur"] || ""} ${row["communeEmetteur"] || ""}`,
+                        country: row["paysEmetteur"]?.toString() || "",
+                        contact: `${row["prenomContactEmetteur"] || ""} ${row["nomContactEmetteur"] || ""}`,
+                        phone: row["telephoneContactEmetteur"]?.toString() || "",
+                        mail: row["emailContactEmetteur"]?.toString() || "",
+                        vatNumber: tvaFunction(row["siretEmetteur"]?.toString()) || "",
+                        //omiNumber: 
+                        //extraEuropeanId: 
+                    },
+                    
+                    //isPrivateIndividual:
+                    //isForeignShip:
+                },
+
+                // Destinataire
+                recipient: {
+                    company: {
+                        name: row["raisonSocialeInstallationDestination"]?.toString() || "",
+                        orgId: row["siretInstallationDestination"]?.toString() || "",
+                        siret: siretFunction(row["siretInstallationDestination"]?.toString()) || "", //-------------- ça me va pas installation destinatation
+                        address: `${row["adresseInstallationDestination"] || ""} ${row["codePostalInstallationDestination"] || ""} ${row["communeInstallationDestination"] || ""}`,
+                        country: row["paysInstallationDestination"]?.toString() || "",
+                        contact: `${row["prenomContactInstallationDestination"] || ""} ${row["nomContactInstallationDestination"] || ""}`,
+                        phone: row["telephoneContactInstallationDestination"]?.toString() || "",
+                        mail: row["emailContactInstallationDestination"]?.toString() || "",
+                        vatNumber: tvaFunction(row["siretInstallationDestination"]?.toString()) || "",
+                        //omiNumber:
+                        //extraEuropeanId:
+                    },
+                    cap: row["numeroCap"]?.toString() || "",
+                    processingOperation: row["codeTraitementPrevuInstallationDestination"]?.toString() || "" //????????????????????????????????????????probleme yen a trop -- faire plus simple une installation destinataire et c'est tout codeTraitementRealiseInstallationDestination
+                    //isTempStorage:
+                },
+
+                // Transporteur
+                transporter: {
+                    id: "",
+                    company: {
+                        name: row["raisonSocialeTransporteur"]?.toString() || "",
+                        orgId: row["siretTransporteur"]?.toString() || "",
+                        siret: siretFunction(row["siretTransporteur"]?.toString()) || "",
+                        address: `${row["adresseTransporteur"] || ""} ${row["codePostalTransporteur"] || ""} ${row["communeTransporteur"] || ""}`,
+                        country: row["paysTransporteur"]?.toString() || "",
+                        contact: `${row["prenomContactTransporteur"] || ""} ${row["nomContactTransporteur"] || ""}`,
+                        phone: row["telephoneContactTransporteur"]?.toString() || "",
+                        mail: row["emailContactTransporteur"]?.toString() || "",
+                        vatNumber: tvaFunction(row["siretTransporteur"]?.toString()) || "",
+                        //omiNumber:
+                        //extraEuropeanId:
+                    },
+                    isExemptedOfReceipt: false,//row['exemptionRecepisseTransporteur'].toString() || '',
+                    receipt: row["recepisseTransporteur"]?.toString() || "",
+                    department: row["departementTransporteur"]?.toString() || "",
+                    validityLimit: row["limiteValiditeTransporteur"]?.toString() || "",
+                    numberPlate: row["immatriculationTransporteur"]?.toString() || "",
+                    //customInfo: "",
+                    mode: row["modeTransportTransporteur"]?.toString() || "",
+                    takenOverAt: row["dateCollecteTransporteur"]?.toString() || "",
+                    takenOverBy: row["prenomContactTransporteur"]?.toString() + " " + row["nomContactTransporteur"]?.toString() || ""    
+                },
+
+                // Détails du déchet
+                wasteDetails: {
+                    code: row["codeCed"]?.toString() || "",
+                    name: row["descDechet"]?.toString() || "",
+                    isSubjectToADR: row["mentionAdr"]?.toString()==='ADR',
+                    onuCode: row["codeONU"]?.toString() || "",  
+                    nonRoadRegulationMention: row["mentionAdr"]?.toString() || "",
+                    packagingInfos: [{
+                        type: row["typeContenant"]?.toString() as 'FUT'|'GRV'|'CITERNE'|'BENNE'|'PIPELINE'|'AUTRE',
+                        other: row["descContenant"]?.toString() || "",
+                        quantity: parseInt(row["nbContenants"]?.toString() || "0")
+                    }],
+                    quantity: parseFloat(row["quantiteReceptionneeNetInstallationDestination"]?.toString() || "0"), //Faire condition si on a installation destination
+                    quantityType:  row["quantiteEstimeeReelleReceptionInstallationDestination"]?.toString() as 'REAL'|'ESTIMATED' || 'ESTIMATED',
+                    consistence: row["consistance"]?.toString() || "",
+                    pop: row["pop"] === "O",
+                    isDangerous: row["codeCed"]?.toString()?.includes("*"),
+                    parcelNumbers: {
+                        city: row["parcelleCommuneEmetteur"]?.toString() || "",
+                        postalCode: row["parcelleCodePostalEmetteur"]?.toString() || "",
+                        prefix: row["parcellePrefixSectionNumeroEmetteur"]?.toString().split("-")[0] || "",
+                        section: row["parcellePrefixSectionNumeroEmetteur"]?.toString().split("-")[1] || "",
+                        number: row["parcellePrefixSectionNumeroEmetteur"]?.toString().split("-")[2] || "",
+                        x: parseFloat(row["parcelleGPSEmetteur"]?.toString().split("N ")[1].split(" E ")[0] || "0"),
+                        y: parseFloat(row["parcelleGPSEmetteur"]?.toString().split("N ")[1].split(" E ")[1] || "0")
+                    },
+                    analysisReferences: row["refLaboEmetteur"]?.toString() || "",
+                    landIdentifiers: row["idTerrainEmetteur"]?.toString() || "",
+                    sampleNumber: row["fichesTechniques"]?.toString() || ""
+                },
+
+                // Négociant
+                trader: {
+                    company: {
+                        name: row["raisonSocialeNegotiant"]?.toString() || "",
+                        orgId: row["siretNegotiant"]?.toString() || "",
+                        siret: siretFunction(row["siretNegotiant"]?.toString()) || "",
+                        address: `${row["adresseNegotiant"] || ""} ${row["codePostalNegotiant"] || ""} ${row["communeNegotiant"] || ""}`,
+                        country: row["paysNegotiant"]?.toString() || "",
+                        contact: `${row["prenomContactNegotiant"] || ""} ${row["nomContactNegotiant"] || ""}`,
+                        phone: row["telephoneNegotiant"]?.toString() || "",
+                        mail: row["emailNegotiant"]?.toString() || "",
+                        vatNumber: tvaFunction(row["siretNegotiant"]?.toString()) || "",
+                        //omiNumber:
+                        //extraEuropeanId:
+                    },
+                    receipt: row["recipisseNegotiant"]?.toString() || "",
+                    department: row["departementNegotiant"]?.toString() || "",
+                    validityLimit: row["validiteNegotiant"]?.toString() || ""
+                },
+
+                // Courtier
+                broker: {
+                    company: {
+                        name: row["raisonSocialeCourtier"]?.toString() || "",
+                        orgId: row["siretCourtier"]?.toString() || "",
+                        siret: siretFunction(row["siretCourtier"]?.toString()) || "",
+                        address: `${row["adresseCourtier"] || ""} ${row["codePostalCourtier"] || ""} ${row["communeCourtier"] || ""}`,
+                        country: row["paysCourtier"]?.toString() || "",
+                        contact: `${row["prenomContactCourtier"] || ""} ${row["nomContactCourtier"] || ""}`,
+                        phone: row["telephoneContactCourtier"]?.toString() || "",
+                        mail: row["emailCourtier"]?.toString() || "",
+                        vatNumber: tvaFunction(row["siretCourtier"]?.toString()) || "",
+                        //omiNumber:
+                        //extraEuropeanId:
+                    },
+                    receipt: row["recipisseCourtier"]?.toString() || "",
+                    department: row["departementCourtier"]?.toString() || "",
+                    validityLimit: row["validiteCourtier"]?.toString() || ""
+                },
+
+                // Éco-organisme
+                ecoOrganisme: {
+                    name: row["raisonSocialeEcoOrganisme"]?.toString() || "",
+                    siret: siretFunction(row["siretEcoOrganisme"]?.toString()) || ""
+                },
+
+                //transporters: [],
+
+                // Dates
+                createdAt: row["dateCreationBordereau"]?.toString() || "",
+                updatedAt: row["dateModifBordereau"]?.toString() || "",
+                
+                emittedAt: row["dateCreationBordereau"]?.toString() || "", //normalement c'est la signature du trasnporteur mais bon
+                emittedBy: row["prenomContactEmetteur"]?.toString() + " " + row["nomContactEmetteur"]?.toString() || "",
+                emittedByEcoOrganisme: row["prenomContactEcoOrganisme"]?.toString() + " " + row["nomContactEcoOrganisme"]?.toString() || "",
+                
+                takenOverAt: row["dateCollecteTransporteur"]?.toString() || "",
+                takenOverBy: row["prenomContactTransporteur"]?.toString() + " " + row["nomContactTransporteur"]?.toString() || "",
+                
+                wasteAcceptationStatus: row["statutReceptionInstallationDestination"]?.toString(),
+                wasteRefusalReason: row["motifRefusInstallationDestination"]?.toString() || "",
+                
+                hasCiterneBeenWashedOut: row["rincageCiterneInstallationDestination"] === "O", 
+                //citerneNotWashedOutReason: row["motifNonLavageCiterne"]?.toString() || "",
+                
+                receivedBy: row["prenomContactInstallationDestination"]?.toString() + " " + row["nomContactInstallationDestination"]?.toString() || "",
+                receivedAt: row["dateReceptionInstallationDestination"]?.toString() || "",
+
+                signedAt: '',//row["dateReceptionInstallationDestination"]?.toString() || "",
+
+                quantityReceived: parseFloat(row["quantiteReceptionneeNetInstallationDestination"]?.toString() || "0"),
+                quantityReceivedType: row["quantiteEstimeeReelleReceptionInstallationDestination"]?.toString() as 'REAL'|'ESTIMATED' || 'ESTIMATED',
+                quantityAccepted: parseFloat(row["quantiteReceptionneeNetInstallationDestination"]?.toString() || "0") - parseFloat(row["quantiteRefuseeInstallationDestination"]?.toString() || "0"),
+                quantityRefused: parseFloat(row["quantiteRefuseeInstallationDestination"]?.toString() || "0"),
+                
+                processingOperationDone: row["codeTraitementRealiseInstallationDestination"]?.toString() || "",
+                processingOperationDescription: row["qualificationTraitementInstallationDestination"]?.toString() || "",
+                processedBy: row["prenomContactInstallationDestination"]?.toString() + " " + row["nomContactInstallationDestination"]?.toString() || "",
+                processedAt: row["dateTraitementInstallationDestination"]?.toString() || "",
+                
+                noTraceability: row["ruptureTracabiliteInstallationDestination"] === "O" || row['ruptureTracabiliteInstallationIntermediaire'] === "O" || row['ruptureTracabiliteInstallationDestination2'] === "O", // regarder toute et yen aura qu'une seule théoriqueemnt
+
+                //Informations utiles pendant le transport du bordereau selon moi mais pas avant
+                // Destination ultérieure 
+                /*nextDestination: {
+                    company: {
+                        siret: row["siretDestinationUlterieure"]?.toString() || "",
+                        name: row["raisonSocialeDestinationUlterieure"]?.toString() || "",
+                        address: `${row["adresseDestinationUlterieure"] || ""} ${row["codePostalDestinationUlterieure"] || ""} ${row["communeDestinationUlterieure"] || ""}`,
+                        country: row["paysDestinationUlterieure"]?.toString() || "",
+                        contact: `${row["prenomContactDestinationUlterieure"] || ""} ${row["nomContactDestinationUlterieure"] || ""}`,
+                        phone: row["telephoneContactDestinationUlterieure"]?.toString() || "",
+                        mail: row["emailContactDestinationUlterieure"]?.toString() || ""
+                    },
+                    cap: row["numeroCapDestinationUlterieure"]?.toString() || "",
+                    processingOperation: row["operationTraitementPrevueDestinationUlterieure"]?.toString() || ""
+                    notificationNumber: row["numeroNotification"]?.toString() || "",
+                },*/
+
+                // Regroupement
+                //grouping: row["bordereauRegroupement"] ? [row["bordereauRegroupement"]] : [],
+                //quantityGrouped: 
+                //groupedIn: 
+                
+                // Entreposage provisoire
+                /*temporaryStorageDetail: {
+                    destination: {
+                        company: {
+                            siret: row["siretInstallationIntermediaire"]?.toString() || "",
+                            name: row["raisonSocialeInstallationIntermediaire"]?.toString() || "",
+                            address: `${row["adresseInstallationIntermediaire"] || ""} ${row["codePostalInstallationIntermediaire"] || ""} ${row["communeInstallationIntermediaire"] || ""}`,
+                            contact: `${row["reconditionnementPrenomContact"] || ""} ${row["reconditionnementNomContact"] || ""}`, //?????????????????, pas de contact dans installation intermédiaire
+                            phone: row["reconditionnementTelephoneContact"]?.toString() || "",
+                            mail: row["reconditionnementEmailContact"]?.toString() || ""
+                        },
+                        cap: ""  //???????????????????????????????????????????????????????????????????????,
+                    },
+                    ///////////encore des transporteurs ????
+                    transporter: {
+                        company: {
+                            siret: row["siretTransporteur2"]?.toString() || "",
+                            name: row["raisonSocialeTransporteur2"]?.toString() || "",
+                            address: `${row["adresseTransporteur2"] || ""} ${row["codePostalTransporteur2"] || ""} ${row["communeTransporteur2"] || ""}`,
+                            contact: `${row["prenomContactTransporteur2"] || ""} ${row["nomContactTransporteur2"] || ""}`,
+                            phone: row["telephoneContactTransporteur2"]?.toString() || "",
+                            mail: row["emailContactTransporteur2"]?.toString() || ""
+                        },
+                        recepisse: {
+                            number: row["numeroRecepisseTransporteur2"]?.toString() || "",
+                            department: row["departementRecepisseTransporteur2"]?.toString() || "",
+                            validityLimit: row["dateValiditeRecepisseTransporteur2"]?.toString() || ""
+                        },
+                        numberPlate: row["immatriculationTransporteur2"]?.toString() || ""
+                    }
+                },*/
+
+                //stateSummary:
+
+                //currentTransporterSiret: row["siretTransporteur"]?.toString() || "",
+                //nextTransporterSiret: row["siretTransporteur2"]?.toString() || "",
+
+                // Intermédiaires
+                /*intermediaries: row["siretIntermediaire"] ? [{
+                    siret: row["siretIntermediaire"]?.toString() || "",
+                    name: row["raisonSocialeIntermediaire"]?.toString() || "",
+                    address: `${row["adresseIntermediaire"] || ""} ${row["codePostalIntermediaire"] || ""} ${row["communeIntermediaire"] || ""}`,
+                    contact: `${row["prenomContactIntermediaire"] || ""} ${row["nomContactIntermediaire"] || ""}`,
+                    phone: row["telephoneContactIntermediaire"]?.toString() || "",
+                    mail: row["emailContactIntermediaire"]?.toString() || ""
+                }] : [],*/
+
+                //metadata:
+                //emptyReturnADR: row["retourVideADR"]?.toString() || "" //EMPTY_RETURN_NOT_WASHED, EMPTY_VEHICLE https://developers.trackdechets.beta.gouv.fr/reference/api-reference/bsdd/enums#emptyreturnadr
+
             }
-          },
-          wasteDetails: {
-            code: row["codeCed"] || "",
-            name: row["descDechet"] || "",
-            onuCode: row["codeOnu"] || "",
-            quantity: row["quantiteEmetteur"] || 0,
-            quantityType: row["quantiteEstimeeOuReelle"] ? "REAL" : "ESTIMATED",
-            consistence: row["consistance"] || "",
-            packagingInfos: [
-              {
-                type: row["typeContenant"] || "FUT",
-                quantity: row["nbContenants"] || 0,
-               // description: row["descContenant"] || ""
-              }
-            ]
-          }
         }
-      }
     };
-  };
+};
+
+const mapToNewParametrage = (ligne_BSD: { formAPI: { createFormInput: BSDD_TrackDechets } }) => {
+    const data = ligne_BSD.formAPI.createFormInput;
+    
+    const ligne_new = {
+        emitter: {
+                type: data.emitter.type,
+                company: {
+                    mail: data.emitter.company.mail,
+                    name: data.emitter.company.name,
+                    phone: data.emitter.company.phone,
+                    siret: data.emitter.company.siret,
+                    address: data.emitter.company.address,
+                    contact: data.emitter.company.contact,
+                    country: data.emitter.company.country,
+                },
+                workSite: {
+                    city: data.emitter.workSite.city,
+                    name: data.emitter.workSite.name,
+                    infos: data.emitter.workSite.infos,
+                    address: data.emitter.workSite.address,
+                    postalCode: data.emitter.workSite.postalCode,
+                },
+            },
+            recipient: {
+                cap: data.recipient.cap,
+                company: {
+                    mail: data.recipient.company.mail,
+                    name: data.recipient.company.name,
+                    phone: data.recipient.company.phone,
+                    siret: data.recipient.company.siret,
+                    address: data.recipient.company.address,
+                    contact: data.recipient.company.contact,
+                    country: data.recipient.company.country,
+                },
+                isTempStorage: data.recipient.isTempStorage || false,
+                processingOperation: data.recipient.processingOperation,
+            },
+            transporter: {
+                company: {
+                    mail: data.transporter.company.mail,
+                    name: data.transporter.company.name,
+                    phone: data.transporter.company.phone,
+                    siret: data.transporter.company.siret,
+                    address: data.transporter.company.address,
+                    contact: data.transporter.company.contact,
+                    country: data.transporter.company.country,
+                },
+                receipt: data.transporter.receipt,
+                customInfo: data.transporter.customInfo || "",
+                numberPlate: data.transporter.numberPlate || "",
+                isExemptedOfReceipt: data.transporter.isExemptedOfReceipt || false,
+            },
+            wasteDetails: {
+                pop: data.wasteDetails.pop || false,
+                code: data.wasteDetails.code,
+                name: data.wasteDetails.name,
+                onuCode: data.wasteDetails.onuCode,
+                quantity: data.wasteDetails.quantity,
+                consistence: data.wasteDetails.consistence,
+                isDangerous: data.wasteDetails.isDangerous || false,
+                quantityType: data.wasteDetails.quantityType,
+                isSubjectToADR: data.wasteDetails.isSubjectToADR || false,
+                packagingInfos: data.wasteDetails.packagingInfos.map(pack => ({
+                    type: pack.type,
+                    quantity: pack.quantity,
+                })),
+        },
+    };
+    
+    return ligne_new;
+}
   
-const sendToSupabase = async (ligne_BSD: Form_API_Interface_New | Row, user_id: string, tableType: string) => {
-    if(tableType == "table_parametrage"){
-        const { data, error } = await supabase
-            .from('table_parametrage')
-            .insert({
-                user_id: user_id,
-                json_row: ligne_BSD,
-            })
-        if (error) {
-            toast.error('Erreur lors de l\'import de la table de paramétrage');
-        } else {
-            console.log('Données importées avec succès', data);
-            toast.success('Paramètres importés avec succès');
-        }
-    } 
-    else if(tableType == "registre_historique"){
-        const { data, error } = await supabase
-            .from('bsd')
-            .insert(
-                {
-                    user_id: user_id,
-                    infos_json: ligne_BSD,
-                    created_on_fleap: false,
-                    status_track_dechets: "IMPORTED"
+const sendToSupabase = async (ligne_BSD: { formAPI: { createFormInput: BSDD_TrackDechets } }, user_id: string, tableType: string) => {
+    //UserId --> EntrepriseId
+    const { data: entreprise_infos, error } = await supabase
+        .from('profiles')
+        .select('entreprise_id')
+        .eq('user_id', user_id)
+        .single();
+
+    if(error){
+        toast.error('Erreur lors de l\'import de la table de paramétrage');
+    } else {
+        const entreprise_id = entreprise_infos.entreprise_id;
+        //SI Table Paramétrage : Insertion du registre mappé dans table_parametrage
+        if(tableType == "table_parametrage"){
+            const ligne_new = {formAPI: {createFormInput: mapToNewParametrage(ligne_BSD)}};
+            const pass_on_table_parametrage = await pushOnTableParametrage(user_id, entreprise_id, ligne_new);
+            if(pass_on_table_parametrage){
+                if(pass_on_table_parametrage.success){
+                    if(pass_on_table_parametrage.message.includes('mise à jour')){
+                        toast.success(pass_on_table_parametrage.message);
+                    } else {
+                        toast.error(pass_on_table_parametrage.message);
+                    }
+                } else {
+                    toast.error(pass_on_table_parametrage.message);
                 }
-            )
-        if (error) {
-            toast.error('Erreur lors de l\'import du registre historique');
-        } else {
-            console.log('Données importées avec succès', data);
-            toast.success('Registre historique importé avec succès');
+            }
+        } 
+        //SI Registre Historique : Insertion du registre mappé dans bsd
+        else if(tableType == "registre_historique"){
+            const { data, error } = await supabase
+                .from('bsd')
+                .insert(
+                    {
+                        user_id: user_id,
+                        entreprise_id: entreprise_id,
+                        infos_json: ligne_BSD,
+                        created_on_fleap: false,
+                        status_track_dechets: "IMPORTED"
+                    }
+                )
+            if (error) {
+                toast.error('Erreur lors de l\'import du registre historique');
+            } else {
+                console.log('Données importées avec succès', data);
+                toast.success('Registre historique importé avec succès');
+            }
         }
     }
 }
@@ -134,8 +448,8 @@ const ImportRegisterButton = () => {
     //const [selectedConfig, setSelectedConfig] = useState<{userId: string, tableType: string} | null>(null);
     
     useEffect(() => {
-        if(session && session?.user.id){
-            if (cofounders_user_id(session?.user.id)) {
+        if(session && session?.user_id){
+            if (cofounders_user_id(session?.user_id)) {
                 setDisplay(true);
             }
         }
@@ -179,7 +493,7 @@ const ImportRegisterButton = () => {
             // Récupérer la première feuille ⚠
             let firstSheetName;
             if(tableType == "table_parametrage"){
-                firstSheetName = 'template_code';
+                firstSheetName = 'Registre des déchets';//Maintenant on base la table de paramétrage sur le registre des déchets
             } else {
                 firstSheetName = workbook.SheetNames[0];    
             }
@@ -187,17 +501,19 @@ const ImportRegisterButton = () => {
             
             // Convertir en JSON
             const jsonData = XLSX.utils.sheet_to_json(worksheet) as Row[];
-            jsonData.forEach((row: Row) => {
+            jsonData.forEach((row: Row|BSDD_TrackDechets) => {
                 if(tableType == "table_parametrage"){
                     if(!userId){
-                        sendToSupabase(row, session.user.id, tableType);
+                        const ligne_BSD = mapToBsdFormat(row as Row);
+                        if(session?.user_id) sendToSupabase(ligne_BSD, session.user_id, tableType);
                     } else {
-                        sendToSupabase(row, userId, tableType);
+                        const ligne_BSD = mapToBsdFormat(row as Row);
+                        sendToSupabase(ligne_BSD, userId, tableType);
                     }
                 } else if (tableType == "registre_historique"){
-                    const ligne_BSD = mapToBsdFormat(row);
+                    const ligne_BSD = mapToBsdFormat(row as Row);
                     if(!userId){
-                        sendToSupabase(ligne_BSD, session.user.id, tableType);
+                        if(session.user_id)sendToSupabase(ligne_BSD, session.user_id, tableType);
                     } else {
                         sendToSupabase(ligne_BSD, userId, tableType);
                     }

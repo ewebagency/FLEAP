@@ -58,18 +58,61 @@ const EXPANDED_OPERATIONS = [
     'Non expliqués'
 ];
 
+const formatDate = (date: string) => {
+    if (!date) return '';
+    const [year, month, day] = date.split('-');
+    return `${day}/${month}/${year}`;
+};
+
+const parseDate = (date: string) => {
+    if (!date) return '';
+    const [day, month, year] = date.split('/');
+    return `${year}-${month}-${day}`;
+};
+
 export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireManoProps) {
     const [formData, setFormData] = useState<FactureLine>(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('formData');
-            return saved ? JSON.parse(saved) : jsonDefaultData.facture_form;
+            if (saved) return JSON.parse(saved);
+            
+            // Initialisation avec les dernières options (Inconnu)
+            const defaultLineBody = [...MAIN_OPERATIONS, ...EXPANDED_OPERATIONS].map(operation => ({
+                type_operation: operation,
+                montant_ht: 0,
+                is_expanded: EXPANDED_OPERATIONS.includes(operation)
+            }));
+
+            return {
+                header: {
+                    prestataire_nom: PRESTATAIRE[PRESTATAIRE.length - 1] || 'Inconnu',
+                },
+                departs: [{
+                    line_header: {
+                        type_dechet: NOM_DECHET[NOM_DECHET.length - 1] || 'Inconnu',
+                        code_dechet: CODE_CED[CODE_CED.length - 1] || 'Inconnu',
+                        date_collecte: '',
+                        lieu_collecte: LIEU_COLLECTE[LIEU_COLLECTE.length - 1] || 'Inconnu',
+                        periode_debut: '',
+                        periode_fin: ''
+                    },
+                    line_body: defaultLineBody,
+                    commentaire: '',
+                    linked_to_bsd: false
+                }],
+                footer: {
+                    total_ht: 0
+                }
+            };
         }
-        return jsonDefaultData.facture_form;
+        return {} as FactureLine;
     });
     const [loading, setLoading] = useState(false);
     const [typeForm, setTypeForm] = useState('facture_form');
     const [myOptions, setMyOptions] = useState<(string | number)[][]>([[], [], [], [], []]);
     const { selectedAccounts } = useAccessOtherAccount();
+    const [prestataireFinalInfo, setPrestataireFinalInfo] = useState<{ nom: string[], siret: string[] }>({ nom: [], siret: [] });
+    const [transporteurFinalInfo, setTransporteurFinalInfo] = useState<{ nom: string[], siret: string[] }>({ nom: [], siret: [] });
 
     useEffect(() => {
         if(selectedAccounts.length > 0){
@@ -78,10 +121,48 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
         }
     }, [selectedAccounts]);
 
-    // prestataire_final, transporteur_final, lieu_collecte, nom_dechet, code_dechet
-    const PRESTATAIRE_FINAL_NOM = myOptions[0].map(String);
-    const TRANSPORTEUR_FINAL_NOM = myOptions[1].map(String);
-    const PRESTATAIRE = Array.from(new Set([...PRESTATAIRE_FINAL_NOM, ...TRANSPORTEUR_FINAL_NOM]));
+    const getSiret = async (noms: string[]) => {
+        const {data, error} = await supabase
+            .from('bsd')
+            .select('infos_json')
+            .in('user_id', selectedAccounts.map(account => account.user_id));
+        if(error) throw error;
+        
+        const sirets = noms.map(nom => {
+            const matchingBsd = data.find(bsd => 
+                bsd.infos_json.formAPI.createFormInput.recipient.company.name === nom || 
+                bsd.infos_json.formAPI.createFormInput.transporter.company.name === nom
+            );
+            return matchingBsd?.infos_json.formAPI.createFormInput.recipient.company.siret || 
+                   matchingBsd?.infos_json.formAPI.createFormInput.transporter.company.siret || 
+                   'SIRET inconnu';
+        });
+        
+        return sirets;
+    };
+
+    // Récupérer les sirets des prestataires et transporteurs
+    useEffect(() => {
+        const fetchSirets = async () => {
+            const prestataireNom = myOptions[0].map(String);
+            const transporteurNom = myOptions[1].map(String);
+            
+            const prestaSiret = await getSiret(prestataireNom);
+            const transportSiret = await getSiret(transporteurNom);
+            
+            setPrestataireFinalInfo({ nom: prestataireNom, siret: prestaSiret });
+            setTransporteurFinalInfo({ nom: transporteurNom, siret: transportSiret });
+        };
+
+        if (myOptions[0].length > 0) {
+            fetchSirets();
+        }
+    }, [myOptions]);
+
+    const PRESTATAIRE = Array.from(new Set([
+        ...prestataireFinalInfo.nom.map((nom, i) => `${nom} - ${prestataireFinalInfo.siret[i] || 'SIRET inconnu'}`),
+        ...transporteurFinalInfo.nom.map((nom, i) => `${nom} - ${transporteurFinalInfo.siret[i] || 'SIRET inconnu'}`)
+    ]));
     const TYPE_OPERATIONS = ['Traitement', 'Transport', 'Rachat'];
     const LIEU_COLLECTE = myOptions[2].map(String);
     const NOM_DECHET = myOptions[3].map(String);
@@ -89,35 +170,32 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
     
 
     const handleHeaderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData(prev => ({
-            ...prev,
-            header: { ...prev.header, [e.target.name]: e.target.value }
-        }));
+        console.log('handleHeaderChange:', e.target.name, e.target.value);
+        setFormData(prev => {
+            const newFormData = {
+                ...prev,
+                header: { ...prev.header, [e.target.name]: e.target.value }
+            };
+            console.log('New formData header:', newFormData.header);
+            return newFormData;
+        });
     };
 
-    /*const handleDepartChange = (index: number, field: keyof DepartLine, value: string | number) => {
-        const newDeparts = [...formData.departs];
-        
-        // Si c'est le champ type_operation, vérifier que la valeur est valide
-        if (field === 'type_operation' && !TYPE_OPERATIONS.includes(value as string)) {
-            // Si la valeur n'est pas valide, utiliser 'Traitement' par défaut
-            value = 'Traitement';
-        }
-
-        newDeparts[index] = {
-            ...newDeparts[index],
-            [field]: field === 'montant_ht' ? Number(value) : value
-        };
-
-        // Calculer le nouveau total
-        const newTotal = newDeparts.reduce((sum, depart) => sum + depart.montant_ht, 0);
-
-        setFormData(prev => ({
-            ...prev,
-            departs: newDeparts,
-            footer: { ...prev.footer, total_ht: newTotal }
-        }));
-    };*/
+    const handleDepartHeaderChange = (departIndex: number, field: keyof DepartLineHeader, value: string) => {
+        console.log('handleDepartHeaderChange:', departIndex, field, value);
+        setFormData(prev => {
+            const newDeparts = [...prev.departs];
+            newDeparts[departIndex] = {
+                ...newDeparts[departIndex],
+                line_header: {
+                    ...newDeparts[departIndex].line_header,
+                    [field]: value
+                }
+            };
+            console.log('New depart header:', newDeparts[departIndex].line_header);
+            return { ...prev, departs: newDeparts };
+        });
+    };
 
     const addDepartLine = () => {
         setFormData(prev => {
@@ -135,7 +213,9 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                     type_dechet: lastDepart.line_header.type_dechet,
                     code_dechet: lastDepart.line_header.code_dechet,
                     date_collecte: lastDepart.line_header.date_collecte,
-                    lieu_collecte: lastDepart.line_header.lieu_collecte
+                    lieu_collecte: lastDepart.line_header.lieu_collecte,
+                    periode_debut: lastDepart.line_header.periode_debut,
+                    periode_fin: lastDepart.line_header.periode_fin
                 },
                 line_body: defaultLineBody
             };
@@ -160,20 +240,6 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                 footer: { ...prev.footer, total_ht: newTotal }
             }));
         }
-    };
-
-    const handleDepartHeaderChange = (departIndex: number, field: keyof DepartLineHeader, value: string) => {
-        setFormData(prev => {
-            const newDeparts = [...prev.departs];
-            newDeparts[departIndex] = {
-                ...newDeparts[departIndex],
-                line_header: {
-                    ...newDeparts[departIndex].line_header,
-                    [field]: value
-                }
-            };
-            return { ...prev, departs: newDeparts };
-        });
     };
 
     const handleDepartBodyChange = (departIndex: number, bodyIndex: number, field: keyof DepartLineBody, value: string | number) => {
@@ -201,6 +267,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                 footer: { ...prev.footer, total_ht: newTotal }
             };
         });
+        console.log('FormData après handleDepartBodyChange:', formData.departs);
     };
 
     const handleDepartCommentaireChange = (index: number, value: string) => {
@@ -220,6 +287,9 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         
+        // Log pour vérifier les données avant soumission
+        console.log('FormData avant soumission:', formData);
+
         const result = await Swal.fire({
             title: 'Valider le formulaire',
             html: 'Êtes-vous sûr de vouloir valider ce formulaire ?',
@@ -240,6 +310,16 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
 
         setLoading(true);
         try {
+            // Vérification des données obligatoires
+            for (const depart of formData.departs) {
+                if (!depart.line_header.type_dechet || !depart.line_header.code_dechet) {
+                    throw new Error("Le type de déchet et le code CED sont obligatoires");
+                }
+            }
+
+            // Clone formData pour éviter les mutations directes
+            const dataToSubmit = JSON.parse(JSON.stringify(formData));
+            
             // Récupérer le user_id du pdf
             const { data, error: pdfError } = await supabase
                 .from('pdf_infos')
@@ -247,31 +327,37 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                 .eq('id', currentPdfId)
                 .single();
 
-            if (pdfError) {
-                throw new Error("Erreur dans la récolte du user_id du pdf");
-            }
+            if (pdfError) throw new Error("Erreur dans la récolte du user_id du pdf");
 
             const user_id = data.user_id;
 
+            // Remplacer nom - siret par nom
+            dataToSubmit.header.prestataire_nom = dataToSubmit.header.prestataire_nom.split(' - ')[0];
+            
             // Pour chaque ligne de départ, créer et insérer une facture
-            for(let i = 0; i < formData.departs.length; i++) {
-                formData.departs[i].line_body.forEach(body => {
+            for(let i = 0; i < dataToSubmit.departs.length; i++) {
+                dataToSubmit.departs[i].line_body.forEach((body:Body) => {
                     if ('is_expanded' in body) {
                         delete body.is_expanded;
                     }
                 });
-                const dataToSend = {
-                    header: formData.header,
-                    depart: { ...formData.departs[i], linked_to_bsd: false },
-                    footer: formData.footer,
-                };
+
+                console.log('Données à envoyer pour la ligne', i, ':', {
+                    header: dataToSubmit.header,
+                    depart: { ...dataToSubmit.departs[i], linked_to_bsd: false },
+                    footer: dataToSubmit.footer
+                });
 
                 const { error } = await supabase
                     .from('facture')
                     .insert([{
                         user_id: user_id,
                         pdf_infos_id: currentPdfId,
-                        infos_json: dataToSend
+                        infos_json: {
+                            header: dataToSubmit.header,
+                            depart: { ...dataToSubmit.departs[i], linked_to_bsd: false },
+                            footer: dataToSubmit.footer
+                        }
                     }]);
 
                 if (error) throw error;
@@ -291,6 +377,11 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
             onNextPdf();
         } catch (error) {
             console.error("Erreur lors de la soumission:", error);
+            Swal.fire({
+                title: 'Erreur',
+                text: error.message || "Une erreur est survenue lors de la soumission",
+                icon: 'error'
+            });
         } finally {
             setLoading(false);
         }
@@ -418,7 +509,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                     {formData.departs.map((depart, index) => (
                         <div key={index} className="border p-2 rounded mb-2">
                             {/* Header */}
-                            <div className="grid grid-cols-2 gap-2 mb-3">
+                            <div className="grid grid-cols-2 gap-2 mb-3 bg-gray-100 p-2 rounded">
                                 <SelectInput
                                     label="Type de déchet"
                                     value={depart.line_header.type_dechet}
@@ -437,8 +528,8 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                                     </label>
                                     <input
                                         type="date"
-                                        value={depart.line_header.date_collecte}
-                                        onChange={(e) => handleDepartHeaderChange(index, 'date_collecte', e.target.value)}
+                                        value={parseDate(depart.line_header.date_collecte)}
+                                        onChange={(e) => handleDepartHeaderChange(index, 'date_collecte', formatDate(e.target.value))}
                                         className="w-full p-1 text-xs border rounded"
                                     />
                                 </div>
@@ -448,6 +539,28 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                                     onChange={(value) => handleDepartHeaderChange(index, 'lieu_collecte', value)}
                                     options={LIEU_COLLECTE}
                                 />
+                                <div className="bg-gray-200 p-2 rounded-l-md">
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                        Début période
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={parseDate(depart.line_header.periode_debut || '')}
+                                        onChange={(e) => handleDepartHeaderChange(index, 'periode_debut', formatDate(e.target.value))}
+                                        className="w-full p-1 text-xs border rounded"
+                                    />
+                                </div>
+                                <div className="bg-gray-200 p-2 rounded-r-md">
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                        Fin période
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={parseDate(depart.line_header.periode_fin || '')}
+                                        onChange={(e) => handleDepartHeaderChange(index, 'periode_fin', formatDate(e.target.value))}
+                                        className="w-full p-1 text-xs border rounded"
+                                    />
+                                </div>
                             </div>
 
                             {/* Body */}
@@ -564,6 +677,8 @@ const getAllBSDs = async (user_id:string) => {
     if (error) return null
     return data;
 };
+
+
 
 
 const getUniqueListeOptions = (BSDs: { infos_json: DataOnSupabase_infos_json }[] | null, champ_options: string[]) => {

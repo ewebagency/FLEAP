@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+/*import { useState, useEffect } from "react";
 import { DataTotalInterface } from "../../interface/BSD_Interface";
 
 interface ModifyCardInFormulaireProps {
@@ -63,14 +63,14 @@ const ModifyCardInFormulaire = ({ dataTotal, setDataTotal, onSubmit, onClose }: 
     const handleClose = () => {
         onClose();
     };
-
-    return (
+*/
+    /*return (
         <div className="space-y-4">
             <div className="my-6 border-b border-gray-300"></div>
             <div className="grid grid-cols-2 gap-4">
-                {/* Colonne gauche */}
+                {/* Colonne gauche
                 <div className="space-y-4">
-                    {/* Émetteur */}
+                    {/* Émetteur
                     <div className="bg-blue-50 p-3 rounded border border-blue-100">
                         <h3 className="font-semibold text-blue-800 mb-2">Émetteur</h3>
                         <div className="space-y-2 mr-4">
@@ -113,7 +113,7 @@ const ModifyCardInFormulaire = ({ dataTotal, setDataTotal, onSubmit, onClose }: 
                         </div>
                     </div>
 
-                    {/* Site d'enlèvement */}
+                    {/* Site d'enlèvement 
                     <div className="bg-green-50 p-3 rounded border border-green-100">
                         <h3 className="font-semibold text-green-800 mb-2">Site d&apos;enlèvement</h3>
                         <div className="space-y-2 mr-4">
@@ -138,7 +138,7 @@ const ModifyCardInFormulaire = ({ dataTotal, setDataTotal, onSubmit, onClose }: 
                         </div>
                     </div>
 
-                    {/* Transporteur */}
+                    {/* Transporteur
                     <div className="bg-yellow-50 p-3 rounded border border-yellow-100">
                         <h3 className="font-semibold text-yellow-800 mb-2">Transporteur</h3>
                         <div className="space-y-2 mr-4">
@@ -182,9 +182,9 @@ const ModifyCardInFormulaire = ({ dataTotal, setDataTotal, onSubmit, onClose }: 
                     </div>
                 </div>
 
-                {/* Colonne droite */}
+                {/* Colonne droite
                 <div className="space-y-4">
-                    {/* Destinataire */}
+                    {/* Destinataire
                     <div className="bg-purple-50 p-3 rounded border border-purple-100">
                         <h3 className="font-semibold text-purple-800 mb-2">Destinataire</h3>
                         <div className="space-y-2 mr-4">
@@ -239,7 +239,7 @@ const ModifyCardInFormulaire = ({ dataTotal, setDataTotal, onSubmit, onClose }: 
                         </div>
                     </div>
 
-                    {/* Détails du déchet */}
+                    {/* Détails du déchet 
                     <div className="bg-red-50 p-3 rounded border border-red-100">
                         <h3 className="font-semibold text-red-800 mb-2">Détails du déchet</h3>
                         <div className="space-y-2 mr-4">
@@ -299,4 +299,4 @@ const ModifyCardInFormulaire = ({ dataTotal, setDataTotal, onSubmit, onClose }: 
     );
 };
 
-export default ModifyCardInFormulaire; 
+export default ModifyCardInFormulaire; */

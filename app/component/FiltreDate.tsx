@@ -55,11 +55,11 @@ const FiltreDate = () => {
     };
 
     const getDatesFromUser = async () => {
-        if (session?.user.id) {
+        if (session?.user_id) {
             const { data, error } = await supabase
             .from('bsd')
             .select('created_at')
-            .eq('user_id', session.user.id)
+            .eq('user_id', session.user_id)
             .order('created_at');
             
             if (error) {

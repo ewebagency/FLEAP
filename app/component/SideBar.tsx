@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
-import { useSession } from './SessionProvider';
+import { SessionMore, useSession } from './SessionProvider';
 import { supabase } from '../database/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { Session } from '@supabase/supabase-js';
@@ -15,7 +15,7 @@ interface SideBarProps {
 
 const cofounders_user_id = (user_id:string|null) => {
     if (user_id){
-        if (user_id == "a0542794-bbae-4132-9dde-485595bfa2aa" || user_id == "8f05a291-f8b3-429d-839e-6f0b12f1bede" || user_id == "dd9acb15-4678-442f-af72-79331bc43d91" || user_id == "9937afca-1d76-45f5-b820-cb6bf143de6b"){ //Attention le dernier c'est august70 == CHU grenible
+        if (user_id == "a0542794-bbae-4132-9dde-485595bfa2aa" || user_id == "8f05a291-f8b3-429d-839e-6f0b12f1bede" || user_id == "dd9acb15-4678-442f-af72-79331bc43d91"){
             return true;
         }
     }
@@ -23,28 +23,40 @@ const cofounders_user_id = (user_id:string|null) => {
 }
 
 const SideBar = (props:SideBarProps) => {
-    const session = useSession() as Session | null;
+    const session = useSession() as SessionMore;
     const router = useRouter();
     const [userNames, setUserNames] = useState({first_name:'', last_name:''});
     const [cofounderPermission, setCofounderPermission] = useState(false);
+    const [entreprise_name, setEntrepriseName] = useState('Chargement...');
 
     useEffect(()=>{
-        if (session && cofounders_user_id(session?.user?.id)){
+        if (session?.user_id && cofounders_user_id(session.user_id)){
             setCofounderPermission(true);
         }
     }, [session]);
+
 
     useEffect(()=>{
         async function fetchUserNames(){
             if (session?.user?.id){
                 const {data, error} = await supabase
                 .from('profiles')
-                .select('first_name, last_name')
+                .select('first_name, last_name, entreprise_id')
                 .eq('user_id', session.user.id)
                 .single();
 
                 if(data){
                     setUserNames({first_name:data.first_name, last_name:data.last_name});
+                    if (data.entreprise_id){
+                        const {data:entreprise, error:error_entreprise} = await supabase
+                        .from('entreprise')
+                        .select('name')
+                        .eq('id', data.entreprise_id)
+                        .single();
+                        if (entreprise){
+                            setEntrepriseName(entreprise.name);
+                        }
+                    }
                 } else if (error) {
                     console.error('Error fetching user profile:', error);
                 }
@@ -76,11 +88,11 @@ const SideBar = (props:SideBarProps) => {
     return (
         <div className={`menu h-screen bg-base-200 w-60 p-4 flex flex-col ${props.className_props}`}>
             <div className="flex-grow">
-                <h1 className="font-bold text-xl mb-4">Menu</h1>
+                <h1 className="font-bold text-xl mb-4 ml-4">{entreprise_name}</h1>
                 <FiltreSite/>
-                <FiltreDate/>
+                {/*<FiltreDate/>*/}
                 <ul className="space-y-2">
-                    <li><a href="/analysis" className="menu-item">Analyses</a></li>
+                    {cofounderPermission && <li><a href="/analysis" className="menu-item">Analyses</a></li>}
                     <li><a href="/register" className="menu-item">Registre</a></li>
                     <li><a href="/import_page" className="menu-item">Importer</a></li>
                     {cofounderPermission && <li><a href="/interface_admin_2" className="menu-item">Vérification de factures</a></li>}

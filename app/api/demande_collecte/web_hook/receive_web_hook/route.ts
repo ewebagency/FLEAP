@@ -109,7 +109,7 @@ const HandleBSD_Supabase = async (action: string, id: string) => {
     }
 
 
-    const query = `
+    const past_query = `
     query Form($readableId:String!){
         form(readableId:$readableId ){
         id
@@ -168,6 +168,259 @@ const HandleBSD_Supabase = async (action: string, id: string) => {
         }
         }`;
 
+    const query = `
+    query Form($readableId: String!) {
+        form(readableId: $readableId) {
+            id
+            readableId
+            customId
+            status
+            isImportedFromPaper
+            createdAt
+            updatedAt
+            emittedAt
+            emittedBy
+            emittedByEcoOrganisme
+            takenOverAt
+            takenOverBy
+            signedAt
+            wasteAcceptationStatus
+            wasteRefusalReason
+            hasCiterneBeenWashedOut
+            citerneNotWashedOutReason
+            receivedBy
+            receivedAt
+            quantityReceived
+            quantityReceivedType
+            quantityAccepted
+            quantityRefused
+            processingOperationDone
+            processingOperationDescription
+            processedBy
+            processedAt
+            noTraceability
+            
+            emitter {
+                type
+                workSite {
+                    name
+                    address
+                    city
+                    postalCode
+                    infos
+                }
+                company {
+                    name
+                    orgId
+                    siret
+                    address
+                    country
+                    contact
+                    phone
+                    mail
+                    vatNumber
+                    omiNumber
+                    extraEuropeanId
+                }
+                isPrivateIndividual
+                isForeignShip
+            }
+    
+            recipient {
+                company {
+                    name
+                    orgId
+                    siret
+                    address
+                    country
+                    contact
+                    phone
+                    mail
+                }
+                cap
+                processingOperation
+                isTempStorage
+            }
+    
+            transporter {
+                id
+                company {
+                    name
+                    orgId
+                    siret
+                    address
+                    country
+                    contact
+                    phone
+                    mail
+                }
+                isExemptedOfReceipt
+                receipt
+                department
+                validityLimit
+                numberPlate
+                customInfo
+                mode
+                takenOverAt
+                takenOverBy
+            }
+            
+            wasteDetails {
+                code
+                name
+                isSubjectToADR
+                onuCode
+                nonRoadRegulationMention
+                quantity
+                quantityType
+                consistence
+                pop
+                isDangerous
+                parcelNumbers {
+                    city
+                    postalCode
+                    prefix
+                    section
+                    number
+                    x
+                    y
+                }
+                analysisReferences
+                landIdentifiers
+                sampleNumber
+                packagingInfos {
+                    type
+                    other
+                    quantity
+                }
+            }
+            
+            ecoOrganisme {
+                name
+                siret
+            }
+            
+            trader {
+            company {
+                name
+                orgId
+                siret
+                address
+                country
+                contact
+                phone
+                mail
+            }
+            receipt
+            department
+            validityLimit
+            }
+            
+            broker {
+            company {
+                name
+                orgId
+                siret
+                address
+                country
+                contact
+                phone
+                mail
+            }
+            receipt
+            department
+            validityLimit
+            }
+            
+            nextDestination {
+            processingOperation
+            notificationNumber
+            company {
+                name
+                orgId
+                siret
+                address
+                country
+                contact
+                phone
+                mail
+            }
+            }
+            
+            temporaryStorageDetail {
+            temporaryStorer {
+                quantityType
+                quantityReceived
+                quantityRefused
+                quantityAccepted
+                wasteAcceptationStatus
+                wasteRefusalReason
+                receivedAt
+                receivedBy
+            }
+            destination {
+                cap
+                processingOperation
+                company {
+                name
+                orgId
+                siret
+                address
+                country
+                contact
+                phone
+                mail
+                }
+            }
+            wasteDetails {
+                code
+                name
+                quantity
+                consistence
+                quantityType
+                packagingInfos {
+                type
+                quantity
+                }
+            }
+            transporter {
+                id
+                company {
+                name
+                orgId
+                siret
+                address
+                country
+                contact
+                phone
+                mail
+                }
+                isExemptedOfReceipt
+                receipt
+                department
+                validityLimit
+                numberPlate
+                customInfo
+                mode
+                takenOverAt
+                takenOverBy
+            }
+            emittedAt
+            emittedBy
+            takenOverAt
+            takenOverBy
+            }
+            
+            grouping {
+            form {
+                id
+            }
+            quantity
+            }
+        }
+        }
+    `;
+
     const variables = {
         readableId: id
     };
@@ -175,6 +428,7 @@ const HandleBSD_Supabase = async (action: string, id: string) => {
     if (!url_sandbox) {
         throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
     }
+    try{
     const response = await axios.post(
         url_sandbox, 
         {
@@ -187,7 +441,7 @@ const HandleBSD_Supabase = async (action: string, id: string) => {
                 'Content-Type': 'application/json'
             }
         }
-    );
+        );
 
     if(response){
         //console.log("Corps du BSD lié à la notification : ", response.data);
@@ -197,11 +451,13 @@ const HandleBSD_Supabase = async (action: string, id: string) => {
         } else if (action === "CREATED"){
             return handleBSD_Created_on_Track(id, response.data as {data: {form: formAPI_Track}});
         }
-        
 
     } else {
         console.log('Erreur de lecture de l\'id : ', id);
         return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
+    }
+} catch (error) {
+        console.error('Erreur lors de la requête à TrackDéchet:');//, error.response.data.errors[0]);
     }
     
     return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
@@ -247,7 +503,11 @@ const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAP
     .single();
 
     //const new_formAPI = data.data.form;
-    const {status, ...new_formAPI} = data.data.form;
+    
+    //const {status, ...new_formAPI} = data.data.form; --> ancien
+    const status = data.data.form.status;
+    const new_formAPI = data.data.form; // NOUVEAU
+    
     const past_infos_json = json_past.data?.infos_json;
     //console.log("Nouvelles Infos JSON reçus par WebHook : ", new_formAPI);
     //console.log("Infos JSON précédentes : ", past_infos_json?.formAPI.createFormInput);
@@ -257,6 +517,8 @@ const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAP
     past_infos_json.formAPI.createFormInput.recipient = new_formAPI.recipient;
     past_infos_json.formAPI.createFormInput.transporter = new_formAPI.transporter;
     past_infos_json.formAPI.createFormInput.wasteDetails = new_formAPI.wasteDetails;
+    past_infos_json.formAPI.createFormInput = new_formAPI // NOUVEAU
+
 
     //console.log("Infos JSON qu'on va mettre à jour : ", past_infos_json);
 

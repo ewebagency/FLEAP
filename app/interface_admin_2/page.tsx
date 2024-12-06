@@ -116,7 +116,7 @@ const InterfaceAdmin2 = () => {
     };
 
     const handleResetSkipped = async () => {
-        if(session && session.user?.id){
+        if(session && session.user_id){
             try {
                 setLoading(true);
                 const response = await fetch('/api/interface_admin_2/reset_skipped_pdf', {
@@ -124,7 +124,7 @@ const InterfaceAdmin2 = () => {
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ user_id: session.user.id }),
+                    body: JSON.stringify({ user_id: session.user_id }),
                 });
                 
                 if (!response.ok) throw new Error('Erreur lors de la réinitialisation');

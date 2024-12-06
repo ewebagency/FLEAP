@@ -129,6 +129,17 @@ const ColonneFactures = ({
                                 {factureLine.infos_json.footer.total_ht}€
                             </span>
                         </div>
+
+                        <div className="mt-4 p-3 bg-gray-50 rounded-lg mb-4">
+                            <div className="flex justify-between items-center">
+                                <div className="text-sm text-gray-600">
+                                    Période : {new Date(factureLine.infos_json.depart.line_header.periode_debut).toLocaleDateString('fr-FR')}
+                                </div>
+                                <div className="text-sm font-medium text-gray-700">
+                                    → {new Date(factureLine.infos_json.depart.line_header.periode_fin).toLocaleDateString('fr-FR')}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Bouton de suppression */}

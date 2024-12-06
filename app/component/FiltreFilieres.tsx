@@ -10,11 +10,11 @@ const FiltreFilieres = () => {
     const session = useSession();
 
     const getFilieresFromUser = async () => {
-        if (session?.user.id) {            
+        if (session && session.user_id) {            
             const { data, error } = await supabase
             .from('bsd')
             .select('infos_json')
-            .eq('user_id', session.user.id);
+            .eq('user_id', session.user_id);
             
             if (error) {
                 console.error('Error fetching filieres:', error);
@@ -23,27 +23,43 @@ const FiltreFilieres = () => {
 
             //console.log("Raw data:", data);
 
-            if(data && data.length > 0){
-                const filieres = data
-                    .filter(bsd => bsd.infos_json && bsd.infos_json.dataSupplementaire)
-                    .map(bsd => bsd.infos_json.dataSupplementaire.filiere)
-                    .filter(Boolean); // Filtrer les undefined/null
+            if(data && data.length > 0 && session.entreprise_id){
+                const codes = data
+                    .map(bsd => bsd?.infos_json?.formAPI?.createFormInput?.wasteDetails?.code)
+                    .filter(code => code != null);
+                
+                const codes_uniques = Array.from(new Set(codes)).map(code => code.replaceAll(' ', '').replace('*', ''));
+                
+                const mapping = await supabase
+                    .from('entreprise')
+                    .select('mapping_ced_filiere')
+                    .eq('id', session.entreprise_id)
+                    .single();
 
-                //console.log("Extracted filieres:", filieres);
+                if (mapping?.data?.mapping_ced_filiere) {
+                    const mappingArray = mapping.data.mapping_ced_filiere;
 
-                const filieres_uniques = Array.from(new Set(filieres));
-                //filieres_uniques.push('Autre');
-                const filieres_colors = getColors(filieres_uniques.length);
-                const filieres_checked = getChecked(filieres_uniques.length);
+                    //console.log('mappingArray', mappingArray, 'codes_uniques', codes_uniques);
+                    const filieres_uniques:string[] = [];
+                    let others = false;
+                    for(const code of codes_uniques){
+                        const match = mappingArray.find((item:{ced:string, filiere:string}) => item.ced === code);
+                        if(match) filieres_uniques.push(match.filiere);
+                        else others = true;
+                    }
+                    if(others) filieres_uniques.push('Autres');
 
-                const formattedFilieres = filieres_uniques.map((filiere, index) => ({
-                    name: filiere, 
-                    color: filieres_colors[index], 
-                    checked: filieres_checked[index]
-                }));
+                    // Utiliser filieres_uniques pour le reste du code
+                    const filieres_colors = getColors(filieres_uniques.length);
+                    const filieres_checked = getChecked(filieres_uniques.length);
+                    const formattedFilieres = filieres_uniques.map((filiere, index) => ({
+                        name: filiere, 
+                        color: filieres_colors[index], 
+                        checked: filieres_checked[index]
+                    }));
 
-                //console.log("Formatted filieres:", formattedFilieres);
-                setFilieres(formattedFilieres);
+                    setFilieres(formattedFilieres);
+                }
             }
         }
     }
