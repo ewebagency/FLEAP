@@ -80,7 +80,7 @@ const AnalysisPage = () => {
       }
 
       useEffect(() => {
-        if(session?.user?.id) getFilieres(session?.user?.id).then((filieres) => setSelectedMaterials(filieres));
+        if(session?.user_id) getFilieres(session?.user_id).then((filieres) => setSelectedMaterials(filieres));
       }, [session]);
     
       // Fonction pour gérer les changements de checkbox

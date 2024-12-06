@@ -10,6 +10,7 @@ type SessionContextType = {
     user_id: string | null;
     entreprise_id: string | null;
     entreprise_name: string | null;
+    user_email: string | null;
 };
 
 export interface SessionMore extends Session {
@@ -17,13 +18,15 @@ export interface SessionMore extends Session {
     user_id: string | null;
     entreprise_id: string | null;
     entreprise_name: string | null;
+    user_email: string | null;
 }
 
 const SessionContext = createContext<SessionContextType>({
     session: null,
     user_id: null,
     entreprise_id: null,
-    entreprise_name: null
+    entreprise_name: null,
+    user_email: null
 });
 
 export const useSession = () => useContext(SessionContext);
@@ -33,6 +36,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const [user_id, setUserId] = useState<string | null>(null);
     const [entreprise_id, setEntrepriseId] = useState<string | null>(null);
     const [entreprise_name, setEntrepriseName] = useState<string | null>(null);
+    const [user_email, setUserEmail] = useState<string | null>(null);
+
+    useEffect(() => {
+        setUserEmail(session?.user.email ?? null);
+    }, [session]);
 
     useEffect(() => {
         // Fonction pour récupérer les informations de l'entreprise
@@ -104,6 +112,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         sessionValue.user_id = user_id;
         sessionValue.entreprise_id = entreprise_id;
         sessionValue.entreprise_name = entreprise_name;
+        sessionValue.user_email = user_email;
     }
 
     return (

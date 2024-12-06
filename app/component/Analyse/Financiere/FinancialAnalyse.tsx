@@ -56,8 +56,8 @@ const FinancialAnalyse = ({active}: Props) => {
 
 
     useEffect(() => {
-        if(session && session.user && session.user.id){
-            getFinancialData(session.user.id).then((data) => {
+        if(session && session.user_id){
+            getFinancialData(session.user_id).then((data) => {
                 setFinancialData(data || []);
             });
         }

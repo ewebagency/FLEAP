@@ -8,10 +8,10 @@ const ExportRegisterButton = () => {
     const [messageType, setMessageType] = useState<'success' | 'error' | null>(null);
 
     const handleExport = async () => {
-        if(session && session.user && session.user.id) {
+        if(session && session.user_id) {
             setIsLoading(true);
             try {
-                const response = await fetch(`/api/demande_collecte/export_register?user_id=${session.user.id}`);
+                const response = await fetch(`/api/demande_collecte/export_register?user_id=${session.user_id}`);
                 if(response.ok) {
                     const filename = response.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'export_register.xlsx';
                     const blob = await response.blob();

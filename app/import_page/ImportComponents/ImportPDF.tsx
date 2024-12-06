@@ -1,15 +1,15 @@
 'use client'
 import React, { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
-import { useSession } from '../../component/SessionProvider';
+import { SessionMore, useSession } from '../../component/SessionProvider';
 import { Session } from '@supabase/supabase-js';
 import { useImport } from './ImportContext';
 
 const ImportPDF = () => {
     const [loading, setLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
-    const session = useSession() as Session | null;
-    const user_id = session?.user.id;
+    const session = useSession() as SessionMore;
+    const user_id = session?.user_id;
     const { triggerReload } = useImport();
     const fileInputRef = useRef<HTMLInputElement>(null);
 

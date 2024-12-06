@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/app/database/supabaseClient'; // Import Supabase client
 import { useSession } from '../../component/SessionProvider';
 import TableImportedFiles from './TableImportedFiles';
-import { Session } from '@supabase/supabase-js';
+import { SessionMore } from '../../component/SessionProvider';
 import { useImport } from './ImportContext';
 
 interface PdfInfoInterface {
@@ -18,8 +18,8 @@ interface PdfInfoInterface {
 const TableImportedFilesFunctional: React.FC = () => {
     const [pdfInfos, setPdfInfos] = useState<PdfInfoInterface[]>([]); // État pour stocker les informations des PDF
     const [loading, setLoading] = useState(true); // État pour gérer le chargement
-    const session = useSession() as Session | null; // Récupérer la session utilisateur
-    const user_id = session?.user.id; // Récupérer l'ID de l'utilisateur
+    const session = useSession() as SessionMore; // Récupérer la session utilisateur
+    const user_id = session?.user_id; // Récupérer l'ID de l'utilisateur
     const { importReload } = useImport(); // Utiliser le contexte
 
     const fetchPdfInfos = useCallback(async () => { // Wrap in useCallback

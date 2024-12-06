@@ -68,8 +68,8 @@ const JsonForm: React.FC<JsonFormProps> = ({ data, currentPdfId, onNextPdf }) =>
     const session = useSession();
 
     useEffect(() => {
-        if (session && session.user) {
-            setUserId(session.user.id);
+        if (session && session.user_id) {
+            setUserId(session.user_id);
         }
     }, [session]);
 

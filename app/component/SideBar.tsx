@@ -38,11 +38,11 @@ const SideBar = (props:SideBarProps) => {
 
     useEffect(()=>{
         async function fetchUserNames(){
-            if (session?.user?.id){
+            if (session?.user_id){
                 const {data, error} = await supabase
                 .from('profiles')
                 .select('first_name, last_name, entreprise_id')
-                .eq('user_id', session.user.id)
+                .eq('user_id', session.user_id)
                 .single();
 
                 if(data){

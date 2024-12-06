@@ -46,9 +46,9 @@ const InterfaceAdminPage = () => {
 
     useEffect(() => {
         const fetchPdfFiles = async () => {
-            if (session && session.user?.id) {
+            if (session && session.user_id) {
                 setLoading(true); // Démarrer le chargement
-                const files = await getPdfFromDB(session.user.id);
+                const files = await getPdfFromDB(session.user_id);
                 setPdfFiles(files.pdfUrls);
                 setPdfIds(files.pdfIds); // Mettre à jour les IDs des PDF
                 setLoading(false); // Fin du chargement

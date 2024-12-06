@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useSession } from '../component/SessionProvider'; // Assurez-vous d'importer le hook de session
+import { SessionMore, useSession } from '../component/SessionProvider'; // Assurez-vous d'importer le hook de session
 
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 interface InfosJson {
@@ -25,8 +25,8 @@ const TableRegistre = () => {
     const [factures, setFactures] = useState<FactureInterface[]>([]); // État pour stocker les factures
     const [loading, setLoading] = useState(true); // État pour gérer le chargement
     const [error, setError] = useState<string | null>(null); // État pour gérer les erreurs
-    const session = useSession(); // Récupérer la session utilisateur
-    const userId = session?.user.id; // Récupérer l'ID de l'utilisateur
+    const session = useSession() as SessionMore; // Récupérer la session utilisateur
+    const userId = session?.user_id; // Récupérer l'ID de l'utilisateur
 
     useEffect(() => {
         const fetchFactures = async () => {

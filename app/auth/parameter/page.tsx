@@ -1,14 +1,14 @@
 "use client";
 import { supabase } from '@/app/database/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { useSession } from '@/app/component/SessionProvider';
+import { SessionMore, useSession } from '@/app/component/SessionProvider';
 import { Session } from '@supabase/supabase-js';
 import { useState } from 'react';
 
 export default function UserSettings() {
     const router = useRouter();
-    const session = useSession() as Session | null;
-    const email = session?.user.email;
+    const session = useSession() as SessionMore;
+    const email = session?.user_email;
 
     const [pastPassword, setPastPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
@@ -51,7 +51,7 @@ export default function UserSettings() {
         const { data: existingProfile, error: fetchError } = await supabase
             .from('profiles')
             .select('*')
-            .eq('user_id', session.user.id)
+            .eq('user_id', session.user_id)
             .maybeSingle();
 
         if (fetchError && fetchError.code !== 'PGRST100') {
@@ -66,7 +66,7 @@ export default function UserSettings() {
                     first_name: firstName,
                     last_name: lastName,
                 })
-                .eq('user_id', session.user.id);
+                .eq('user_id', session.user_id);
 
             if (updateProfileError) {
                 setError('Erreur lors de la mise à jour du profil.');
@@ -77,7 +77,7 @@ export default function UserSettings() {
             const { error: insertProfileError } = await supabase
                 .from('profiles')
                 .insert({
-                    user_id: session.user.id,
+                    user_id: session.user_id,
                     first_name: firstName,
                     last_name: lastName,
                 });
