@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import toast from "react-hot-toast";
 import { supabase } from "../database/supabaseClient";
 import { BSDD_TrackDechets, FormInput } from "./interface/BSD_Interface";
-import { pushOnTableParametrage } from "../api/demande_collecte/creation_bsdd/route";
+import { pushOnTableParametrage } from "./RegisterComponents/Modal/utils_new";
 
 interface Row {
     [key: string]: string | number | boolean;

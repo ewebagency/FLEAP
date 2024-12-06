@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { supabase } from '@/app/database/supabaseClient';
 import { FormInput } from '@/app/register/interface/BSD_Interface';
+import { pushOnTableParametrage } from '@/app/register/RegisterComponents/Modal/utils_new';
 
 const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
 const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
@@ -496,97 +497,4 @@ async function who_am_i() {
     }
 }*/
 
-export const pushOnTableParametrage = async (user_id: string, entreprise_id: string, data: {formAPI: {createFormInput: FormInput}}) => {
-
-    const formData = data.formAPI.createFormInput;
-
-    // Conditions pour vérifier les entrées de l'utilisateur
-    const data_condition_1 = formData.emitter.company.siret.length >= 7;
-    const data_condition_2 = formData.recipient.company.siret.length >= 7;
-    const data_condition_3 = formData.transporter.company.siret.length >= 7;
-    const data_condition_4 = formData.wasteDetails.code.length >= 6;
-    const data_condition_5 = formData.emitter.workSite.name.length >= 2;
-    const data_condition_6 = formData.recipient.company.name.length >= 2;
-    const data_condition_7 = formData.transporter.company.name.length >= 2;
-    const data_condition_8 = formData.wasteDetails.name.length >= 2;
-    const data_condition_9 = formData.recipient.processingOperation?true:false; // Vérification du CAP
-    const data_condition_10 = formData.recipient.company.mail.length > 0; // Vérification de l'email du destinataire
-    const data_condition_11 = formData.transporter.company.mail.length > 0; // Vérification de l'email du transporteur
-    const data_condition_12 = formData.emitter.company.mail.length > 0; // Vérification de l'email de l'émetteur
-    const data_condition_13 = formData.wasteDetails.onuCode.length > 0; // Vérification du code ONU
-
-    // Vérification que toutes les conditions sont remplies
-    const condition_completude = (
-        data_condition_1 && data_condition_2 && data_condition_3 &&
-        data_condition_4 && data_condition_5 && data_condition_6 &&
-        data_condition_7 && data_condition_8 && data_condition_9 &&
-        data_condition_10 && data_condition_11 && data_condition_12 &&
-        data_condition_13);
-
-    try {
-      const formData = data.formAPI.createFormInput;
-      
-      
-      // Création des critères de filtrage basés sur les champs importants
-      const filterCriteria = {
-        'formAPI.createFormInput.emitter.workSite.name': formData.emitter.workSite.name,
-        'formAPI.createFormInput.emitter.company.siret': formData.emitter.company.siret,
-        'formAPI.createFormInput.recipient.company.siret': formData.recipient.company.siret,
-        'formAPI.createFormInput.transporter.company.siret': formData.transporter.company.siret,
-        'formAPI.createFormInput.wasteDetails.code': formData.wasteDetails.code,
-      };
-
-      /*
-      const test = await supabase
-      .from('table_parametrage')
-      .select('json_row->emitter->company->>siret, json_row->recipient->company->>siret, json_row->wasteDetails->>code')
-      .eq('entreprise_id', entreprise_id);
-
-      console.log('test', test);
-      console.log('filterCriteria', filterCriteria);*/
-
-      const { data: existingForm, error: searchError } = await supabase
-        .from('table_parametrage')
-        .select('json_row')
-        .eq('entreprise_id', entreprise_id)
-        .eq('json_row->emitter->workSite->>name', filterCriteria['formAPI.createFormInput.emitter.workSite.name'])
-        .eq('json_row->emitter->company->>siret', filterCriteria['formAPI.createFormInput.emitter.company.siret'])
-        .eq('json_row->recipient->company->>siret', filterCriteria['formAPI.createFormInput.recipient.company.siret'])
-        .eq('json_row->transporter->company->>siret', filterCriteria['formAPI.createFormInput.transporter.company.siret'])
-        .eq('json_row->wasteDetails->>code', filterCriteria['formAPI.createFormInput.wasteDetails.code'])
-        .single();
-
-      if (searchError && searchError.code !== 'PGRST116') {
-        console.error('Erreur lors de la recherche:', searchError);
-        return {success: false, message: 'Erreur lors de la recherche dans la table de paramétrage'};
-      }
-      
-      // Si le formulaire n'existe pas, on l'ajoute
-      if (!existingForm && condition_completude) {
-        const { error: insertError } = await supabase
-          .from('table_parametrage')
-          .insert({user_id: user_id, entreprise_id: entreprise_id, json_row: formData});
-  
-        if (insertError) {
-          console.error('Erreur lors de l\'insertion:', insertError);
-          return {success: false, message: 'Erreur lors de l\'insertion dans la table de paramétrage'};
-        } else {
-            console.log('Nouveau formulaire détecté, table de paramétrage mise à jour');
-          return {success: true, message: 'Nouveau formulaire détecté, table de paramétrage mise à jour'};
-        }
-      }
-  
-      if(existingForm){
-        console.log('Formulaire déjà existant dans la table de paramétrage');
-        return {success: true, message: 'Formulaire déjà existant dans la table de paramétrage'};
-      }
-      if(!condition_completude){
-        return {success: true, message: 'Les données du formulaire ne sont pas complètes'};
-      }
-  
-    } catch (error) {
-      console.error('Erreur générale:', error);
-      return {success: false, message: 'Erreur inconnue'};
-    }
-  }
   
