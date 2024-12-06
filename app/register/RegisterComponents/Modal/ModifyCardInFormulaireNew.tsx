@@ -193,14 +193,15 @@ const ModifyCardInFormulaireNew = ({ onClose, dataText, setDataText }: { onClose
             const raisonSocial = await getRaisonSocial(siret);
             if (raisonSocial) {
                 //company.name = raisonSocial.name;
-                let { street, postalCode, city } = parseAddress(raisonSocial.adresse.first);
+                const { street, postalCode, city } = parseAddress(raisonSocial.adresse.first);
+                let my_city = city;
                 let pays = 'FRANCE';
                 if(city.includes('FRANCE')){
-                city = city.split(' FRANCE')[0];
+                  my_city = my_city.split(' FRANCE')[0];
                 }else{
                 pays = raisonSocial.pays.first;
                 }
-                company.address = street + ' ' + postalCode + ' ' + city;
+                company.address = street + ' ' + postalCode + ' ' + my_city;
                 company.country = pays;
                 company.siret = siret ?? '';
                 }

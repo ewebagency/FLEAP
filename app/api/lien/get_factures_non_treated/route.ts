@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
         const userIdsParam = request.nextUrl.searchParams.get('user_ids');
         
         // Si c'est une chaîne simple, la diviser par des virgules
-        let user_ids = userIdsParam?.includes('[') 
+        const user_ids = userIdsParam?.includes('[') 
             ? JSON.parse(userIdsParam) 
             : userIdsParam?.split(',') || [];
 

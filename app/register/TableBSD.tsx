@@ -55,7 +55,7 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
             .single();
             if(data){
                 const mapping_table = data.mapping_ced_filiere;
-                let ced_uniques:string[] = [];
+                const ced_uniques:string[] = [];
                 let other_ceds:string[] = mapping_table.map((mapping: {ced: string}) => mapping.ced);
                 for(const mapping of mapping_table){
                     for(const filiere of checkedFilieres){

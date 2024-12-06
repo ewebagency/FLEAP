@@ -99,7 +99,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
-    let sessionValue = session as SessionMore;
+    const sessionValue = session as SessionMore;
     if (sessionValue) {
         sessionValue.user_id = user_id;
         sessionValue.entreprise_id = entreprise_id;

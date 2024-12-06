@@ -1,4 +1,4 @@
-import { supabase } from "@/app/database/supabaseClient";
+/*import { supabase } from "@/app/database/supabaseClient";
 import { ApolloClient, InMemoryCache, gql, HttpLink } from "@apollo/client/core";
 import fetch from "cross-fetch";
 
@@ -145,7 +145,7 @@ function transformJSON(json, fieldName) {
     function traverse(obj) {
       if (typeof obj !== 'object' || obj === null) return obj; // Retourner l'objet tel quel s'il n'est pas un objet ou est nul
   
-      let result = {};
+      const result = {};
   
       // Parcours des clés de l'objet
       for (const key in obj) {
@@ -187,3 +187,4 @@ async function getCEDs() {
   }
   return [];
 }
+*/
