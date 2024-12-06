@@ -1,4 +1,4 @@
-import { supabase } from "@/app/database/supabaseClient";
+/*import { supabase } from "@/app/database/supabaseClient";
 import { ApolloClient, InMemoryCache, gql, HttpLink } from "@apollo/client/core";
 import fetch from "cross-fetch";
 
@@ -159,4 +159,9 @@ function transformInputJSON(json, fieldName) {
   }
 
   return traverse(json[fieldName]);
+}
+*/
+
+export async function GET(req: Request) {
+  return new Response(JSON.stringify({ message: 'Hello, world!' }), { status: 200 });
 }
