@@ -3,7 +3,7 @@ import { useModalContextNew } from "./ContextModal";
 import { toast } from "react-hot-toast";
 import { useSession } from "@/app/component/SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
-import { BSDD_TrackDechets, DataOnSupabase_infos_json, DataSupplementaireInterface, DataTotalInterface, Form_API_Interface_Short } from "../../interface/BSD_Interface";
+import { BSDD_TrackDechets, DataOnSupabase_infos_json, DataSupplementaireInterface, DataTotalInterface, Form_API_Interface_Short, FormInput } from "../../interface/BSD_Interface";
 import Swal from 'sweetalert2';
 
 const LabelInput = ({ label, value, onChange, path }: { 
@@ -24,9 +24,9 @@ const LabelInput = ({ label, value, onChange, path }: {
 );
 
 const ModifyCard = () => {
-    const { modalId, modalType, setModalType, dataTotal, setDataTotal, modalReload, setModalReload } = useModalContextNew();
+    const { modalId, modalType, setModalType, dataToogle, setDataToogle, modalReload, setModalReload } = useModalContextNew();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [localData, setLocalData] = useState<BSDD_TrackDechets>({
+    const [localData, setLocalData] = useState<FormInput>({
         emitter: {
           type: "PRODUCER",
           workSite: { name: "", address: "", postalCode: "", city: "", infos: "" },
@@ -115,7 +115,7 @@ const ModifyCard = () => {
             
             if (path.includes('packagingInfos')) {
                 if (path.includes('type')) {
-                    newData.wasteDetails.packagingInfos[0].type = value;
+                    newData.wasteDetails.packagingInfos[0].type = value as "AUTRE" | "FUT" | "GRV" | "CITERNE" | "BENNE" | "PIPELINE";
                 } else if (path.includes('quantity')) {
                     newData.wasteDetails.packagingInfos[0].quantity = Number(value);
                 }
@@ -177,7 +177,7 @@ const ModifyCard = () => {
             if (result.success) {
                 // Mise à jour correcte du dataTotal
                 console.log('dataTotal', localData);
-                setDataTotal(localData);
+                setDataToogle(localData);
                 toast.success("BSD modifié avec succès");
                 setModalType("");
                 setModalReload(!modalReload);
@@ -415,7 +415,7 @@ const ModifyCard = () => {
                                 />
                                 <LabelInput 
                                     label="Quantité"
-                                    value={localData.wasteDetails.quantity}
+                                    value={localData.wasteDetails.quantity.toString()}
                                     onChange={handleChange}
                                     path="wasteDetails.quantity"
                                 />
