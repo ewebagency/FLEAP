@@ -52,7 +52,8 @@ const EnrichImportedDataButton = () => {
     };
 
     return (
-        <div className="relative">
+        <div>
+        {/*<div className="relative">
             <button 
                 className="flex justify-between items-center bg-gray-300 rounded-xl px-2 mx-1 cursor-pointer active:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed" 
                 onClick={handleEnrich}
@@ -69,6 +70,7 @@ const EnrichImportedDataButton = () => {
                     {isLoading ? 'Enrichissement en cours...' : 'Enrichir'}
                 </div>
             </button>
+        </div>*/}
         </div>
     );
 };

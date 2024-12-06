@@ -25,10 +25,10 @@ const RegisterPage = () => {
                         <div className="flex justify-center items-center">
                             {/*<CollecteDemande/>-----Deprecated*/}
                             <BoutonOpenModal/>
-                            <div className="flex justify-between items-center bg-gray-300 rounded-xl px-2 mx-1">
+                            {/*<div className="flex justify-between items-center bg-gray-300 rounded-xl px-2 mx-1">
                                 <div className="text-white bg-green-600 mr-2 my-[3px] rounded-full px-2 font-thin">+</div>
                                 <div className="text-black font-thin text-xs">Ajouter une filière</div>
-                            </div>
+                            </div>*/}
                             <ExportRegisterButton/>
                             <ImportRegisterButton/>
                             <EnrichImportedDataButton/>
