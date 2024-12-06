@@ -67,6 +67,8 @@ export interface FactureLineOnSupabase {
                 type_dechet: string;
                 date_collecte: string;
                 lieu_collecte: string;
+                periode_debut: string;
+                periode_fin: string;
             };
             line_body: Array<{
                 montant_ht: number;

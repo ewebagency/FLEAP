@@ -379,7 +379,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
             console.error("Erreur lors de la soumission:", error);
             Swal.fire({
                 title: 'Erreur',
-                text: error.message || "Une erreur est survenue lors de la soumission",
+                text: error instanceof Error ? error.message : "Une erreur est survenue lors de la soumission",
                 icon: 'error'
             });
         } finally {
