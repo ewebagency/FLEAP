@@ -29,7 +29,10 @@ export async function POST(req: Request) {
   try {
     const info = await transporter.sendMail(mailOptions);
     return new Response(JSON.stringify({ message: 'Email sent', info }), { status: 200 });
-  } catch (error: any) {
-    return new Response(JSON.stringify({ error: error?.message || 'Unknown error' }), { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+        return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    }
+    return new Response(JSON.stringify({ error: 'Unknown error' }), { status: 500 });
   }
 }
