@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense } from "react";
 import ImportPDF from "./ImportComponents/ImportPDF";
 import BandeauAPI from "./BandeauAPI";
 import TableImportedFilesFunctional from "./ImportComponents/TableImportedFilesFunctional";
@@ -14,7 +14,9 @@ const ImportPage = () => {
                 <div className="h3 my-2">Importez vos bordereaux de suivi et vos factures</div>
                 <div className="text-xs text-gray-400 my-2">Automatisez la saisi des informations de vos documents PDF à votre registre des déchets grâce à notre foncitonnalité de lecture par intelligence artificielle</div>
                 
-                <BandeauAPI/>
+                <Suspense fallback={<div>Chargement...</div>}>
+                    <BandeauAPI/>
+                </Suspense>
 
                 <ImportPDF/>
 
