@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'; // Force une exécution dynamique
+
 import { NextResponse } from 'next/server';
 import { supabase } from '@/app/database/supabaseClient';
 import { Anything, DataOnSupabase_infos_json, DataParametrageInterface } from '@/app/register/interface/BSD_Interface';

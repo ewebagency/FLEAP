@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'; // Force une exécution dynamique
+
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from '@/app/database/supabaseClient';
 
