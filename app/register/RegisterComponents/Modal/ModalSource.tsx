@@ -4,6 +4,7 @@ import { useSession } from "@/app/component/SessionProvider";
 import { useEffect } from "react";
 import { FormInput } from "../../interface/BSD_Interface";
 import FormulaireNew from "./FormulaireNew";
+import { MailProvider } from "../../MailComponents/MailContext";
 
 
 const ModalSource = () => {
@@ -27,11 +28,13 @@ const ModalSource = () => {
     
     return (
         <div>
-            {displayFormulaire && 
-                <div>
-                    <FormulaireNew/>
-                </div>
-            }
+            <MailProvider>
+                {displayFormulaire && 
+                    <div>
+                        <FormulaireNew/>
+                    </div>
+                }
+            </MailProvider>
         </div>
     );
 }

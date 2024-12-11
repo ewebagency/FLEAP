@@ -38,6 +38,10 @@ const FiltreSite = () => {
                     name: site,
                     checked: true
                 }));
+                formattedSites.push({
+                    name: "Non renseigné",
+                    checked: true
+                });
                 setSites(formattedSites);
             }
         }

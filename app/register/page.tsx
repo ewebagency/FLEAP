@@ -12,6 +12,7 @@ import { BoutonOpenModal } from "./RegisterComponents/Modal/BoutonOpenModal";
 import DisplayCard from "./RegisterComponents/Modal/DisplayCard";
 import ModifyCard from "./RegisterComponents/Modal/ModifyCard";
 import EnrichImportedDataButton from "./EnrichImportedDataButton";
+import ConnectedToTrack from "../component/ConnectedToTrack";
 
 const RegisterPage = () => {
 
@@ -36,10 +37,11 @@ const RegisterPage = () => {
                     </div>
                     <div className="flex justify-between items-center">
                         <FiltreFilieres/>
-                        <div className="flex justify-center items-center py-1 px-2 rounded-xl border-[1px] border-gray-600 bg-white text-gray-600 text-xs">
+                        {/*<div className="flex justify-center items-center py-1 px-2 rounded-xl border-[1px] border-gray-600 bg-white text-gray-600 text-xs">
                             <div className="mr-2">🖍</div>
                             <div>Détails filières</div>
-                        </div>
+                        </div>*/}
+                        <ConnectedToTrack/>
                     </div>
                     <div>
                         {/*<TableRegistre/>----Deprecated*/}

@@ -19,6 +19,6 @@ export const getChecked = (nombre_checked: number) => {
     for (let i = 0; i < nombre_checked-1; i++) {
         checked_liste.push(true);
     }
-    checked_liste.push(false); //Pour Autres
+    checked_liste.push(true); //Pour Autres
     return checked_liste;
 }

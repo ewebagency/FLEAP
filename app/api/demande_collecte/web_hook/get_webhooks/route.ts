@@ -3,59 +3,49 @@ import axios from 'axios';
 import { cookies } from "next/headers";
 
 export async function GET(req:Request) {
-    const { searchParams } = new URL(req.url);
-    const token_cookies = searchParams.get('token_cookies');
-    const result_cookies = cookies().get('trackdechets_token');
-    
-    const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
-    const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
+    const token_track = cookies().get('trackdechets_token')?.value;
+    console.log('cookiiiies getwebhook', cookies().get('trackdechets_token'));
+    let url_track = process.env.TRACKDECHETS_URL_SANDBOX;
+    if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
+        url_track = process.env.TRACKDECHETS_URL_APP;
+    }
     const ngrok_url = process.env.NGROK_URL;
 
-    
-    console.log("Le token des cookies par api route", token_cookies);
-    //console.log("Le token des cookies par cookies", result_cookies.value);
-
-    if (!token_sandbox || !url_sandbox || !ngrok_url) {
+    if (!token_track || !url_track || !ngrok_url) {
         console.error('Variables d\'environnement manquantes');
         return NextResponse.json({ error: 'Variables d\'environnement non définies' }, { status: 500 });
     }
 
-    const response_id_company : {status: number, id_company: string} = await GetIdCompany(token_sandbox);
-    if(response_id_company.status === 200){
-        const id_company =  response_id_company.id_company;
-        
-        interface ResponseWebhooks {
-            status: number;
-            webhooks: {endpointUri: string, id: string};
+    try {
+        const response_id_company = await GetIdCompany(token_track, url_track);
+        if(response_id_company.status !== 200) {
+            return NextResponse.json({ error: 'Erreur lors de la récupération de l\'ID de l\'entreprise' }, { status: 500 });
         }
-        const response_webhooks : ResponseWebhooks = await getWebHooks(token_sandbox, id_company);
+
+        const id_company = response_id_company.id_company;
+        const response_webhooks = await getWebHooks(token_track, id_company, url_track);
         
-        const endpointUri_env = process.env.NGROK_URL + '/api/demande_collecte/web_hook/receive_web_hook';
+        const endpointUri_env = `${ngrok_url}/api/demande_collecte/web_hook/receive_web_hook`;
         const endpointUri_trackdechets = response_webhooks.webhooks.endpointUri;
         
-        console.log("url trackdechet = url fleap : ", endpointUri_env == endpointUri_trackdechets);
         if(endpointUri_env !== endpointUri_trackdechets){
-            const web_hook_deleted = await deleteWebHook(response_webhooks.webhooks);
-            //console.log('laaa', web_hook_deleted)
+            const web_hook_deleted = await deleteWebHook(response_webhooks.webhooks, token_track, url_track);
             if(web_hook_deleted){
-                const web_hook_created = await createWebHook(token_sandbox, id_company, endpointUri_env);
-                console.log('web_hook_created', web_hook_created);
-                if(web_hook_created){
+                const web_hook_created = await createWebHook(token_track, id_company, endpointUri_env, url_track);
+                if(web_hook_created.status === 200){
                     return NextResponse.json({ message: 'Nouveau webhook créé'}, { status: 200 });
-                } else {
-                    return NextResponse.json({ message: 'Erreur lors de la création du webhook' }, { status: 500 });
                 }
-            };
+                return NextResponse.json({ message: 'Erreur lors de la création du webhook' }, { status: 500 });
+            }
         }
         return NextResponse.json(response_webhooks);
-    } else {
+    } catch (error) {
+        console.error('Erreur:', error);
         return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
     }
+}
 
-} 
-
-const GetIdCompany = async (token:string) => {
-    const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
+const GetIdCompany = async (token: string, url_track: string) => {
     const query = `query {
         myCompanies {
             edges {
@@ -70,9 +60,6 @@ const GetIdCompany = async (token:string) => {
 }
     `;
 
-    if (!url_sandbox) {
-        throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
-    }
     try {
         
         interface Reponse {
@@ -90,7 +77,7 @@ const GetIdCompany = async (token:string) => {
         }
 
         const response : Reponse = await axios.post(
-            url_sandbox,
+            url_track,
             {   
                 query: query,
             },
@@ -112,9 +99,7 @@ const GetIdCompany = async (token:string) => {
     }
 }
 
-const getWebHooks = async (token:string, id_company:string) => {
-    const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
-    const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
+const getWebHooks = async (token:string, id_company:string, url_track: string) => {
     
     const query = `
         query WebHookSettings{
@@ -132,9 +117,6 @@ const getWebHooks = async (token:string, id_company:string) => {
         }
     `;
 
-    if (!url_sandbox) {
-        throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
-    }
     try {
         interface Reponse2 {
             status: number;
@@ -152,13 +134,13 @@ const getWebHooks = async (token:string, id_company:string) => {
             };
         }
         const response : Reponse2 = await axios.post(
-            url_sandbox,
+            url_track,
             {   
                 query: query,
             },
             {
                 headers: {
-                    Authorization: `Bearer ${token_sandbox}`,
+                    Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 }
             }
@@ -181,9 +163,7 @@ const getWebHooks = async (token:string, id_company:string) => {
     }
 }
 
-const deleteWebHook = async (webhook: {id:string}) => {
-    const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
-    const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
+const deleteWebHook = async (webhook: {id:string}, token: string, url_track: string) => {
     const mutation = `
         mutation deleteWebhookSetting($id: ID!) {
             deleteWebhookSetting(id: $id) {
@@ -191,13 +171,9 @@ const deleteWebHook = async (webhook: {id:string}) => {
             }
         }`;
     
-    if (!url_sandbox) {
-        throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
-    }
-
     try {
         const response = await axios.post(
-            url_sandbox,
+            url_track,
             {
                 query: mutation,
                 variables: {
@@ -206,7 +182,7 @@ const deleteWebHook = async (webhook: {id:string}) => {
             },
             {
                 headers: {
-                    Authorization: `Bearer ${token_sandbox}`,
+                    Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             }
@@ -223,8 +199,7 @@ const deleteWebHook = async (webhook: {id:string}) => {
     }
 }
 
-const createWebHook = async (token:string, id_company:string, uri:string) => {
-    const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
+const createWebHook = async (token:string, id_company:string, uri:string, url_track: string) => {
     const mutation_create_webhook_setting = `
       mutation CreateWebHookSettings ($input : WebhookSettingCreateInput!){
         createWebhookSetting(input : $input){
@@ -248,12 +223,9 @@ const createWebHook = async (token:string, id_company:string, uri:string) => {
     };
     console.log('----- Variables', variables);
 
-    if (!url_sandbox) {
-        throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
-    }
     try {
         const response = await axios.post(
-            url_sandbox,  // Ajout de /graphql à l'URL
+            url_track,  // Ajout de /graphql à l'URL
             {   
                 query: mutation_create_webhook_setting,
                 variables: variables

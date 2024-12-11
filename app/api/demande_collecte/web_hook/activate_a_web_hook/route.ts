@@ -1,17 +1,29 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
-
-const token_sandbox = "tCJJTq0Da55LuoJMc35QEqwomMRDwl10xT1hI2UV"
-const url_sandbox = "https://api.sandbox.trackdechets.beta.gouv.fr"
+import { cookies } from "next/headers";
 
 export async function POST(req: Request) {
+
+    const token_track = cookies().get('trackdechets_token')?.value;
+    let url_track = process.env.TRACKDECHETS_URL_SANDBOX;
+    if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
+        url_track = process.env.TRACKDECHETS_URL_APP;
+    }
+    if (!token_track || !url_track) {
+        return NextResponse.json({ 
+            success: false, 
+            message: 'Token ou URL TrackDéchets non trouvés',
+            error: 'Token ou URL TrackDéchets non trouvés'
+        }, { status: 400 });
+    }
+
     console.log('Activation d\'un webhook');
     const { webhook } = await req.json();
     console.log('webhook : ', webhook);
-    return activateWebhook(webhook);
+    return activateWebhook(webhook, token_track, url_track);
 }
 
-const activateWebhook = async (webhook: {id: string, endpointUri: string, token: string}) => {
+const activateWebhook = async (webhook: {id: string, endpointUri: string, token: string}, token_track: string, url_track: string) => {
     console.log('Activation du webhook : ', webhook);
     
     const mutation = `
@@ -37,14 +49,14 @@ const activateWebhook = async (webhook: {id: string, endpointUri: string, token:
             }
 
     const response = await axios.post(
-        url_sandbox, 
+        url_track, 
         {
             query: mutation,
             variables: variables
         }, {
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${token_sandbox}`
+                "Authorization": `Bearer ${token_track}`
             }
         }
     );

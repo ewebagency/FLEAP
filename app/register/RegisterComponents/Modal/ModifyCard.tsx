@@ -8,7 +8,7 @@ import Swal from 'sweetalert2';
 
 const LabelInput = ({ label, value, onChange, path }: { 
     label: string, 
-    value?: string,
+    value?: string | number | null,
     onChange: (path: string, value: string) => void,
     path: string
 }) => (
@@ -52,7 +52,7 @@ const ModifyCard = () => {
           name: "",
           isSubjectToADR: false,
           onuCode: "",
-          packagingInfos: [{ type: "AUTRE", quantity: 0 }],
+          packagingInfos: [{ type: "AUTRE", quantity: 0, other: "" }],
           quantity: 0,
           quantityType: "ESTIMATED",
           consistence: "",
@@ -118,18 +118,21 @@ const ModifyCard = () => {
                     newData.wasteDetails.packagingInfos[0].type = value as "AUTRE" | "FUT" | "GRV" | "CITERNE" | "BENNE" | "PIPELINE";
                 } else if (path.includes('quantity')) {
                     newData.wasteDetails.packagingInfos[0].quantity = Number(value);
+                } else if(path.includes('other')){
+                    newData.wasteDetails.packagingInfos[0].other = value;
                 }
                 return newData;
             }
 
             const keys = path.split('.');
-            let current: Record<string, unknown> = newData as Record<string, unknown>;
+            let current: Record<string, unknown> = newData;
             
             for (let i = 0; i < keys.length - 1; i++) {
-                if (typeof current[keys[i]] !== 'object') {
-                    current[keys[i]] = {};
+                const key = keys[i];
+                if (!current[key] || typeof current[key] !== 'object') {
+                    current[key] = {};
                 }
-                current = current[keys[i]] as Record<string, unknown>;
+                current = current[key] as Record<string, unknown>;
             }
             
             current[keys[keys.length - 1]] = value;
@@ -159,6 +162,7 @@ const ModifyCard = () => {
         }
 
         setIsSubmitting(true);
+
 
         try {
             const response = await fetch('/api/demande_collecte/modify_bsd', {
@@ -271,37 +275,37 @@ const ModifyCard = () => {
                             <div className="space-y-2 mr-4">
                                 <LabelInput 
                                     label="Nom"
-                                    value={localData.transporter.company.name}
+                                    value={localData.transporter?.company?.name || ""}
                                     onChange={handleChange}
                                     path="transporter.company.name"
                                 />
                                 <LabelInput 
                                     label="Adresse"
-                                    value={localData.transporter.company.address}
+                                    value={localData.transporter?.company?.address || ""}
                                     onChange={handleChange}
                                     path="transporter.company.address"
                                 />
                                 <LabelInput 
                                     label="SIRET"
-                                    value={localData.transporter.company.siret}
+                                    value={localData.transporter?.company?.siret || ""}
                                     onChange={handleChange}
                                     path="transporter.company.siret"
                                 />
                                 <LabelInput 
                                     label="Contact"
-                                    value={localData.transporter.company.contact}
+                                    value={localData.transporter?.company?.contact || ""}
                                     onChange={handleChange}
                                     path="transporter.company.contact"
                                 />
                                 <LabelInput 
                                     label="Téléphone"
-                                    value={localData.transporter.company.phone}
+                                    value={localData.transporter?.company?.phone || ""}
                                     onChange={handleChange}
                                     path="transporter.company.phone"
                                 />
                                 <LabelInput 
                                     label="Email"
-                                    value={localData.transporter.company.mail}
+                                    value={localData.transporter?.company?.mail || ""}
                                     onChange={handleChange}
                                     path="transporter.company.mail"
                                 />
@@ -313,20 +317,26 @@ const ModifyCard = () => {
                             <h3 className="font-semibold text-green-800 mb-2">Site d&apos;enlèvement</h3>
                             <div className="space-y-2 mr-4">
                                 <LabelInput 
+                                    label="Nom usuel"
+                                    value={localData.emitter?.workSite?.name || ""}
+                                    onChange={handleChange}
+                                    path="emitter.workSite.name"
+                                />
+                                <LabelInput 
                                     label="Adresse"
-                                    value={localData.emitter.workSite.address}
+                                    value={localData.emitter?.workSite?.address || ""}
                                     onChange={handleChange}
                                     path="emitter.workSite.address"
                                 />
                                 <LabelInput 
                                     label="Code postal"
-                                    value={localData.emitter.workSite.postalCode}
+                                    value={localData.emitter?.workSite?.postalCode || ""}
                                     onChange={handleChange}
                                     path="emitter.workSite.postalCode"
                                 />
                                 <LabelInput 
                                     label="Ville"
-                                    value={localData.emitter.workSite.city}
+                                    value={localData.emitter?.workSite?.city || ""}
                                     onChange={handleChange}
                                     path="emitter.workSite.city"
                                 />
@@ -342,49 +352,49 @@ const ModifyCard = () => {
                             <div className="space-y-2 mr-4">
                                 <LabelInput 
                                     label="Nom"
-                                    value={localData.recipient.company.name}
+                                    value={localData.recipient?.company?.name || ""}
                                     onChange={handleChange}
                                     path="recipient.company.name"
                                 />
                                 <LabelInput 
                                     label="Adresse"
-                                    value={localData.recipient.company.address}
+                                    value={localData.recipient?.company?.address || ""}
                                     onChange={handleChange}
                                     path="recipient.company.address"
                                 />
                                 <LabelInput 
                                     label="SIRET"
-                                    value={localData.recipient.company.siret}
+                                    value={localData.recipient?.company?.siret || ""}
                                     onChange={handleChange}
                                     path="recipient.company.siret"
                                 />
                                 <LabelInput 
                                     label="Contact"
-                                    value={localData.recipient.company.contact}
+                                    value={localData.recipient?.company?.contact || ""}
                                     onChange={handleChange}
                                     path="recipient.company.contact"
                                 />
                                 <LabelInput 
                                     label="Téléphone"
-                                    value={localData.recipient.company.phone}
+                                    value={localData.recipient?.company?.phone || ""}
                                     onChange={handleChange}
                                     path="recipient.company.phone"
                                 />
                                 <LabelInput 
                                     label="Email"
-                                    value={localData.recipient.company.mail}
+                                    value={localData.recipient?.company?.mail || ""}
                                     onChange={handleChange}
                                     path="recipient.company.mail"
                                 />
                                 <LabelInput 
                                     label="CAP"
-                                    value={localData.recipient.cap}
+                                    value={localData.recipient?.cap || ""}
                                     onChange={handleChange}
                                     path="recipient.cap"
                                 />
                                 <LabelInput 
                                     label="Code traitement"
-                                    value={localData.recipient.processingOperation}
+                                    value={localData.recipient?.processingOperation || ""}
                                     onChange={handleChange}
                                     path="recipient.processingOperation"
                                 />
@@ -397,43 +407,49 @@ const ModifyCard = () => {
                             <div className="space-y-2 mr-4">
                                 <LabelInput 
                                     label="Code CED"
-                                    value={localData.wasteDetails.code}
+                                    value={localData.wasteDetails?.code || ""}
                                     onChange={handleChange}
                                     path="wasteDetails.code"
                                 />
                                 <LabelInput 
                                     label="Code ONU"
-                                    value={localData.wasteDetails.onuCode}
+                                    value={localData.wasteDetails?.onuCode || ""}
                                     onChange={handleChange}
                                     path="wasteDetails.onuCode"
                                 />
                                 <LabelInput 
                                     label="Consistance"
-                                    value={localData.wasteDetails.consistence}
+                                    value={localData.wasteDetails?.consistence || ""}
                                     onChange={handleChange}
                                     path="wasteDetails.consistence"
                                 />
                                 <LabelInput 
                                     label="Quantité"
-                                    value={localData.wasteDetails.quantity.toString()}
+                                    value={localData.wasteDetails?.quantity || null}
                                     onChange={handleChange}
                                     path="wasteDetails.quantity"
                                 />
                                 <LabelInput 
                                     label="Type de quantité"
-                                    value={localData.wasteDetails.quantityType}
+                                    value={localData.wasteDetails?.quantityType || ""}
                                     onChange={handleChange}
                                     path="wasteDetails.quantityType"
                                 />
                                 <LabelInput 
                                     label="Type de contenant"
-                                    value={localData.wasteDetails.packagingInfos[0].type}
+                                    value={localData.wasteDetails?.packagingInfos[0]?.type || ""}
                                     onChange={handleChange}
                                     path="wasteDetails.packagingInfos.type"
                                 />
+                                {/*<LabelInput 
+                                    label="Description du contenant"
+                                    value={localData.wasteDetails.packagingInfos[0].other}
+                                    onChange={handleChange}
+                                    path="wasteDetails.packagingInfos.other" //TODO: à modifiereeeeeee
+                                />*/}
                                 <LabelInput 
                                     label="Nombre de contenants"
-                                    value={localData.wasteDetails.packagingInfos[0].quantity.toString()}
+                                    value={localData.wasteDetails?.packagingInfos[0]?.quantity || null}
                                     onChange={handleChange}
                                     path="wasteDetails.packagingInfos.quantity"
                                 />

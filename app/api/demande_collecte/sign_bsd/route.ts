@@ -2,18 +2,22 @@ import { supabase } from "@/app/database/supabaseClient";
 import { NextResponse } from "next/server";
 import axios from "axios";
 import { FormInput } from "@/app/register/interface/BSD_Interface";
-
-const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
-const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
-
-interface FormAPI_en_gros {formAPI: {createFormInput: {emitter: {company: {contact: string}}, wasteDetails: {onuCode: string, quantity: number}}}};
-interface ReponseTrack {
-    status: number,
-    status_signed_by_producer: string
-}
-
+import { cookies } from "next/headers";
 
 export async function POST(request: Request) {
+    const token_track = cookies().get('trackdechets_token')?.value;
+    let url_track = process.env.TRACKDECHETS_URL_SANDBOX;
+    if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
+        url_track = process.env.TRACKDECHETS_URL_APP;
+    }
+
+    if (!token_track || !url_track) {
+        return NextResponse.json({ 
+            success: false, 
+            message: "Configuration manquante (token ou URL)" 
+        }, { status: 500 });
+    }
+
     try {
         const { id } = await request.json();
 
@@ -37,7 +41,7 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
-        const trackDechetsResponse = await Sign_BSD_API(bsd.id_track_dechets, bsd.infos_json);
+        const trackDechetsResponse = await Sign_BSD_API(bsd.id_track_dechets, bsd.infos_json, token_track, url_track);
         
         if (!trackDechetsResponse.success) {
             return NextResponse.json(trackDechetsResponse, { status: trackDechetsResponse.status });
@@ -70,7 +74,7 @@ export async function POST(request: Request) {
     }
 }
 
-const Sign_BSD_API = async (id: string, infos_json: { formAPI: { createFormInput: FormInput } }) => {
+const Sign_BSD_API = async (id: string, infos_json: { formAPI: { createFormInput: FormInput } }, token_track: string, url_track: string) => {
     try {
         const json_form = infos_json;
         const formInput = json_form.formAPI.createFormInput;
@@ -111,13 +115,13 @@ const Sign_BSD_API = async (id: string, infos_json: { formAPI: { createFormInput
             }
         `;
 
-        if(!url_sandbox || !token_sandbox) {
+        if(!url_track || !token_track) {
             throw new Error("URL ou token Trackdéchets non définis");
         }
         try {
             //console.log("SignEmissionFormInput", SignEmissionFormInput);
             const response: {status: number, data: {data: {signEmissionForm: {status: string}}, errors: {message: string}[] | null}} = await axios.post(
-                url_sandbox,
+                url_track,
                 {   
                     query: query,
                     variables: {
@@ -127,11 +131,13 @@ const Sign_BSD_API = async (id: string, infos_json: { formAPI: { createFormInput
                 },
                 {
                     headers: {
-                        Authorization: `Bearer ${token_sandbox}`,
+                        Authorization: `Bearer ${token_track}`,
                         'Content-Type': 'application/json'
                     }
                 }
             );
+
+            console.log("Response", response.data);
 
             // Vérification des erreurs GraphQL
             if (response.data.errors) {

@@ -5,6 +5,8 @@ import { formatText, getDataAutocompletion, getMappingTableFiliere, getFiliere, 
 import { useSession } from "@/app/component/SessionProvider";
 import { FormInput } from "../../interface/BSD_Interface";
 import ModifyCardInFormulaireNew from "./ModifyCardInFormulaireNew";
+import MailComponent from "../../MailComponents/MailComponent";
+import { MailProvider } from "../../MailComponents/MailContext";
 
 type StadeType = "current" | "freeze" | "done";
 
@@ -34,7 +36,7 @@ const initialToogleData: FormInput = {
       name: "",
       isSubjectToADR: false,
       onuCode: "",
-      packagingInfos: [{ type: "AUTRE", quantity: 0 }],
+      packagingInfos: [{ type: "AUTRE", quantity: 0, other: "" }],
       quantity: 0,
       quantityType: "ESTIMATED",
       consistence: "",
@@ -120,7 +122,6 @@ const FormulaireNew = () => {
     const [dataText, setDataText] = useState<FormInput>(initialToogleData);
     const [currentFiliere, setCurrentFiliere] = useState<string>("");
     const [stadeAvancement, setStadeAvancement] = useState<Record<string, StadeType>>(initialStadeAvancement);
-
 
 
     const {             
@@ -557,176 +558,190 @@ const FormulaireNew = () => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center overflow-y-auto py-4 z-50">
-            <div className="bg-white p-6 rounded-lg shadow-lg mb-4 w-[80%] max-w-8xl" onClick={(e) => e.stopPropagation()}>
-                <h3 className="font-bold text-lg">Demande de collecte ♻</h3>
-                <form className="my-2 p-6 border-[1px] border-gray-400 rounded-xl">
-                    <div className="flex justify-between items-center gap-4 mr-5">
-                        <div className='text-md font-bold'>Point de départ</div>
-                        <button type="button" className="text-xs h-[25px] text-gray-500 font-thin hover:text-gray-700 active:font-bold" onClick={ResetData}>Réinitialiser</button>
-                    </div>
-                    
-                    <div className='flex justify-start gap-4 ml-8'>
-                        <div>
-                            <InputDeroulant
-                                titre="1. Site"
-                                placeholder="Sélectionner un site"
-                                options={getUniqueOptions(options, opt => opt.emitter.workSite.name)}
-                                width={2}
-                                name="workSiteName"
-                                value={dataToogle.emitter.workSite.name}
-                                onChange={handleChange}
-                                onTextChange={handleChangeTexte}
-                                enableText={true}
-                                stade={stadeAvancement.workSiteName}
-                            />
-                            <InputDeroulant
-                                titre="Adresse d'enlèvement"
-                                placeholder="Adresse"
-                                options={getUniqueOptions(options, opt => `${formatText(opt.emitter.workSite.fullAddress ?? "")}`)}
-                                width={2}
-                                name="pickupAddress"
-                                value={`${formatText(dataToogle.emitter.workSite.fullAddress ?? "")}`}
-                                onChange={handleChange}
-                                onTextChange={handleChangeTexte}
-                                enableText={true}
-                                stade={stadeAvancement.pickupAddress}
-                            />
+            <MailProvider>
+                <div className="bg-white p-6 rounded-lg shadow-lg mb-4 w-[80%] max-w-8xl" onClick={(e) => e.stopPropagation()}>
+                    <h3 className="font-bold text-lg">Demande de collecte ♻</h3>
+                    <form className="my-2 p-6 border-[1px] border-gray-400 rounded-xl">
+                        <div className="flex justify-between items-center gap-4 mr-5">
+                            <div className='text-md font-bold'>Point de départ</div>
+                            <button type="button" className="text-xs h-[25px] text-gray-500 font-thin hover:text-gray-700 active:font-bold" onClick={ResetData}>Réinitialiser</button>
                         </div>
-                        <div>
-                            <div className="mt-3 ml-4 w-[350px] h-[25px] text-xs text-gray-400 cursor-pointer hover:text-gray-600" 
-                                 onClick={scrollToModifyCard}>
-                                ▶ Pour ajuster les informations, remplissez les champs plus bas
+                        
+                        <div className='flex justify-start gap-4 ml-8'>
+                            <div>
+                                <InputDeroulant
+                                    titre="1. Site"
+                                    placeholder="Sélectionner un site"
+                                    options={getUniqueOptions(options, opt => opt.emitter.workSite.name)}
+                                    width={2}
+                                    name="workSiteName"
+                                    value={dataToogle.emitter.workSite.name}
+                                    onChange={handleChange}
+                                    onTextChange={handleChangeTexte}
+                                    enableText={true}
+                                    stade={stadeAvancement.workSiteName}
+                                />
+                                <InputDeroulant
+                                    titre="Adresse d'enlèvement"
+                                    placeholder="Adresse"
+                                    options={getUniqueOptions(options, opt => `${formatText(opt.emitter.workSite.fullAddress ?? "")}`)}
+                                    width={2}
+                                    name="pickupAddress"
+                                    value={`${formatText(dataToogle.emitter.workSite.fullAddress ?? "")}`}
+                                    onChange={handleChange}
+                                    onTextChange={handleChangeTexte}
+                                    enableText={true}
+                                    stade={stadeAvancement.pickupAddress}
+                                />
                             </div>
-                            <InputDeroulant
-                                titre="Personne référente"
-                                placeholder="Prénom Nom"
-                                options={getUniqueOptions(options, opt => opt.emitter.company.contact)}
-                                width={2}
-                                name="contactPerson"
-                                value={dataToogle.emitter.company.contact}
-                                onChange={handleChange}
-                                onTextChange={handleChangeTexte}
-                                enabled={true}
-                                stade={stadeAvancement.contactPerson}
-                            />
+                            <div>
+                                <div className="mt-3 ml-4 w-[350px] h-[25px] text-xs text-gray-400 cursor-pointer hover:text-gray-600" 
+                                     onClick={scrollToModifyCard}>
+                                    ▶ Pour ajuster les informations, remplissez les champs plus bas
+                                </div>
+                                <InputDeroulant
+                                    titre="Personne référente"
+                                    placeholder="Prénom Nom"
+                                    options={getUniqueOptions(options, opt => opt.emitter.company.contact)}
+                                    width={2}
+                                    name="contactPerson"
+                                    value={dataToogle.emitter.company.contact}
+                                    onChange={handleChange}
+                                    onTextChange={handleChangeTexte}
+                                    enabled={true}
+                                    stade={stadeAvancement.contactPerson}
+                                />
+                            </div>
                         </div>
-                    </div>
-                    <div className='text-md font-bold mt-4'>Déchet</div>
-                    <div className='flex justify-start gap-4 ml-8'>
+                        <div className='text-md font-bold mt-4'>Déchet</div>
+                        <div className='flex justify-start gap-4 ml-8'>
+                            <div>
+                                <InputDeroulant
+                                    titre="2. Filière"
+                                    placeholder="Sélectionner une filière"
+                                    options={getUniqueOptions(options, opt => getFiliere(opt.wasteDetails.code, ced_table))}
+                                    width={2}
+                                    name="wasteStream"
+                                    value={currentFiliere}
+                                    onChange={handleChange}
+                                    onTextChange={handleChangeTexte}
+                                    enableText={false}
+                                    stade={stadeAvancement.wasteStream}
+                                />
+                                <InputDeroulant
+                                    titre="3. Déchet"
+                                    placeholder="Sélectionner un déchet"
+                                    options={getUniqueOptions(options, opt => 
+                                        `${opt.wasteDetails.code} - ${opt.wasteDetails.name}`
+                                    )}
+                                    width={2}
+                                    name="wasteType"
+                                    value={dataToogle.wasteDetails.code}
+                                    onChange={handleChange}
+                                    onTextChange={handleChangeTexte}
+                                    stade={stadeAvancement.wasteType}
+                                />
+                            </div>
+                            <div>
+                                <InputDeroulant
+                                    titre="Contenant"
+                                    placeholder="Sélectionner un contenant"
+                                    options={getUniqueOptions(options, opt => `${opt.wasteDetails.packagingInfos[0].type}`)}
+                                    width={1}
+                                    name="packagingType"
+                                    value={`${dataToogle.wasteDetails.packagingInfos[0].type}`}
+                                    onChange={handleChange}
+                                    onTextChange={handleChangeTexte}
+                                    enableText={false}
+                                    stade={stadeAvancement.packagingType}
+                                />
+                                <InputDeroulant
+                                    titre="Nombre"
+                                    placeholder="Nombre"
+                                    options={getUniqueOptions(options, opt => String(opt.wasteDetails.packagingInfos[0].quantity))}
+                                    width={1}
+                                    name="packagingQuantity"
+                                    value={String(dataToogle.wasteDetails.packagingInfos[0].quantity)}
+                                    onChange={handleChange}
+                                    onTextChange={handleChangeTexte}
+                                    enableText={true}
+                                    stade={stadeAvancement.packagingQuantity}
+                                />
+                            </div>
+                        </div>
+                        <div className='text-md font-bold mt-4'>Prestataires</div>
+                        <div className='flex justify-start gap-4 ml-8'>
+                            <div>
+                                <InputDeroulant
+                                    titre="Transporteur"
+                                    placeholder="Sélectionner un transporteur"
+                                    options={getUniqueOptions(options, opt => opt.transporter.company.name)}
+                                    width={1}
+                                    name="transporterName"
+                                    value={dataToogle.transporter.company.name}
+                                    onChange={handleChange}
+                                    onTextChange={handleChangeTexte}
+                                    stade={stadeAvancement.transporterName}
+                                />
+                                <InputDeroulant
+                                    titre="Destinataire"
+                                    placeholder="Sélectionner un destinataire"
+                                    options={getUniqueOptions(options, opt => opt.recipient.company.name)}
+                                    width={1}
+                                    name="recipientName"
+                                    value={dataToogle.recipient.company.name}
+                                    onChange={handleChange}
+                                    onTextChange={handleChangeTexte}
+                                    stade={stadeAvancement.recipientName}
+                                />
+                            </div>
+                            <div>
+                                <InputDeroulant
+                                    titre="Personne Transporteur"
+                                    placeholder="Prénom Nom"
+                                    options={getUniqueOptions(options, opt => opt.transporter.company.contact)}
+                                    width={1}
+                                    name="transporterContact"
+                                    value={dataToogle.transporter.company.contact}
+                                    onChange={handleChange}
+                                    onTextChange={handleChangeTexte}
+                                    stade={stadeAvancement.transporterContact}
+                                />
+                                <InputDeroulant
+                                    titre="Personne Destinataire"
+                                    placeholder="Prénom Nom"
+                                    options={getUniqueOptions(options, opt => opt.recipient.company.contact)}
+                                    width={1}
+                                    name="recipientContact"
+                                    value={dataToogle.recipient.company.contact}
+                                    onChange={handleChange}
+                                    onTextChange={handleChangeTexte}
+                                    stade={stadeAvancement.recipientContact}
+                                />
+                            </div>
+                        </div>
                         <div>
-                            <InputDeroulant
-                                titre="2. Filière"
-                                placeholder="Sélectionner une filière"
-                                options={getUniqueOptions(options, opt => getFiliere(opt.wasteDetails.code, ced_table))}
-                                width={2}
-                                name="wasteStream"
-                                value={currentFiliere}
-                                onChange={handleChange}
-                                onTextChange={handleChangeTexte}
-                                enableText={false}
-                                stade={stadeAvancement.wasteStream}
-                            />
-                            <InputDeroulant
-                                titre="3. Déchet"
-                                placeholder="Sélectionner un déchet"
-                                options={getUniqueOptions(options, opt => 
-                                    `${opt.wasteDetails.code} - ${opt.wasteDetails.name}`
-                                )}
-                                width={2}
-                                name="wasteType"
-                                value={dataToogle.wasteDetails.code}
-                                onChange={handleChange}
-                                onTextChange={handleChangeTexte}
-                                stade={stadeAvancement.wasteType}
+                            <MailComponent 
+                                params={{
+                                    wasteCode: dataText.wasteDetails.code,
+                                    responsibleName: dataText.emitter.company.contact,
+                                    containerType: dataText.wasteDetails.packagingInfos[0].type,
+                                    collectionAddress: dataText.emitter.workSite.fullAddress,
+                                    destinataire: dataText.transporter.company.mail,
+                                    emetteur: dataText.emitter.company.mail,
+                                }}
                             />
                         </div>
-                        <div>
-                            <InputDeroulant
-                                titre="Contenant"
-                                placeholder="Sélectionner un contenant"
-                                options={getUniqueOptions(options, opt => `${opt.wasteDetails.packagingInfos[0].type}`)}
-                                width={1}
-                                name="packagingType"
-                                value={`${dataToogle.wasteDetails.packagingInfos[0].type}`}
-                                onChange={handleChange}
-                                onTextChange={handleChangeTexte}
-                                enableText={false}
-                                stade={stadeAvancement.packagingType}
-                            />
-                            <InputDeroulant
-                                titre="Nombre"
-                                placeholder="Nombre"
-                                options={getUniqueOptions(options, opt => String(opt.wasteDetails.packagingInfos[0].quantity))}
-                                width={1}
-                                name="packagingQuantity"
-                                value={String(dataToogle.wasteDetails.packagingInfos[0].quantity)}
-                                onChange={handleChange}
-                                onTextChange={handleChangeTexte}
-                                enableText={true}
-                                stade={stadeAvancement.packagingQuantity}
+                        <div ref={modifyCardRef}>
+                            <ModifyCardInFormulaireNew 
+                                onClose={handleClose}
+                                dataText={dataText}
+                                setDataText={setDataText}
                             />
                         </div>
-                    </div>
-                    <div className='text-md font-bold mt-4'>Prestataires</div>
-                    <div className='flex justify-start gap-4 ml-8'>
-                        <div>
-                            <InputDeroulant
-                                titre="Transporteur"
-                                placeholder="Sélectionner un transporteur"
-                                options={getUniqueOptions(options, opt => opt.transporter.company.name)}
-                                width={1}
-                                name="transporterName"
-                                value={dataToogle.transporter.company.name}
-                                onChange={handleChange}
-                                onTextChange={handleChangeTexte}
-                                stade={stadeAvancement.transporterName}
-                            />
-                            <InputDeroulant
-                                titre="Destinataire"
-                                placeholder="Sélectionner un destinataire"
-                                options={getUniqueOptions(options, opt => opt.recipient.company.name)}
-                                width={1}
-                                name="recipientName"
-                                value={dataToogle.recipient.company.name}
-                                onChange={handleChange}
-                                onTextChange={handleChangeTexte}
-                                stade={stadeAvancement.recipientName}
-                            />
-                        </div>
-                        <div>
-                            <InputDeroulant
-                                titre="Personne Transporteur"
-                                placeholder="Prénom Nom"
-                                options={getUniqueOptions(options, opt => opt.transporter.company.contact)}
-                                width={1}
-                                name="transporterContact"
-                                value={dataToogle.transporter.company.contact}
-                                onChange={handleChange}
-                                onTextChange={handleChangeTexte}
-                                stade={stadeAvancement.transporterContact}
-                            />
-                            <InputDeroulant
-                                titre="Personne Destinataire"
-                                placeholder="Prénom Nom"
-                                options={getUniqueOptions(options, opt => opt.recipient.company.contact)}
-                                width={1}
-                                name="recipientContact"
-                                value={dataToogle.recipient.company.contact}
-                                onChange={handleChange}
-                                onTextChange={handleChangeTexte}
-                                stade={stadeAvancement.recipientContact}
-                            />
-                        </div>
-                    </div>
-                    <div ref={modifyCardRef}>
-                        <ModifyCardInFormulaireNew 
-                            onClose={handleClose}
-                            dataText={dataText}
-                            setDataText={setDataText}
-                        />
-                    </div>
-                </form>
-            </div>
+                    </form>
+                </div>
+            </MailProvider>
         </div>
     );
 }

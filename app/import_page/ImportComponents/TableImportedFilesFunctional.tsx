@@ -81,7 +81,7 @@ const TableImportedFilesFunctional: React.FC = () => {
         }
     };
 
-    console.log(pdfInfos);
+    //console.log(pdfInfos);
 
     if (loading) {
         return <p>Chargement des fichiers PDF...</p>; // Message de chargement

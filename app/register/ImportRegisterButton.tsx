@@ -35,7 +35,7 @@ const cofounders_user_id = (user_id:string|null) => {
 }
 
 const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDechets } } => {
-    return {
+    const new_bsdd: {formAPI: {createFormInput: BSDD_TrackDechets}} = {
         formAPI: {
             createFormInput: {
                 id: "IMPORTED",
@@ -57,7 +57,7 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                         infos: row["infosCollecte"]?.toString() || ""
                     },
                     company: {
-                        name: row["raisonSocialeEmetteur"]?.toString() || "", //nomEntrepriseEmettrice
+                        name: row["nomEmetteur"]?.toString() || "", //nomEntrepriseEmettrice
                         orgId: row["siretEmetteur"]?.toString() || "",
                         siret: siretFunction(row["siretEmetteur"]?.toString()) || "",
                         address: `${row["adresseEmetteur"] || ""} ${row["codePostalEmetteur"] || ""} ${row["communeEmetteur"] || ""}`,
@@ -77,7 +77,7 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                 // Destinataire
                 recipient: {
                     company: {
-                        name: row["raisonSocialeInstallationDestination"]?.toString() || "",
+                        name: row["nomInstallationDestination"]?.toString() || "",
                         orgId: row["siretInstallationDestination"]?.toString() || "",
                         siret: siretFunction(row["siretInstallationDestination"]?.toString()) || "", //-------------- ça me va pas installation destinatation
                         address: `${row["adresseInstallationDestination"] || ""} ${row["codePostalInstallationDestination"] || ""} ${row["communeInstallationDestination"] || ""}`,
@@ -98,7 +98,7 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                 transporter: {
                     id: "",
                     company: {
-                        name: row["raisonSocialeTransporteur"]?.toString() || "",
+                        name: row["nomTransporteur"]?.toString() || "",
                         orgId: row["siretTransporteur"]?.toString() || "",
                         siret: siretFunction(row["siretTransporteur"]?.toString()) || "",
                         address: `${row["adresseTransporteur"] || ""} ${row["codePostalTransporteur"] || ""} ${row["communeTransporteur"] || ""}`,
@@ -155,7 +155,7 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                 // Négociant
                 trader: {
                     company: {
-                        name: row["raisonSocialeNegotiant"]?.toString() || "",
+                        name: row["nomNegotiant"]?.toString() || "",
                         orgId: row["siretNegotiant"]?.toString() || "",
                         siret: siretFunction(row["siretNegotiant"]?.toString()) || "",
                         address: `${row["adresseNegotiant"] || ""} ${row["codePostalNegotiant"] || ""} ${row["communeNegotiant"] || ""}`,
@@ -175,7 +175,7 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                 // Courtier
                 broker: {
                     company: {
-                        name: row["raisonSocialeCourtier"]?.toString() || "",
+                        name: row["nomCourtier"]?.toString() || "",
                         orgId: row["siretCourtier"]?.toString() || "",
                         siret: siretFunction(row["siretCourtier"]?.toString()) || "",
                         address: `${row["adresseCourtier"] || ""} ${row["codePostalCourtier"] || ""} ${row["communeCourtier"] || ""}`,
@@ -194,7 +194,7 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
 
                 // Éco-organisme
                 ecoOrganisme: {
-                    name: row["raisonSocialeEcoOrganisme"]?.toString() || "",
+                    name: row["nomEcoOrganisme"]?.toString() || "",
                     siret: siretFunction(row["siretEcoOrganisme"]?.toString()) || ""
                 },
 
@@ -309,6 +309,7 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
             }
         }
     };
+    return new_bsdd;;
 };
 
 const mapToNewParametrage = (ligne_BSD: { formAPI: { createFormInput: BSDD_TrackDechets } }) => {

@@ -1,32 +1,75 @@
 'use client';
 import React, { useEffect, useState } from "react";
+import ConnectedToTrack from "../component/ConnectedToTrack";
+import { useSession } from "../component/SessionProvider";
+import { useSearchParams } from 'next/navigation';
+import Cookies from 'js-cookie';
 
 
 const BandeauAPI = () => {
-    const [token, setToken] = useState<string | null>(null);
+    const session = useSession();
+    const searchParams = useSearchParams();
 
+    // Premier useEffect pour gérer le refresh
     useEffect(() => {
-        const fetchToken = async () => {
-            try {
-                const res = await fetch('api/auth_track_dechet/token');
-                const result = await res.json();
-                setToken(result.data?.value || null);
-            } catch (error) {
-                console.error("Erreur lors de la récupération du token:", error);
-            }
-        };
-        fetchToken();
-    }, []);
+        if(session && session.user_id){
+            if (searchParams.get('token')) {
+                const new_token = searchParams.get('token');
+                
+                if(new_token){
+                    //On dirait qu'il faut absolument changer le cookie cote client pour que ça marche..
+                    //on le fait aussi cote serveur au cas ou j ene veux pas prendre de risque
+                    Cookies.remove('trackdechets_token'); // Supprimer l'ancien cookie 
+                    Cookies.set('trackdechets_token', new_token, {
+                        expires: 12*30*24*60*60,//12 mois
+                        path: '/',
+                    });
 
-    const client_id = process.env.NEXT_PUBLIC_TRACKDECHETS_CLIENT_ID;
+                    // Vérifier immédiatement si le cookie est bien défini
+                    const cookieValue = Cookies.get('trackdechets_token');
+                    console.log("Cookie défini:", cookieValue);
+
+                    const stockToken = async (new_token: string) => {
+                        try {
+                            const result = await fetch(`/api/auth_track_dechet/stock_token?user_id=${session.user_id}&token=${new_token}`);
+                            if(result.status === 200){
+                                console.log("token stocké !! ");
+                            }
+                        } catch (error) {
+                            console.error("Erreur lors du stockage du token:", error);
+                        }
+                    }
+                    stockToken(new_token);
+                }
+                
+                // Attendre un peu avant de rediriger pour s'assurer que le cookie est bien défini
+                setTimeout(() => {
+                    const newUrl = window.location.origin + window.location.pathname;
+                    window.location.replace(newUrl);
+                }, 100);
+            }
+        }   
+    }, [session]);
+
+    let client_id = process.env.NEXT_PUBLIC_TRACK_CLIENT_ID_SANDBOX;
+    if (process.env.NEXT_PUBLIC_TRACK_TYPE === "app") {
+        client_id = process.env.NEXT_PUBLIC_TRACK_CLIENT_ID_APP;
+    }
     const redirect_uri = encodeURIComponent(`${process.env.NEXT_PUBLIC_APP_URL}/api/auth_track_dechet/callback`);
 
     const handleAPIConnection = () => {
-        console.log("OAuth2 en attente, token en dur dans le code => aller direct à la demande de collecte");
-        const url = `https://app.trackdechets.beta.gouv.fr/oauth2/authorize/dialog?response_type=code&redirect_uri=${redirect_uri}&client_id=${client_id}`;
+        //Attention remplaceer par app de manière dynamique !
+        let url = `https://sandbox.trackdechets.beta.gouv.fr/oauth2/authorize/dialog?response_type=code&redirect_uri=${redirect_uri}&client_id=${client_id}`;
+        if(process.env.NEXT_PUBLIC_TRACK_TYPE === "app") {
+            url = `https://app.trackdechets.beta.gouv.fr/oauth2/authorize/dialog?response_type=code&redirect_uri=${redirect_uri}&client_id=${client_id}`;
+        }
+        console.log("url : ", url);
         window.location.href = url;
     }
 
+    useEffect(() => {
+        console.log("cookie dans useEffect : ", Cookies.get('trackdechets_token'));
+    }, []);
     return (
         <div className="p-2 my-3 w-full rounded-xl border-gray-800 border-[1px]">
             <div className="flex justify-between items-center">
@@ -39,9 +82,10 @@ const BandeauAPI = () => {
                     <div>Ajouter une API</div>
                 </button>
             </div>
-            {token && <div className="inline-block text-xs text-white py-1 px-2 rounded-lg bg-green-600">Connecté à TrackDéchet</div>}
+            <ConnectedToTrack/>
         </div>
     );
 }
 
 export default BandeauAPI;
+

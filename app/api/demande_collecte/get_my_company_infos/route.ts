@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
+import { cookies } from 'next/headers';
 
 interface CompanyResponse {
     data: {
@@ -53,10 +54,15 @@ interface CompanyResponse {
 }
 
 export async function POST() {
-    const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
-    const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
+    let url_track = process.env.TRACKDECHETS_URL_SANDBOX;
+    let token_track = cookies().get('trackdechets_token')?.value;
+    if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
+        url_track = process.env.TRACKDECHETS_URL_APP;
+    }
+    console.log("Token sandbox depuis les cookies", token_track);
 
-    if (!url_sandbox || !token_sandbox) {
+
+    if (!url_track || !token_track) {
         return NextResponse.json({ error: 'Environment variables are not defined' }, { status: 500 });
     }
 
@@ -113,11 +119,11 @@ export async function POST() {
 
     try {
         const response = await axios.post<CompanyResponse>(
-            url_sandbox,
+            url_track,
             { query },
             {
                 headers: {
-                    Authorization: `Bearer ${token_sandbox}`,
+                    Authorization: `Bearer ${token_track}`,
                     'Content-Type': 'application/json'
                 }
             }

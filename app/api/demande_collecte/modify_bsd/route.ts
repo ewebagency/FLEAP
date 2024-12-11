@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { supabase } from '@/app/database/supabaseClient';
-import { DataOnSupabase_infos_json } from '@/app/register/interface/BSD_Interface';
+import { BSDD_TrackDechets, DataOnSupabase_infos_json, FormInput } from '@/app/register/interface/BSD_Interface';
+import { cookies } from 'next/headers';
 
-const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
-const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
-
-const updateTrackdechets = async (data: DataOnSupabase_infos_json, bsdId: string) => {
-    console.log('datalaaaaa', data);
+const updateTrackdechets = async (data: {formAPI:{createFormInput:FormInput}}, bsdId: string, token: string, url: string) => {
     try {
         const mutation = `
             mutation UpdateForm($updateFormInput: UpdateFormInput!) {
@@ -19,7 +16,6 @@ const updateTrackdechets = async (data: DataOnSupabase_infos_json, bsdId: string
             }
         `;
 
-        // Préparer les données pour la mutation
         const variables = {
             updateFormInput: {
                 ...data.formAPI.createFormInput,
@@ -27,37 +23,33 @@ const updateTrackdechets = async (data: DataOnSupabase_infos_json, bsdId: string
             }
         };
 
-        if (!url_sandbox) {
-            throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
-        }
-
         const response = await axios.post(
-            url_sandbox,
+            url,
             { query: mutation, variables },
             {
                 headers: {
-                    Authorization: `Bearer ${token_sandbox}`,
+                    Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             }
         );
 
         if (response.status === 200) {
-            console.log('BSD modifié avec succès sur Trackdéchets');
+            console.log('BSD modifié avec succès sur Trackdéchets', response.data);
             return {
                 success: true, 
                 data: response.data,
                 error: null
             };
-        } else {
-            return {
-                success: false,
-                error: "Erreur lors de la modification du BSD sur Trackdéchets",//response.data.errors[0].message,
-                data: null
-            };
         }
+        
+        return {
+            success: false,
+            error: "Erreur lors de la modification du BSD sur Trackdéchets",
+            data: null
+        };
     } catch (error) {
-        console.error('Erreur lors de la modification du BSD sur Trackdéchets:');//, error.response.data);
+        console.error('Erreur lors de la modification du BSD sur Trackdéchets:', error);
         return {
             success: false,
             error: error instanceof Error ? error.message : 'Une erreur inconnue est survenue',
@@ -67,6 +59,21 @@ const updateTrackdechets = async (data: DataOnSupabase_infos_json, bsdId: string
 };
 
 export async function POST(request: Request) {
+    console.log("Modification du BSD -- début");
+    const token_track = cookies().get('trackdechets_token')?.value;
+    console.log("token_track récupéré par cookies :", token_track);
+    let url_track = process.env.TRACKDECHETS_URL_SANDBOX;
+    if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
+        url_track = process.env.TRACKDECHETS_URL_APP;
+    }
+
+    if (!token_track || !url_track) {
+        return NextResponse.json({ 
+            success: false, 
+            message: "Configuration manquante (token ou URL)" 
+        }, { status: 500 });
+    }
+
     try {
         const { user_id, bsd_id, data } = await request.json();
 
@@ -74,7 +81,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ 
                 success: false, 
                 message: "Données manquantes" 
-            });
+            }, { status: 400 });
         }
 
         // 1. Récupérer l'ID Trackdéchets du BSD
@@ -88,14 +95,18 @@ export async function POST(request: Request) {
             throw new Error("Erreur lors de la récupération de l'ID Trackdéchets");
         }
 
+
+        //On enlève les champs qui ne sont pas modifiable sur Trackdéchets (orgId, other..)
+        const data_augmented = augmentData(data);
+        const data_on_track = cleanData(data_augmented);
         // 2. Mise à jour dans Trackdéchets
-        const trackdechetsResponse = await updateTrackdechets(data, bsdData.id_track_dechets);
+        const trackdechetsResponse = await updateTrackdechets(data_on_track, bsdData.id_track_dechets, token_track, url_track);
         
         if (!trackdechetsResponse.success) {
             return NextResponse.json({ 
                 success: false, 
                 message: `Erreur lors de la mise à jour sur Trackdéchets: ${trackdechetsResponse.error}` 
-            });
+            }, { status: 400 });
         }
 
         // 3. Mise à jour dans Supabase
@@ -123,6 +134,110 @@ export async function POST(request: Request) {
             success: false, 
             message: "Erreur lors de la modification du BSD",
             error: error instanceof Error ? error.message : 'Une erreur inconnue est survenue'
-        });
+        }, { status: 500 });
     }
+}
+
+
+const cleanData = (data: {formAPI:{createFormInput:BSDD_TrackDechets}}) => {
+   const data_clean = {
+    formAPI: {
+        createFormInput: {
+            emitter: data.formAPI.createFormInput.emitter,
+            recipient: data.formAPI.createFormInput.recipient,
+            transporter: data.formAPI.createFormInput.transporter,
+            wasteDetails: data.formAPI.createFormInput.wasteDetails,
+        }
+    }
+   };
+
+   if(data_clean.formAPI.createFormInput?.wasteDetails?.packagingInfos[0]?.type && data_clean.formAPI.createFormInput.wasteDetails.packagingInfos[0].type !== 'AUTRE'){
+    delete data_clean.formAPI.createFormInput.wasteDetails.packagingInfos[0].other;
+   }
+   delete data_clean.formAPI.createFormInput.transporter.takenOverBy;
+   delete data_clean.formAPI.createFormInput.transporter.takenOverAt;
+   delete data_clean.formAPI.createFormInput.transporter.id;
+   delete data_clean.formAPI.createFormInput.emitter.company.orgId;
+   delete data_clean.formAPI.createFormInput.recipient.company.orgId;
+   delete data_clean.formAPI.createFormInput.transporter.company.orgId;
+
+   return data_clean;
+}
+
+
+const augmentData = (data: {formAPI:{createFormInput:FormInput}}) => {
+    const vierge_data: FormInput = {
+        emitter: {
+          type: "PRODUCER",
+          workSite: { name: "", address: "", postalCode: "", city: "", infos: "" },
+          company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+          isPrivateIndividual: false,
+          isForeignShip: false,
+        },
+        recipient: {
+          company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+          cap: "",
+          processingOperation: "",
+          isTempStorage: false,
+        },
+        transporter: {
+          company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+          isExemptedOfReceipt: false,
+          receipt: "",
+          numberPlate: "",
+          customInfo: "",
+        },
+        wasteDetails: {
+          code: "",
+          name: "",
+          isSubjectToADR: false,
+          onuCode: "",
+          packagingInfos: [{ type: "AUTRE", quantity: 0, other: "" }],
+          quantity: 0,
+          quantityType: "ESTIMATED",
+          consistence: "",
+          pop: false,
+          isDangerous: false,
+          parcelNumbers: { city: "", postalCode: "", prefix: "", section: "", number: "" },
+          analysisReferences: "",
+          landIdentifiers: "",
+          sampleNumber: "",
+        },
+        trader: {
+          receipt: "",
+          department: "",
+          validityLimit: "",
+          company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+        },
+        broker: {
+          receipt: "",
+          department: "",
+          validityLimit: "",
+          company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+        },
+        //grouping: { form: { id: "" }, quantity: 0 },//Pour l'instant on va dire qu'on ne permet pas de grouper les déchets
+        ecoOrganisme: { name: "", siret: "" },
+        temporaryStorageDetail: {
+          company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+          cap: "",
+          processingOperation: "",
+        }, //Si le recipient est un stockage provisoire, on va mettre les infos du destinataire final pour le traitement 
+        //intermediaries: [],
+      }
+    if(data.formAPI.createFormInput?.emitter?.company){
+      vierge_data.emitter.company = data.formAPI.createFormInput.emitter.company;
+    }
+    if(data.formAPI.createFormInput?.emitter?.workSite){
+        vierge_data.emitter.workSite = data.formAPI.createFormInput.emitter.workSite;
+    }
+    if(data.formAPI.createFormInput?.recipient?.company){
+      vierge_data.recipient.company = data.formAPI.createFormInput.recipient.company;
+    }
+    if(data.formAPI.createFormInput?.transporter?.company){
+      vierge_data.transporter.company = data.formAPI.createFormInput.transporter.company;
+    }
+    if(data.formAPI.createFormInput?.wasteDetails){
+        vierge_data.wasteDetails = data.formAPI.createFormInput.wasteDetails;
+    }
+    return {formAPI:{createFormInput:vierge_data}} as {formAPI:{createFormInput:BSDD_TrackDechets}};
 }

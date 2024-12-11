@@ -1,66 +1,106 @@
 import { supabase } from "@/app/database/supabaseClient";
 import { NextResponse } from "next/server";
 import axios from "axios";
-
-const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
-const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
+import { cookies } from 'next/headers';
 
 export async function POST(request: Request) {
-    const { id } = await request.json();
-
-    //Check if the BSD is on TrackDéchets
-    const { data:bsd, error:bsdError } = await supabase.from('bsd').select('on_track_dechets, status_track_dechets, id_track_dechets').eq('id', id).single();
-    if(bsd?.on_track_dechets){
-        const trackDechetsResponse = await Seal_BSD_API(bsd.id_track_dechets);
-        if(trackDechetsResponse.success){
-            //Delete from Supabase
-            const { data, error } = await supabase.from('bsd').update({status_track_dechets: "SEALED"}).eq('id', id);
-            return NextResponse.json({ data, error });
-        } else {
-            return NextResponse.json({ error: trackDechetsResponse.error });
-        }
+    const token_track = cookies().get('trackdechets_token')?.value;
+    let url_track = process.env.TRACKDECHETS_URL_SANDBOX;
+    if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
+        url_track = process.env.TRACKDECHETS_URL_APP;
     }
-    return NextResponse.json({ error: "BSD not on TrackDéchets" });
+
+    if (!token_track || !url_track) {
+        return NextResponse.json({ 
+            success: false, 
+            message: "Configuration manquante (token ou URL)" 
+        }, { status: 500 });
+    }
+
+    try {
+        const { id } = await request.json();
+
+        const { data: bsd, error: bsdError } = await supabase
+            .from('bsd')
+            .select('on_track_dechets, status_track_dechets, id_track_dechets')
+            .eq('id', id)
+            .single();
+
+        if (!bsd?.on_track_dechets) {
+            return NextResponse.json({ 
+                success: false, 
+                error: "BSD not on TrackDéchets" 
+            }, { status: 400 });
+        }
+
+        const trackDechetsResponse = await Seal_BSD_API(bsd.id_track_dechets, token_track, url_track);
+        
+        if (trackDechetsResponse.success) {
+            const { error } = await supabase
+                .from('bsd')
+                .update({ status_track_dechets: "SEALED" })
+                .eq('id', id);
+
+            if (error) {
+                throw new Error(error.message);
+            }
+
+            return NextResponse.json({ 
+                success: true, 
+                message: "BSD scellé avec succès" 
+            });
+        }
+
+        return NextResponse.json({ 
+            success: false, 
+            error: trackDechetsResponse.error 
+        }, { status: 400 });
+
+    } catch (error) {
+        console.error("Erreur lors du scellage du BSD:", error);
+        return NextResponse.json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : "Erreur inconnue" 
+        }, { status: 500 });
+    }
 }
 
-const Seal_BSD_API = async (id:string) => {
-
+const Seal_BSD_API = async (id: string, token: string, url: string) => {
     const query = `
-    mutation {
-        markAsSealed(id: "${id}") {
-            id
-        }
-    }
-    `;
-    if(!url_sandbox || !token_sandbox) {
-        throw new Error("URL ou token Trackdéchets non définis");
-    }
-    const response = await axios.post(
-        url_sandbox,
-        { query: query },
-        {
-            headers: {
-                Authorization: `Bearer ${token_sandbox}`,
-                'Content-Type': 'application/json'
+        mutation {
+            markAsSealed(id: "${id}") {
+                id
             }
         }
-    );
-    if(response.status !== 200) {
-        console.log("Erreur dans le scellage du BSD", response.statusText);
+    `;
+
+    try {
+        const response = await axios.post(
+            url,
+            { query: query },
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        if (response.status !== 200) {
+            return {
+                success: false,
+                error: "Erreur lors du scellage du BSD"
+            };
+        }
+
+        return {
+            success: true
+        };
+    } catch (error) {
+        console.error('Erreur Seal_BSD_API:', error);
         return {
             success: false,
-            error: response.statusText
-        }
+            error: error instanceof Error ? error.message : "Erreur inconnue"
+        };
     }
-    if(!response.data) {
-        //console.log("Erreur dans le scellage du BSD :", response.data.errors[0].message);
-        return {
-            success: false,
-            error: "Erreur lors du scellage du BSD sur Trackdéchets"//response.data.errors[0].message
-        }
-    }
-    return {
-        success: true,
-        //data: response.data.data
-    };
 }

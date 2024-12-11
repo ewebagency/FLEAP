@@ -1,25 +1,34 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
+import { cookies } from 'next/headers';
 
-const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
-const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
 const ngrok = process.env.NGROK_URL;
 
-
 export async function POST(req:Request) {
-    if (!token_sandbox) {
-        throw new Error('TRACKDECHETS_TOKEN_SANDBOX environment variable is not defined');
+    const token_track = cookies().get('trackdechets_token')?.value;
+    console.log('cookiiiies create_a_web_hook', cookies().get('trackdechets_token'));
+    let url_track = process.env.TRACKDECHETS_URL_SANDBOX;
+    if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
+        url_track = process.env.TRACKDECHETS_URL_APP;
     }
+
+    if (!token_track || !url_track || !ngrok) {
+        return NextResponse.json({ 
+            success: false, 
+            message: "Configuration manquante (token, URL ou NGROK)" 
+        }, { status: 500 });
+    }
+
     console.log('Création d\'un webhook');
     const { url, id_company_reçu } = await req.json(); // inutile car id lié au token
     //console.log('id_company_reçu', id_company_reçu);
-    const response_id_company = await GetIdCompany(token_sandbox); //Id de la companie lié au token
+    const response_id_company = await GetIdCompany(token_track, url_track); //Id de la companie lié au token
     if(response_id_company.status === 200){
         const id_company =  response_id_company.id_company;
         //const uri = encodeURIComponent(`${process.env.NEXT_PUBLIC_APP_URL}/api/demande_collecte/get_webhooks`);
         //const uri = `${process.env.NEXT_PUBLIC_APP_URL}/api/demande_collecte/get_webhooks`;
         const uri = 'https://localhost:3000/api/demande_collecte/get_webhooks/';
-        createWebHook(token_sandbox, id_company, uri);
+        createWebHook(token_track, url_track, id_company, uri);
         return NextResponse.json({ status: 200, webhooks: "ok" }, { status: 200 });
     } else {
         return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
@@ -27,7 +36,7 @@ export async function POST(req:Request) {
 
 } 
 
-const createWebHook = async (token:string, id_company:string, uri:string) => {
+const createWebHook = async (token_track:string, url_track:string, id_company:string, uri:string) => {
     
     const mutation_create_webhook_setting = `
       mutation CreateWebHookSettings ($input : WebhookSettingCreateInput!){
@@ -46,25 +55,25 @@ const createWebHook = async (token:string, id_company:string, uri:string) => {
         input: {
             companyId: id_company,
             endpointUri: uri_ngrok,
-            token: token,
+            token: token_track,
             activated: true
         }
     };
     console.log('----- Variables', variables);
 
-    if (!url_sandbox) {
+    if (!url_track) {
         throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
     }
     try {
         const response = await axios.post(
-            url_sandbox,  // Ajout de /graphql à l'URL
+            url_track,  // Ajout de /graphql à l'URL
             {   
                 query: mutation_create_webhook_setting,
                 variables: variables
             },
             {
                 headers: {
-                    Authorization: `Bearer ${token}`,
+                    Authorization: `Bearer ${token_track}`,
                     'Content-Type': 'application/json'
                 }
             }
@@ -83,7 +92,7 @@ const createWebHook = async (token:string, id_company:string, uri:string) => {
     }
 }
 
-const GetIdCompany = async (token:string) => {
+const GetIdCompany = async (token_track:string, url_track:string) => {
     const query = `query {
         myCompanies {
             edges {
@@ -98,7 +107,7 @@ const GetIdCompany = async (token:string) => {
 }
     `;
 
-    if (!url_sandbox) {
+    if (!url_track) {
         throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
     }
     try {
@@ -118,13 +127,13 @@ const GetIdCompany = async (token:string) => {
         }
 
         const response : Reponse = await axios.post(
-            url_sandbox,
+            url_track,
             {   
                 query: query,
             },
             {
                 headers: {
-                    Authorization: `Bearer ${token}`,
+                    Authorization: `Bearer ${token_track}`,
                     'Content-Type': 'application/json'
                 }
             }

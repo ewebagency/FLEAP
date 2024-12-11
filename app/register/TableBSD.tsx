@@ -7,6 +7,7 @@ import { Filiere, Site, useFilterContext } from "../FilterContext";
 import { BSDD_TrackDechets, FormInput } from "./interface/BSD_Interface";
 import Swal from 'sweetalert2';
 import { sendData_to_Cloud } from "./RegisterComponents/Modal/utils_new";
+import SendDraftModal from "./RegisterComponents/Modal/SendDraftModal";
 
 // Modifier le type FormDataType pour inclure un id
 type BSD = {
@@ -96,9 +97,21 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
             }
         } 
         const checkedSites = sites.filter(site => site.checked).map(site => site.name); 
-        const filteredBSD_onCED_andSite = filteredBSD_onCED.filter((bsd) => {
-            return checkedSites.some(site => site === bsd.infos_json.formAPI.createFormInput.emitter.workSite.name);
+        let filteredBSD_onCED_andSite = filteredBSD_onCED.filter((bsd) => {
+            return checkedSites.some(site => bsd.infos_json.formAPI.createFormInput.emitter.workSite ? site === bsd.infos_json.formAPI.createFormInput.emitter.workSite.name : false);
         });
+
+        if(checkedSites.includes("Non renseigné")){
+            const non_renseigne = data.filter((bsd) => {
+                if(bsd.infos_json.formAPI.createFormInput.emitter.workSite){
+                    return bsd.infos_json.formAPI.createFormInput.emitter.workSite.name === ""
+                } else {
+                    return true;
+                }
+            });
+            filteredBSD_onCED_andSite = filteredBSD_onCED_andSite.concat(non_renseigne);
+        }
+
         return filteredBSD_onCED_andSite;
 
     }
@@ -114,6 +127,8 @@ const TableBSD = () => {
 
     const [webhooksInitialized, setWebhooksInitialized] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [showSendDraftModal, setShowSendDraftModal] = useState(false);
+    const [selectedBsd, setSelectedBsd] = useState<BSD | null>(null);
 
     // Fonction pour vérifier et initialiser les webhooks
     const initializeWebhooks = async () => {
@@ -289,41 +304,9 @@ const TableBSD = () => {
         }
     }
 
-    const handleSendDraft = async (bsd: BSD) => {
-        const result = await Swal.fire({
-            title: 'Envoyer le brouillon ?',
-            text: "Voulez-vous envoyer ce brouillon à TrackDéchets ?",
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Oui, envoyer',
-            cancelButtonText: 'Annuler'
-        });
-
-        if (result.isConfirmed) {
-            try {
-                if (session?.user_id && session?.entreprise_id) {
-                    const result = await sendData_to_Cloud(
-                        bsd.infos_json.formAPI.createFormInput as FormInput,
-                        session.user_id,
-                        session.entreprise_id,
-                        false // isDraft = false car on veut l'envoyer
-                    );
-                    if (result.success) {
-                        // Supprimer l'ancien brouillon local
-                        await handleDelete(bsd.id, true); // true = silent delete
-                        toast.success("Brouillon envoyé avec succès sur TrackDéchets");
-                        setModalReload(!modalReload);
-                    } else {
-                        toast.error(result.message);
-                    }
-                }
-            } catch (error) {
-                console.error("Erreur lors de l'envoi du brouillon:", error);
-                toast.error("Erreur lors de l'envoi du brouillon");
-            }
-        }
+    const handleSendDraft = (bsd: BSD) => {
+        setSelectedBsd(bsd);
+        setShowSendDraftModal(true);
     };
 
     return (
@@ -373,9 +356,9 @@ const TableBSD = () => {
                             </td>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
                                 <div className="text-xs ml-2">
-                                    <div>🔽 {bsd.infos_json.formAPI.createFormInput.emitter.company.name}</div>
-                                    <div>🚚 {bsd.infos_json.formAPI.createFormInput.transporter.company.name}</div>
-                                    <div>♻ {bsd.infos_json.formAPI.createFormInput.recipient.company.name}</div>
+                                    <div>🔽 {bsd.infos_json.formAPI.createFormInput.emitter?.company?.name || ""}</div>
+                                    <div>🚚 {bsd.infos_json.formAPI.createFormInput.transporter?.company?.name || ""}</div>
+                                    <div>♻ {bsd.infos_json.formAPI.createFormInput.recipient?.company?.name || ""}</div>
                                 </div>
                             </td>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
@@ -425,6 +408,20 @@ const TableBSD = () => {
                 </tbody>
             </table>
             
+            {showSendDraftModal && selectedBsd && (
+                <SendDraftModal
+                    isOpen={showSendDraftModal}
+                    onClose={() => {
+                        setShowSendDraftModal(false);
+                        setSelectedBsd(null);
+                    }}
+                    formData={selectedBsd.infos_json.formAPI.createFormInput as FormInput}
+                    userId={session?.user_id || ''}
+                    entrepriseId={session?.entreprise_id || ''}
+                    bsdId={selectedBsd.id}
+                    onDelete={handleDelete}
+                />
+            )}
         </div>
     )
 }

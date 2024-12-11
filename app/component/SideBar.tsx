@@ -63,7 +63,7 @@ const SideBar = (props:SideBarProps) => {
             }
         }
         fetchUserNames();
-    }, [session?.user?.id])
+    }, [session?.user_id])
 
 
     const handleLogout = async () => {

@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+/*import { cookies } from "next/headers";
 
 interface APIOptions extends RequestInit {
   headers?: Record<string, string>;
@@ -21,3 +21,4 @@ export async function fetchTrackdechetsAPI<T>(endpoint: string, options: APIOpti
 
   return response.json() as Promise<T>;
 }
+*/

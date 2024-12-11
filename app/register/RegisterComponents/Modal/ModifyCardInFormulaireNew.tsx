@@ -4,6 +4,8 @@ import { Company, FormInput } from "../../interface/BSD_Interface";
 import { toast } from "react-hot-toast";
 import { useSession } from "@/app/component/SessionProvider";
 import { useModalContextNew } from "./ContextModal";
+import Swal from 'sweetalert2';
+import { useMailContext } from "../../MailComponents/MailContext";
 
 // Ajout des types nécessaires en haut du fichier
 type NestedKeyOf<ObjectType extends object> = {
@@ -89,47 +91,55 @@ type SectionFormProps = {
   handleLocalChange: (path: FormPath, value: string) => void;
 };
 
-const SectionForm = ({
+export const SectionForm = ({
   title,
   fields,
   dataText,
   handleLocalChange,
 }: SectionFormProps) => (
-  <div className="p-2 bg-gray-50 rounded border border-gray-200">
-    <h3 className="font-semibold text-gray-800 mb-2 text-sm">{title}</h3>
-    {fields.map((field) => {
-      let value: string | number | boolean | null | undefined;
+    <div className="p-2 bg-gray-50 rounded border border-gray-200">
+        <h3 className="font-semibold text-gray-800 mb-2 text-sm">{title}</h3>
+        {fields.map((field) => {
+            let value: string | number | boolean | null | undefined;
 
-      // Cas spécial pour packagingInfos
-      if (field.path.includes('packagingInfos[0]')) {
-        const [, property] = field.path.split('packagingInfos[0].');
-        value = dataText.wasteDetails?.packagingInfos?.[0]?.[property as keyof typeof dataText.wasteDetails.packagingInfos[0]];
-      } else {
-        // Cas général pour les autres champs
-        value = field.path.split('.').reduce<NestedObject>(
-          (obj, key) => {
-            if (obj && typeof obj === 'object') {
-              return obj[key] as NestedObject;
+            // Cas spécial pour packagingInfos
+            if (field.path.includes('packagingInfos[0]')) {
+                const [, property] = field.path.split('packagingInfos[0].');
+                value = dataText.wasteDetails?.packagingInfos?.[0]?.[property as keyof typeof dataText.wasteDetails.packagingInfos[0]];
+            } else {
+                // Cas général pour les autres champs
+                value = field.path.split('.').reduce<NestedObject>(
+                    (obj, key) => {
+                        if (obj && typeof obj === 'object') {
+                            return obj[key] as NestedObject;
+                        }
+                        return {};
+                    }, 
+                    dataText as unknown as NestedObject
+                )?.toString();
             }
-            return {};
-          }, 
-          dataText as unknown as NestedObject
-        )?.toString();
-      }
-      
-      return (
-        <LabelInput
-          key={field.path}
-          {...field}
-          value={value}
-          onChange={handleLocalChange}
-        />
-      );
-    })}
-  </div>
+            
+            return (
+                <LabelInput
+                    key={field.path}
+                    {...field}
+                    value={value}
+                    onChange={handleLocalChange}
+                />
+            );
+        })}
+    </div>
 );
 
-const ModifyCardInFormulaireNew = ({ onClose, dataText, setDataText }: { onClose: () => void, dataText: FormInput, setDataText: React.Dispatch<React.SetStateAction<FormInput>> }) => {
+const ModifyCardInFormulaireNew = ({ 
+    onClose, 
+    dataText, 
+    setDataText,
+}: { 
+    onClose: () => void, 
+    dataText: FormInput, 
+    setDataText: React.Dispatch<React.SetStateAction<FormInput>>,
+}) => {
   
   const {dataToogle } = useModalContextNew();
 
@@ -137,10 +147,13 @@ const ModifyCardInFormulaireNew = ({ onClose, dataText, setDataText }: { onClose
 
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittingMail, setIsSubmittingMail] = useState(false);
+  const [isSubmittingBrouillon, setIsSubmittingBrouillon] = useState(false);
   const [showParcelFields, setShowParcelFields] = useState(false);
   const [showTrader, setShowTrader] = useState(false);
   const [showBroker, setShowBroker] = useState(false);
   const [showEcoOrganisme, setShowEcoOrganisme] = useState(false);
+  const { isValidMail, sendMail } = useMailContext();
 
   const {             
     setModalReload, modalReload,
@@ -181,8 +194,27 @@ const ModifyCardInFormulaireNew = ({ onClose, dataText, setDataText }: { onClose
     });
   };
 
-  const handleSubmitHere = async (isDraft: boolean = false) => {
-    setIsSubmitting(true);
+  const handleSubmitHere = async () => {
+    if (!isValidMail){
+      toast.error('Tous les champs du mail sont obligatoires');
+      return;
+    }else{
+      toast.success('Mail prêt à être envoyé');
+    }
+    const willSubmit = await Swal.fire({
+        title: 'Envoyer à TrackDéchet ?',
+        text: "Cette demande sera envoyée à TrackDéchet et par mail",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Envoyer',
+        cancelButtonText: 'Annuler'
+    });
+
+    if (!willSubmit.isConfirmed) return;
+
+    setIsSubmitting(true);    
     try {
       const newData = { ...dataText };
 
@@ -250,15 +282,23 @@ const ModifyCardInFormulaireNew = ({ onClose, dataText, setDataText }: { onClose
         delete newData.wasteDetails.analysisReferences;
     }
 
-      let conditions_pour_submit = true;
-      if(!isDraft)conditions_pour_submit = conditionsPourSubmit(newData);
+      const conditions_pour_submit = conditionsPourSubmit(newData);
       if(conditions_pour_submit){
         if(session && session?.entreprise_id && session?.user_id) {
             console.log('Form send Data to Cloud:', newData);  
-            console.log('SendDataToCloud draft:', isDraft);
+            const isDraft=false;
             const result = await sendData_to_Cloud(newData, session?.user_id, session?.entreprise_id, isDraft);
             if(result.success) {
                 toast.success(result.message);
+
+                setIsSubmittingMail(true);
+                console.log('sendMail', sendMail)
+                if (sendMail) {
+                  await sendMail();
+                }
+                //toast.success('Envoie du mail réussi');
+                setIsSubmittingMail(false);
+
                 setDisplayFormulaire(false);
                 setModalReload(!modalReload);
             } else {
@@ -270,15 +310,138 @@ const ModifyCardInFormulaireNew = ({ onClose, dataText, setDataText }: { onClose
         console.log('data toogle modify card in formulaire new', dataToogle);
         //onSubmit();
       };
-      
+
+
     } finally {
       setIsSubmitting(false);
+      setIsSubmittingBrouillon(false);
     }
   };
 
-  useEffect(() => {
+  const handleSubmitBrouillon = async () => {
+    setIsSubmittingBrouillon(true);
+    try {
+      const newData = { ...dataText };
+
+      const processCompanyData = async (company: Company) => {
+        try{
+            if (company?.siret) {
+            const siret = extractSiret(company.siret);
+            const raisonSocial = await getRaisonSocial(siret);
+            if (raisonSocial) {
+                //company.name = raisonSocial.name;
+                const { street, postalCode, city } = parseAddress(raisonSocial.adresse.first);
+                let my_city = city;
+                let pays = 'FRANCE';
+                if(city.includes('FRANCE')){
+                  my_city = my_city.split(' FRANCE')[0];
+                }else{
+                pays = raisonSocial.pays.first;
+                }
+                company.address = street + ' ' + postalCode + ' ' + my_city;
+                company.country = pays;
+                company.siret = siret ?? '';
+                }
+            }
+            return company;
+        }catch(error){
+          console.error('Error processing company data:', error);
+          return company;
+        }
+      };
+
+      const pastDataWorksite = JSON.parse(JSON.stringify(newData.emitter.workSite));
+      newData.emitter.company = await processCompanyData(newData.emitter.company);
+      newData.emitter.workSite = pastDataWorksite;
+      newData.recipient.company = await processCompanyData(newData.recipient.company);
+      newData.transporter.company = await processCompanyData(newData.transporter.company);
+
+      if(newData.trader?.company) newData.trader.company = await processCompanyData(newData.trader.company);
+      if(newData.broker?.company) newData.broker.company = await processCompanyData(newData.broker.company);
+      if(newData.temporaryStorageDetail?.company) newData.temporaryStorageDetail.company = await processCompanyData(newData.temporaryStorageDetail.company);
+
+      const {street, postalCode, city} = parseAddress(newData.emitter.workSite.fullAddress ?? "");
+      newData.emitter.workSite.address = street;
+      newData.emitter.workSite.postalCode = postalCode;
+      newData.emitter.workSite.city = city;
+      //delete newData.emitter.workSite.fullAddress;
+      newData.wasteDetails.isSubjectToADR = checkADR(newData.wasteDetails.code);
+      newData.transporter.isExemptedOfReceipt = newData.transporter.receipt === '';
+
+      //newData.wasteDetails.isDangerous = newData.wasteDetails.isDangerous === true;
+      //newData.wasteDetails.pop = newData.wasteDetails.pop === true;
+      //newData.wasteDetails.code = newData.wasteDetails.code.replaceAll(' ', '');
+      newData.wasteDetails.quantity = Number(newData.wasteDetails.quantity);
+      newData.wasteDetails.packagingInfos[0].quantity = Number(newData.wasteDetails.packagingInfos[0].quantity);
+
+      delete newData.emitter.workSite.fullAddress;
+      newData.recipient.isTempStorage = newData.recipient.isTempStorage === true;
+      if(!newData.recipient.isTempStorage)delete newData.temporaryStorageDetail;
+      if(!showTrader)delete newData.trader;
+      if(!showBroker)delete newData.broker;
+      if(!showEcoOrganisme)delete newData.ecoOrganisme;
+      if(!showParcelFields){
+        delete newData.wasteDetails.parcelNumbers;
+        delete newData.wasteDetails.landIdentifiers;
+        delete newData.wasteDetails.sampleNumber;
+        delete newData.wasteDetails.analysisReferences;
+    }
+  
+      if(session && session?.entreprise_id && session?.user_id) {
+          const isDraft=true;
+          console.log("Save en brouillon")
+          const result = await sendData_to_Cloud(newData, session?.user_id, session?.entreprise_id, isDraft);
+          if(result.success) {
+              toast.success("Brouillon sauvegardé", result.message);
+              setDisplayFormulaire(false);
+              setModalReload(!modalReload);
+          } else {
+              toast.error("Erreur avec la sauvegarde du brouillon",result.message);
+          }
+      }
+    } finally {
+      setIsSubmittingBrouillon(false);
+    }
+  };
+
+  const handleMailSubmit = async () => {
+    if (!isValidMail) {
+        toast.error('Tous les champs du mail sont obligatoires');
+        return;
+    }
+
+    const willSendMail = await Swal.fire({
+        title: 'Envoyer le mail ?',
+        text: "Un mail sera envoyé aux destinataires",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Envoyer',
+        cancelButtonText: 'Annuler'
+    });
+
+    if (!willSendMail.isConfirmed || !sendMail) return;
+
+    setIsSubmittingMail(true);
+    await sendMail();
+    setIsSubmittingMail(false);
+  };
+
+  /*useEffect(() => {
     console.log('dataText', dataText);
-  }, [dataText]);
+  }, [dataText]);*/
+
+  useEffect(() => {
+    if(dataText.wasteDetails.code){
+      setDataText(prevData => {
+        const newData = { ...prevData };
+        newData.wasteDetails.isDangerous = dataText.wasteDetails.code.includes("*");
+        return newData;
+      });
+    }
+    //console.log('dataText.isDangerous', dataText.wasteDetails.isDangerous);
+  }, [dataText.wasteDetails.code]);
 
   return (
     <div className="p-4">
@@ -565,20 +728,30 @@ const ModifyCardInFormulaireNew = ({ onClose, dataText, setDataText }: { onClose
         </button>
         <button
           type="button"
-          onClick={() => handleSubmitHere(true)}
-          disabled={isSubmitting}
+          onClick={() => handleSubmitBrouillon()}
+          disabled={isSubmittingBrouillon}
           className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
         >
-          {isSubmitting ? "En cours..." : "Brouillon"}
+          {isSubmittingBrouillon ? "En cours..." : "Brouillon"}
         </button>
-        <button
+        {dataText.wasteDetails.isDangerous && <button
           type="button"
-          onClick={() => handleSubmitHere(false)}
+          onClick={() => handleSubmitHere()}
           disabled={isSubmitting}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
         >
-          {isSubmitting ? "En cours..." : "Envoyer"}
-        </button>
+          {isSubmitting ? "Envoie à TrackDéchet et par mail en cours..." : "Envoyer à TrackDéchet & par Mail"}
+        </button>}
+        {!dataText.wasteDetails.isDangerous && (
+            <button
+                type="button"
+                onClick={handleMailSubmit}
+                disabled={isSubmittingMail}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+            >
+                {isSubmittingMail ? "Envoie du mail en cours..." : "Envoyer le mail"}
+            </button>
+        )}
       </div>
     </div>
   );

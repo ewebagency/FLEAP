@@ -61,7 +61,7 @@ const DisplayCard = () => {
                         <div className="border-b pb-2 flex justify-between items-center">
                             <div>
                                 <h2 className="text-xl font-bold text-gray-800">Bordereau de Suivi des Déchets</h2>
-                                <LabelValue label="Code déchet" value={bsd.wasteDetails.code} />
+                                <LabelValue label="Code déchet" value={bsd.wasteDetails?.code || ""} />
                             </div>
                             <button 
                                 onClick={() => setModalType("")} 
@@ -76,31 +76,32 @@ const DisplayCard = () => {
                                 {/* Émetteur */}
                                 <div className="bg-blue-50 p-3 rounded border border-blue-100">
                                     <h3 className="font-semibold text-blue-800 mb-2">Émetteur</h3>
-                                    <LabelValue label="Nom" value={bsd.emitter.company.name} />
-                                    <LabelValue label="Adresse" value={bsd.emitter.company.address} />
-                                    <LabelValue label="SIRET" value={bsd.emitter.company.siret} />
-                                    <LabelValue label="Contact" value={bsd.emitter.company.contact} />
-                                    <LabelValue label="Téléphone" value={bsd.emitter.company.phone} />
-                                    <LabelValue label="Email" value={bsd.emitter.company.mail} />
+                                    <LabelValue label="Nom" value={bsd.emitter?.company?.name || ""} />
+                                    <LabelValue label="Adresse" value={bsd.emitter?.company?.address || ""} />
+                                    <LabelValue label="SIRET" value={bsd.emitter?.company?.siret || ""} />
+                                    <LabelValue label="Contact" value={bsd.emitter?.company?.contact || ""} />
+                                    <LabelValue label="Téléphone" value={bsd.emitter?.company?.phone || ""} />
+                                    <LabelValue label="Email" value={bsd.emitter?.company?.mail || ""   } />
                                 </div>
 
                                 {/* Site d'enlèvement */}
                                 <div className="bg-green-50 p-3 rounded border border-green-100">
                                     <h3 className="font-semibold text-green-800 mb-2">Site d&apos;enlèvement</h3>
-                                    <LabelValue label="Adresse" value={bsd.emitter.workSite?.address} />
-                                    <LabelValue label="Code postal" value={bsd.emitter.workSite?.postalCode} />
-                                    <LabelValue label="Ville" value={bsd.emitter.workSite?.city} />
+                                    <LabelValue label="Nom usuel" value={bsd.emitter?.workSite?.name || ""} />
+                                    <LabelValue label="Adresse" value={bsd.emitter?.workSite?.address || ""} />
+                                    <LabelValue label="Code postal" value={bsd.emitter?.workSite?.postalCode || ""} />
+                                    <LabelValue label="Ville" value={bsd.emitter?.workSite?.city || ""} />
                                 </div>
 
                                 {/* Transporteur */}
                                 <div className="bg-yellow-50 p-3 rounded border border-yellow-100">
                                     <h3 className="font-semibold text-yellow-800 mb-2">Transporteur</h3>
-                                    <LabelValue label="Nom" value={bsd.transporter.company.name} />
-                                    <LabelValue label="Adresse" value={bsd.transporter.company.address} />
-                                    <LabelValue label="SIRET" value={bsd.transporter.company.siret} />
-                                    <LabelValue label="Contact" value={bsd.transporter.company.contact} />
-                                    <LabelValue label="Téléphone" value={bsd.transporter.company.phone} />
-                                    <LabelValue label="Email" value={bsd.transporter.company.mail} />
+                                    <LabelValue label="Nom" value={bsd.transporter?.company?.name || ""} />
+                                    <LabelValue label="Adresse" value={bsd.transporter?.company?.address || ""} />
+                                    <LabelValue label="SIRET" value={bsd.transporter?.company?.siret || ""} />
+                                    <LabelValue label="Contact" value={bsd.transporter?.company?.contact || ""} />
+                                    <LabelValue label="Téléphone" value={bsd.transporter?.company?.phone || ""} />
+                                    <LabelValue label="Email" value={bsd.transporter?.company?.mail || ""} />
                                 </div>
                             </div>
 
@@ -110,52 +111,54 @@ const DisplayCard = () => {
                                 <div className="bg-purple-50 p-3 rounded border border-purple-100">
                                     <h3 className="font-semibold text-purple-800 mb-2">Destinataire</h3>
                                     <LabelValue label="Nom" value={bsd.recipient.company.name} />
-                                    <LabelValue label="Adresse" value={bsd.recipient.company.address} />
-                                    <LabelValue label="SIRET" value={bsd.recipient.company.siret} />
-                                    <LabelValue label="Contact" value={bsd.recipient.company.contact} />
-                                    <LabelValue label="Téléphone" value={bsd.recipient.company.phone} />
-                                    <LabelValue label="Email" value={bsd.recipient.company.mail} />
-                                    <LabelValue label="CAP" value={bsd.recipient.cap} />
-                                    <LabelValue label="Code traitement" value={bsd.recipient.processingOperation} />
+                                    <LabelValue label="Adresse" value={bsd.recipient?.company?.address || ""} />
+                                    <LabelValue label="SIRET" value={bsd.recipient?.company?.siret || ""} />
+                                    <LabelValue label="Contact" value={bsd.recipient?.company?.contact || ""} />
+                                    <LabelValue label="Téléphone" value={bsd.recipient?.company?.phone || ""} />
+                                    <LabelValue label="Email" value={bsd.recipient?.company?.mail || ""} />
+                                    <LabelValue label="CAP" value={bsd.recipient?.cap || ""} />
+                                    <LabelValue label="Code traitement" value={bsd.recipient?.processingOperation || ""} />
                                 </div>
 
                                 {/* Déchet */}
                                 <div className="bg-red-50 p-3 rounded border border-red-100">
                                     <h3 className="font-semibold text-red-800 mb-2">Détails du déchet</h3>
-                                    <LabelValue label="Code ONU" value={bsd.wasteDetails.onuCode} />
-                                    <LabelValue label="Consistance" value={bsd.wasteDetails.consistence} />
-                                    <LabelValue label="Quantité" value={`${bsd.wasteDetails.quantity} ${bsd.wasteDetails.quantityType}`} />
-                                    <LabelValue label="Type de contenant" value={bsd.wasteDetails.packagingInfos[0].type} />
-                                    <LabelValue label="Nombre de contenants" value={bsd.wasteDetails.packagingInfos[0].quantity} />
+                                    <LabelValue label="Code CED" value={bsd.wasteDetails?.code || ""} />
+                                    <LabelValue label="Code ONU" value={bsd.wasteDetails?.onuCode || ""} />
+                                    <LabelValue label="Consistance" value={bsd.wasteDetails?.consistence || ""} />
+                                    <LabelValue label="Quantité" value={`${bsd.wasteDetails?.quantity || ""} ${bsd.wasteDetails?.quantityType || ""}`} />
+                                    <LabelValue label="Type de contenant" value={bsd.wasteDetails?.packagingInfos[0]?.type || null} />
+                                    <LabelValue label="Nombre de contenants" value={bsd.wasteDetails?.packagingInfos[0]?.quantity || null} />
+                                    <LabelValue label="Description" value={bsd.wasteDetails?.packagingInfos[0]?.other || null} />
                                 </div>
 
                                 {/* Suivi */}
                                 <div className="bg-gray-50 p-3 rounded border border-gray-100">
                                     <h3 className="font-semibold text-gray-800 mb-2">Suivi</h3>
-                                    <LabelValue label="ID" value={bsd.readableId} />
-                                    <LabelValue label="ID Système" value={bsd.id} />
-                                    <LabelValue label="Statut" value={bsd.status} />
-                                    <LabelValue label="Créé le" value={formatDate(bsd.createdAt)} />
+                                    <LabelValue label="ID" value={bsd?.readableId || ""} />
+                                    <LabelValue label="ID Système" value={bsd?.id || null} />
+                                    <LabelValue label="Statut" value={bsd?.status || null} />
+                                    <LabelValue label="Créé le" value={formatDate(bsd?.createdAt || "")} />
                                     <LabelValue label="Mis à jour le" value={formatDate(bsd.updatedAt)} />
                                     <LabelValue label="Signé le" value={formatDate(bsd.signedAt)} />
                                     <LabelValue label="Émis le" value={formatDate(bsd.emittedAt)} />
                                     <LabelValue label="Émis par" value={bsd.emittedBy} />
                                     <LabelValue label="Pris en charge le" value={formatDate(bsd.takenOverAt)} />
-                                    <LabelValue label="Pris en charge par" value={bsd.takenOverBy} />
-                                    <LabelValue label="Reçu le" value={formatDate(bsd.receivedAt)} />
-                                    <LabelValue label="Reçu par" value={bsd.receivedBy} />
-                                    <LabelValue label="Traité le" value={formatDate(bsd.processedAt)} />
-                                    <LabelValue label="Traité par" value={bsd.processedBy} />
-                                    <LabelValue label="Quantité acceptée" value={bsd.quantityAccepted} />
-                                    <LabelValue label="Quantité reçue" value={bsd.quantityReceived} />
-                                    <LabelValue label="Type de quantité reçue" value={bsd.quantityReceivedType} />
-                                    <LabelValue label="Quantité refusée" value={bsd.quantityRefused} />
-                                    <LabelValue label="Statut d'acceptation" value={bsd.wasteAcceptationStatus} />
+                                    <LabelValue label="Pris en charge par" value={bsd.takenOverBy || null} />
+                                    <LabelValue label="Reçu le" value={formatDate(bsd?.receivedAt || "")} />
+                                    <LabelValue label="Reçu par" value={bsd?.receivedBy || null  } />
+                                    <LabelValue label="Traité le" value={formatDate(bsd?.processedAt || "")} />
+                                    <LabelValue label="Traité par" value={bsd?.processedBy || ""} />
+                                    <LabelValue label="Quantité acceptée" value={bsd?.quantityAccepted || ""} />
+                                    <LabelValue label="Quantité reçue" value={bsd?.quantityReceived || ""} />
+                                    <LabelValue label="Type de quantité reçue" value={bsd?.quantityReceivedType || ""} />
+                                    <LabelValue label="Quantité refusée" value={bsd?.quantityRefused || ""} />
+                                    <LabelValue label="Statut d'acceptation" value={bsd?.wasteAcceptationStatus || ""} />
                                     <LabelValue label="Raison du refus" value={bsd.wasteRefusalReason} />
-                                    <LabelValue label="Opération de traitement effectuée" value={bsd.processingOperationDone} />
-                                    <LabelValue label="Description du traitement" value={bsd.processingOperationDescription} />
-                                    <LabelValue label="Importé depuis papier" value={bsd.isImportedFromPaper ? 'Oui' : 'Non'} />
-                                    <LabelValue label="Émis par eco-organisme" value={bsd.emittedByEcoOrganisme ? 'Oui' : 'Non'} />
+                                    <LabelValue label="Opération de traitement effectuée" value={bsd?.processingOperationDone || ""} />
+                                    <LabelValue label="Description du traitement" value={bsd?.processingOperationDescription || ""} />
+                                    <LabelValue label="Importé depuis papier" value={bsd?.isImportedFromPaper ? 'Oui' : 'Non'} />
+                                    <LabelValue label="Émis par eco-organisme" value={bsd?.emittedByEcoOrganisme ? 'Oui' : 'Non'} />
                                 </div>
                             </div>
                         </div>

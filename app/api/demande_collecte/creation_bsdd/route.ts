@@ -2,11 +2,9 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { supabase } from '@/app/database/supabaseClient';
-import { FormInput } from '@/app/register/interface/BSD_Interface';
 import { pushOnTableParametrage } from '@/app/register/RegisterComponents/Modal/utils_new';
+import { cookies } from 'next/headers';
 
-const url_sandbox = process.env.TRACKDECHETS_URL_SANDBOX;
-const token_sandbox = process.env.TRACKDECHETS_TOKEN_SANDBOX;
 
 interface FormAPI {
     createFormInput: {
@@ -233,6 +231,9 @@ interface ReponseData {
             message: string;
         }>;
     };
+    errors?: Array<{
+        message: string;
+    }>;
 }
 
 interface AxiosErrorResponse {
@@ -248,6 +249,21 @@ interface AxiosErrorResponse {
 }
 
 export async function POST(request: Request) {
+
+    const token_track = cookies().get('trackdechets_token')?.value;
+    let url_track = process.env.TRACKDECHETS_URL_SANDBOX;
+    if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
+        url_track = process.env.TRACKDECHETS_URL_APP;
+    }
+
+    if (!token_track || !url_track) {
+        return NextResponse.json({ 
+            success: false, 
+            message: 'Token ou URL TrackDéchets non trouvés',
+            error: 'Token ou URL TrackDéchets non trouvés'
+        }, { status: 400 });
+    }
+
     const response = await request.json();
     const isDraft = response.isDraft || false;
 
@@ -273,7 +289,7 @@ export async function POST(request: Request) {
         }
 
         // Si ce n'est pas un brouillon, on continue avec l'envoi à TrackDéchets
-        const trackDechetsResponse = await createBSDD_API(response.data.formAPI);
+        const trackDechetsResponse = await createBSDD_API(response.data.formAPI, token_track, url_track);
         
         if (!trackDechetsResponse || !trackDechetsResponse.success) {
             return NextResponse.json({ 
@@ -346,7 +362,7 @@ const createBSD_Fleap = async (user_id:string, data:DataTransfer, id_track:strin
 
 
 
-const createBSDD_API = async (data: FormAPI) => {
+const createBSDD_API = async (data: FormAPI, token_track: string, url_track: string) => {
     try {
         const mutation = `
             mutation CreateForm($createFormInput: CreateFormInput!) {
@@ -365,25 +381,26 @@ const createBSDD_API = async (data: FormAPI) => {
         data.createFormInput.transporter.company.siret = data.createFormInput.transporter.company.siret.replaceAll(" ", ""); // Correction ici
         data.createFormInput.emitter.company.siret = data.createFormInput.emitter.company.siret.replaceAll(" ", "");
 
-        if (!url_sandbox) {
+        if (!url_track) {
             throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
         }
 
-        console.log("Sending to TrackDéchets:", {
+        console.log("Sending to TrackDéchets");
+        /*console.log("Sending to TrackDéchets:", {
             mutation,
             variables: data,
             token: token_sandbox?.substring(0, 10) + '...'
-        });
+        });*/
 
         const response = await axios.post<ReponseData>(
-            url_sandbox,
+            url_track,
             { 
                 query: mutation, 
                 variables: data 
             },
             {
                 headers: {
-                    'Authorization': `Bearer ${token_sandbox}`,
+                    'Authorization': `Bearer ${token_track}`,
                     'Content-Type': 'application/json'
                 }
             }
@@ -400,9 +417,10 @@ const createBSDD_API = async (data: FormAPI) => {
 
         if (!response.data?.data?.createForm) {
             console.error('TrackDéchets API response missing createForm:', response.data);
+            const message = response.data.errors?.[0]?.message || 'Erreur TrackDéchets non spécifiée';
             return {
                 success: false,
-                error: 'Réponse TrackDéchets invalide - createForm manquant',
+                error: message,
                 data: null
             };
         }

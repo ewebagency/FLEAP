@@ -526,7 +526,7 @@ export interface BSDD_TrackDechets_DEPRECATED {
         onuCode: string;           // Code ONU
         packagingInfos: [{
             type: string;          // Type emballage
-            other: string;         // Autre description si type === AUTRE
+            other?: string;         // Autre description si type === AUTRE
             quantity: number;      // Quantité
         }];
         quantity: number;          // Quantité déchet
@@ -695,7 +695,7 @@ infos: string;
 }
 
 interface Transporter {
-id: string;
+id?: string;
 company: Company;
 isExemptedOfReceipt: boolean;
 receipt: string;
@@ -704,8 +704,8 @@ validityLimit: string;
 numberPlate: string;
 customInfo?: string;
 mode: string;
-takenOverAt: string;
-takenOverBy: string;
+takenOverAt?: string;
+takenOverBy?: string;
 }
 
 interface WasteDetails {
@@ -794,7 +794,7 @@ interface Grouping {
 
 export interface BSDD_TrackDechets {
 
-id: string;
+id?: string;
 readableId: string;
 customId: string;
 
@@ -846,8 +846,8 @@ emittedAt: string;
 emittedBy: string;
 emittedByEcoOrganisme: string;
 
-takenOverAt: string;
-takenOverBy: string;
+takenOverAt?: string;
+takenOverBy?: string;
 
 wasteAcceptationStatus: string;
 wasteRefusalReason: string;
