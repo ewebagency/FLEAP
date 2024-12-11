@@ -55,7 +55,7 @@ interface CompanyResponse {
 
 export async function POST() {
     let url_track = process.env.TRACKDECHETS_URL_SANDBOX;
-    let token_track = cookies().get('trackdechets_token')?.value;
+    const token_track = cookies().get('trackdechets_token')?.value;
     if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
         url_track = process.env.TRACKDECHETS_URL_APP;
     }
