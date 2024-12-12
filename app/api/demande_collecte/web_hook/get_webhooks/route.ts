@@ -3,8 +3,8 @@ import axios from 'axios';
 import { cookies } from "next/headers";
 
 export async function GET(req:Request) {
+    
     const token_track = cookies().get('trackdechets_token')?.value;
-    console.log('cookiiiies getwebhook', cookies().get('trackdechets_token'));
     let url_track = process.env.TRACKDECHETS_URL_SANDBOX;
     if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
         url_track = process.env.TRACKDECHETS_URL_APP;

@@ -73,7 +73,7 @@ export async function POST(req: Request) {
         url_track = process.env.TRACKDECHETS_URL_APP;
     }
 
-    console.log("Notification TrackDéchet reçue !!", Date.now());
+    console.log("\n\n--------------------\nNotification TrackDéchet reçue !!");
     try {
         const signature = req.headers.get('authorization')?.split('Bearer: ')[1];
         

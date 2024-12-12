@@ -5,8 +5,15 @@ import { cookies } from 'next/headers';
 const ngrok = process.env.NGROK_URL;
 
 export async function POST(req:Request) {
-    const token_track = cookies().get('trackdechets_token')?.value;
-    console.log('cookiiiies create_a_web_hook', cookies().get('trackdechets_token'));
+    
+    let token_track = cookies().get('trackdechets_token')?.value;
+
+    const req_json = await req.json();
+    if(req_json.token_track){
+        token_track = req_json.token_track;
+    }
+    console.log('token track pour create a webhook', token_track);
+    
     let url_track = process.env.TRACKDECHETS_URL_SANDBOX;
     if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
         url_track = process.env.TRACKDECHETS_URL_APP;
@@ -20,15 +27,10 @@ export async function POST(req:Request) {
     }
 
     console.log('Création d\'un webhook');
-    const { url, id_company_reçu } = await req.json(); // inutile car id lié au token
-    //console.log('id_company_reçu', id_company_reçu);
     const response_id_company = await GetIdCompany(token_track, url_track); //Id de la companie lié au token
     if(response_id_company.status === 200){
         const id_company =  response_id_company.id_company;
-        //const uri = encodeURIComponent(`${process.env.NEXT_PUBLIC_APP_URL}/api/demande_collecte/get_webhooks`);
-        //const uri = `${process.env.NEXT_PUBLIC_APP_URL}/api/demande_collecte/get_webhooks`;
-        const uri = 'https://localhost:3000/api/demande_collecte/get_webhooks/';
-        createWebHook(token_track, url_track, id_company, uri);
+        createWebHook(token_track, url_track, id_company);
         return NextResponse.json({ status: 200, webhooks: "ok" }, { status: 200 });
     } else {
         return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
@@ -36,7 +38,7 @@ export async function POST(req:Request) {
 
 } 
 
-const createWebHook = async (token_track:string, url_track:string, id_company:string, uri:string) => {
+const createWebHook = async (token_track:string, url_track:string, id_company:string) => {
     
     const mutation_create_webhook_setting = `
       mutation CreateWebHookSettings ($input : WebhookSettingCreateInput!){
