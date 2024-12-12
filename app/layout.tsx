@@ -3,7 +3,6 @@ import localFont from "next/font/local";
 import "./globals.css";
 import SideBar from "./component/SideBar";
 import { SessionProvider } from "./component/SessionProvider";
-import { SiteProvider } from "./component/context/SiteContext";
 import { FilterProvider } from "./FilterContext";
 import { AccessOtherAccountProvider } from "./interface_admin_2/AccessOtherAccounts/AccessOtherAccountContext";
 
@@ -33,7 +32,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <SessionProvider>
           <FilterProvider>
-            <SiteProvider> {/* A terme Site provider viendra de filter provider */}
+            
               <AccessOtherAccountProvider>
                 <div className="flex h-screen"> {/* Utiliser h-screen pour remplir la hauteur de l'écran */}
                   <SideBar className_props="min-h-full" /> {/* Assurer que la sidebar prend toute la hauteur */}
@@ -42,7 +41,7 @@ export default function RootLayout({
                   </main>
                 </div>
               </AccessOtherAccountProvider>
-            </SiteProvider>
+            
           </FilterProvider>
         </SessionProvider>  
       </body>

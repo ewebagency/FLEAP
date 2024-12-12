@@ -79,9 +79,9 @@ export async function POST(req: Request) {
         
         console.log("signature : ", signature);
         console.log("token_track : ", token_track);
-        const cond_signature = tokenAlreadyRegister(signature);
+        const cond_signature = await tokenAlreadyRegister(signature);
 
-        if (!cond_signature){ //|| signature !== token_track) {
+        if (!cond_signature.already_register){ //|| signature !== token_track) {
             console.log('Signature invalide');
             return NextResponse.json({ message: 'Signature invalide' }, { status: 204 });
         }
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
 
             // Gérer les différents types d'événements
             const {action, id} = event[0];
-            return HandleBSD_Supabase(action, id, token_track, url_track??'');
+            return HandleBSD_Supabase(action, id, token_track, url_track??'', cond_signature.user_id, cond_signature.entreprise_id);
 
         } catch (parseError) {
             console.error('Erreur de parsing JSON:', parseError);
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
 }
 
 
-const HandleBSD_Supabase = async (action: string, id: string, token_track: string, url_track: string) => {
+const HandleBSD_Supabase = async (action: string, id: string, token_track: string, url_track: string, user_id: string, entreprise_id: string) => {
     
     console.log("HandleBSD_Notification : ", action);
     
@@ -461,7 +461,7 @@ const HandleBSD_Supabase = async (action: string, id: string, token_track: strin
         //console.log("Corps du BSD lié à la notification : ", response.data);
         
         if (action === "UPDATED"){
-            return updateBSD_Supabase(id, response.data as {data: {form: formAPI_Track}});
+            return updateBSD_Supabase(id, response.data as {data: {form: formAPI_Track}}, user_id, entreprise_id);
         } else if (action === "CREATED"){
             return handleBSD_Created_on_Track(id, response.data as {data: {form: formAPI_Track}});
         }
@@ -514,53 +514,62 @@ const createBSD_Supabase = async (readableId: string, data: {data: {form: formAP
     return NextResponse.json({ status: 200 });
 }
 
-const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAPI_Track}}) => {
+const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAPI_Track}}, user_id: string, entreprise_id: string) => {
     console.log("BSD mis à jour : ", readableId);
     console.log("Données reçues par le WebHook : ", data);
+    //Si readable_id n'existe pas dans la BDD, on créer un nouveau BSD avec ce readable_id pour ce user (entreprise) : id FLEAP unique mais ids TRACK pas uniques
+
     const json_past = await supabase
     .from('bsd')
     .select('infos_json')
     .eq('readable_id_track_dechets', readableId)
+    .eq('entreprise_id', entreprise_id)
     .single();
 
-    //const new_formAPI = data.data.form;
-    
-    //const {status, ...new_formAPI} = data.data.form; --> ancien
-    const status = data.data.form.status;
-    const new_formAPI = data.data.form; // NOUVEAU
-    
-    const past_infos_json = json_past.data?.infos_json;
-    //console.log("Nouvelles Infos JSON reçus par WebHook : ", new_formAPI);
-    //console.log("Infos JSON précédentes : ", past_infos_json?.formAPI.createFormInput);
-    console.log("past_infos_json : ", past_infos_json);
-
-    
-    past_infos_json.formAPI.createFormInput.emitter = new_formAPI.emitter;
-    past_infos_json.formAPI.createFormInput.recipient = new_formAPI.recipient;
-    past_infos_json.formAPI.createFormInput.transporter = new_formAPI.transporter;
-    past_infos_json.formAPI.createFormInput.wasteDetails = new_formAPI.wasteDetails;
-    past_infos_json.formAPI.createFormInput = new_formAPI // NOUVEAU
-
-
-    //console.log("Infos JSON qu'on va mettre à jour : ", past_infos_json);
-
-    const response = await supabase
-    .from('bsd')
-    .update({
-        infos_json: past_infos_json,
-        status_track_dechets: status,
-    }) //Gros probleme avec formData et FormAPI (tout ressortir et remapper)
-    .eq('readable_id_track_dechets', readableId);
-
-    if (response.status === 204){
-        console.log("Supabase mis à jour avec le WebHook TrackDéchet");
+    if(!json_past.data){
+        console.log("BSD encore non existant => création du BSD");
+        const user_ids = [user_id];
+        const entreprise_ids = [entreprise_id];
+        return createBSD_Supabase(readableId, data, user_ids, entreprise_ids);
     } else {
-        console.log("Erreur lors de la mise à jour de la BDD");
-    }
-    //console.log("BDD mise à jour : ", response);
-    //console.log("Truc modifié : ", past_infos_json.formAPI.createFormInput.emitter);
+        console.log("BSD déjà existant dans la BDD => mise à jour du BSD");
+                
+        const status = data.data.form.status;
+        const new_formAPI = data.data.form; // NOUVEAU
+        
+        const past_infos_json = json_past.data?.infos_json;
+        //console.log("Nouvelles Infos JSON reçus par WebHook : ", new_formAPI);
+        //console.log("Infos JSON précédentes : ", past_infos_json?.formAPI.createFormInput);
+        console.log("past_infos_json : ", past_infos_json);
 
-    return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
+        
+        past_infos_json.formAPI.createFormInput.emitter = new_formAPI.emitter;
+        past_infos_json.formAPI.createFormInput.recipient = new_formAPI.recipient;
+        past_infos_json.formAPI.createFormInput.transporter = new_formAPI.transporter;
+        past_infos_json.formAPI.createFormInput.wasteDetails = new_formAPI.wasteDetails;
+        past_infos_json.formAPI.createFormInput = new_formAPI // NOUVEAU
+
+
+        //console.log("Infos JSON qu'on va mettre à jour : ", past_infos_json);
+
+        const response = await supabase
+        .from('bsd')
+        .update({
+            infos_json: past_infos_json,
+            status_track_dechets: status,
+        }) //Gros probleme avec formData et FormAPI (tout ressortir et remapper)
+        .eq('readable_id_track_dechets', readableId);
+
+        if (response.status === 204){
+            console.log("Supabase mis à jour avec le WebHook TrackDéchet");
+        } else {
+            console.log("Erreur lors de la mise à jour de la BDD");
+        }
+        //console.log("BDD mise à jour : ", response);
+        //console.log("Truc modifié : ", past_infos_json.formAPI.createFormInput.emitter);
+
+        return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
+    }
 }
 
 const deleteBSD_Supabase = async (readableId: string) => {
@@ -626,14 +635,26 @@ const getUserIdsLinkedToItsSiret = async (siret: string) => {
 //Tester de créer un BSD depuis trackdechets uniquement et voir s'il se créer dans BDD et FLEAP
 const tokenAlreadyRegister = async (signature: string | undefined) => {
     if(!signature){
-        return false;
+        console.log("Pas de signature envoyé par trackdechet");
+        return {already_register: false};
     }else{
         const response = await supabase
         .from('token_track')
         .select('*')
         .eq('token', signature)
         .single();
-        return response.data ? true : false;
+        if(response.data){
+            console.log("Signature trouvée dans notre BDD");
+            const entreprise_id = await supabase
+                .from('profiles')
+                .select('entreprise_id')
+                .eq('user_id', response.data.user_id)
+                .single();
+            return {already_register: true, user_id: response.data.user_id, entreprise_id: entreprise_id.data?.entreprise_id};
+        } else {
+            console.log("Signature non trouvée dans notre BDD");
+            return {already_register: false};
+        }
     }
 }
 

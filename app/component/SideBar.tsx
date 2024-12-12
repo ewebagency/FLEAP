@@ -28,6 +28,13 @@ const SideBar = (props:SideBarProps) => {
     const [userNames, setUserNames] = useState({first_name:'', last_name:''});
     const [cofounderPermission, setCofounderPermission] = useState(false);
     const [entreprise_name, setEntrepriseName] = useState('Chargement...');
+    const [connected, setConnected] = useState(true);
+
+    useEffect(()=>{
+        if (session?.user_id){
+            setConnected(true);
+        }
+    }, [session]);
 
     useEffect(()=>{
         if (session?.user_id && cofounders_user_id(session.user_id)){
@@ -74,6 +81,7 @@ const SideBar = (props:SideBarProps) => {
             } else {
                 console.log("Déconnexion réussie, redirection en cours...");
                 router.push('/auth/signin');
+                setConnected(false);
             }
         } catch (err) {
             console.error("Erreur inattendue lors de la déconnexion :", err);
@@ -86,25 +94,27 @@ const SideBar = (props:SideBarProps) => {
       }
 
     return (
-        <div className={`menu h-screen bg-base-200 w-60 p-4 flex flex-col ${props.className_props}`}>
-            <div className="flex-grow">
-                <h1 className="font-bold text-xl mb-4 ml-4">{entreprise_name}</h1>
-                <FiltreSite/>
-                {/*<FiltreDate/>*/}
-                <ul className="space-y-2">
-                    {cofounderPermission && <li><a href="/analysis" className="menu-item">Analyses</a></li>}
-                    <li><a href="/register" className="menu-item">Registre</a></li>
-                    <li><a href="/import_page" className="menu-item">Importer</a></li>
-                    {cofounderPermission && <li><a href="/interface_admin_2" className="menu-item">Vérification de factures</a></li>}
-                    {cofounderPermission && <li><a href="/lien" className="menu-item">Lien entre Factures et BSDs</a></li>}
-                </ul>
-            </div>
-            <DetailsSideBar 
-                session={!!session} // Convert session to boolean
-                userNames={userNames} 
-                handleParameterPage={handleParameterPage} 
-                handleLogout={handleLogout}
-            />
+        <div>
+            {connected &&<div className={`menu h-screen bg-base-200 w-60 p-4 flex flex-col ${props.className_props}`}>
+                <div className="flex-grow">
+                    <h1 className="font-bold text-xl mb-4 ml-4">{entreprise_name}</h1>
+                    <FiltreSite/>
+                    {/*<FiltreDate/>*/}
+                    <ul className="space-y-2">
+                        {cofounderPermission && <li><a href="/analysis" className="menu-item">Analyses</a></li>}
+                        <li><a href="/register" className="menu-item">Registre</a></li>
+                        <li><a href="/import_page" className="menu-item">Importer</a></li>
+                        {cofounderPermission && <li><a href="/interface_admin_2" className="menu-item">Vérification de factures</a></li>}
+                        {cofounderPermission && <li><a href="/lien" className="menu-item">Lien entre Factures et BSDs</a></li>}
+                    </ul>
+                </div>
+                <DetailsSideBar 
+                    session={!!session} // Convert session to boolean
+                    userNames={userNames} 
+                    handleParameterPage={handleParameterPage} 
+                    handleLogout={handleLogout}
+                />
+            </div>}
         </div>
     )
 }

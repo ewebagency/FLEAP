@@ -22,7 +22,7 @@ const ConnectedToTrack = () => {
     fetchToken();
   }, []);
 
-  if (!token) return null;
+  //if (!token) return null;
 
   return (
     <div>
@@ -31,7 +31,7 @@ const ConnectedToTrack = () => {
           Connecté à TrackDéchet
         </div>
         :
-        <div className="inline-block text-xs text-white py-1 px-2 rounded-lg bg-red-400">
+        <div className="inline-block text-xs text-white py-1 px-2 rounded-lg bg-gray-400">
           Non connecté à TrackDéchet
         </div>
       }

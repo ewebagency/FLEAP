@@ -907,6 +907,9 @@ export interface FormInput {
     //customId?: string;
     //status?: string;
     //isImportedFromPaper?: boolean;
+    emittedAt?: string;
+    createdAt?: string;
+    updatedAt?: string;
   
     emitter: {
       type: string;

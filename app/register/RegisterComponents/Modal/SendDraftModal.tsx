@@ -113,6 +113,7 @@ const SendDraftModal = ({
                             destinataire: formData.transporter.company.mail,
                             emetteur: formData.emitter.company.mail,
                         }}
+                        pastBrouillon={true}
                     />
                 </div>
                 <div>
@@ -120,6 +121,7 @@ const SendDraftModal = ({
                         dataText={formData}
                         setDataText={setFormData}
                         onClose={()=>onClose()}
+                        pastBrouillon={true}
                         />
                 </div>
             </div>

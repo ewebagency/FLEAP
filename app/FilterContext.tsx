@@ -1,5 +1,5 @@
 'use client'
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 
 export interface Filiere {
     name: string;
@@ -65,6 +65,8 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   const [prestataires, setPrestataires] = useState<Prestataire[]>([]);
   const [segmentDates, setSegmentDates] = useState<SegmentDates>({ debut: null, fin: null });
   const [filieres_ou_prestataires, setFilieresOuPrestataires] = useState<FiliereOuPrestataireInterface>({ nom: 'filiere' });
+  const [isInitialized, setIsInitialized] = useState(false);
+
   const toggleFiliere = (name: string) => {
     setFilieres(prev => prev.map(filiere => 
       filiere.name === name 
@@ -95,6 +97,29 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
     setPrestataires(prev => prev.map(p => ({ ...p, checked: true })));
     setSegmentDates({ debut: null, fin: null });
   };
+
+  useEffect(() => {
+    if (!isInitialized) {
+      const savedFilieres = localStorage.getItem('filieres');
+      if (savedFilieres) {
+        setFilieres(JSON.parse(savedFilieres));
+      }
+
+      const savedSites = localStorage.getItem('sites');
+      if (savedSites) {
+        setSites(JSON.parse(savedSites));
+      }
+
+      setIsInitialized(true);
+    }
+  }, [isInitialized]);
+
+  useEffect(() => {
+    if (isInitialized) {
+      localStorage.setItem('filieres', JSON.stringify(filieres));
+      localStorage.setItem('sites', JSON.stringify(sites));
+    }
+  }, [filieres, sites, isInitialized]);
 
   const value = {
     filieres,

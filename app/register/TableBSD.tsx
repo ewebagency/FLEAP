@@ -6,12 +6,13 @@ import toast from "react-hot-toast";
 import { Filiere, Site, useFilterContext } from "../FilterContext";
 import { BSDD_TrackDechets, FormInput } from "./interface/BSD_Interface";
 import Swal from 'sweetalert2';
-import { sendData_to_Cloud } from "./RegisterComponents/Modal/utils_new";
 import SendDraftModal from "./RegisterComponents/Modal/SendDraftModal";
+import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/utils_new";
 
 // Modifier le type FormDataType pour inclure un id
 type BSD = {
     id: string;
+    created_at: string;
     infos_json: {formAPI: {createFormInput: BSDD_TrackDechets}};
     facture_treated: boolean;
     facture_infos: {
@@ -34,87 +35,103 @@ const getSommeBSD = (facture_infos: {montant_ht: number}) => {
 }
 
 const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Site[], entreprise_id: string | null) => {
-    //console.log("user_id : ", user_id);
+    console.log("Début fetchBSDs", { user_id, entreprise_id });
+    
+    if (!entreprise_id) return [];
+
     const { data, error } = await supabase
     .from('bsd')
     .select('id, created_at, infos_json, facture_treated, facture_infos, status_track_dechets, id_track_dechets')
     .eq('entreprise_id', entreprise_id);
 
-    if(error){
-        //console.error("Error fetching BSD:", error);
-    } else {
-        //console.log("BSDs fetched");
-        
-        // Filtrer les BSDs si des filières sont sélectionnées
-        const checkedFilieres = filieres.filter(f => f.checked).map(f => f.name);
-        
-        const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres: string[]) => {
-            const { data, error } = await supabase
-            .from('entreprise')
-            .select('mapping_ced_filiere')
-            .eq('id', entreprise_id)
-            .single();
-            if(data){
-                const mapping_table = data.mapping_ced_filiere;
-                const ced_uniques:string[] = [];
-                let other_ceds:string[] = mapping_table.map((mapping: {ced: string}) => mapping.ced);
-                for(const mapping of mapping_table){
-                    for(const filiere of checkedFilieres){
-                        const cond1 = mapping.filiere === filiere;
-                        if(cond1){
-                            ced_uniques.push(mapping.ced);
-                            other_ceds = other_ceds.filter((ced)=>ced!==mapping.ced);
-                        }
+    if(error) {
+        console.error("Error fetching BSD:", error);
+        return [];
+    }
+
+    console.log("BSDs bruts récupérés:", data?.length);
+    
+    const checkedFilieres = filieres.filter(f => f.checked).map(f => f.name);
+    console.log("Filières cochées:", checkedFilieres);
+
+    // Si aucune filière n'est sélectionnée, retourner tous les BSDs
+    if (checkedFilieres.length === 0) {
+        console.log("Aucune filière sélectionnée, retour de tous les BSDs");
+        return data || [];
+    }
+
+    const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres: string[]) => {
+        const { data, error } = await supabase
+        .from('entreprise')
+        .select('mapping_ced_filiere')
+        .eq('id', entreprise_id)
+        .single();
+        if(data){
+            const mapping_table = data.mapping_ced_filiere;
+            const ced_uniques:string[] = [];
+            let other_ceds:string[] = mapping_table.map((mapping: {ced: string}) => mapping.ced);
+            for(const mapping of mapping_table){
+                for(const filiere of checkedFilieres){
+                    const cond1 = mapping.filiere === filiere;
+                    if(cond1){
+                        ced_uniques.push(mapping.ced);
+                        other_ceds = other_ceds.filter((ced)=>ced!==mapping.ced);
                     }
                 }
-                /*if(checkedFilieres.includes('Autres')){
-                    ced_uniques = ced_uniques.concat(other_ceds);
-                }*/
-                
-                return ced_uniques;
             }
-            return [];
+            /*if(checkedFilieres.includes('Autres')){
+                ced_uniques = ced_uniques.concat(other_ceds);
+            }*/
+            
+            return ced_uniques;
         }
-        const checkedCEDs = await getCEDsFromFilieres(entreprise_id, checkedFilieres);
-        
-        //console.log('checkedFilieres', checkedFilieres);
-        //console.log('checkedCEDs', checkedCEDs);
-        let filteredBSD_onCED = data
-        if (checkedFilieres.length > 0) {
-            const non_Autres = data.filter((bsd) => {
-                const ced = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
-                return checkedCEDs.includes(ced.replaceAll(' ', '').replace('*', ''));
-            });
+        return [];
+    }
+    const checkedCEDs = await getCEDsFromFilieres(entreprise_id, checkedFilieres);
+    console.log("CEDs correspondants:", checkedCEDs);
 
-            const autres = data.filter((bsd) => {
-                return !non_Autres.some(nonAutreBsd => nonAutreBsd.id === bsd.id);
-            });
-
-            if(checkedFilieres.includes('Autres')){
-                filteredBSD_onCED = non_Autres.concat(autres);
-            } else {
-                filteredBSD_onCED = non_Autres;
-            }
-        } 
-        const checkedSites = sites.filter(site => site.checked).map(site => site.name); 
-        let filteredBSD_onCED_andSite = filteredBSD_onCED.filter((bsd) => {
-            return checkedSites.some(site => bsd.infos_json.formAPI.createFormInput.emitter.workSite ? site === bsd.infos_json.formAPI.createFormInput.emitter.workSite.name : false);
+    let filteredBSD_onCED = data;
+    if (checkedFilieres.length > 0) {
+        const non_Autres = data.filter((bsd) => {
+            const ced = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
+            return checkedCEDs.includes(ced.replaceAll(' ', '').replace('*', ''));
         });
 
-        if(checkedSites.includes("Non renseigné")){
-            const non_renseigne = data.filter((bsd) => {
-                if(bsd.infos_json.formAPI.createFormInput.emitter.workSite){
-                    return bsd.infos_json.formAPI.createFormInput.emitter.workSite.name === ""
-                } else {
-                    return true;
-                }
-            });
-            filteredBSD_onCED_andSite = filteredBSD_onCED_andSite.concat(non_renseigne);
+        const autres = data.filter((bsd) => {
+            return !non_Autres.some(nonAutreBsd => nonAutreBsd.id === bsd.id);
+        });
+
+        if(checkedFilieres.includes('Autres')){
+            filteredBSD_onCED = non_Autres.concat(autres);
+        } else {
+            filteredBSD_onCED = non_Autres;
         }
+    } 
+    const checkedSites = sites.filter(site => site.checked).map(site => site.name);
+    console.log("Sites cochés:", checkedSites);
 
-        return filteredBSD_onCED_andSite;
-
+    // Si aucun site n'est sélectionné, retourner les BSDs filtrés par filières
+    if (checkedSites.length === 0) {
+        console.log("Aucun site sélectionné, retour des BSDs filtrés par filières");
+        return filteredBSD_onCED;
     }
+
+    let filteredBSD_onCED_andSite = filteredBSD_onCED.filter((bsd) => {
+        return checkedSites.some(site => bsd.infos_json.formAPI.createFormInput.emitter.workSite ? site === bsd.infos_json.formAPI.createFormInput.emitter.workSite.name : false);
+    });
+
+    if(checkedSites.includes("Non renseigné")){
+        const non_renseigne = data.filter((bsd) => {
+            if(bsd.infos_json.formAPI.createFormInput.emitter.workSite){
+                return bsd.infos_json.formAPI.createFormInput.emitter.workSite.name === ""
+            } else {
+                return true;
+            }
+        });
+        filteredBSD_onCED_andSite = filteredBSD_onCED_andSite.concat(non_renseigne);
+    }
+
+    return filteredBSD_onCED_andSite;
 }
 
 const TableBSD = () => {
@@ -129,6 +146,19 @@ const TableBSD = () => {
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [showSendDraftModal, setShowSendDraftModal] = useState(false);
     const [selectedBsd, setSelectedBsd] = useState<BSD | null>(null);
+    const [loadingBSDs, setLoadingBSDs] = useState(true);
+    const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
+
+    // Ajouter un useEffect pour charger la table de mapping au démarrage
+    useEffect(() => {
+        const loadMappingTable = async () => {
+            if (session?.entreprise_id) {
+                const mapping = await getMappingTableFiliere(session.entreprise_id);
+                setMappingTable(mapping || []);
+            }
+        };
+        loadMappingTable();
+    }, [session?.entreprise_id]);
 
     // Fonction pour vérifier et initialiser les webhooks
     const initializeWebhooks = async () => {
@@ -173,6 +203,39 @@ const TableBSD = () => {
         }
     };
 
+    // Récupérer les BSDs de l'utilisateur
+    useEffect(() => {
+        const loadBSDs = async () => {
+            if (!session?.user_id || !session?.entreprise_id) {
+                setLoadingBSDs(false);
+                return;
+            }
+
+            try {
+                setLoadingBSDs(true);
+                const data = await fetchBSDs(session.user_id, filieres, sites, session.entreprise_id);
+                console.log("Données à afficher:", data?.length);
+                if (data && data.length > 0) {
+                    const sortedData = data.sort((a, b) => 
+                        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                    );
+                    console.log("Données triées:", sortedData.length);
+                    setBSDs(sortedData);
+                } else {
+                    setBSDs([]);
+                }
+            } catch (error) {
+                console.error("Erreur lors du chargement:", error);
+                setBSDs([]);
+            } finally {
+                setLoadingBSDs(false);
+            }
+        };
+
+        loadBSDs();
+    }, [session?.user_id, session?.entreprise_id, filieres, sites, modalReload, modalId, modalType]);
+
+
     useEffect(() => {
         // Exécution immédiate
         if (!webhooksInitialized) {
@@ -189,26 +252,6 @@ const TableBSD = () => {
         return () => clearInterval(interval);
     }, [webhooksInitialized, modalReload]);
     
-    // Récupérer les BSDs de l'utilisateur
-    useEffect(() => {
-        const loadBSDs = async () => {
-            if (session?.user_id) {
-                try {
-                    const data = await fetchBSDs(session.user_id, filieres, sites, session.entreprise_id);
-                    if (data) {
-                        const sortedData = data.sort((a, b) => 
-                            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                        );
-                        setBSDs(sortedData);
-                    }
-                } catch (error) {
-                    console.error("Error loading BSDs:", error);
-                }
-            }
-        };
-        loadBSDs();
-        //console.log('mon bsd', bsds);
-    }, [session, modalReload, modalId, modalType, filieres, sites]);
 
 
     const handleDelete = async (id: string, silent: boolean = false) => {
@@ -314,7 +357,8 @@ const TableBSD = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse', border: 'none' }}>
                 <thead>
                     <tr style={{ backgroundColor: 'white' }}>
-                        <th style={{ padding: '10px', border: '1px solid #ddd' }}>Déchet</th>
+                        <th style={{ padding: '10px', border: '1px solid #ddd' }}>Site / Date</th>
+                        <th style={{ padding: '10px', border: '1px solid #ddd' }}>Déchet / Filière</th>
                         <th style={{ padding: '10px', border: '1px solid #ddd' }}>Statut</th>
                         <th style={{ padding: '10px', border: '1px solid #ddd' }}>Prestataires</th>
                         <th style={{ padding: '10px', border: '1px solid #ddd' }}>Montant</th>
@@ -322,12 +366,30 @@ const TableBSD = () => {
                     </tr>
                 </thead>
                 <tbody>
-                    {bsds.map((bsd) => (
+                    {loadingBSDs ? (
+                        <tr><td colSpan={5}>Chargement des BSDs...</td></tr>
+                    ) : bsds.length > 0 ? (
+                        bsds.map((bsd) => (
                         <tr key={bsd.id} style={{ borderBottom: '1px solid #ddd' }}>
                             <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                                <div className="text-xs">
+                                <div className="text-xs space-y-1">
+                                    <div className="font-medium text-gray-800">
+                                        {bsd.infos_json.formAPI.createFormInput.emitter?.workSite?.name || "Site non spécifié"}
+                                    </div>
+                                    <div className="text-gray-600">
+                                        {new Date(bsd.created_at).toLocaleDateString('fr-FR')}
+                                    </div>
+                                </div>
+                            </td>
+                            <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                                <div className="text-xs space-y-1">
                                     <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.code}</div>
-                                    <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.name}</div>
+                                    <div className="text-gray-600">
+                                        {getFiliere(
+                                            bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
+                                            mappingTable
+                                        )}
+                                    </div>
                                     <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity} tonnes</div>
                                 </div>
                             </td>
@@ -345,8 +407,7 @@ const TableBSD = () => {
                                                     className="text-xs text-white font-thin btn btn-success bg-green-600 btn-sm flex flex-col items-center justify-center h-[40px] px-2" 
                                                     onClick={() => handleSendDraft(bsd)}
                                                 >
-                                                    <span>Envoyer sur</span>
-                                                    <span className="-mt-1">TrackDéchets</span>
+                                                    <span>Envoyer</span>
                                                 </div>
                                             : null}
                                         </div>
@@ -404,7 +465,10 @@ const TableBSD = () => {
                                 </div>
                             </td>
                         </tr>
-                    ))}
+                        ))
+                    ) : (
+                        <tr><td colSpan={5}>Aucun BSD disponible</td></tr>
+                    )}
                 </tbody>
             </table>
             

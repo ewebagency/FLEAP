@@ -236,7 +236,7 @@ export const formatText = (text: Anything) => {
 }
 
 
-export const sendData_to_Cloud = async (data: FormInput, user_id: string, entreprise_id: string, isDraft: boolean = false) => {
+export const sendData_to_Cloud = async (data: FormInput, user_id: string, entreprise_id: string, isDraft: boolean = false, nonDangereux: boolean = false) => {
   console.log('data utils new', data);
   
   try {
@@ -249,7 +249,8 @@ export const sendData_to_Cloud = async (data: FormInput, user_id: string, entrep
           user_id: user_id, 
           entreprise_id: entreprise_id,
           data: {formAPI: {createFormInput: data}},
-          isDraft: isDraft  // Ajout du paramètre isDraft
+          isDraft: isDraft,  // Ajout du paramètre isDraft
+          nonDangereux: nonDangereux
       }),
     });
     
@@ -271,6 +272,7 @@ export const sendData_to_Cloud = async (data: FormInput, user_id: string, entrep
     };
   }
 }
+
 
 const getWeightEstimation = (
   volume: string,        // Volume exprimé en L ou m3 (ex: '200L' ou '15m3')

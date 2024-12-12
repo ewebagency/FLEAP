@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer';
 
+const sendMail = process.env.NEXT_PUBLIC_SEND_MAIL==="true";
+
 export async function POST(req: Request) {
     const { to, cc, replyTo, subject, text,  } = await req.json();
     console.log("to : ", to);
@@ -7,6 +9,7 @@ export async function POST(req: Request) {
     console.log("text : ", text);
     console.log("cc : ", cc);
     console.log("replyTo : ", replyTo);
+    console.log("Envoyé ? ", sendMail);
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com', // Exemple avec Gmail
     port: 587,
@@ -26,13 +29,15 @@ export async function POST(req: Request) {
     text: text,
   };
 
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    return new Response(JSON.stringify({ message: 'Email sent', info }), { status: 200 });
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-        return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+  if(sendMail){
+    try {
+      const info = await transporter.sendMail(mailOptions);
+      return new Response(JSON.stringify({ message: 'Email sent', info }), { status: 200 });
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+          return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+      }
     }
-    return new Response(JSON.stringify({ error: 'Unknown error' }), { status: 500 });
   }
+  return new Response(JSON.stringify({ error: 'Unknown error' }), { status: 500 });
 }

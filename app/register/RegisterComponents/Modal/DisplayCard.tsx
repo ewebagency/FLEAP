@@ -3,12 +3,13 @@ import { useModalContextNew } from "./ContextModal";
 import { Anything, BSDD_TrackDechets, DataTotalInterface, Form_API_Interface_Short } from "../../interface/BSD_Interface";
 import { supabase } from "@/app/database/supabaseClient";
 import { useSession } from "@/app/component/SessionProvider";
+import { getMappingTableFiliere, getFiliere } from "./utils_new";
 
 const DisplayCard = () => {
     const { modalId, modalType, setModalType, modalReload } = useModalContextNew();
-    const [bsdAutresInfos, setBSDAutresInfos] = useState<BSDD_TrackDechets | null>(null);
     const [bsd, setBSD] = useState<BSDD_TrackDechets | null>(null);
     const session = useSession();
+    const [filiere, setFiliere] = useState<string>("");
 
     const getBSD = async (userId: string) => {
         const result = await supabase
@@ -19,7 +20,6 @@ const DisplayCard = () => {
             .single();
 
         if (result.data) {
-            setBSDAutresInfos(result.data);
             setBSD(result.data.infos_json.formAPI.createFormInput);
         }
     }
@@ -29,6 +29,17 @@ const DisplayCard = () => {
             getBSD(session.user_id);
         }
     }, [modalId, modalReload, session]);
+
+    useEffect(() => {
+        const getFiliereName = async () => {
+            if (session?.entreprise_id && bsd?.wasteDetails?.code) {
+                const mapping = await getMappingTableFiliere(session.entreprise_id);
+                const filiereFound = getFiliere(bsd.wasteDetails.code, mapping);
+                setFiliere(filiereFound);
+            }
+        };
+        getFiliereName();
+    }, [bsd, session]);
 
     const formatDate = (dateString: string | undefined | null) => {
         if (!dateString) return null;
@@ -61,7 +72,12 @@ const DisplayCard = () => {
                         <div className="border-b pb-2 flex justify-between items-center">
                             <div>
                                 <h2 className="text-xl font-bold text-gray-800">Bordereau de Suivi des Déchets</h2>
-                                <LabelValue label="Code déchet" value={bsd.wasteDetails?.code || ""} />
+                                <div className="mt-2 space-y-1">
+                                    <LabelValue label="Site" value={bsd.emitter?.workSite?.name || ""} />
+                                    <LabelValue label="Filière" value={filiere || ""} />
+                                    <LabelValue label="Date de création" value={formatDate(bsd.createdAt || "")} />
+                                    <LabelValue label="Code déchet" value={bsd.wasteDetails?.code || ""} />
+                                </div>
                             </div>
                             <button 
                                 onClick={() => setModalType("")} 

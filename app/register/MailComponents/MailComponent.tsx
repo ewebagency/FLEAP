@@ -20,6 +20,7 @@ interface EmailParams {
 
 interface MailComponentProps {
     params: EmailParams;
+    pastBrouillon: boolean;
 }
 
 const emailTemplates: EmailTemplate[] = [
@@ -59,7 +60,7 @@ Cordialement,
     }
 ];
 
-const MailComponent: React.FC<MailComponentProps> = ({ params }) => {
+const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=false }) => {
     const [selectedTemplate, setSelectedTemplate] = useState<number>(0);
     const [to, setTo] = useState<string>(params.destinataire || '');
     const [cc, setCc] = useState<string>('');
@@ -142,6 +143,7 @@ const MailComponent: React.FC<MailComponentProps> = ({ params }) => {
 
     return (
         <div className="mt-8 max-w-5xl mx-auto mb-7">
+            {pastBrouillon && false && <div className="text-center text-xl text-black font-bold">Brouillon</div>}
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
                 <div className="grid grid-cols-12 divide-x divide-gray-200">
                     <div className="col-span-4 p-4 space-y-4">

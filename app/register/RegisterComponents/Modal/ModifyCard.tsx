@@ -5,6 +5,7 @@ import { useSession } from "@/app/component/SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
 import { BSDD_TrackDechets, DataOnSupabase_infos_json, DataSupplementaireInterface, DataTotalInterface, Form_API_Interface_Short, FormInput } from "../../interface/BSD_Interface";
 import Swal from 'sweetalert2';
+import { getMappingTableFiliere, getFiliere } from "./utils_new";
 
 const LabelInput = ({ label, value, onChange, path }: { 
     label: string, 
@@ -85,6 +86,8 @@ const ModifyCard = () => {
         //intermediaries: [],
       });
     const session = useSession();
+    const [filiere, setFiliere] = useState<string>("");
+    const [createdAt, setCreatedAt] = useState<string>("");
 
     const getBSD = async (userId: string) => {
         const result = await supabase
@@ -107,6 +110,16 @@ const ModifyCard = () => {
         }
     }, [modalId, session]);
 
+    useEffect(() => {
+        const getFiliereName = async () => {
+            if (session?.entreprise_id && localData?.wasteDetails?.code) {
+                const mapping = await getMappingTableFiliere(session.entreprise_id);
+                const filiereFound = getFiliere(localData.wasteDetails.code, mapping);
+                setFiliere(filiereFound);
+            }
+        };
+        getFiliereName();
+    }, [localData, session]);
 
     const handleChange = (path: string, value: string) => {
         setLocalData(prev => {
@@ -205,14 +218,24 @@ const ModifyCard = () => {
                 <div className="border-b pb-2 flex justify-between items-center">
                     <div>
                         <h2 className="text-xl font-bold text-gray-800">Bordereau de Suivi des Déchets</h2>
-                        <div className="flex items-center text-md mt-2 ml-6">
-                            <span className="font-medium text-gray-700 mr-3">Code déchet: </span>
-                            <input 
-                                type="text"
-                                value={localData.wasteDetails.code}
-                                onChange={(e) => handleChange("wasteDetails.code", e.target.value)}
-                                className="text-gray-700 border-b-2 border-gray-300 focus:border-blue-500 focus:outline-none px-2 w-[90px] text-md font-medium"
-                            />
+                        <div className="mt-2 space-y-1 ml-6">
+                            <div className="flex items-center text-sm">
+                                <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Site: </span>
+                                <span className="text-gray-600">{localData.emitter?.workSite?.name || 'Non renseigné'}</span>
+                            </div>
+                            <div className="flex items-center text-sm">
+                                <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Filière: </span>
+                                <span className="text-gray-600">{filiere}</span>
+                            </div>
+                            <div className="flex items-center text-sm">
+                                <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Code déchet: </span>
+                                <input 
+                                    type="text"
+                                    value={localData.wasteDetails.code}
+                                    onChange={(e) => handleChange("wasteDetails.code", e.target.value)}
+                                    className="text-gray-700 border-b-2 border-gray-300 focus:border-blue-500 focus:outline-none px-2 w-[90px] text-md font-medium"
+                                />
+                            </div>
                         </div>
                     </div>
                     <button 

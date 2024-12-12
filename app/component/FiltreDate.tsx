@@ -54,12 +54,12 @@ const FiltreDate = () => {
         ];
     };
 
-    const getDatesFromUser = async () => {
-        if (session?.user_id) {
+    const getDatesFromEntreprise = async () => {
+        if (session?.entreprise_id) {
             const { data, error } = await supabase
             .from('bsd')
             .select('created_at')
-            .eq('user_id', session.user_id)
+            .eq('entreprise_id', session.entreprise_id)
             .order('created_at');
             
             if (error) {
@@ -78,8 +78,15 @@ const FiltreDate = () => {
     }
 
     useEffect(() => {
-        getDatesFromUser();
-    }, [session]);
+        const loadDates = async () => {
+            if (!session?.user_id || !session?.entreprise_id) {
+                return;
+            }
+            await getDatesFromEntreprise();
+        };
+
+        loadDates();
+    }, [session?.user_id, session?.entreprise_id]);
 
     const handleSegmentSelect = (segment: DateSegment) => {
         setSegmentDates({ debut: segment.debut, fin: segment.fin });

@@ -273,7 +273,21 @@ export async function POST(request: Request) {
     }
 
     try {
-        if (isDraft) {
+        if(response.nonDangereux){
+            // Si c'est un brouillon, on sauvegarde uniquement dans Fleap
+            await createBSD_Fleap(
+                response.user_id, 
+                response.data, 
+                'Déchet non dangereux', // id_track temporaire pour brouillon
+                'Déchet non dangereux', // status spécial pour brouillon
+                'Déchet non dangereux' // readable_id pour brouillon
+            );
+            return NextResponse.json({ 
+                success: true, 
+                message: 'BSD non dangereux sauvegardé avec succès'
+            });
+        }
+        if (isDraft && !response.nonDangereux) {
             // Si c'est un brouillon, on sauvegarde uniquement dans Fleap
             await createBSD_Fleap(
                 response.user_id, 

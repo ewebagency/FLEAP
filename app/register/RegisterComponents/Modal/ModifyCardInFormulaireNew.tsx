@@ -6,6 +6,7 @@ import { useSession } from "@/app/component/SessionProvider";
 import { useModalContextNew } from "./ContextModal";
 import Swal from 'sweetalert2';
 import { useMailContext } from "../../MailComponents/MailContext";
+import Cookies from 'js-cookie';
 
 // Ajout des types nécessaires en haut du fichier
 type NestedKeyOf<ObjectType extends object> = {
@@ -135,10 +136,12 @@ const ModifyCardInFormulaireNew = ({
     onClose, 
     dataText, 
     setDataText,
+    pastBrouillon=false
 }: { 
     onClose: () => void, 
     dataText: FormInput, 
     setDataText: React.Dispatch<React.SetStateAction<FormInput>>,
+    pastBrouillon:boolean
 }) => {
   
   const {dataToogle } = useModalContextNew();
@@ -154,6 +157,16 @@ const ModifyCardInFormulaireNew = ({
   const [showBroker, setShowBroker] = useState(false);
   const [showEcoOrganisme, setShowEcoOrganisme] = useState(false);
   const { isValidMail, sendMail } = useMailContext();
+  const [cookie_token, setCookie_token] = useState<boolean>(false)
+  
+  useEffect(() => {
+    const cookie_track = Cookies.get('trackdechets_token');
+    console.log('cookie_track', cookie_token);
+    if (cookie_track) {
+      setCookie_token(true);
+      console.log('cookie_token', cookie_token);
+    }
+  }, []);
 
   const {             
     setModalReload, modalReload,
@@ -194,6 +207,7 @@ const ModifyCardInFormulaireNew = ({
     });
   };
 
+  //DD et mail
   const handleSubmitHere = async () => {
     if (!isValidMail){
       toast.error('Tous les champs du mail sont obligatoires');
@@ -301,6 +315,10 @@ const ModifyCardInFormulaireNew = ({
 
                 setDisplayFormulaire(false);
                 setModalReload(!modalReload);
+                if(pastBrouillon){
+                  onClose();
+                  toastInfos();
+                }
             } else {
                 toast.error(result.message);
             }
@@ -318,6 +336,7 @@ const ModifyCardInFormulaireNew = ({
     }
   };
 
+  //DND ou DD mais brouillon, pas de mail
   const handleSubmitBrouillon = async () => {
     setIsSubmittingBrouillon(true);
     try {
@@ -395,6 +414,10 @@ const ModifyCardInFormulaireNew = ({
               toast.success("Brouillon sauvegardé", result.message);
               setDisplayFormulaire(false);
               setModalReload(!modalReload);
+              if(pastBrouillon){
+                onClose();
+                toastInfos();
+              }
           } else {
               toast.error("Erreur avec la sauvegarde du brouillon",result.message);
           }
@@ -404,11 +427,14 @@ const ModifyCardInFormulaireNew = ({
     }
   };
 
+  //DND + Mail
   const handleMailSubmit = async () => {
     if (!isValidMail) {
         toast.error('Tous les champs du mail sont obligatoires');
         return;
-    }
+      } else {
+        toast.success('Mail prêt à être envoyé');
+      }
 
     const willSendMail = await Swal.fire({
         title: 'Envoyer le mail ?',
@@ -425,7 +451,30 @@ const ModifyCardInFormulaireNew = ({
 
     setIsSubmittingMail(true);
     await sendMail();
+    const {data:newData, success} = await prepareDataToCloud(dataText, showTrader, showBroker, showEcoOrganisme, showParcelFields);
+    
+    if(session && session?.entreprise_id && session?.user_id && success) {
+      const isDraft=true; //isDraft=true => Pas de track dechet en gros
+      const nonDangereux = true;
+      const result = await sendData_to_Cloud(newData, session?.user_id, session?.entreprise_id, isDraft, nonDangereux);
+      if(result.success) {
+          toast.success("Déchet non dangereux sauvegardé", result.message);
+          setDisplayFormulaire(false);
+          setModalReload(!modalReload);
+      } else {
+          toast.error("Erreur avec la sauvegarde du BSD non dangereux",result.message);
+      }
+    } else {
+      toast.error("Erreur lors de la préparation des données pour le BSD non dangereux");
+    }
+
     setIsSubmittingMail(false);
+    setDisplayFormulaire(false);
+    setModalReload(!modalReload);
+    if(pastBrouillon){
+      onClose();
+      toastInfos();
+    }
   };
 
   /*useEffect(() => {
@@ -726,15 +775,16 @@ const ModifyCardInFormulaireNew = ({
         >
           Fermer
         </button>
-        <button
+        {!pastBrouillon && <button
           type="button"
           onClick={() => handleSubmitBrouillon()}
           disabled={isSubmittingBrouillon}
           className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
         >
           {isSubmittingBrouillon ? "En cours..." : "Brouillon"}
-        </button>
-        {dataText.wasteDetails.isDangerous && <button
+        </button>}
+        {(!cookie_token && dataText.wasteDetails.isDangerous) && <div className="bg-red-400 text-white text-sm text-center item-center p-2 w-1/4 rounded-md">Vous devez être connecté pour envoyer à TrackDéchet</div>}
+        {(dataText.wasteDetails.isDangerous && cookie_token) && <button
           type="button"
           onClick={() => handleSubmitHere()}
           disabled={isSubmitting}
@@ -783,3 +833,88 @@ const conditionsPourSubmit = (newData: FormInput) => {
     return true;
 }
 
+
+
+const processCompanyData = async (company: Company) => {
+  try{
+      if (company?.siret) {
+      const siret = extractSiret(company.siret);
+      const raisonSocial = await getRaisonSocial(siret);
+      if (raisonSocial) {
+          //company.name = raisonSocial.name;
+          const { street, postalCode, city } = parseAddress(raisonSocial.adresse.first);
+          let my_city = city;
+          let pays = 'FRANCE';
+          if(city.includes('FRANCE')){
+            my_city = my_city.split(' FRANCE')[0];
+          }else{
+          pays = raisonSocial.pays.first;
+          }
+          company.address = street + ' ' + postalCode + ' ' + my_city;
+          company.country = pays;
+          company.siret = siret ?? '';
+          }
+      }
+      return company;
+  }catch(error){
+    console.error('Error processing company data:', error);
+    return company;
+  }
+};
+
+const prepareDataToCloud = async (data: FormInput, showTrader: boolean, showBroker: boolean, showEcoOrganisme: boolean, showParcelFields: boolean) => {
+  try {
+    const newData = { ...data };
+
+    const pastDataWorksite = JSON.parse(JSON.stringify(newData.emitter.workSite));
+    newData.emitter.company = await processCompanyData(newData.emitter.company);
+    newData.emitter.workSite = pastDataWorksite;
+    newData.recipient.company = await processCompanyData(newData.recipient.company);
+    newData.transporter.company = await processCompanyData(newData.transporter.company);
+
+    if(newData.trader?.company) newData.trader.company = await processCompanyData(newData.trader.company);
+    if(newData.broker?.company) newData.broker.company = await processCompanyData(newData.broker.company);
+    if(newData.temporaryStorageDetail?.company) newData.temporaryStorageDetail.company = await processCompanyData(newData.temporaryStorageDetail.company);
+
+    const {street, postalCode, city} = parseAddress(newData.emitter.workSite.fullAddress ?? "");
+    newData.emitter.workSite.address = street;
+    newData.emitter.workSite.postalCode = postalCode;
+    newData.emitter.workSite.city = city;
+    //delete newData.emitter.workSite.fullAddress;
+    newData.wasteDetails.isSubjectToADR = checkADR(newData.wasteDetails.code);
+    newData.transporter.isExemptedOfReceipt = newData.transporter.receipt === '';
+
+    //newData.wasteDetails.isDangerous = newData.wasteDetails.isDangerous === true;
+    //newData.wasteDetails.pop = newData.wasteDetails.pop === true;
+    //newData.wasteDetails.code = newData.wasteDetails.code.replaceAll(' ', '');
+    newData.wasteDetails.quantity = Number(newData.wasteDetails.quantity);
+    newData.wasteDetails.packagingInfos[0].quantity = Number(newData.wasteDetails.packagingInfos[0].quantity);
+
+    delete newData.emitter.workSite.fullAddress;
+    newData.recipient.isTempStorage = newData.recipient.isTempStorage === true;
+    if(!newData.recipient.isTempStorage)delete newData.temporaryStorageDetail;
+    if(!showTrader)delete newData.trader;
+    if(!showBroker)delete newData.broker;
+    if(!showEcoOrganisme)delete newData.ecoOrganisme;
+    if(!showParcelFields){
+      delete newData.wasteDetails.parcelNumbers;
+      delete newData.wasteDetails.landIdentifiers;
+      delete newData.wasteDetails.sampleNumber;
+      delete newData.wasteDetails.analysisReferences;
+    }
+    return {data:newData, success:true};
+  } catch (error) {
+    console.error('Error preparing data to cloud:', error);
+    return {data:data, success:false};
+  }
+};
+
+
+const toastInfos = () => {
+  toast("N'oubliez pas de supprimer le brouillon", {
+    icon: ' ☝',
+    style: {
+      padding: '8px',
+    },
+  });
+}

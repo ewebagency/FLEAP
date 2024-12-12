@@ -10,12 +10,12 @@ const FiltreSite = () => {
     const session = useSession();
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const getSitesFromUser = async () => {
-        if (session?.user_id) {
+    const getSitesFromEntreprise = async () => {
+        if (session?.entreprise_id) {
             const { data, error } = await supabase
             .from('bsd')
             .select('infos_json')
-            .eq('user_id', session.user_id);
+            .eq('entreprise_id', session.entreprise_id);
             
             if (error) {
                 console.error('Error fetching sites:', error);
@@ -48,7 +48,7 @@ const FiltreSite = () => {
     }
 
     useEffect(() => {
-        getSitesFromUser();
+        getSitesFromEntreprise();
 
         // Gestionnaire d'événements pour fermer le menu quand on clique en dehors
         const handleClickOutside = (event: MouseEvent) => {
