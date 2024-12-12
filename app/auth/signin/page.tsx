@@ -20,7 +20,7 @@ export default function SignIn() {
     if (error) {
       alert(error.message);
     } else {
-      router.push('/analysis');
+      router.push('/register');
     }
   };
 

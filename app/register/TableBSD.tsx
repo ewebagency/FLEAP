@@ -13,6 +13,7 @@ import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/u
 type BSD = {
     id: string;
     created_at: string;
+    readable_id_track_dechets: string;
     infos_json: {formAPI: {createFormInput: BSDD_TrackDechets}};
     facture_treated: boolean;
     facture_infos: {
@@ -28,6 +29,21 @@ type BSD = {
     id_track_dechets: string;
 };
 
+const getWasteIcon = (filiere: string): string => {
+    const iconMapping: { [key: string]: string } = {
+        'Bois': '🪵',
+        'Métaux': '🔧',
+        'Gravats': '🏗️',
+        'DIB': '🗑️',
+        'Cartons': '📦',
+        'Plastiques': '♳',
+        'DEEE': '💻',
+        'Déchets dangereux': '⚠️',
+        'Végétaux': '🌱',
+        'Autres': '♻️'
+    };
+    return iconMapping[filiere] || '♻️';
+};
 
 const getSommeBSD = (facture_infos: {montant_ht: number}) => {
     //return facture_infos.ligne_compta_traitement.montant_ht + facture_infos.ligne_compta_tgap.montant_ht + facture_infos.ligne_compta_contenant.montant_ht + facture_infos.ligne_compta_transport.montant_ht + facture_infos.ligne_compta_preparation.montant_ht + facture_infos.ligne_compta_rachat_matiere.montant_ht;
@@ -41,7 +57,7 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
 
     const { data, error } = await supabase
     .from('bsd')
-    .select('id, created_at, infos_json, facture_treated, facture_infos, status_track_dechets, id_track_dechets')
+    .select('id, created_at, infos_json, facture_treated, facture_infos, status_track_dechets, id_track_dechets, readable_id_track_dechets')
     .eq('entreprise_id', entreprise_id);
 
     if(error) {
@@ -354,15 +370,14 @@ const TableBSD = () => {
 
     return (
         <div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', border: 'none' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                     <tr style={{ backgroundColor: 'white' }}>
-                        <th style={{ padding: '10px', border: '1px solid #ddd' }}>Site / Date</th>
-                        <th style={{ padding: '10px', border: '1px solid #ddd' }}>Déchet / Filière</th>
-                        <th style={{ padding: '10px', border: '1px solid #ddd' }}>Statut</th>
-                        <th style={{ padding: '10px', border: '1px solid #ddd' }}>Prestataires</th>
-                        <th style={{ padding: '10px', border: '1px solid #ddd' }}>Montant</th>
-                        <th style={{ padding: '10px', border: '1px solid #ddd' }}>Actions</th>
+                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '3rem' }}>Déchet</th>
+                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'center' }}>Statut</th>
+                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '25%', textAlign: 'left', paddingLeft: '1rem' }}>Prestataires</th>
+                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '10%', textAlign: 'right', paddingRight: '1.25rem' }}>Montant</th>
+                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'center' }}>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -371,72 +386,113 @@ const TableBSD = () => {
                     ) : bsds.length > 0 ? (
                         bsds.map((bsd) => (
                         <tr key={bsd.id} style={{ borderBottom: '1px solid #ddd' }}>
-                            <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                                <div className="text-xs space-y-1">
-                                    <div className="font-medium text-gray-800">
-                                        {bsd.infos_json.formAPI.createFormInput.emitter?.workSite?.name || "Site non spécifié"}
+                            <td style={{ padding: '10px', position: 'relative', height: '100px' }}>
+                                <div className="absolute top-2 left-0 w-full">
+                                    <div className="font-medium text-[10px] text-gray-600 ml-10">
+                                        {bsd.readable_id_track_dechets || "ID non disponible"}
                                     </div>
-                                    <div className="text-gray-600">
-                                        {new Date(bsd.created_at).toLocaleDateString('fr-FR')}
+                                </div>
+                                <div className="h-full flex items-center mt-4">
+                                    <div className="flex items-center justify-start gap-4 ml-10">
+                                        <div className="text-2xl h-full">
+                                            {getWasteIcon(getFiliere(
+                                                bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
+                                                mappingTable
+                                            ))}
+                                        </div>
+                                        <div className="text-xs space-y-1">
+                                            {/* Informations sur le déchet */}
+                                            <div>
+                                                <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.code}</div>
+                                                {bsd.infos_json.formAPI.createFormInput.wasteDetails.name && (
+                                                    <div className="text-gray-500 text-xs">
+                                                        {bsd.infos_json.formAPI.createFormInput.wasteDetails.name}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-gray-600">
+                                                {getFiliere(
+                                                    bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
+                                                    mappingTable
+                                                )}
+                                            </div>
+                                            <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity} tonnes</div>
+                                        </div>
                                     </div>
                                 </div>
                             </td>
-                            <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                                <div className="text-xs space-y-1">
-                                    <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.code}</div>
-                                    <div className="text-gray-600">
-                                        {getFiliere(
-                                            bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
-                                            mappingTable
-                                        )}
+                            <td style={{ padding: '10px', position: 'relative', height: '100px' }}>
+                                <div className="absolute top-2 left-0 w-full text-center">
+                                    <div className="text-[10px] text-gray-600">
+                                        Créé le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}
                                     </div>
-                                    <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity} tonnes</div>
                                 </div>
-                            </td>
-                            <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                                {
-                                    bsd.status_track_dechets !== null ? 
-                                        <div className="flex items-center justify-center gap-2">
+                                <div className="h-full flex items-center justify-center mt-4">
+                                    {bsd.status_track_dechets !== null ? 
+                                        <div className="flex flex-col items-center gap-2">
                                             <div className="text-xs">{bsd.status_track_dechets}</div>
                                             {bsd.status_track_dechets === "DRAFT" ?
-                                                <div className="btn btn-primary btn-sm" onClick={() => handleSeal(bsd.id)}>Seller</div>
+                                                <button 
+                                                    className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md text-xs 
+                                                    hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors" 
+                                                    onClick={() => handleSeal(bsd.id)}
+                                                >
+                                                    Sceller
+                                                </button>
                                             : bsd.status_track_dechets === "SEALED" ?
-                                                <div className="btn btn-primary btn-sm" onClick={() => handleSign(bsd.id)}>Signer</div>
+                                                <button 
+                                                    className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md text-xs 
+                                                    hover:bg-green-50 hover:border-green-200 hover:text-green-600 transition-colors" 
+                                                    onClick={() => handleSign(bsd.id)}
+                                                >
+                                                    Signer
+                                                </button>
                                             : bsd.status_track_dechets === "Brouillon Local" ?
-                                                <div 
-                                                    className="text-xs text-white font-thin btn btn-success bg-green-600 btn-sm flex flex-col items-center justify-center h-[40px] px-2" 
+                                                <button 
+                                                    className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md text-xs 
+                                                    hover:bg-yellow-50 hover:border-yellow-200 hover:text-yellow-600 transition-colors" 
                                                     onClick={() => handleSendDraft(bsd)}
                                                 >
-                                                    <span>Envoyer</span>
-                                                </div>
+                                                    Envoyer
+                                                </button>
                                             : null}
                                         </div>
                                     : 
-                                    <div className="text-xs">...</div>
-                                }
-                            </td>
-                            <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                                <div className="text-xs ml-2">
-                                    <div>🔽 {bsd.infos_json.formAPI.createFormInput.emitter?.company?.name || ""}</div>
-                                    <div>🚚 {bsd.infos_json.formAPI.createFormInput.transporter?.company?.name || ""}</div>
-                                    <div>♻ {bsd.infos_json.formAPI.createFormInput.recipient?.company?.name || ""}</div>
+                                        <div className="text-xs">...</div>
+                                    }
                                 </div>
                             </td>
-                            <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                            <td style={{ padding: '10px' }}>
+                                <div className="text-xs ml-4">
+                                    {/* Site de travail */}
+                                    <div className="mb-2 pr-2 line-clamp-1">
+                                        📍 {bsd.infos_json.formAPI.createFormInput.emitter?.workSite?.name || "Site non spécifié"}
+                                    </div>
+                                    {/* Entreprises */}
+                                    <div className="mb-2 pr-2 line-clamp-1">
+                                        🚚 {bsd.infos_json.formAPI.createFormInput.transporter?.company?.name || ""}
+                                    </div>
+                                    <div className="mb-2 pr-2 line-clamp-1">
+                                        🔩 {bsd.infos_json.formAPI.createFormInput.recipient?.company?.name || ""}
+                                    </div>
+                                </div>
+                            </td>
+                            <td style={{ padding: '10px' }}>
                                 {
                                 bsd.facture_treated ? 
-                                    <div className="text-xs">
+                                    <div className="text-xs text-right mr-5">
                                         {getSommeBSD(bsd.facture_infos)} € HT
                                     </div> 
                                 : 
-                                    <div className="text-xs">Pas encore lié à une facture</div>
+                                    <div className="text-xs text-right mr-5">-€ HT</div>
                                 }
                             </td>
-                            <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                                <div className="flex justify-center items-center gap-2 text-xs">
+                            <td style={{ padding: '10px' }}>
+                                <div className="flex flex-col justify-center items-center gap-2 text-xs">
                                     {(bsd.status_track_dechets === 'DRAFT' || bsd.status_track_dechets === 'Brouillon Local') && (
                                         <button 
-                                            className="bg-blue-400 text-white rounded-lg h-[30px] w-[70px] p-1" 
+                                            className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md 
+                                            hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors" 
                                             onClick={() => handleModify(bsd.id)}
                                         >
                                             Modifier
@@ -445,14 +501,16 @@ const TableBSD = () => {
                                     {bsd.status_track_dechets !== 'DRAFT' && 
                                      bsd.status_track_dechets !== 'Brouillon Local' && (
                                         <button 
-                                            className="bg-green-400 text-white rounded-lg h-[30px] w-[60px] p-1" 
+                                            className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md 
+                                            hover:bg-green-50 hover:border-green-200 hover:text-green-600 transition-colors" 
                                             onClick={() => handleDisplay(bsd.id)}
                                         >
                                             Voir
                                         </button>
                                     )}
                                     <button 
-                                        className="bg-red-400 text-white rounded-lg h-[30px] w-[70px] p-1" 
+                                        className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md 
+                                        hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors" 
                                         onClick={() => handleDelete(bsd.id)}
                                         disabled={deletingId === bsd.id}
                                     >
