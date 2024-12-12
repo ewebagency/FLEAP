@@ -20,7 +20,7 @@ interface EmailParams {
 
 interface MailComponentProps {
     params: EmailParams;
-    pastBrouillon: boolean;
+    pastBrouillon?: boolean;
 }
 
 const emailTemplates: EmailTemplate[] = [

@@ -141,7 +141,7 @@ const ModifyCardInFormulaireNew = ({
     onClose: () => void, 
     dataText: FormInput, 
     setDataText: React.Dispatch<React.SetStateAction<FormInput>>,
-    pastBrouillon:boolean
+    pastBrouillon?:boolean
 }) => {
   
   const {dataToogle } = useModalContextNew();
