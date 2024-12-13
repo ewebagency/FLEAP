@@ -19,7 +19,7 @@ export default function SignUp() {
     if (error) {
       alert(error.message);
     } else {
-      router.push('/analysis');
+      router.push('/auth/merci');
     }
   };
 
