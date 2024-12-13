@@ -678,6 +678,6 @@ const TableBSD = () => {
 export default TableBSD
 
 const nonDangerousStatut = (statut: string) => {
-    const acceptableStatuts = ["Brouillon", "Collecte demandée", "Collecté", "Accepté", "Traité", "Rupture de traçabilité"];
+    const acceptableStatuts = ["Déchet non dangereux", "Brouillon", "Collecte demandée", "Collecté", "Accepté", "Traité", "Rupture de traçabilité"];
     return acceptableStatuts.includes(statut);
 }
