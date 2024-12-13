@@ -14,14 +14,12 @@ export default function MerciPage() {
         </h2>
         
         <p className="text-gray-200 mb-6">
-          Notre plateforme est actuellement en cours de développement. 
-          Nous vous informerons par email dès que le site sera prêt.
+          Nous vous contacterons par email pour donner suite à cette demande d&apos;inscription.
         </p>
 
         <div className="space-y-4">
           <p className="text-sm text-gray-200">
-            En attendant, vous pouvez nous suivre sur nos réseaux sociaux pour 
-            rester informé de notre avancement.
+            N&apos;hésitez pas à nous suivre sur les réseaux pour rester informé.
           </p>
 
           <button 
