@@ -455,6 +455,21 @@ const TableBSD = () => {
                                                 >
                                                     Envoyer
                                                 </button>
+                                            /*: nonDangerousStatut(bsd.status_track_dechets) ?
+                                                <select 
+                                                    className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md text-xs 
+                                                    hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors" 
+                                                    onChange={(e) => handleChangeNonDangerous(bsd, e.target.value)}
+                                                >
+                                                    <option value="Mail envoyé">Mail envoyé</option>
+                                                    <option value="Accepté par le prestataire">Accepté par le prestataire</option>
+                                                    <option value="Refusé par le prestataire">Refusé par le prestataire</option>
+                                                    <option value="Pris en charge par le prestataire">Pris en charge par le prestataire</option>
+                                                    <option value="En attente de prise en charge">En attente de prise en charge</option>
+                                                    <option value="En attente de réception">En attente de réception</option>
+                                                    <option value="Réceptionné">Réceptionné</option>
+                                                    <option value="Réceptionné et traité">Réceptionné et traité</option>
+                                                </select>*/
                                             : null}
                                         </div>
                                     : 
@@ -549,3 +564,11 @@ const TableBSD = () => {
 }
 
 export default TableBSD
+
+
+/*const handleChangeNonDangerous = async (bsd: BSD, value: string) => {
+    await supabase
+    .from('bsd')
+    .update({status_track_dechets: value})
+    .eq('id', bsd.id);
+}*/

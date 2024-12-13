@@ -55,7 +55,7 @@ export default function SignIn() {
             {loading ? 'Chargement...' : 'Se connecter'}
           </button>
         </form>
-        <div className="mt-6 flex justify-between items-center">
+        {/*<div className="mt-6 flex justify-between items-center">
           <div className="text-sm text-gray-200">Vous n&apos;avez pas de compte ?</div>
           <Link 
             href="/auth/signup" 
@@ -63,7 +63,7 @@ export default function SignIn() {
           >
             S&apos;inscrire
           </Link>
-        </div>
+        </div>*/}
       </div>
     </div>
   );
