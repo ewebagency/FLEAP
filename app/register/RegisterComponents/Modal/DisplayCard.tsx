@@ -11,22 +11,25 @@ const DisplayCard = () => {
     const session = useSession();
     const [filiere, setFiliere] = useState<string>("");
 
-    const getBSD = async (userId: string) => {
+    const getBSD = async (entrepriseId: string) => {
         const result = await supabase
-        .from('bsd')
+            .from('bsd')
             .select('*')
             .eq('id', modalId)
-            .eq('user_id', userId)
+            .eq('entreprise_id', entrepriseId)
             .single();
 
         if (result.data) {
+            console.log("BSD trouvé:", result.data);
             setBSD(result.data.infos_json.formAPI.createFormInput);
+        } else {
+            console.error("Pas de BSD trouvé pour l'ID:", modalId);
         }
     }
 
     useEffect(() => {
-        if (session && session.user_id) {
-            getBSD(session.user_id);
+        if (session && session.entreprise_id) {
+            getBSD(session.entreprise_id);
         }
     }, [modalId, modalReload, session]);
 

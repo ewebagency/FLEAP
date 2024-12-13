@@ -100,15 +100,20 @@ const getSommeBSD = (facture_infos: {montant_ht: number}) => {
     return facture_infos.montant_ht;
 }
 
-const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Site[], entreprise_id: string | null) => {
-    console.log("Début fetchBSDs", { user_id, entreprise_id });
+const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Site[], entreprise_id: string | null, page: number = 1) => {
+    console.log("Début fetchBSDs", { user_id, entreprise_id, page });
     
     if (!entreprise_id) return [];
 
+    const limit = 50;
+    const offset = (page - 1) * limit;
+
     const { data, error } = await supabase
-    .from('bsd')
-    .select('id, created_at, infos_json, facture_treated, facture_infos, status_track_dechets, id_track_dechets, readable_id_track_dechets')
-    .eq('entreprise_id', entreprise_id);
+        .from('bsd')
+        .select('id, created_at, infos_json, facture_treated, facture_infos, status_track_dechets, id_track_dechets, readable_id_track_dechets')
+        .eq('entreprise_id', entreprise_id)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
 
     if(error) {
         console.error("Error fetching BSD:", error);
@@ -215,6 +220,9 @@ const TableBSD = () => {
     const [selectedBsd, setSelectedBsd] = useState<BSD | null>(null);
     const [loadingBSDs, setLoadingBSDs] = useState(true);
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const itemsPerPage = 50;
 
     // Ajouter un useEffect pour charger la table de mapping au démarrage
     useEffect(() => {
@@ -280,27 +288,30 @@ const TableBSD = () => {
 
             try {
                 setLoadingBSDs(true);
-                const data = await fetchBSDs(session.user_id, filieres, sites, session.entreprise_id);
-                console.log("Données à afficher:", data?.length);
-                if (data && data.length > 0) {
-                    const sortedData = data.sort((a, b) => 
-                        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                    );
-                    console.log("Données triées:", sortedData.length);
-                    setBSDs(sortedData);
+                const newData = await fetchBSDs(session.user_id, filieres, sites, session.entreprise_id, currentPage);
+                
+                if (newData && newData.length > 0) {
+                    // Ajouter les nouveaux BSDs aux BSDs existants
+                    setBSDs(prevBsds => currentPage === 1 ? newData : [...prevBsds, ...newData]);
+                    setHasMore(newData.length === 50); // 50 est la limite par page
                 } else {
-                    setBSDs([]);
+                    if (currentPage === 1) {
+                        setBSDs([]);
+                    }
+                    setHasMore(false);
                 }
             } catch (error) {
                 console.error("Erreur lors du chargement:", error);
-                setBSDs([]);
+                if (currentPage === 1) {
+                    setBSDs([]);
+                }
             } finally {
                 setLoadingBSDs(false);
             }
         };
 
         loadBSDs();
-    }, [session?.user_id, session?.entreprise_id, filieres, sites, modalReload, modalId, modalType]);
+    }, [session?.user_id, session?.entreprise_id, filieres, sites, modalReload, currentPage]);
 
 
     useEffect(() => {
@@ -459,6 +470,9 @@ const TableBSD = () => {
                                 <div className="absolute top-2 left-0 w-full">
                                     <div className="font-medium text-[10px] text-gray-600 ml-10">
                                         {bsd.readable_id_track_dechets || "ID non disponible"}
+                                    </div>
+                                    <div className="text-[8px] text-gray-400 ml-10">
+                                        N° {bsd.id}
                                     </div>
                                 </div>
                                 <div className="h-full flex items-center mt-4">
@@ -639,6 +653,23 @@ const TableBSD = () => {
                     bsdId={selectedBsd.id}
                     onDelete={handleDelete}
                 />
+            )}
+            
+            {hasMore && !loadingBSDs && (
+                <div className="flex justify-center mt-4">
+                    <button
+                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                        onClick={() => setCurrentPage(prev => prev + 1)}
+                    >
+                        Charger plus de BSDs
+                    </button>
+                </div>
+            )}
+            
+            {loadingBSDs && (
+                <div className="flex justify-center mt-4">
+                    <div className="loading loading-spinner loading-lg"></div>
+                </div>
             )}
         </div>
     )

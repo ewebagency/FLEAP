@@ -89,12 +89,12 @@ const ModifyCard = () => {
     const [filiere, setFiliere] = useState<string>("");
     const [createdAt, setCreatedAt] = useState<string>("");
 
-    const getBSD = async (userId: string) => {
+    const getBSD = async (entrepriseId: string) => {
         const result = await supabase
         .from('bsd')
             .select('*')
             .eq('id', modalId)
-            .eq('user_id', userId)
+            .eq('entreprise_id', entrepriseId)
             .single();
 
         if (result.data) {
@@ -105,8 +105,8 @@ const ModifyCard = () => {
     }
 
     useEffect(() => {
-        if (session && session.user_id) {
-            getBSD(session.user_id);
+        if (session && session.entreprise_id) {
+            getBSD(session.entreprise_id);
         }
     }, [modalId, session]);
 
