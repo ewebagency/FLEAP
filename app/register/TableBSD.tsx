@@ -9,6 +9,11 @@ import Swal from 'sweetalert2';
 import SendDraftModal from "./RegisterComponents/Modal/SendDraftModal";
 import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/utils_new";
 
+const cleanCED = (ced: string): string => {
+    const ced_clean = ced.replaceAll(' ', '').replace('*', '').trim();
+    return String(parseInt(ced_clean));
+}
+
 // Modifier le type FormDataType pour inclure un id
 type BSD = {
     id: string;
@@ -29,20 +34,65 @@ type BSD = {
     id_track_dechets: string;
 };
 
+const normalizeString = (str: string): string => {
+    return str
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "");
+};
+
 const getWasteIcon = (filiere: string): string => {
-    const iconMapping: { [key: string]: string } = {
-        'Bois': '🪵',
-        'Métaux': '🔧',
-        'Gravats': '🏗️',
-        'DIB': '🗑️',
-        'Cartons': '📦',
-        'Plastiques': '♳',
-        'DEEE': '💻',
-        'Déchets dangereux': '⚠️',
-        'Végétaux': '🌱',
-        'Autres': '♻️'
-    };
-    return iconMapping[filiere] || '♻️';
+    const filiereNormalized = normalizeString(filiere);
+    
+    const iconMapping: { keywords: string[], icon: string }[] = [
+        {
+            keywords: ['bois', 'palette', 'meuble'],
+            icon: '🪵'
+        },
+        {
+            keywords: ['metal', 'metaux', 'ferraille', 'fer', 'acier', 'aluminium', 'cuivre'],
+            icon: '🔧'
+        },
+        {
+            keywords: ['gravat', 'beton', 'pierre', 'construction', 'demolition', 'btp'],
+            icon: '🏗️'
+        },
+        {
+            keywords: ['dib', 'dechetindustriel', 'industriel', 'melange'],
+            icon: '🗑️'
+        },
+        {
+            keywords: ['carton', 'papier', 'emballage'],
+            icon: '📦'
+        },
+        {
+            keywords: ['plastique', 'pvc', 'pet', 'polyethylene', 'polystyrene'],
+            icon: '♳'
+        },
+        {
+            keywords: ['deee', 'electronique', 'electrique', 'informatique', 'ordinateur'],
+            icon: '💻'
+        },
+        {
+            keywords: ['dangereux', 'toxique', 'chimique', 'corrosif', 'inflammable'],
+            icon: '⚠️'
+        },
+        {
+            keywords: ['vegetal', 'vert', 'organique', 'plante', 'herbe', 'feuille'],
+            icon: '🌱'
+        }
+    ];
+
+    for (const mapping of iconMapping) {
+        if (mapping.keywords.some(keyword => 
+            normalizeString(filiereNormalized).includes(normalizeString(keyword))
+        )) {
+            return mapping.icon;
+        }
+    }
+
+    return '♻️'; // Icône par défaut pour "Autres"
 };
 
 const getSommeBSD = (facture_infos: {montant_ht: number}) => {
@@ -72,8 +122,8 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
 
     // Si aucune filière n'est sélectionnée, retourner tous les BSDs
     if (checkedFilieres.length === 0) {
-        console.log("Aucune filière sélectionnée, retour de tous les BSDs");
-        return data || [];
+        console.log("Aucune filière sélectionnée, aucun BSD retourné");
+        return [];
     }
 
     const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres: string[]) => {
@@ -91,14 +141,14 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
                     const cond1 = mapping.filiere === filiere;
                     if(cond1){
                         ced_uniques.push(mapping.ced);
-                        other_ceds = other_ceds.filter((ced)=>ced!==mapping.ced);
+                        other_ceds = other_ceds.filter((ced)=>cleanCED(ced)!==cleanCED(mapping.ced));
                     }
                 }
             }
             /*if(checkedFilieres.includes('Autres')){
                 ced_uniques = ced_uniques.concat(other_ceds);
             }*/
-            
+            console.log("CEDs uniques:", ced_uniques);
             return ced_uniques;
         }
         return [];
@@ -110,7 +160,7 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
     if (checkedFilieres.length > 0) {
         const non_Autres = data.filter((bsd) => {
             const ced = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
-            return checkedCEDs.includes(ced.replaceAll(' ', '').replace('*', ''));
+            return checkedCEDs.includes(cleanCED(ced));
         });
 
         const autres = data.filter((bsd) => {
@@ -122,6 +172,7 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
         } else {
             filteredBSD_onCED = non_Autres;
         }
+        console.log("filteredBSD_onCED:", filteredBSD_onCED);
     } 
     const checkedSites = sites.filter(site => site.checked).map(site => site.name);
     console.log("Sites cochés:", checkedSites);
@@ -137,7 +188,7 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
     });
 
     if(checkedSites.includes("Non renseigné")){
-        const non_renseigne = data.filter((bsd) => {
+        const non_renseigne = filteredBSD_onCED.filter((bsd) => {
             if(bsd.infos_json.formAPI.createFormInput.emitter.workSite){
                 return bsd.infos_json.formAPI.createFormInput.emitter.workSite.name === ""
             } else {
@@ -368,6 +419,24 @@ const TableBSD = () => {
         setShowSendDraftModal(true);
     };
 
+    const handleChangeNonDangerous = async (bsd: BSD, value: string) => {
+        const { data, error } = await supabase
+            .from('bsd')
+            .update({ status_track_dechets: value })
+            .eq('id', bsd.id)
+            .select()
+            .single();
+        
+        if (!error && data) {
+            // Mettre à jour le BSD modifié dans l'état local
+            setBSDs(prevBsds => prevBsds.map(prevBsd => 
+                prevBsd.id === bsd.id 
+                    ? { ...prevBsd, status_track_dechets: value }
+                    : prevBsd
+            ));
+        }
+    };
+
     return (
         <div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -455,21 +524,33 @@ const TableBSD = () => {
                                                 >
                                                     Envoyer
                                                 </button>
-                                            /*: nonDangerousStatut(bsd.status_track_dechets) ?
-                                                <select 
-                                                    className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md text-xs 
-                                                    hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors" 
-                                                    onChange={(e) => handleChangeNonDangerous(bsd, e.target.value)}
-                                                >
-                                                    <option value="Mail envoyé">Mail envoyé</option>
-                                                    <option value="Accepté par le prestataire">Accepté par le prestataire</option>
-                                                    <option value="Refusé par le prestataire">Refusé par le prestataire</option>
-                                                    <option value="Pris en charge par le prestataire">Pris en charge par le prestataire</option>
-                                                    <option value="En attente de prise en charge">En attente de prise en charge</option>
-                                                    <option value="En attente de réception">En attente de réception</option>
-                                                    <option value="Réceptionné">Réceptionné</option>
-                                                    <option value="Réceptionné et traité">Réceptionné et traité</option>
-                                                </select>*/
+                                            : nonDangerousStatut(bsd.status_track_dechets) ?
+                                                <div className="flex flex-col items-center gap-2">
+                                                    {/* <div className="text-xs text-gray-600">Déchet non dangereux</div> */}
+                                                    <div className="flex justify-between items-center gap-2">
+                                                        <div className="text-xs text-gray-800">Statut :</div>
+                                                        <select 
+                                                            className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md text-xs 
+                                                            hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors w-[30px]" 
+                                                            onChange={(e) => handleChangeNonDangerous(bsd, e.target.value)}
+                                                            >
+                                                                <option value="Brouillon">Brouillon</option>
+                                                                <option value="Collecte demandée">Collecte demandée</option>
+                                                                <option value="Collecté">Collecté</option>
+                                                                <option value="Accepté">Accepté</option>
+                                                                <option value="Traité">Traité</option>
+                                                            {/*<option value="Rupture de traçabilité">Rupture de traçabilité</option>
+                                                            <option value="Mail envoyé">Mail envoyé</option>
+                                                            <option value="Accepté par le prestataire">Accepté par le prestataire</option>
+                                                            <option value="Refusé par le prestataire">Refusé par le prestataire</option>
+                                                            <option value="Pris en charge par le prestataire">Pris en charge par le prestataire</option>
+                                                            <option value="En attente de prise en charge">En attente de prise en charge</option>
+                                                            <option value="En attente de réception">En attente de réception</option>
+                                                            <option value="Réceptionné">Réceptionné</option>
+                                                            <option value="Réceptionné et traité">Réceptionné et traité</option>*/}
+                                                        </select>
+                                                    </div>
+                                                </div>
                                             : null}
                                         </div>
                                     : 
@@ -565,10 +646,7 @@ const TableBSD = () => {
 
 export default TableBSD
 
-
-/*const handleChangeNonDangerous = async (bsd: BSD, value: string) => {
-    await supabase
-    .from('bsd')
-    .update({status_track_dechets: value})
-    .eq('id', bsd.id);
-}*/
+const nonDangerousStatut = (statut: string) => {
+    const acceptableStatuts = ["Brouillon", "Collecte demandée", "Collecté", "Accepté", "Traité", "Rupture de traçabilité"];
+    return acceptableStatuts.includes(statut);
+}

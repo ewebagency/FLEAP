@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useFilterContext } from "../FilterContext";
 import { useSession } from "./SessionProvider";
 import { supabase } from "../database/supabaseClient";
-import { getChecked, getColors } from "./Analyse/MetaComponent/Colours";
+import { getColors } from "./Analyse/MetaComponent/Colours";
 
 const FiltreFilieres = () => {
     const { filieres, setFilieres, toggleFiliere } = useFilterContext();
@@ -11,7 +11,7 @@ const FiltreFilieres = () => {
     const [loadingFilieres, setLoadingFilieres] = useState(true);
 
     const getFilieresFromEntreprise = async () => {
-        console.log("Début getFilieresFromEntreprise");
+        
         const { data, error } = await supabase
         .from('bsd')
         .select('infos_json')
@@ -22,7 +22,7 @@ const FiltreFilieres = () => {
             return;
         }
 
-        console.log("BSDs récupérés:", data?.length);
+        
         if (!data || data.length === 0) {
             console.log("Pas de BSDs trouvés");
             return;
@@ -32,8 +32,13 @@ const FiltreFilieres = () => {
             .map(bsd => bsd?.infos_json?.formAPI?.createFormInput?.wasteDetails?.code)
             .filter(code => code != null);
         
-        const codes_uniques = Array.from(new Set(codes)).map(code => code.replaceAll(' ', '').replace('*', ''));
-        console.log("Codes uniques trouvés:", codes_uniques);
+        const array_codes_propres = codes.map(code => code.replaceAll(' ', '').replace('*', '').trim());
+        
+        const array_codes_clean = array_codes_propres.map(code => String(parseInt(code)));
+        
+        const set_codes_clean = new Set(array_codes_clean);
+        const codes_uniques = Array.from(set_codes_clean);
+        
         
         const mapping = await supabase
             .from('entreprise')
@@ -41,24 +46,22 @@ const FiltreFilieres = () => {
             .eq('id', session?.entreprise_id)
             .single();
 
-        console.log("Mapping récupéré:", mapping?.data?.mapping_ced_filiere);
 
         if (mapping?.data?.mapping_ced_filiere) {
             const mappingArray = mapping.data.mapping_ced_filiere;
-            const filieres_uniques: string[] = [];
+            let filieres_uniques: string[] = [];
             let others = false;
-
+            
             for(const code of codes_uniques) {
                 const match = mappingArray.find((item:{ced:string, filiere:string}) => item.ced === code);
                 if(match) {
-                    console.log(`Match trouvé pour code ${code}:`, match.filiere);
                     filieres_uniques.push(match.filiere);
                 }
                 else others = true;
             }
             
+            filieres_uniques = Array.from(new Set(filieres_uniques));
             if(others) filieres_uniques.push('Autres');
-            console.log("Filières uniques trouvées:", filieres_uniques);
 
             const filieres_colors = getColors(filieres_uniques.length);
             const formattedFilieres = filieres_uniques.map((filiere, index) => {
@@ -70,8 +73,9 @@ const FiltreFilieres = () => {
                 };
             });
 
+            
+            setFilieres(formattedFilieres);      
             console.log("Filières formatées à sauvegarder:", formattedFilieres);
-            setFilieres(formattedFilieres);
         } else {
             console.log("Pas de mapping trouvé");
         }
@@ -107,42 +111,60 @@ const FiltreFilieres = () => {
         loadData();
     }, [session?.user_id, session?.entreprise_id]);
     
+    const toggleAll = () => {
+        const areAllChecked = filieres.every(f => f.checked);
+        const updatedFilieres = filieres.map(f => ({
+            ...f,
+            checked: !areAllChecked
+        }));
+        setFilieres(updatedFilieres);
+    };
+
     return (
-        <div className="join m-5">
-            {loadingFilieres ? (
-                <div className="text-gray-500">Chargement des filières...</div>
-            ) : filieres && filieres.length > 0 ? (
-                filieres.map((filiere, index) => (
-                    <label
-                        key={`filiere-${index}`}
-                        className={`flex items-center cursor-pointer ${
-                            index === 0 ? 'rounded-l-md' : ''
-                        } ${index === filieres.length - 1 ? 'rounded-r-md' : ''}`}
+        <div className="m-5">
+            <div className="flex flex-wrap gap-2">
+                <div className="join flex flex-wrap">
+                    {loadingFilieres ? (
+                        <div className="text-gray-500">Chargement des filières...</div>
+                    ) : filieres && filieres.length > 0 ? (
+                        filieres.map((filiere, index) => (
+                            <label
+                                key={`filiere-${index}`}
+                                className="flex items-center cursor-pointer join-item"
+                            >
+                                <input
+                                    className="hidden"
+                                    type="checkbox"
+                                    name="options_filiere"
+                                    aria-label={filiere.name}
+                                    checked={filiere.checked}
+                                    onChange={() => toggleFiliere(filiere.name)}
+                                />
+                                <span
+                                    className={`text-xs h-[22px] px-3 flex items-center justify-center transition-colors duration-200 
+                                    ${filiere.checked ? filiere.color : 'bg-gray-300'} 
+                                    ${filiere.checked ? 'text-white' : 'text-gray-700'}
+                                    ${index === 0 ? 'rounded-l-md' : ''}
+                                    ${index === filieres.length - 1 ? 'rounded-r-md' : ''}`}
+                                >
+                                    {filiere.name}
+                                </span>
+                            </label>
+                        ))
+                    ) : (
+                        <div className="text-gray-500">Aucune filière disponible</div>
+                    )}
+                </div>
+                {filieres && filieres.length > 0 && (
+                    <button
+                        onClick={toggleAll}
+                        className="text-xs h-[22px] px-3 flex items-center justify-center transition-colors duration-200 
+                        bg-gray-200 hover:bg-gray-300 rounded-md"
                     >
-                        <input
-                            className="hidden"
-                            type="checkbox"
-                            name="options_filiere"
-                            aria-label={filiere.name}
-                            checked={filiere.checked}
-                            onChange={() => toggleFiliere(filiere.name)}
-                        />
-                        <span
-                            className={`text-xs h-6 px-3 flex items-center justify-center transition-colors duration-200 text-sm ${
-                                filiere.checked ? filiere.color : 'bg-gray-300'
-                            } ${filiere.checked ? 'text-white' : 'text-gray-700'} ${
-                                index > 0 ? 'border-l-0' : ''
-                            } ${index === 0 ? 'rounded-l-md' : ''} ${
-                                index === filieres.length - 1 ? 'rounded-r-md' : ''
-                            }`}
-                        >
-                            {filiere.name}
-                        </span>
-                    </label>
-                ))
-            ) : (
-                <div className="text-gray-500">Aucune filière disponible</div>
-            )}
+                        {filieres.every(f => f.checked) ? 'Tout désélectionner' : 'Tout sélectionner'}
+                    </button>
+                )}
+            </div>
         </div>
     );
 }

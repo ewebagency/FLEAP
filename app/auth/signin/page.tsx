@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Swal from 'sweetalert2';
 
 export default function SignIn() {
   const [email, setEmail] = useState('');
@@ -18,7 +19,20 @@ export default function SignIn() {
     setLoading(false);
 
     if (error) {
-      alert(error.message);
+      Swal.fire({
+        title: 'Erreur de connexion',
+        text: 'Email ou mot de passe incorrect',
+        icon: 'error',
+        confirmButtonText: 'Réessayer',
+        confirmButtonColor: '#16a34a', // green-600
+        background: '#f3f4f6', // gray-100
+        showClass: {
+          popup: 'animate__animated animate__fadeInDown'
+        },
+        hideClass: {
+          popup: 'animate__animated animate__fadeOutUp'
+        }
+      });
     } else {
       router.push('/register');
     }

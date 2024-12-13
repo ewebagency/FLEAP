@@ -1,7 +1,6 @@
 import { toast } from "react-hot-toast";
 import { Gouv, Anything, FormInput } from "../../interface/BSD_Interface";
 import { supabase } from "@/app/database/supabaseClient";
-import axios from 'axios';
 
 
 export const extractSiret = (number: string | number | boolean | null): string | null => {
@@ -327,7 +326,7 @@ export const pushOnTableParametrage = async (user_id: string, entreprise_id: str
   const data_condition_1 = formData.emitter.company.siret.length >= 7;
   const data_condition_2 = formData.recipient.company.siret.length >= 7;
   const data_condition_3 = formData.transporter.company.siret.length >= 7;
-  const data_condition_4 = formData.wasteDetails.code.length >= 6;
+  //const data_condition_4 = formData.wasteDetails.code.length >= 6;
   const data_condition_5 = formData.emitter.workSite.name.length >= 2;
   const data_condition_6 = formData.recipient.company.name.length >= 2;
   const data_condition_7 = formData.transporter.company.name.length >= 2;
@@ -336,15 +335,27 @@ export const pushOnTableParametrage = async (user_id: string, entreprise_id: str
   const data_condition_10 = formData.recipient.company.mail.length > 0; // Vérification de l'email du destinataire
   const data_condition_11 = formData.transporter.company.mail.length > 0; // Vérification de l'email du transporteur
   const data_condition_12 = formData.emitter.company.mail.length > 0; // Vérification de l'email de l'émetteur
-  const data_condition_13 = formData.wasteDetails.onuCode.length > 0; // Vérification du code ONU
+  //const data_condition_13 = formData.wasteDetails.onuCode.length > 0; // Vérification du code ONU
 
   // Vérification que toutes les conditions sont remplies
-  const condition_completude = (
-      data_condition_1 && data_condition_2 && data_condition_3 &&
-      data_condition_4 && data_condition_5 && data_condition_6 &&
+  console.log('import parametrage data_condition_1 - emitter siret', data_condition_1);
+  console.log('import parametrage data_condition_2 - recipient siret', data_condition_2);
+  console.log('import parametrage data_condition_3 - transporter siret', data_condition_3);
+  //console.log('import parametrage data_condition_4 - wasteDetails code', data_condition_4);
+  console.log('import parametrage data_condition_5 - emitter workSite name', data_condition_5);
+  console.log('import parametrage data_condition_6 - recipient company name', data_condition_6);
+  console.log('import parametrage data_condition_7 - transporter company name', data_condition_7);
+  //console.log('import parametrage data_condition_8 - wasteDetails name', data_condition_8);
+  console.log('import parametrage data_condition_9 - recipient processingOperation', data_condition_9);
+  console.log('import parametrage data_condition_10 - recipient company mail', data_condition_10);
+  console.log('import parametrage data_condition_11 - transporter company mail', data_condition_11);
+  console.log('import parametrage data_condition_12 - emitter company mail', data_condition_12);
+  //console.log('import parametrage data_condition_13 - wasteDetails onuCode', data_condition_13);
+  //const condition_completude = (data_condition_1 && data_condition_2 && data_condition_3);
+      /*data_condition_5 && data_condition_6 &&
       data_condition_7 && data_condition_8 && data_condition_9 &&
-      data_condition_10 && data_condition_11 && data_condition_12 &&
-      data_condition_13);
+      data_condition_10 && data_condition_11 && data_condition_12);*/
+    const condition_completude = true;
 
   try {
     const formData = data.formAPI.createFormInput;

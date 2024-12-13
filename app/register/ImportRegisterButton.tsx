@@ -494,7 +494,7 @@ const ImportRegisterButton = () => {
             // Récupérer la première feuille ⚠
             let firstSheetName;
             if(tableType == "table_parametrage"){
-                firstSheetName = 'Registre des déchets';//Maintenant on base la table de paramétrage sur le registre des déchets
+                firstSheetName = workbook.SheetNames[0];//Maintenant on base la table de paramétrage sur le registre des déchets
             } else {
                 firstSheetName = workbook.SheetNames[0];    
             }

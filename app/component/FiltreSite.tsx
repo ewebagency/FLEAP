@@ -12,6 +12,7 @@ const FiltreSite = () => {
 
     const getSitesFromEntreprise = async () => {
         if (session?.entreprise_id) {
+            
             const { data, error } = await supabase
             .from('bsd')
             .select('infos_json')
@@ -34,6 +35,8 @@ const FiltreSite = () => {
                     .filter(Boolean);
 
                 const sites_uniques = Array.from(new Set(sites));
+                
+                
                 const formattedSites = sites_uniques.map(site => ({
                     name: site,
                     checked: true
@@ -48,6 +51,7 @@ const FiltreSite = () => {
     }
 
     useEffect(() => {
+        
         getSitesFromEntreprise();
 
         // Gestionnaire d'événements pour fermer le menu quand on clique en dehors

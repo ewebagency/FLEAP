@@ -66,7 +66,7 @@ const InputDeroulant: React.FC<InputDeroulantProps> = ({titre, placeholder, opti
                                         onChange={onChange}
                                         onKeyDown={handleKeyDown}
                                     >
-                                        <option value={value}>{value}</option>
+                                        <option value={value} hidden>{value}</option>
                                         {options.map((option, index) => (
                                             <option key={index} value={option}>{option}</option>
                                         ))}
