@@ -12,25 +12,27 @@ const FiltreFilieres = () => {
 
     const getFilieresFromEntreprise = async () => {
         
-        const { data, error } = await supabase
+        const { data:codes_all, error:error_codes } = await supabase
         .from('bsd')
-        .select('infos_json')
+        .select('infos_json->formAPI->createFormInput->wasteDetails->>code')
+        .order('created_at', { ascending: false })
         .eq('entreprise_id', session?.entreprise_id);
         
-        if (error) {
-            console.error('Error fetching filieres:', error);
+        if (error_codes) {
+            console.error('Error fetching codes:', error_codes);
             return;
         }
 
         
-        if (!data || data.length === 0) {
+        if (!codes_all || codes_all.length === 0) {
             console.log("Pas de BSDs trouvés");
             return;
         }
 
-        const codes = data
+        /*const codes = data
             .map(bsd => bsd?.infos_json?.formAPI?.createFormInput?.wasteDetails?.code)
-            .filter(code => code != null);
+            .filter(code => code != null);*/
+        const codes = codes_all.map(code => code.code).filter(code => code != null);
         
         const array_codes_propres = codes.map(code => code.replaceAll(' ', '').replace('*', '').trim());
         
@@ -123,6 +125,15 @@ const FiltreFilieres = () => {
     return (
         <div className="m-5">
             <div className="flex flex-wrap gap-2">
+            {filieres && filieres.length > 0 && (
+                    <button
+                        onClick={toggleAll}
+                        className="text-xs h-[22px] px-3 flex items-center justify-center transition-colors duration-200 
+                        bg-gray-200 hover:bg-gray-300 rounded-md"
+                    >
+                        {filieres.every(f => f.checked) ? 'Tout désélectionner' : 'Tout sélectionner'}
+                    </button>
+                )}
                 <div className="join flex flex-wrap">
                     {loadingFilieres ? (
                         <div className="text-gray-500">Chargement des filières...</div>
@@ -155,15 +166,6 @@ const FiltreFilieres = () => {
                         <div className="text-gray-500">Aucune filière disponible</div>
                     )}
                 </div>
-                {filieres && filieres.length > 0 && (
-                    <button
-                        onClick={toggleAll}
-                        className="text-xs h-[22px] px-3 flex items-center justify-center transition-colors duration-200 
-                        bg-gray-200 hover:bg-gray-300 rounded-md"
-                    >
-                        {filieres.every(f => f.checked) ? 'Tout désélectionner' : 'Tout sélectionner'}
-                    </button>
-                )}
             </div>
         </div>
     );

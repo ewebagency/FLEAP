@@ -449,20 +449,21 @@ const ModifyCardInFormulaireNew = ({
 
     if (!willSendMail.isConfirmed || !sendMail) return;
 
-    setIsSubmittingMail(true);
-    await sendMail();
     const {data:newData, success} = await prepareDataToCloud(dataText, showTrader, showBroker, showEcoOrganisme, showParcelFields);
     
     if(session && session?.entreprise_id && session?.user_id && success) {
       const isDraft=true; //isDraft=true => Pas de track dechet en gros
       const nonDangereux = true;
       const result = await sendData_to_Cloud(newData, session?.user_id, session?.entreprise_id, isDraft, nonDangereux);
+      
       if(result.success) {
           toast.success("Déchet non dangereux sauvegardé", result.message);
+          setIsSubmittingMail(true);
+          await sendMail();
           setDisplayFormulaire(false);
           setModalReload(!modalReload);
       } else {
-          toast.error("Erreur avec la sauvegarde du BSD non dangereux",result.message);
+          toast.error("Erreur avec la sauvegarde du BSD non dangereux, mail non envoyé",result.message);
       }
     } else {
       toast.error("Erreur lors de la préparation des données pour le BSD non dangereux");

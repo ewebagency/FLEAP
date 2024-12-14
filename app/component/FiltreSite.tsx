@@ -3,55 +3,70 @@ import React, { useEffect, useState, useRef } from "react";
 import { useFilterContext } from "../FilterContext";
 import { useSession } from "./SessionProvider";
 import { supabase } from "../database/supabaseClient";
+import { useModalContextNew } from "../register/RegisterComponents/Modal/ContextModal";
 
 const FiltreSite = () => {
     const [isOpen, setIsOpen] = useState(false);
     const { sites, setSites, toggleSite } = useFilterContext();
     const session = useSession();
     const containerRef = useRef<HTMLDivElement>(null);
-
-    const getSitesFromEntreprise = async () => {
-        if (session?.entreprise_id) {
-            
-            const { data, error } = await supabase
-            .from('bsd')
-            .select('infos_json')
-            .eq('entreprise_id', session.entreprise_id);
-            
-            if (error) {
-                console.error('Error fetching sites:', error);
-                return;
-            }
-
-            if(data && data.length > 0) {
-                const sites = data
-                    .filter(bsd => 
-                        bsd.infos_json?.formAPI?.createFormInput?.emitter?.workSite
-                    )
-                    .map(bsd => {
-                        const workSite = bsd.infos_json.formAPI.createFormInput.emitter.workSite;
-                        return workSite.name; //`${workSite.address} ${workSite.postalCode} ${workSite.city}`;
-                    })
-                    .filter(Boolean);
-
-                const sites_uniques = Array.from(new Set(sites));
-                
-                
-                const formattedSites = sites_uniques.map(site => ({
-                    name: site,
-                    checked: true
-                }));
-                formattedSites.push({
-                    name: "Non renseigné",
-                    checked: true
-                });
-                setSites(formattedSites);
-            }
-        }
-    }
+    const { modalReload } = useModalContextNew();
 
     useEffect(() => {
-        
+        const getSitesFromEntreprise = async () => {
+            if (session?.entreprise_id) {
+                const { data, error } = await supabase
+                    .from('bsd')
+                    .select('infos_json')
+                    .order('created_at', { ascending: false })
+                    .eq('entreprise_id', session.entreprise_id);
+                
+                if (error) {
+                    console.error('Error fetching sites:', error);
+                    return;
+                }
+                
+                if(data && data.length > 0) {
+                    const sites = data
+                        .filter(bsd => 
+                            bsd.infos_json?.formAPI?.createFormInput?.emitter?.workSite
+                        )
+                        .map(bsd => {
+                            const workSite = bsd.infos_json.formAPI.createFormInput.emitter.workSite;
+                            return workSite.name; //`${workSite.address} ${workSite.postalCode} ${workSite.city}`;
+                        })
+                        .filter(Boolean);
+
+                    const sites_uniques = Array.from(new Set(sites));
+                    console.log("sites_uniques:", sites_uniques);
+                    
+                    const formattedSites = sites_uniques.map(site => ({
+                        name: site,
+                        checked: true
+                    }));
+                    const {data: sites_non_renseignes, error: error_sites_non_renseignes} = await supabase
+                    .from('bsd')
+                    .select('*')
+                    .eq('entreprise_id', session.entreprise_id)
+                    .or('infos_json->formAPI->createFormInput->emitter->workSite.is.null,'+
+                    'infos_json->formAPI->createFormInput->emitter->workSite->>name.eq.""');
+                    if(error_sites_non_renseignes) {
+                        console.error("Error fetching sites non renseignes:", error_sites_non_renseignes);
+                    } else {
+                        if(sites_non_renseignes && sites_non_renseignes.length > 0) {
+                            console.log("sites_non_renseignes:", sites_non_renseignes);
+                            formattedSites.push({
+                                name: "Non renseigné",
+                                checked: true
+                            });
+                        }
+                    }
+                    
+                    setSites(formattedSites);
+                }
+            }
+        };
+
         getSitesFromEntreprise();
 
         // Gestionnaire d'événements pour fermer le menu quand on clique en dehors
@@ -63,7 +78,7 @@ const FiltreSite = () => {
 
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [session]);
+    }, [session?.entreprise_id, setSites, modalReload]);
 
     return (
         <div 

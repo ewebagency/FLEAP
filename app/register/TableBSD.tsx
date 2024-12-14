@@ -100,6 +100,36 @@ const getSommeBSD = (facture_infos: {montant_ht: number}) => {
     return facture_infos.montant_ht;
 }
 
+const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres: string[]) => {
+    const { data, error } = await supabase
+        .from('entreprise')
+        .select('mapping_ced_filiere')
+        .eq('id', entreprise_id)
+        .single();
+
+    if (data) {
+        const mapping_table = data.mapping_ced_filiere;
+        const ced_uniques: string[] = [];
+        let other_ceds: string[] = mapping_table.map((mapping: {ced: string}) => mapping.ced);
+
+        for (const mapping of mapping_table) {
+            for (const filiere of checkedFilieres) {
+                if (mapping.filiere === filiere) {
+                    ced_uniques.push(cleanCED(mapping.ced));
+                    other_ceds = other_ceds.filter((ced) => cleanCED(ced) !== cleanCED(mapping.ced));
+                }
+            }
+        }
+
+        if (checkedFilieres.includes('Autres')) {
+            return ced_uniques.concat(other_ceds.map(ced => cleanCED(ced)));
+        }
+
+        return ced_uniques;
+    }
+    return [];
+}
+
 const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Site[], entreprise_id: string | null, page: number = 1) => {
     console.log("Début fetchBSDs", { user_id, entreprise_id, page });
     
@@ -108,102 +138,70 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
     const limit = 50;
     const offset = (page - 1) * limit;
 
-    const { data, error } = await supabase
-        .from('bsd')
-        .select('id, created_at, infos_json, facture_treated, facture_infos, status_track_dechets, id_track_dechets, readable_id_track_dechets')
-        .eq('entreprise_id', entreprise_id)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
+    // Récupérer les filières et sites cochés
+    const checkedFilieres = filieres.filter(f => f.checked).map(f => f.name);
+    const checkedSites = sites.filter(site => site.checked).map(site => site.name);
 
-    if(error) {
+    // Si aucun filtre n'est sélectionné, retourner un tableau vide
+    if (checkedFilieres.length === 0 || checkedSites.length === 0) {
+        return [];
+    }
+
+    // Récupérer les CEDs correspondant aux filières
+    const ceds = await getCEDsFromFilieres(entreprise_id, checkedFilieres);
+
+    let query = supabase
+        .from('bsd')
+        .select('*')
+        .eq('entreprise_id', entreprise_id);
+
+    // Ajouter le filtre sur les CEDs
+    //console.log("CEDs:", ceds);
+    const ceds_all_types = ceds.map(ced => [
+        ced,                         // Version propre
+        ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim(),   // Version avec espaces
+        ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim() + '*' // Version avec astérisque
+    ]);
+    const ced_all = ceds_all_types.flatMap(ced_all_types => ced_all_types);
+    //console.log("CEDs all types:", ced_all);
+    const toutes_filieres_cond = filieres.map(filiere => filiere.checked).includes(false); //Affiche false uniquement si tout est sélectionné
+
+    if(toutes_filieres_cond && ceds.length > 0) {
+        query = query.filter('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
+    }
+    //console.log("condition filieres:", (toutes_filieres_cond && ceds.length > 0));
+
+   // Ajouter le filtre sur les sites
+    if (checkedSites.length > 0) {
+        if (!checkedSites.includes("Non renseigné")) {
+            // Cas où "Non renseigné" n'est pas inclus
+            query = query.filter('infos_json->formAPI->createFormInput->emitter->workSite->>name', 'in', `(${checkedSites.join(',')})`);
+        } else {
+            // Cas où "Non renseigné" est inclus
+            query = query.or(
+                `infos_json->formAPI->createFormInput->emitter->workSite.is.null,` +
+                `infos_json->formAPI->createFormInput->emitter->workSite->>name.eq."",` +
+                `infos_json->formAPI->createFormInput->emitter->workSite->>name.in.(${checkedSites.filter(site => site !== "Non renseigné").join(',')})`
+            );
+        }
+    } else {
+        return [];
+    }
+
+    // Ajouter la pagination
+    query = query
+        .order('created_at', { ascending: false })
+        .range(0, offset + limit - 1);
+
+
+    const { data, error } = await query;
+
+    if (error) {
         console.error("Error fetching BSD:", error);
         return [];
     }
 
-    console.log("BSDs bruts récupérés:", data?.length);
-    
-    const checkedFilieres = filieres.filter(f => f.checked).map(f => f.name);
-    console.log("Filières cochées:", checkedFilieres);
-
-    // Si aucune filière n'est sélectionnée, retourner tous les BSDs
-    if (checkedFilieres.length === 0) {
-        console.log("Aucune filière sélectionnée, aucun BSD retourné");
-        return [];
-    }
-
-    const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres: string[]) => {
-        const { data, error } = await supabase
-        .from('entreprise')
-        .select('mapping_ced_filiere')
-        .eq('id', entreprise_id)
-        .single();
-        if(data){
-            const mapping_table = data.mapping_ced_filiere;
-            const ced_uniques:string[] = [];
-            let other_ceds:string[] = mapping_table.map((mapping: {ced: string}) => mapping.ced);
-            for(const mapping of mapping_table){
-                for(const filiere of checkedFilieres){
-                    const cond1 = mapping.filiere === filiere;
-                    if(cond1){
-                        ced_uniques.push(mapping.ced);
-                        other_ceds = other_ceds.filter((ced)=>cleanCED(ced)!==cleanCED(mapping.ced));
-                    }
-                }
-            }
-            /*if(checkedFilieres.includes('Autres')){
-                ced_uniques = ced_uniques.concat(other_ceds);
-            }*/
-            console.log("CEDs uniques:", ced_uniques);
-            return ced_uniques;
-        }
-        return [];
-    }
-    const checkedCEDs = await getCEDsFromFilieres(entreprise_id, checkedFilieres);
-    console.log("CEDs correspondants:", checkedCEDs);
-
-    let filteredBSD_onCED = data;
-    if (checkedFilieres.length > 0) {
-        const non_Autres = data.filter((bsd) => {
-            const ced = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
-            return checkedCEDs.includes(cleanCED(ced));
-        });
-
-        const autres = data.filter((bsd) => {
-            return !non_Autres.some(nonAutreBsd => nonAutreBsd.id === bsd.id);
-        });
-
-        if(checkedFilieres.includes('Autres')){
-            filteredBSD_onCED = non_Autres.concat(autres);
-        } else {
-            filteredBSD_onCED = non_Autres;
-        }
-        console.log("filteredBSD_onCED:", filteredBSD_onCED);
-    } 
-    const checkedSites = sites.filter(site => site.checked).map(site => site.name);
-    console.log("Sites cochés:", checkedSites);
-
-    // Si aucun site n'est sélectionné, retourner les BSDs filtrés par filières
-    if (checkedSites.length === 0) {
-        console.log("Aucun site sélectionné, retour des BSDs filtrés par filières");
-        return filteredBSD_onCED;
-    }
-
-    let filteredBSD_onCED_andSite = filteredBSD_onCED.filter((bsd) => {
-        return checkedSites.some(site => bsd.infos_json.formAPI.createFormInput.emitter.workSite ? site === bsd.infos_json.formAPI.createFormInput.emitter.workSite.name : false);
-    });
-
-    if(checkedSites.includes("Non renseigné")){
-        const non_renseigne = filteredBSD_onCED.filter((bsd) => {
-            if(bsd.infos_json.formAPI.createFormInput.emitter.workSite){
-                return bsd.infos_json.formAPI.createFormInput.emitter.workSite.name === ""
-            } else {
-                return true;
-            }
-        });
-        filteredBSD_onCED_andSite = filteredBSD_onCED_andSite.concat(non_renseigne);
-    }
-
-    return filteredBSD_onCED_andSite;
+    return data || [];
 }
 
 const TableBSD = () => {
@@ -234,6 +232,12 @@ const TableBSD = () => {
         };
         loadMappingTable();
     }, [session?.entreprise_id]);
+
+    // Ajouter un useEffect pour réinitialiser la pagination quand les filtres changent
+    useEffect(() => {
+        setCurrentPage(1);
+        setBSDs([]); // Vider la liste des BSDs
+    }, [filieres, sites]); // Se déclenche quand les filtres changent
 
     // Fonction pour vérifier et initialiser les webhooks
     const initializeWebhooks = async () => {
@@ -278,7 +282,7 @@ const TableBSD = () => {
         }
     };
 
-    // Récupérer les BSDs de l'utilisateur
+    // Modifier le useEffect existant pour la récupération des BSDs
     useEffect(() => {
         const loadBSDs = async () => {
             if (!session?.user_id || !session?.entreprise_id) {
@@ -291,9 +295,16 @@ const TableBSD = () => {
                 const newData = await fetchBSDs(session.user_id, filieres, sites, session.entreprise_id, currentPage);
                 
                 if (newData && newData.length > 0) {
-                    // Ajouter les nouveaux BSDs aux BSDs existants
-                    setBSDs(prevBsds => currentPage === 1 ? newData : [...prevBsds, ...newData]);
-                    setHasMore(newData.length === 50); // 50 est la limite par page
+                    setBSDs(prevBsds => {
+                        // Si c'est la première page, on remplace complètement
+                        if (currentPage === 1) return newData;
+                        
+                        // Sinon, on concatène en vérifiant les doublons
+                        const existingIds = new Set(prevBsds.map(bsd => bsd.id));
+                        const uniqueNewBsds = newData.filter(bsd => !existingIds.has(bsd.id));
+                        return [...prevBsds, ...uniqueNewBsds];
+                    });
+                    setHasMore(newData.length === itemsPerPage);
                 } else {
                     if (currentPage === 1) {
                         setBSDs([]);
@@ -312,7 +323,6 @@ const TableBSD = () => {
 
         loadBSDs();
     }, [session?.user_id, session?.entreprise_id, filieres, sites, modalReload, currentPage]);
-
 
     useEffect(() => {
         // Exécution immédiate
@@ -599,7 +609,7 @@ const TableBSD = () => {
                             </td>
                             <td style={{ padding: '10px' }}>
                                 <div className="flex flex-col justify-center items-center gap-2 text-xs">
-                                    {(bsd.status_track_dechets === 'DRAFT' || bsd.status_track_dechets === 'Brouillon Local') && (
+                                    {canModify(bsd.id_track_dechets, bsd.status_track_dechets) && (
                                         <button 
                                             className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md 
                                             hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors" 
@@ -608,8 +618,7 @@ const TableBSD = () => {
                                             Modifier
                                         </button>
                                     )}
-                                    {bsd.status_track_dechets !== 'DRAFT' && 
-                                     bsd.status_track_dechets !== 'Brouillon Local' && (
+                                    {!canModify(bsd.id_track_dechets, bsd.status_track_dechets) && (
                                         <button 
                                             className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md 
                                             hover:bg-green-50 hover:border-green-200 hover:text-green-600 transition-colors" 
@@ -680,4 +689,11 @@ export default TableBSD
 const nonDangerousStatut = (statut: string) => {
     const acceptableStatuts = ["Déchet non dangereux", "Brouillon", "Collecte demandée", "Collecté", "Accepté", "Traité", "Rupture de traçabilité"];
     return acceptableStatuts.includes(statut);
+}
+
+const canModify = (id_track: string, statut_track: string) => {
+    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED") {
+        return true;
+    }
+    return false;
 }
