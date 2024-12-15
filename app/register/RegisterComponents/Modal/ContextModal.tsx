@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { FormInput } from '../../interface/BSD_Interface';
 /*interface this_FormAPI {
   formAPI?: {
@@ -73,7 +73,7 @@ interface ModalContextType {
     modalType: string; //'display' ou 'modify' ou un truc dans le genre (si rien alors on ne display pas la DisplayCard)
     setModalType: (modalType: string) => void;
     modalReload: boolean;
-    setModalReload: (modalReload: boolean) => void;
+    setModalReload: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 // Créer le contexte
@@ -148,8 +148,9 @@ export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
     const [modalType, setModalType] = useState("");
     const [modalReload, setModalReload] = useState(false);
 
-    
-
+    useEffect(() => {
+        console.log('modalReload changed:', modalReload);
+    }, [modalReload]);
 
     return (
         <ModalContextNew.Provider value={{

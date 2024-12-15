@@ -66,10 +66,13 @@ const FiltreSite = () => {
                 }
             }
         };
+        
+        console.log('refresh des filtres', modalReload);
+        
+        if (session?.entreprise_id) {
+            getSitesFromEntreprise();
+        }
 
-        getSitesFromEntreprise();
-
-        // Gestionnaire d'événements pour fermer le menu quand on clique en dehors
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
                 setIsOpen(false);

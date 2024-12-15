@@ -133,8 +133,8 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                         other: row["descContenant"]?.toString() || "",
                         quantity: parseInt(row["nbContenants"]?.toString() || "0")
                     }],
-                    quantity: parseFloat(row["quantiteReceptionneeNetInstallationDestination"]?.toString() || "0"), //Faire condition si on a installation destination
-                    quantityType:  row["quantiteEstimeeReelleReceptionInstallationDestination"]?.toString() as 'REAL'|'ESTIMATED' || 'ESTIMATED',
+                    quantity: parseFloat(row["quantiteCollecteTransporteur"]?.toString().replace(',', '.') || "0"), //Faire condition si on a installation destination
+                    quantityType:  row["quantiteEstimeeReelleTransporteur"]?.toString() as 'REAL'|'ESTIMATED' || 'ESTIMATED',
                     consistence: row["consistance"]?.toString() || "",
                     pop: row["pop"] === "O",
                     isDangerous: row["codeCed"]?.toString()?.includes("*"),

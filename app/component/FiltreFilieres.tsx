@@ -4,11 +4,13 @@ import { useFilterContext } from "../FilterContext";
 import { useSession } from "./SessionProvider";
 import { supabase } from "../database/supabaseClient";
 import { getColors } from "./Analyse/MetaComponent/Colours";
+import { useModalContextNew } from "../register/RegisterComponents/Modal/ContextModal";
 
 const FiltreFilieres = () => {
     const { filieres, setFilieres, toggleFiliere } = useFilterContext();
     const session = useSession();
     const [loadingFilieres, setLoadingFilieres] = useState(true);
+    const {modalReload} = useModalContextNew();
 
     const getFilieresFromEntreprise = async () => {
         
@@ -77,7 +79,7 @@ const FiltreFilieres = () => {
 
             
             setFilieres(formattedFilieres);      
-            console.log("Filières formatées à sauvegarder:", formattedFilieres);
+            //console.log("Filières formatées à sauvegarder:", formattedFilieres);
         } else {
             console.log("Pas de mapping trouvé");
         }
@@ -85,33 +87,31 @@ const FiltreFilieres = () => {
 
     useEffect(() => {
         const loadData = async () => {
-            console.log("État initial:", { 
+            /*console.log("État initial:", { 
                 session: !!session, 
                 user_id: session?.user_id, 
                 entreprise_id: session?.entreprise_id,
                 filieres_actuelles: filieres
-            });
+            });*/
             
             if (!session?.user_id || !session?.entreprise_id) {
-                console.log("Session incomplète, arrêt du chargement");
+                //console.log("Session incomplète, arrêt du chargement");
                 setLoadingFilieres(false);
                 return;
             }
 
             try {
-                console.log("Début du chargement des filières");
                 setLoadingFilieres(true);
                 await getFilieresFromEntreprise();
             } catch (error) {
                 console.error("Erreur lors du chargement des filières:", error);
             } finally {
-                console.log("Fin du chargement des filières, état final:", filieres);
                 setLoadingFilieres(false);
             }
         };
 
         loadData();
-    }, [session?.user_id, session?.entreprise_id]);
+    }, [session?.user_id, session?.entreprise_id, modalReload]);
     
     const toggleAll = () => {
         const areAllChecked = filieres.every(f => f.checked);

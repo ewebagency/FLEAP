@@ -177,6 +177,10 @@ const ModifyCardInFormulaireNew = ({
   const handleLocalChange = (path: FormPath, value: string) => {
     setDataText(prevData => {
         const newData = { ...prevData };
+        
+        // Sauvegarder la fullAddress
+        const workSiteFullAddress = newData.emitter.workSite.fullAddress;
+        
         const keys = path.split('.');
 
         // Cas spécial pour packagingInfos
@@ -202,6 +206,11 @@ const ModifyCardInFormulaireNew = ({
         
         const lastKey = keys[keys.length - 1];
         current[lastKey] = value;
+        
+        // Restaurer la fullAddress si elle existait
+        if (workSiteFullAddress && !path.includes('fullAddress')) {
+            newData.emitter.workSite.fullAddress = workSiteFullAddress;
+        }
         
         return newData;
     });
@@ -231,6 +240,17 @@ const ModifyCardInFormulaireNew = ({
     setIsSubmitting(true);    
     try {
       const newData = { ...dataText };
+      
+      // Conversion des quantités en nombres avant envoi
+      if (typeof newData.wasteDetails.quantity === 'string' || typeof newData.wasteDetails.quantity === 'number') {
+        newData.wasteDetails.quantity = Number(String(newData.wasteDetails.quantity).replace(',', '.'));
+      }
+      if (typeof newData.wasteDetails.packagingInfos[0].quantity === 'string' || typeof newData.wasteDetails.packagingInfos[0].quantity === 'number') {
+        newData.wasteDetails.packagingInfos[0].quantity = Number(String(newData.wasteDetails.packagingInfos[0].quantity).replace(',', '.'));
+      }
+
+      // Sauvegarder la fullAddress avant les modifications
+      const workSiteFullAddress = newData.emitter.workSite.fullAddress;
 
       const processCompanyData = async (company: Company) => {
         try{
@@ -300,8 +320,12 @@ const ModifyCardInFormulaireNew = ({
       if(conditions_pour_submit){
         if(session && session?.entreprise_id && session?.user_id) {
             console.log('Form send Data to Cloud:', newData);  
+            // Créer une copie pour l'envoi sans fullAddress
+            const dataToSend = { ...newData };
+            delete dataToSend.emitter.workSite.fullAddress;
+            
             const isDraft=false;
-            const result = await sendData_to_Cloud(newData, session?.user_id, session?.entreprise_id, isDraft);
+            const result = await sendData_to_Cloud(dataToSend, session?.user_id, session?.entreprise_id, isDraft);
             if(result.success) {
                 toast.success(result.message);
 
@@ -329,6 +353,10 @@ const ModifyCardInFormulaireNew = ({
         //onSubmit();
       };
 
+      // Restaurer la fullAddress après les modifications
+      if (workSiteFullAddress) {
+        newData.emitter.workSite.fullAddress = workSiteFullAddress;
+      }
 
     } finally {
       setIsSubmitting(false);
@@ -341,6 +369,17 @@ const ModifyCardInFormulaireNew = ({
     setIsSubmittingBrouillon(true);
     try {
       const newData = { ...dataText };
+      
+      // Conversion des quantités en nombres avant envoi
+      if (typeof newData.wasteDetails.quantity === 'string' || typeof newData.wasteDetails.quantity === 'number') {
+        newData.wasteDetails.quantity = Number(String(newData.wasteDetails.quantity).replace(',', '.'));
+      }
+      if (typeof newData.wasteDetails.packagingInfos[0].quantity === 'string' || typeof newData.wasteDetails.packagingInfos[0].quantity === 'number') {
+        newData.wasteDetails.packagingInfos[0].quantity = Number(String(newData.wasteDetails.packagingInfos[0].quantity).replace(',', '.'));
+      }
+
+      // Sauvegarder la fullAddress avant les modifications
+      const workSiteFullAddress = newData.emitter.workSite.fullAddress;
 
       const processCompanyData = async (company: Company) => {
         try{
@@ -407,9 +446,13 @@ const ModifyCardInFormulaireNew = ({
     }
   
       if(session && session?.entreprise_id && session?.user_id) {
+          // Créer une copie pour l'envoi sans fullAddress
+          const dataToSend = { ...newData };
+          delete dataToSend.emitter.workSite.fullAddress;
+          
           const isDraft=true;
           console.log("Save en brouillon")
-          const result = await sendData_to_Cloud(newData, session?.user_id, session?.entreprise_id, isDraft);
+          const result = await sendData_to_Cloud(dataToSend, session?.user_id, session?.entreprise_id, isDraft);
           if(result.success) {
               toast.success("Brouillon sauvegardé", result.message);
               setDisplayFormulaire(false);
@@ -421,6 +464,11 @@ const ModifyCardInFormulaireNew = ({
           } else {
               toast.error("Erreur avec la sauvegarde du brouillon",result.message);
           }
+      }
+
+      // Restaurer la fullAddress après les modifications
+      if (workSiteFullAddress) {
+        newData.emitter.workSite.fullAddress = workSiteFullAddress;
       }
     } finally {
       setIsSubmittingBrouillon(false);
@@ -707,7 +755,7 @@ const ModifyCardInFormulaireNew = ({
                 { label: "Téléphone", path: "trader.company.phone", placeholder: "Téléphone" },
                 { label: "Email", path: "trader.company.mail", placeholder: "Email" },
 
-                { label: "Rcépissé", path: "trader.receipt", placeholder: "Récépissé" },
+                { label: "Récépissé", path: "trader.receipt", placeholder: "Récépissé" },
                 { label: "Département", path: "trader.department", placeholder: "Département" },
                 { label: "Limite de validité", path: "trader.validityLimit", placeholder: "JJ/MM/AAAA" },
               ]}

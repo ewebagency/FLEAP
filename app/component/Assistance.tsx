@@ -14,7 +14,7 @@ export default function Assistance() {
                     <h3 className="text-lg text-gray-800">📞 06 52 90 65 15</h3>
                     <h3 className="text-lg text-gray-800">✉️ asohm@fleap.fr</h3>
                     <p className="text-gray-500 mt-4">Nous sommes là pour vous aider ! N&apos;hésitez pas à nous contacter pour toute question ou assistance.</p>
-                    <button className="mt-4 bg-blue-500 text-white font-semibold py-2 px-4 rounded hover:bg-blue-600">Fermer</button>
+                    <button onClick={() => setOpen(false)} className="mt-4 bg-blue-500 text-white font-semibold py-2 px-4 rounded hover:bg-blue-600">Fermer</button>
                 </div>
             </div>
             }

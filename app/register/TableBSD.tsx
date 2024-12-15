@@ -131,7 +131,7 @@ const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres
 }
 
 const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Site[], entreprise_id: string | null, page: number = 1) => {
-    console.log("Début fetchBSDs", { user_id, entreprise_id, page });
+    //console.log("Début fetchBSDs", { user_id, entreprise_id, page });
     
     if (!entreprise_id) return [];
 
@@ -463,7 +463,7 @@ const TableBSD = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                     <tr style={{ backgroundColor: 'white' }}>
-                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '3rem' }}>Déchet</th>
+                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '26%', textAlign: 'left', paddingLeft: '3rem' }}>Déchet</th>
                         <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'center' }}>Statut</th>
                         <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '25%', textAlign: 'left', paddingLeft: '1rem' }}>Prestataires</th>
                         <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '10%', textAlign: 'right', paddingRight: '1.25rem' }}>Montant</th>
@@ -497,19 +497,21 @@ const TableBSD = () => {
                                             {/* Informations sur le déchet */}
                                             <div>
                                                 <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.code}</div>
+                                            </div>
+
+                                            <div>
+                                                <div className="text-blue-500 mb-0">
+                                                    {getFiliere(
+                                                        bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
+                                                        mappingTable
+                                                    )}
+                                                </div>
                                                 {bsd.infos_json.formAPI.createFormInput.wasteDetails.name && (
-                                                    <div className="text-gray-500 text-xs">
+                                                    <div className="text-gray-500 text-[10px] mt-0">
                                                         {bsd.infos_json.formAPI.createFormInput.wasteDetails.name}
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="text-gray-600">
-                                                {getFiliere(
-                                                    bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
-                                                    mappingTable
-                                                )}
-                                            </div>
-                                            <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity} tonnes</div>
                                         </div>
                                     </div>
                                 </div>
@@ -692,7 +694,7 @@ const nonDangerousStatut = (statut: string) => {
 }
 
 const canModify = (id_track: string, statut_track: string) => {
-    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED") {
+    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED" || statut_track === "DRAFT") {
         return true;
     }
     return false;

@@ -7,6 +7,8 @@ import { SessionProvider } from "./component/SessionProvider";
 import { FilterProvider } from "./FilterContext";
 import { AccessOtherAccountProvider } from "./interface_admin_2/AccessOtherAccounts/AccessOtherAccountContext";
 import { usePathname } from 'next/navigation';
+import { ModalProviderNew } from "./register/RegisterComponents/Modal/ContextModal";
+import { MailProvider } from "./register/MailComponents/MailContext";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -34,12 +36,16 @@ export default function RootLayout({
         <SessionProvider>
           <FilterProvider>
             <AccessOtherAccountProvider>
-              <div className="flex h-screen">
-                {showSidebar && <SideBar className_props="min-h-full" />}
-                <main className={`flex-1 overflow-y-auto ${!showSidebar ? 'w-full' : ''}`}>
-                  {children}
-                </main>
-              </div>
+              <ModalProviderNew>
+                <MailProvider>
+                  <div className="flex h-screen">
+                    {showSidebar && <SideBar className_props="min-h-full" />}
+                    <main className={`flex-1 overflow-y-auto ${!showSidebar ? 'w-full' : ''}`}>
+                      {children}
+                    </main>
+                  </div>
+                </MailProvider>
+              </ModalProviderNew>
             </AccessOtherAccountProvider>
           </FilterProvider>
         </SessionProvider>  

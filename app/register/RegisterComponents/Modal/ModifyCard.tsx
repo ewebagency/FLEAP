@@ -170,14 +170,21 @@ const ModifyCard = () => {
             cancelButtonText: 'Annuler'
         });
 
-        if (!result.isConfirmed) {
-            return;
-        }
+        if (!result.isConfirmed) return;
 
         setIsSubmitting(true);
 
-
         try {
+            const dataToSend = { ...localData };
+            
+            // Conversion des quantités en nombres avant envoi
+            if (typeof dataToSend.wasteDetails.quantity === 'string' || typeof dataToSend.wasteDetails.quantity === 'number') {
+                dataToSend.wasteDetails.quantity = Number(String(dataToSend.wasteDetails.quantity).replace(',', '.'));
+            }
+            if (typeof dataToSend.wasteDetails.packagingInfos[0].quantity === 'string' || typeof dataToSend.wasteDetails.packagingInfos[0].quantity === 'number') {
+                dataToSend.wasteDetails.packagingInfos[0].quantity = Number(String(dataToSend.wasteDetails.packagingInfos[0].quantity).replace(',', '.'));
+            }
+
             const response = await fetch('/api/demande_collecte/modify_bsd', {
                 method: 'POST',
                 headers: {
@@ -186,20 +193,18 @@ const ModifyCard = () => {
                 body: JSON.stringify({
                     user_id: session.user_id,
                     bsd_id: modalId,
-                    data: {formAPI:{createFormInput: localData}}
+                    data: {formAPI:{createFormInput: dataToSend}}
                 }),
             });
 
-            const result = await response.json();
-            if (result.success) {
-                // Mise à jour correcte du dataTotal
-                console.log('dataTotal', localData);
-                setDataToogle(localData);
+            const apiResult = await response.json();
+            if (apiResult.success) {
+                setDataToogle(dataToSend);
                 toast.success("BSD modifié avec succès");
                 setModalType("");
                 setModalReload(!modalReload);
             } else {
-                toast.error(result.message || "Erreur lors de la modification");
+                toast.error(apiResult.message || "Erreur lors de la modification");
             }
         } catch (error) {
             toast.error("Erreur lors de la modification");
