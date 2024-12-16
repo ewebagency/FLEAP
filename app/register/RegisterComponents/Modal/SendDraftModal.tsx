@@ -112,6 +112,10 @@ const SendDraftModal = ({
                             collectionAddress: formData.emitter.workSite.fullAddress,
                             destinataire: formData.transporter.company.mail,
                             emetteur: formData.emitter.company.mail,
+                            entrepriseId: entrepriseId,
+                            entrepriseName: formData.emitter.company.name,
+                            wasteDescription: formData.wasteDetails.name,
+                            containerCount: formData.wasteDetails.packagingInfos[0].quantity,
                         }}
                         pastBrouillon={true}
                     />
