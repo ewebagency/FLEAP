@@ -38,7 +38,7 @@ const FiltreSite = () => {
                         .filter(Boolean);
 
                     const sites_uniques = Array.from(new Set(sites));
-                    console.log("sites_uniques:", sites_uniques);
+                    //console.log("sites_uniques:", sites_uniques);
                     
                     const formattedSites = sites_uniques.map(site => ({
                         name: site,
@@ -67,7 +67,7 @@ const FiltreSite = () => {
             }
         };
         
-        console.log('refresh des filtres', modalReload);
+        //console.log('refresh des filtres', modalReload);
         
         if (session?.entreprise_id) {
             getSitesFromEntreprise();

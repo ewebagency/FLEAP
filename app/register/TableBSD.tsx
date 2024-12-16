@@ -117,6 +117,7 @@ const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres
                 if (mapping.filiere === filiere) {
                     ced_uniques.push(cleanCED(mapping.ced));
                     other_ceds = other_ceds.filter((ced) => cleanCED(ced) !== cleanCED(mapping.ced));
+                    //console.log("other_ceds:", other_ceds);
                 }
             }
         }
@@ -167,8 +168,34 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
     const toutes_filieres_cond = filieres.map(filiere => filiere.checked).includes(false); //Affiche false uniquement si tout est sélectionné
 
     if(toutes_filieres_cond && ceds.length > 0) {
-        query = query.filter('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
-    }
+        //query = query.filter('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
+        /*if(checkedFilieres.includes('Autres')) {
+            query = query.not('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
+        }*/        
+        if (checkedFilieres.includes('Autres')) {
+            const condition1 = `infos_json->formAPI->createFormInput->wasteDetails->>code.in.(${ced_all.join(',')})`;
+            
+            const other_ceds_here = await getCEDsFromFilieres(entreprise_id, filieres.map(filiere => filiere.name));
+            const other_ceds_all_types = other_ceds_here.map(ced => [
+                ced,                         // Version propre
+                ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim(),   // Version avec espaces
+                ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim() + '*' // Version avec astérisque
+            ]);
+            const other_ceds_all = other_ceds_all_types.flatMap(other_ceds_all_types => other_ceds_all_types);
+            const condition2 = `infos_json->formAPI->createFormInput->wasteDetails->>code.not.in.(${other_ceds_all.join(',')})`;
+            query = query.or(`${condition1},${condition2}`);
+        } else {
+            //Toujours là pour l'instant car pas de filtre autres
+            query = query.filter('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
+        }
+    } //Si toutes les filieres sont sélectionnées on n'ajoute pas de filtre
+    
+    /*const data_not = await supabase.from('bsd')
+    .select('*')
+    .eq('entreprise_id', entreprise_id)
+    .not('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`)*/
+    //console.log("data_not:", data_not);
+    
     //console.log("condition filieres:", (toutes_filieres_cond && ceds.length > 0));
 
    // Ajouter le filtre sur les sites

@@ -148,9 +148,9 @@ export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
     const [modalType, setModalType] = useState("");
     const [modalReload, setModalReload] = useState(false);
 
-    useEffect(() => {
+    /*useEffect(() => {
         console.log('modalReload changed:', modalReload);
-    }, [modalReload]);
+    }, [modalReload]);*/
 
     return (
         <ModalContextNew.Provider value={{

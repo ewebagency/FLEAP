@@ -34,14 +34,14 @@ const FiltreFilieres = () => {
         /*const codes = data
             .map(bsd => bsd?.infos_json?.formAPI?.createFormInput?.wasteDetails?.code)
             .filter(code => code != null);*/
-        const codes = codes_all.map(code => code.code).filter(code => code != null);
+        const codes = codes_all.map(code => code.code).filter(code => code != null); //tous les codes CED
         
         const array_codes_propres = codes.map(code => code.replaceAll(' ', '').replace('*', '').trim());
         
         const array_codes_clean = array_codes_propres.map(code => String(parseInt(code)));
         
         const set_codes_clean = new Set(array_codes_clean);
-        const codes_uniques = Array.from(set_codes_clean);
+        const codes_uniques = Array.from(set_codes_clean); //tous les codes CED uniques de l'entreprise
         
         
         const mapping = await supabase
@@ -57,15 +57,17 @@ const FiltreFilieres = () => {
             let others = false;
             
             for(const code of codes_uniques) {
-                const match = mappingArray.find((item:{ced:string, filiere:string}) => item.ced === code);
+                const match = mappingArray.find((item:{ced:string, filiere:string}) => item.ced.replaceAll(' ', '').replace('*', '').trim() === code.replaceAll(' ', '').replace('*', '').trim());
                 if(match) {
                     filieres_uniques.push(match.filiere);
+                } else {
+                    others = true;
+                    //console.log("Code non trouvé:", code);
                 }
-                else others = true;
             }
             
             filieres_uniques = Array.from(new Set(filieres_uniques));
-            if(others) filieres_uniques.push('Autres');
+            //if(others) filieres_uniques.push('Autres');
 
             const filieres_colors = getColors(filieres_uniques.length);
             const formattedFilieres = filieres_uniques.map((filiere, index) => {
