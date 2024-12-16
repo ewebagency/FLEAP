@@ -511,6 +511,9 @@ const TableBSD = () => {
                                                         {bsd.infos_json.formAPI.createFormInput.wasteDetails.name}
                                                     </div>
                                                 )}
+                                                <div className="text-[10px] mt-0">
+                                                    {bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity} tonnes
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

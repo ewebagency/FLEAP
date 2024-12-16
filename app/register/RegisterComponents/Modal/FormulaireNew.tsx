@@ -429,9 +429,10 @@ const FormulaireNew = () => {
 
             const updateFn = pathMap[name];
             if (updateFn) {
-                const newData = updateFn(dataToogle, value);
-                //setDataToogle(newData);
-                //setDataText(newData);
+                const newDataToogle = updateFn(dataToogle, value);
+                const newDataText = updateFn(dataText, value);
+                setDataToogle(newDataToogle);
+                setDataText(newDataText);
             }
         }
     };
@@ -644,7 +645,7 @@ const FormulaireNew = () => {
                             <InputDeroulant
                                 titre="Contenant"
                                 placeholder="Sélectionner un contenant"
-                                options={getUniqueOptions(options, opt => `${opt.wasteDetails.packagingInfos[0].type}`)}
+                                options={['FUT', 'GRV', 'CITERNE', 'BENNE', 'PIPELINE', 'AUTRE']}//{getUniqueOptions(options, opt => `${opt.wasteDetails.packagingInfos[0].type}`)}
                                 width={1}
                                 name="packagingType"
                                 value={`${dataToogle.wasteDetails.packagingInfos[0].type}`}
@@ -656,7 +657,7 @@ const FormulaireNew = () => {
                             <InputDeroulant
                                 titre="Nombre"
                                 placeholder="Nombre"
-                                options={getUniqueOptions(options, opt => String(opt.wasteDetails.packagingInfos[0].quantity))}
+                                options={['0', '1', '2', '3', '4', '5']}//{getUniqueOptions(options, opt => String(opt.wasteDetails.packagingInfos[0].quantity))}
                                 width={1}
                                 name="packagingQuantity"
                                 value={String(dataToogle.wasteDetails.packagingInfos[0].quantity)}
@@ -719,16 +720,22 @@ const FormulaireNew = () => {
                         </div>
                     </div>
                     <div>
-                        <MailComponent 
+                        {session?.entreprise_id && <MailComponent 
                             params={{
                                 wasteCode: dataText.wasteDetails.code,
                                 responsibleName: dataText.emitter.company.contact,
+                                responsiblePhone: dataText.emitter.company.phone,
+                                responsibleEmail: dataText.emitter.company.mail,
                                 containerType: dataText.wasteDetails.packagingInfos[0].type,
                                 collectionAddress: dataText.emitter.workSite.fullAddress,
                                 destinataire: dataText.transporter.company.mail,
                                 emetteur: dataText.emitter.company.mail,
+                                entrepriseId: session.entreprise_id,
+                                entrepriseName: dataText.emitter.company.name,
+                                wasteDescription: dataText.wasteDetails.name,
+                                containerCount: dataText.wasteDetails.packagingInfos[0].quantity,
                             }}
-                        />
+                        />}
                     </div>
                     <div ref={modifyCardRef}>
                         <ModifyCardInFormulaireNew 

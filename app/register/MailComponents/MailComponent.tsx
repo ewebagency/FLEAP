@@ -2,10 +2,11 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useMailContext } from './MailContext';
+import { getMappingTableFiliere, getFiliere } from '../RegisterComponents/Modal/utils_new';
 
 interface EmailTemplate {
     name: string;
-    subject: string;
+    subject: (params: EmailParams) => Promise<string>;
     getBody: (params: EmailParams) => string;
 }
 
@@ -16,6 +17,13 @@ interface EmailParams {
     collectionAddress: string|undefined;
     destinataire: string;
     emetteur: string;
+    entrepriseId: string;
+    entrepriseName: string;
+    wasteDescription: string;
+    containerCount: number;
+    collectionInstructions?: string;
+    responsiblePhone?: string;
+    responsibleEmail?: string;
 }
 
 interface MailComponentProps {
@@ -26,36 +34,60 @@ interface MailComponentProps {
 const emailTemplates: EmailTemplate[] = [
     {
         name: "Demande de collecte",
-        subject: "Nouvelle demande de collecte de déchets",
+        subject: async (params: EmailParams) => {
+            const mappingTable = await getMappingTableFiliere(params.entrepriseId);
+            const filiere = getFiliere(params.wasteCode, mappingTable);
+            return `Demande de collecte - ${filiere} | ${params.entrepriseName}`;
+        },
         getBody: (params: EmailParams) => `
-Bonjour,
+Bonjour Madame, Monsieur,
 
-Une nouvelle demande de collecte a été créée avec les détails suivants :
-- Code déchet : ${params.wasteCode}
-- Responsable : ${params.responsibleName}
-- Type de contenant : ${params.containerType}
-- Adresse de collecte : ${params.collectionAddress}
+Nous souhaitons organiser une collecte de déchets au nom de l'entreprise ${params.entrepriseName} dès que possible.
 
-Merci de bien vouloir traiter cette demande dans les plus brefs délais.
+Détails de la collecte:
+Déchet : ${params.wasteDescription} : ${params.wasteCode}
+Contenants : ${params.containerCount} ${params.containerType}
+Adresse : ${params.collectionAddress}
+Date : Dès que possible
 
+Merci de bien vouloir nous confirmer la date prévue pour la collecte.
+
+Dans l'attente de votre retour, je vous souhaite une excellente journée.
 Cordialement,
+${params.responsibleName}
+
+${params.responsiblePhone ? `${params.responsiblePhone}\n` : ''}${params.responsibleEmail ? `${params.responsibleEmail}\n` : ''}${params.entrepriseName}
+
+E-mail envoyé depuis FLEAP.
         `
     },
     {
         name: "Rappel de collecte",
-        subject: "Rappel - Collecte de déchets en attente",
+        subject: async (params: EmailParams) => {
+            const mappingTable = await getMappingTableFiliere(params.entrepriseId);
+            const filiere = getFiliere(params.wasteCode, mappingTable);
+            return `Rappel - Collecte de déchets en attente - ${filiere} | ${params.entrepriseName}`;
+        },
         getBody: (params: EmailParams) => `
-Bonjour,
+Bonjour Madame, Monsieur,
 
-Ceci est un rappel concernant la collecte de déchets suivante :
-- Code déchet : ${params.wasteCode}
-- Responsable : ${params.responsibleName}
-- Type de contenant : ${params.containerType}
-- Adresse : ${params.collectionAddress}
+Ceci est un rappel de la collecte au nom de l'entreprise${params.entrepriseName} :
 
-La collecte est toujours en attente de traitement.
+Détails de la collecte:
+Déchet : ${params.wasteDescription} : ${params.wasteCode}
+Contenants : ${params.containerCount} ${params.containerType}
+Adresse : ${params.collectionAddress}
+Date : Dès que possible
 
+La collecte est toujours en attente de traitement
+
+Merci et bonne journée à vous.
 Cordialement,
+${params.responsibleName}
+
+${params.responsiblePhone ? `${params.responsiblePhone}\n` : ''}${params.responsibleEmail ? `${params.responsibleEmail}\n` : ''}${params.entrepriseName}
+
+E-mail envoyé depuis FLEAP.
         `
     }
 ];
@@ -66,7 +98,7 @@ const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=fal
     const [cc, setCc] = useState<string>('');
     const [ccList, setCcList] = useState<string[]>(params.emetteur ? [params.emetteur] : []);
     const [replyTo, setReplyTo] = useState<string>(params.emetteur || '');
-    const [subject, setSubject] = useState<string>(emailTemplates[0].subject);
+    const [subject, setSubject] = useState<string>('');
     const [emailBody, setEmailBody] = useState<string>('');
     const { setIsValidMail, setSendMailFunction } = useMailContext();
 
@@ -79,8 +111,12 @@ const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=fal
     }, [params.destinataire, params.emetteur]);
 
     useEffect(() => {
+        const getSubject = async () => {
+            const subject = await emailTemplates[selectedTemplate].subject(params);
+            setSubject(subject);
+        };
+        getSubject();
         setEmailBody(emailTemplates[selectedTemplate].getBody(params));
-        setSubject(emailTemplates[selectedTemplate].subject);
     }, [selectedTemplate, params]);
 
     useEffect(() => {

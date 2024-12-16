@@ -623,7 +623,7 @@ const ModifyCardInFormulaireNew = ({
             title="Détails du déchet"
             fields={[
               { label: "Code CED", path: "wasteDetails.code", placeholder: "|| || || (*)" },
-              { label: "Description", path: "wasteDetails.name", placeholder: "Déchet plastique.." },
+              { label: "Nom déchet", path: "wasteDetails.name", placeholder: "Déchet plastique.." },
               { label: "Code ONU", path: "wasteDetails.onuCode", placeholder: "||||" },
               { 
                 label: "Consistance", 

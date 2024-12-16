@@ -78,8 +78,8 @@ const DisplayCard = () => {
                                 <div className="mt-2 space-y-1">
                                     <LabelValue label="Site" value={bsd.emitter?.workSite?.name || ""} />
                                     <LabelValue label="Filière" value={filiere || ""} />
-                                    <LabelValue label="Date de création" value={formatDate(bsd.createdAt || "")} />
                                     <LabelValue label="Code déchet" value={bsd.wasteDetails?.code || ""} />
+                                    {/* <LabelValue label="Date de création" value={formatDate(bsd.createdAt || "")} /> */}
                                 </div>
                             </div>
                             <button 
@@ -143,6 +143,7 @@ const DisplayCard = () => {
                                 <div className="bg-red-50 p-3 rounded border border-red-100">
                                     <h3 className="font-semibold text-red-800 mb-2">Détails du déchet</h3>
                                     <LabelValue label="Code CED" value={bsd.wasteDetails?.code || ""} />
+                                    <LabelValue label="Nom du déchet" value={bsd.wasteDetails?.name || ""} />
                                     <LabelValue label="Code ONU" value={bsd.wasteDetails?.onuCode || ""} />
                                     <LabelValue label="Consistance" value={bsd.wasteDetails?.consistence || ""} />
                                     <LabelValue label="Quantité" value={`${bsd.wasteDetails?.quantity || ""} ${bsd.wasteDetails?.quantityType || ""}`} />

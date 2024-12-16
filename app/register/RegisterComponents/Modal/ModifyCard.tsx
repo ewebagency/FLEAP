@@ -440,6 +440,12 @@ const ModifyCard = () => {
                                     path="wasteDetails.code"
                                 />
                                 <LabelInput 
+                                    label="Nom du déchet"
+                                    value={localData.wasteDetails?.name || ""}
+                                    onChange={handleChange}
+                                    path="wasteDetails.name"
+                                />
+                                <LabelInput 
                                     label="Code ONU"
                                     value={localData.wasteDetails?.onuCode || ""}
                                     onChange={handleChange}

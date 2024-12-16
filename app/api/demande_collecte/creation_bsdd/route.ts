@@ -279,7 +279,7 @@ export async function POST(request: Request) {
                 response.user_id, 
                 response.data, 
                 'Déchet non dangereux', // id_track temporaire pour brouillon
-                'Déchet non dangereux', // status spécial pour brouillon
+                'Collecte demandée', // status spécial pour brouillon
                 'Déchet non dangereux' // readable_id pour brouillon
             );
             return NextResponse.json({ 
