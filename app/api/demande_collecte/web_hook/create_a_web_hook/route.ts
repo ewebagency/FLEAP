@@ -81,13 +81,14 @@ const createWebHook = async (token_track:string, url_track:string, id_company:st
             }
         );
 
-        /*if (!response.data.data) {
-            console.log("Erreur GraphQL:", response.data.errors);
-            throw new Error('Erreur GraphQL');
-        }*/
-
-        console.log('WebHook créé', response.data, uri_ngrok);
-        return {status: 200};
+        if (response.data) {
+            console.log('WebHook créé avec succès:', response.data);
+            return {status: 200};
+        } else  {
+            console.error('Erreur création webhook:');
+            return {status: 500};
+        }
+        
     } catch (error) {
         console.error("Erreur complète:", error);
         return {status: 500};

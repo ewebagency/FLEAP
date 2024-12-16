@@ -10,25 +10,24 @@ export async function GET(request: Request) {
         .select('*')
         .eq('user_id', user_id);
 
-        console.log('alreadyExistingTokens dans stock_token', alreadyExistTokens);
-      
         if(alreadyExistTokens.data && alreadyExistTokens.data.length > 0){
-          const { data, error } = await supabase
-          .from('token_track')
-          .update({token: new_token})
-          .eq('user_id', user_id);
+            for(const past_token of alreadyExistTokens.data.map(past_token => past_token.token)){
+                console.log('deleteWebHook dans stock_token', past_token);
+                await deleteWebHook(past_token);
+            }
 
-          for(const past_token of alreadyExistTokens.data.map(past_token => past_token.token)){
-            console.log('deleteWebHook dans stock_token', past_token);
-            await deleteWebHook(past_token);
-          }
-            await createWebHook(new_token);
-        }else{
-          const { data, error } = await supabase
-            .from('token_track').insert({token: new_token, user_id: user_id});
-          }
+            const { data, error } = await supabase
+            .from('token_track')
+            .update({token: new_token})
+            .eq('user_id', user_id);
+        } else {
+            const { data, error } = await supabase
+            .from('token_track')
+            .insert({token: new_token, user_id: user_id});
+        }
 
-        console.log('Nouveau token stocké !! ', token);
+        await createWebHook(new_token);
+        console.log('Nouveau token stocké !! ', new_token);
     }
 
     const { searchParams } = new URL(request.url);
