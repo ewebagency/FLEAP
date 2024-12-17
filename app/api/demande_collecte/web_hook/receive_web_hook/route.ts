@@ -73,7 +73,7 @@ export async function POST(req: Request) {
         url_track = process.env.TRACKDECHETS_URL_APP;
     }
 
-    console.log("\n\n--------------------\nNotification TrackDéchet reçue !!");
+    console.log("\n\n-------------- Notification TrackDéchet reçue --------------\n");
     try {
         const signature = req.headers.get('authorization')?.split('Bearer: ')[1];
         
@@ -97,10 +97,18 @@ export async function POST(req: Request) {
             const event = JSON.parse(rawBody);
             console.log('Événement parsé:', event);
 
-            // Gérer les différents types d'événements
             const {action, id} = event[0];
-            return HandleBSD_Supabase(action, id, token_track, url_track??'', cond_signature.user_id, cond_signature.entreprise_id);
+            await HandleBSD_Supabase(action, id, token_track, url_track??'', cond_signature.user_id, cond_signature.entreprise_id);
+            
+            // Émettre la notification via fetch
+            console.log("🤙 appel de la route emit notif")
+            await fetch(process.env.NEXT_PUBLIC_APP_URL + '/api/notifications/emit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'bsd_update' })
+            });
 
+            return NextResponse.json({ status: 200 });
         } catch (parseError) {
             console.error('Erreur de parsing JSON:', parseError);
             return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
@@ -463,7 +471,7 @@ const HandleBSD_Supabase = async (action: string, id: string, token_track: strin
         if (action === "UPDATED"){
             return updateBSD_Supabase(id, response.data as {data: {form: formAPI_Track}}, user_id, entreprise_id);
         } else if (action === "CREATED"){
-            return handleBSD_Created_on_Track(id, response.data as {data: {form: formAPI_Track}});
+            return handleBSD_Created_on_Track(id, response.data as {data: {form: formAPI_Track}}, user_id, entreprise_id);
         }
 
     } else {
@@ -480,8 +488,8 @@ const HandleBSD_Supabase = async (action: string, id: string, token_track: strin
 
 const createBSD_Supabase = async (readableId: string, data: {data: {form: formAPI_Track}}, user_ids_linked_to_its_siret: string[], entreprise_ids: string[]|null) => {
     console.log("BSD créé : ", readableId);
-    console.log("User IDs liés au siret : ", user_ids_linked_to_its_siret);
-    console.log("Entreprise IDs liés au siret : ", entreprise_ids);
+    console.log("User ID lié à la signature : ", user_ids_linked_to_its_siret);
+    console.log("Entreprise ID lié à la signature : ", entreprise_ids);
     try{
         const {id, status, ...new_create_form_input} = data.data.form;
         const new_bsd_json_supabase = {
@@ -594,11 +602,12 @@ const BSD_AlreadyExist = async (readableId: string) => {
     return bsd_already_exist;
 }
 
-const handleBSD_Created_on_Track = async (readableId: string, data: {data: {form: formAPI_Track}}) => {
+const handleBSD_Created_on_Track = async (readableId: string, data: {data: {form: formAPI_Track}}, user_id:string, entreprise_id:string) => {
     const bsd_already_exist = await BSD_AlreadyExist(readableId);
     if (!bsd_already_exist){
-        const {user_ids, entreprise_ids} = await getUserIdsLinkedToItsSiret(data.data.form.emitter.company.siret);
-        return createBSD_Supabase(readableId, data, user_ids, entreprise_ids);
+        
+        //const {user_ids, entreprise_ids} = await getUserIdsLinkedToItsSiret(data.data.form.emitter.company.siret);
+        return createBSD_Supabase(readableId, data, [user_id], [entreprise_id]);
     } else {
         console.log("BSD déjà existant dans la BDD");
         return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook

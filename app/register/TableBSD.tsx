@@ -11,7 +11,8 @@ import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/u
 
 const cleanCED = (ced: string): string => {
     const ced_clean = ced.replaceAll(' ', '').replace('*', '').trim();
-    return String(parseInt(ced_clean));
+    //return String(parseInt(ced_clean)); => attention, ne fonctionne pas pour les CEDs avec des 0 à gauche
+    return ced_clean;
 }
 
 // Modifier le type FormDataType pour inclure un id
@@ -100,6 +101,7 @@ const getSommeBSD = (facture_infos: {montant_ht: number}) => {
     return facture_infos.montant_ht;
 }
 
+//Renvoie les CEDs cleaned des filières sélectionnées dans la table de mapping (en filtrant "Autres")
 const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres: string[]) => {
     const { data, error } = await supabase
         .from('entreprise')
@@ -110,20 +112,22 @@ const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres
     if (data) {
         const mapping_table = data.mapping_ced_filiere;
         const ced_uniques: string[] = [];
-        let other_ceds: string[] = mapping_table.map((mapping: {ced: string}) => mapping.ced);
-
-        for (const mapping of mapping_table) {
-            for (const filiere of checkedFilieres) {
-                if (mapping.filiere === filiere) {
-                    ced_uniques.push(cleanCED(mapping.ced));
-                    other_ceds = other_ceds.filter((ced) => cleanCED(ced) !== cleanCED(mapping.ced));
-                    //console.log("other_ceds:", other_ceds);
-                }
-            }
+        
+        // Si seul "Autres" est sélectionné, retourner un tableau vide
+        // car on gérera ce cas spécial différemment
+        if (checkedFilieres.length === 1 && checkedFilieres[0] === 'Autres') {
+            return [];
         }
 
-        if (checkedFilieres.includes('Autres')) {
-            return ced_uniques.concat(other_ceds.map(ced => cleanCED(ced)));
+        // Filtrer "Autres" de checkedFilieres pour le traitement normal
+        const checkedFilieres_sans_autres = checkedFilieres.filter(filiere => filiere !== 'Autres');
+        
+        for (const mapping of mapping_table) {
+            for (const filiere of checkedFilieres_sans_autres) {
+                if (mapping.filiere === filiere) {
+                    ced_uniques.push(cleanCED(mapping.ced));
+                }
+            }
         }
 
         return ced_uniques;
@@ -132,73 +136,66 @@ const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres
 }
 
 const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Site[], entreprise_id: string | null, page: number = 1) => {
-    //console.log("Début fetchBSDs", { user_id, entreprise_id, page });
-    
     if (!entreprise_id) return [];
 
     const limit = 50;
     const offset = (page - 1) * limit;
 
-    // Récupérer les filières et sites cochés
     const checkedFilieres = filieres.filter(f => f.checked).map(f => f.name);
     const checkedSites = sites.filter(site => site.checked).map(site => site.name);
 
-    // Si aucun filtre n'est sélectionné, retourner un tableau vide
     if (checkedFilieres.length === 0 || checkedSites.length === 0) {
         return [];
     }
-
-    // Récupérer les CEDs correspondant aux filières
-    const ceds = await getCEDsFromFilieres(entreprise_id, checkedFilieres);
 
     let query = supabase
         .from('bsd')
         .select('*')
         .eq('entreprise_id', entreprise_id);
 
-    // Ajouter le filtre sur les CEDs
-    //console.log("CEDs:", ceds);
-    const ceds_all_types = ceds.map(ced => [
-        ced,                         // Version propre
-        ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim(),   // Version avec espaces
-        ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim() + '*' // Version avec astérisque
-    ]);
-    const ced_all = ceds_all_types.flatMap(ced_all_types => ced_all_types);
-    //console.log("CEDs all types:", ced_all);
-    const toutes_filieres_cond = filieres.map(filiere => filiere.checked).includes(false); //Affiche false uniquement si tout est sélectionné
+    // Gestion des filtres de filières
+    if (checkedFilieres.length === 1 && checkedFilieres[0] === 'Autres') {
+        // Cas où seul "Autres" est sélectionné
+        // Récupérer tous les CEDs mappés (de toutes les filières)
+        const { data: mappingData } = await supabase
+            .from('entreprise')
+            .select('mapping_ced_filiere')
+            .eq('id', entreprise_id)
+            .single();
 
-    if(toutes_filieres_cond && ceds.length > 0) {
-        //query = query.filter('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
-        /*if(checkedFilieres.includes('Autres')) {
-            query = query.not('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
-        }*/        
-        if (checkedFilieres.includes('Autres')) {
-            const condition1 = `infos_json->formAPI->createFormInput->wasteDetails->>code.in.(${ced_all.join(',')})`;
-            
-            const other_ceds_here = await getCEDsFromFilieres(entreprise_id, filieres.map(filiere => filiere.name));
-            const other_ceds_all_types = other_ceds_here.map(ced => [
-                ced,                         // Version propre
-                ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim(),   // Version avec espaces
-                ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim() + '*' // Version avec astérisque
+        console.log('mappingData', mappingData);
+        if (mappingData) {
+            const allMappedCEDs: string[] = mappingData.mapping_ced_filiere.map((mapping: {ced: string}) => cleanCED(mapping.ced));
+            console.log('allMappedCEDs', allMappedCEDs);
+            const ceds_all_types = allMappedCEDs.map((ced: string) => [
+                ced,
+                ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim(),
+                ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim() + '*'
             ]);
-            const other_ceds_all = other_ceds_all_types.flatMap(other_ceds_all_types => other_ceds_all_types);
-            const condition2 = `infos_json->formAPI->createFormInput->wasteDetails->>code.not.in.(${other_ceds_all.join(',')})`;
-            query = query.or(`${condition1},${condition2}`);
-        } else {
-            //Toujours là pour l'instant car pas de filtre autres
-            query = query.filter('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
-        }
-    } //Si toutes les filieres sont sélectionnées on n'ajoute pas de filtre
-    
-    /*const data_not = await supabase.from('bsd')
-    .select('*')
-    .eq('entreprise_id', entreprise_id)
-    .not('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`)*/
-    //console.log("data_not:", data_not);
-    
-    //console.log("condition filieres:", (toutes_filieres_cond && ceds.length > 0));
+            const ced_all = ceds_all_types.flatMap(ced_types => ced_types);
+            console.log('Quand autres est sélectionné -> tous les ceds', ced_all);
 
-   // Ajouter le filtre sur les sites
+            if (ced_all.length > 0) {
+                query = query.not('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
+            }
+        }
+    } else {
+        // Cas normal : filières sélectionnées sans "Autres"
+        const ceds = await getCEDsFromFilieres(entreprise_id, checkedFilieres);
+        
+        if (ceds.length > 0) {
+        const ceds_all_types = ceds.map(ced => [
+            ced,
+            ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim(),
+            ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim() + '*'
+        ]);
+        const ced_all = ceds_all_types.flatMap(ced_types => ced_types);
+        
+        query = query.filter('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
+        }
+    }
+
+    // Ajouter le filtre sur les sites
     if (checkedSites.length > 0) {
         if (!checkedSites.includes("Non renseigné")) {
             // Cas où "Non renseigné" n'est pas inclus
@@ -206,7 +203,7 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
         } else {
             // Cas où "Non renseigné" est inclus
             query = query.or(
-                `infos_json->formAPI->createFormInput->emitter->workSite.is.null,` +
+                `infos_json->formAPI->createFormInput->emitter->>workSite.is.null,` +
                 `infos_json->formAPI->createFormInput->emitter->workSite->>name.eq."",` +
                 `infos_json->formAPI->createFormInput->emitter->workSite->>name.in.(${checkedSites.filter(site => site !== "Non renseigné").join(',')})`
             );

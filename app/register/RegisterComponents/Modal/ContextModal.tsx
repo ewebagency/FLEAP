@@ -148,10 +148,6 @@ export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
     const [modalType, setModalType] = useState("");
     const [modalReload, setModalReload] = useState(false);
 
-    /*useEffect(() => {
-        console.log('modalReload changed:', modalReload);
-    }, [modalReload]);*/
-
     return (
         <ModalContextNew.Provider value={{
             displayFormulaire,

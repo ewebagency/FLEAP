@@ -105,7 +105,7 @@ const ModifyCard = () => {
     }
 
     useEffect(() => {
-        if (session && session.entreprise_id) {
+        if (session && session.entreprise_id && modalId) {
             getBSD(session.entreprise_id);
         }
     }, [modalId, session]);

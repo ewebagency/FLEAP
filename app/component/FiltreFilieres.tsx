@@ -67,7 +67,7 @@ const FiltreFilieres = () => {
             }
             
             filieres_uniques = Array.from(new Set(filieres_uniques));
-            //if(others) filieres_uniques.push('Autres');
+            if(others) filieres_uniques.push('Autres');
 
             const filieres_colors = getColors(filieres_uniques.length);
             const formattedFilieres = filieres_uniques.map((filiere, index) => {

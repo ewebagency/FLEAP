@@ -28,7 +28,8 @@ const DisplayCard = () => {
     }
 
     useEffect(() => {
-        if (session && session.entreprise_id) {
+        //console.log("modalId:", modalId);
+        if (session && session.entreprise_id && modalId) {
             getBSD(session.entreprise_id);
         }
     }, [modalId, modalReload, session]);

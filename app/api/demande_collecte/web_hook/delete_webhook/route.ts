@@ -9,18 +9,26 @@ export async function POST(req: Request) {
         if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
             url_track = process.env.TRACKDECHETS_URL_APP;
         }
-        console.log('url_traaaack', url_track);
 
         if(!token_track || !url_track){
             return NextResponse.json({ message: "Token ou url_track non trouvé" }, { status: 400 });
         }
 
-        const webhook = await getWebHooks(token_track, url_track);
-        const delete_webhook = await deleteWebHook(webhook.webhooks, token_track, url_track);
-        if(delete_webhook){
-            return NextResponse.json({ message: "Webhook supprimé" }, { status: 200 });
+        const webhooks = await getWebHooks(token_track, url_track);
+        if (webhooks.status !== 200) {
+            return NextResponse.json({ message: "Erreur lors de la récupération des webhooks" }, { status: 500 });
+        }
+
+        const results = await Promise.all(
+            webhooks.webhooks.map(webhook => 
+                deleteWebHook(webhook, token_track, url_track)
+            )
+        );
+
+        if(results.every(result => result === true)){
+            return NextResponse.json({ message: "Tous les webhooks ont été supprimés" }, { status: 200 });
         } else {
-            return NextResponse.json({ message: "Erreur lors de la suppression du webhook" }, { status: 500 });
+            return NextResponse.json({ message: "Erreur lors de la suppression de certains webhooks" }, { status: 500 });
         }
     } catch (error) {
         console.error('Error in DELETE webhook route:', error);
@@ -28,8 +36,7 @@ export async function POST(req: Request) {
     }
 }
 
-
-//Renvoie l'id du 1er webhook lié à ce token track
+//Renvoie tous les webhooks liés à ce token track
 const getWebHooks = async (token:string, url_track: string) => {
     
     const query = `
@@ -79,18 +86,16 @@ const getWebHooks = async (token:string, url_track: string) => {
 
         if (response.status !== 200) {
             console.log('----- Erreur lors de la récupération des webhooks');
-            //throw new Error('Erreur lors de la récupération des webhooks');
+            return {status: 500, webhooks: []};
         }
-        if (response?.data?.data?.webhooksettings?.edges?.length > 0) {
-            console.log('WebHook trouvé ! : ', response?.data?.data?.webhooksettings?.edges[0]?.node);
-            return {status: 200, webhooks: response?.data?.data?.webhooksettings?.edges[0]?.node};
-        } else {
-            console.log('Aucun webhook trouvé');
-            return {status: 200, webhooks: {endpointUri: 'null', id: 'null'}};
-        }
+        
+        const webhooks = response?.data?.data?.webhooksettings?.edges.map(edge => edge.node) || [];
+        console.log('Webhooks trouvés : ', webhooks);
+        return {status: 200, webhooks};
+        
     } catch (error) {
         console.log('Erreur getwebhooks:', error);
-        return {status: 500, webhooks: {endpointUri: 'null', id: 'null'}};
+        return {status: 500, webhooks: []};
     }
 }
 

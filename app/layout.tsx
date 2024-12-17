@@ -9,6 +9,7 @@ import { AccessOtherAccountProvider } from "./interface_admin_2/AccessOtherAccou
 import { usePathname } from 'next/navigation';
 import { ModalProviderNew } from "./register/RegisterComponents/Modal/ContextModal";
 import { MailProvider } from "./register/MailComponents/MailContext";
+import { SSEHandler } from './components/SSEHandler';
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -38,6 +39,7 @@ export default function RootLayout({
             <AccessOtherAccountProvider>
               <ModalProviderNew>
                 <MailProvider>
+                  <SSEHandler />
                   <div className="flex h-screen">
                     {showSidebar && <SideBar className_props="min-h-full" />}
                     <main className={`flex-1 overflow-y-auto ${!showSidebar ? 'w-full' : ''}`}>

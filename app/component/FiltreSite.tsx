@@ -48,7 +48,7 @@ const FiltreSite = () => {
                     .from('bsd')
                     .select('*')
                     .eq('entreprise_id', session.entreprise_id)
-                    .or('infos_json->formAPI->createFormInput->emitter->workSite.is.null,'+
+                    .or('infos_json->formAPI->createFormInput->emitter->>workSite.is.null,'+
                     'infos_json->formAPI->createFormInput->emitter->workSite->>name.eq.""');
                     if(error_sites_non_renseignes) {
                         console.error("Error fetching sites non renseignes:", error_sites_non_renseignes);
