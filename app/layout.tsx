@@ -9,7 +9,7 @@ import { AccessOtherAccountProvider } from "./interface_admin_2/AccessOtherAccou
 import { usePathname } from 'next/navigation';
 import { ModalProviderNew } from "./register/RegisterComponents/Modal/ContextModal";
 import { MailProvider } from "./register/MailComponents/MailContext";
-import { SSEHandler } from './components/SSEHandler';
+import { SSEHandler } from './component/SSEHandler';
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",

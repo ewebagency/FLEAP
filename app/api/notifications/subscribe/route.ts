@@ -1,4 +1,4 @@
-import { clients } from '../emit/route';
+import { clients } from '../store';
 
 export async function GET() {
     const stream = new ReadableStream({
@@ -18,7 +18,6 @@ export async function GET() {
                 }
             }, 10000); // Ping toutes les 10 secondes
             
-
             return () => {
                 console.log(`👋 Client déconnecté (total: ${clients.size - 1})`);
                 clients.delete(controller);

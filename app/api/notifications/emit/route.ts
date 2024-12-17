@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-
-export const clients = new Set<ReadableStreamDefaultController>();
+import { clients } from '../store';
 
 async function emitToClients(type: string) {
     console.log(`\n📢 Émission de notification "${type}" vers ${clients.size} clients\n`);
