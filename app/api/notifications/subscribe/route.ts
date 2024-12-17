@@ -1,5 +1,8 @@
 import { clients } from '../store';
 
+// On garde uniquement dynamic pour éviter la pré-génération
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     const stream = new ReadableStream({
         start(controller) {
@@ -16,8 +19,8 @@ export async function GET() {
                     clients.delete(controller);
                     clearInterval(pingInterval);
                 }
-            }, 10000); // Ping toutes les 10 secondes
-            
+            }, 10000);
+
             return () => {
                 console.log(`👋 Client déconnecté (total: ${clients.size - 1})`);
                 clients.delete(controller);

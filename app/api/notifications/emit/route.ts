@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { clients } from '../store';
 
+export const dynamic = 'force-dynamic';
+
 async function emitToClients(type: string) {
     console.log(`\n📢 Émission de notification "${type}" vers ${clients.size} clients\n`);
     const deadClients = new Set<ReadableStreamDefaultController>();
