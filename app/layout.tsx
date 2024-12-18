@@ -32,8 +32,8 @@ export default function RootLayout({
   const showSidebar = !noSidebarRoutes.includes(pathname);
 
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    <html lang="en" data-theme="light" suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white text-black`}>
         <SessionProvider>
           <FilterProvider>
             <AccessOtherAccountProvider>
