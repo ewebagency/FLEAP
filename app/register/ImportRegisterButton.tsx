@@ -50,7 +50,7 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                 emitter: {
                     type: "PRODUCER",
                     workSite: {
-                        name: row["nomEmetteur"]?.toString() || "",
+                        name: row["nomSiteEmetteur"]?.toString() || "",
                         address: row["adresseCollecte"]?.toString() || "",
                         postalCode: row["codePostalCollecte"]?.toString() || "",
                         city: row["communeCollecte"]?.toString() || "",
