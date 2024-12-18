@@ -552,7 +552,7 @@ const TableBSD = () => {
                                 <div className="h-full flex items-center justify-center mt-4">
                                     {bsd.status_track_dechets !== null ? 
                                         <div className="flex flex-col items-center gap-2">
-                                            <div className="text-xs">{bsd.status_track_dechets}</div>
+                                            <div className="text-xs">{frenchTranslation(bsd.status_track_dechets)}</div>
                                             {bsd.status_track_dechets === "DRAFT" ?
                                                 <button 
                                                     className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md text-xs 
@@ -726,3 +726,28 @@ const canModify = (id_track: string, statut_track: string) => {
     }
     return false;
 }
+
+const frenchTranslation = (statut: string): string => {
+    const mapping: Record<string, string> = {
+        "DRAFT": "TrackDéchets : Brouillon",
+        "SEALED": "TrackDéchets : Finalisé",
+        "SIGNED_BY_PRODUCER": "TrackDéchets : Signé par le producteur",
+        "SENT": "TrackDéchets : Envoyé",
+        "RECEIVED": "TrackDéchets : Reçu",
+        "ACCEPTED": "TrackDéchets : Accepté",
+        "REFUSED": "TrackDéchets : Refusé",
+        "PROCESSED": "TrackDéchets : Traité",
+        "NO_TRACEABILITY": "TrackDéchets : Rupture de traçabilité",
+        "AWAITING_GROUP": "TrackDéchets : En attente de regroupement",
+        "FOLLOWED_WITH_PNTTD": "TrackDéchets : Traité sans rupture de traçabilité",
+        "GROUPED": "TrackDéchets : Groupé",
+        "TEMP_STORED": "TrackDéchets : Reçu (entreposage provisoire)",
+        "TEMP_STORED_ACCEPTED": "TrackDéchets : Accepté (entreposage provisoire)",
+        "RESEALED": "TrackDéchets : Finalisé (entreposage provisoire)",
+        "SIGNED_BY_TEMP_STORER": "TrackDéchets : Signé par l'entreposage provisoire",
+        "RESENT": "TrackDéchets : Réexpédié",
+        "CANCELED": "TrackDéchets : Annulé",
+        "IMPORTED": "Importé dans FLEAP",
+    };
+    return mapping[statut] || statut;
+};
