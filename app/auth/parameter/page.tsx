@@ -37,7 +37,7 @@ export default function UserSettings() {
             setError('Erreur lors du changement de mot de passe.');
         } else {
             setSuccess('Mot de passe mis à jour avec succès.');
-            router.push('/analysis');
+            router.push('/register');
         }
     };
 

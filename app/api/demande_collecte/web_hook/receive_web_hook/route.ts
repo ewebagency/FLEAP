@@ -105,7 +105,10 @@ export async function POST(req: Request) {
             await fetch(process.env.NEXT_PUBLIC_APP_URL + '/api/notifications/emit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'bsd_update' })
+                body: JSON.stringify({ 
+                    type: 'bsd_update',
+                    userId: cond_signature.user_id
+                })
             });
 
             return NextResponse.json({ status: 200 });

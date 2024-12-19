@@ -1,25 +1,31 @@
 import { NextResponse } from 'next/server';
-import { clients } from '../store';
+import { getClientsByUserId } from '../store';
 
 export const dynamic = 'force-dynamic';
 
-async function emitToClients(type: string) {
-    console.log(`\n📢 Émission de notification "${type}" vers ${clients.size} clients\n`);
-    const deadClients = new Set<ReadableStreamDefaultController>();
-
-    clients.forEach(client => {
+async function emitToClients(type: string, userId: string) {
+    const clients = await getClientsByUserId(userId);
+    console.log(`\n📢 Émission de notification "${type}" vers ${clients.length} clients pour l'utilisateur ${userId}\n`);
+    
+    for (const client of clients) {
+        if (!client?.controller) continue;  // Skip si pas de controller
+        
         try {
-            client.enqueue(`data: ${JSON.stringify({ type })}\n\n`);
+            client.controller.enqueue(`data: ${JSON.stringify({ type })}\n\n`);
         } catch (error) {
-            deadClients.add(client);
+            console.log(`Erreur d'émission pour le client ${client.clientId}`);
         }
-    });
-
-    deadClients.forEach(client => clients.delete(client));
+    }
 }
 
 export async function POST(req: Request) {
     const data = await req.json();
-    await emitToClients(data.type);
+    const { type, userId } = data;
+    
+    if (!userId) {
+        return NextResponse.json({ error: 'User ID required' }, { status: 400 });
+    }
+
+    await emitToClients(type, userId);
     return NextResponse.json({ success: true });
 } 

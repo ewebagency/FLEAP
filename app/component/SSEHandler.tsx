@@ -3,48 +3,51 @@
 import { useEffect } from 'react';
 import { useModalContextNew } from '../register/RegisterComponents/Modal/ContextModal';
 import toast from 'react-hot-toast';
-
-let globalEventSource: EventSource | null = null;
+import { useSession } from './SessionProvider';
 
 export function SSEHandler() {
     const { setModalReload } = useModalContextNew();
+    const session = useSession();
 
     useEffect(() => {
-        if (globalEventSource) {
-            console.log('🔄 Réutilisation de la connexion SSE existante');
+        if (!session?.user_id) {
+            console.log('Pas de session utilisateur, connexion SSE impossible');
             return;
         }
 
-        console.log('🔄 Création nouvelle connexion SSE');
-        const connect = () => {
-            globalEventSource = new EventSource('/api/notifications/subscribe');
-            console.log('📡 Tentative de connexion SSE');
+        let eventSource: EventSource | null = null;
 
-            globalEventSource.onopen = () => {
+        const connect = () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            console.log('🔄 Création nouvelle connexion SSE');
+            eventSource = new EventSource(`/api/notifications/subscribe?userId=${session.user_id}`, {
+                withCredentials: true
+            });
+
+            eventSource.onopen = () => {
                 console.log('✅ Connexion SSE établie');
             };
 
-            globalEventSource.onmessage = (event) => {
+            eventSource.onmessage = (event) => {
                 console.log('📨 Message SSE reçu:', event.data);
                 const data = JSON.parse(event.data);
                 if (data.type === 'bsd_update') {
                     toast.success('🔔 Nouvelle notification reçue');
-                    setTimeout(() => {
-                        setModalReload(prev => !prev);
-                    }, 2000);
+                    setModalReload(prev => !prev);
                 }
                 if (data.type === 'ping') {
-                    //toast.success('🔔 Ping');
                     console.log("🔔 Ping");
                 }
-                return {success: true};
             };
 
-            globalEventSource.onerror = () => {
+            eventSource.onerror = () => {
                 console.log('❌ Erreur SSE - Tentative de reconnexion...');
-                if (globalEventSource) {
-                    globalEventSource.close();
-                    globalEventSource = null;
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
                 }
                 setTimeout(connect, 1000);
             };
@@ -53,10 +56,13 @@ export function SSEHandler() {
         connect();
 
         return () => {
-            // Ne pas fermer la connexion lors du démontage du composant
-            console.log('⚠️ Composant démonté mais connexion SSE maintenue');
+            if (eventSource) {
+                console.log('🔌 Fermeture de la connexion SSE');
+                eventSource.close();
+                eventSource = null;
+            }
         };
-    }, [setModalReload]);
+    }, [setModalReload, session]);
 
     return null;
 } 

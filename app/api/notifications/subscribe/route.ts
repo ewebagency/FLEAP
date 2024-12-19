@@ -1,30 +1,43 @@
-import { clients } from '../store';
+import { addClient, updateClientTimestamp, removeClient, cleanupInactiveClients } from '../store';
 
-// On garde uniquement dynamic pour éviter la pré-génération
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
+    const url = new URL(req.url);
+    const userId = url.searchParams.get('userId');
+    
+    if (!userId) {
+        return new Response('User ID required', { status: 400 });
+    }
+
+    const clientId = crypto.randomUUID();
+
     const stream = new ReadableStream({
-        start(controller) {
-            clients.add(controller);
-            console.log(`👥 Nouveau client connecté (total: ${clients.size})`);
+        start: async (controller) => {
+            await addClient(clientId, {
+                controller,
+                userId
+            });
+
+            console.log(`👥 Nouveau client connecté (ID: ${clientId}, UserID: ${userId})`);
             controller.enqueue(`data: ${JSON.stringify({ type: 'ping' })}\n\n`);
 
-            // PING régulier pour s'assurer que la connexion est active
-            const pingInterval = setInterval(() => {
+            const pingInterval = setInterval(async () => {
                 try {
                     controller.enqueue(`data: ${JSON.stringify({ type: 'ping' })}\n\n`);
+                    await updateClientTimestamp(clientId);
+                    await cleanupInactiveClients();
                 } catch (error) {
-                    console.log('⚠️ Connexion interrompue, nettoyage...');
-                    clients.delete(controller);
+                    console.log(`⚠️ Connexion interrompue pour ${clientId}, nettoyage...`);
+                    await removeClient(clientId);
                     clearInterval(pingInterval);
                 }
             }, 10000);
 
-            return () => {
-                console.log(`👋 Client déconnecté (total: ${clients.size - 1})`);
-                clients.delete(controller);
+            return async () => {
+                await removeClient(clientId);
                 clearInterval(pingInterval);
+                console.log(`👋 Client déconnecté (ID: ${clientId})`);
             };
         },
     });
@@ -32,8 +45,9 @@ export async function GET() {
     return new Response(stream, {
         headers: {
             'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
+            'Cache-Control': 'no-cache, no-transform',
             'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',
         },
     });
 }
