@@ -4,65 +4,39 @@ import { useEffect } from 'react';
 import { useModalContextNew } from '../register/RegisterComponents/Modal/ContextModal';
 import toast from 'react-hot-toast';
 import { useSession } from './SessionProvider';
+import { supabase } from '@/app/database/supabaseClient';
 
 export function SSEHandler() {
     const { setModalReload } = useModalContextNew();
     const session = useSession();
 
     useEffect(() => {
-        if (!session?.user_id) {
-            console.log('Pas de session utilisateur, connexion SSE impossible');
-            return;
-        }
+        if (!session?.user_id) return;
 
-        let eventSource: EventSource | null = null;
-
-        const connect = () => {
-            if (eventSource) {
-                eventSource.close();
-            }
-
-            console.log('🔄 Création nouvelle connexion SSE');
-            eventSource = new EventSource(`/api/notifications/subscribe?userId=${session.user_id}`, {
-                withCredentials: true
-            });
-
-            eventSource.onopen = () => {
-                console.log('✅ Connexion SSE établie');
-            };
-
-            eventSource.onmessage = (event) => {
-                console.log('📨 Message SSE reçu:', event.data);
-                const data = JSON.parse(event.data);
-                if (data.type === 'bsd_update') {
-                    toast.success('🔔 Nouvelle notification reçue');
-                    setModalReload(prev => !prev);
+        // S'abonner aux notifications via Supabase Realtime
+        const subscription = supabase
+            .channel('notifications')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'notifications',
+                    filter: `user_id=eq.${session.user_id}`
+                },
+                (payload) => {
+                    if (payload.new.type === 'bsd_update') {
+                        toast.success('🔔 Nouvelle notification reçue');
+                        setModalReload(prev => !prev);
+                    }
                 }
-                if (data.type === 'ping') {
-                    console.log("🔔 Ping");
-                }
-            };
-
-            eventSource.onerror = () => {
-                console.log('❌ Erreur SSE - Tentative de reconnexion...');
-                if (eventSource) {
-                    eventSource.close();
-                    eventSource = null;
-                }
-                setTimeout(connect, 1000);
-            };
-        };
-
-        connect();
+            )
+            .subscribe();
 
         return () => {
-            if (eventSource) {
-                console.log('🔌 Fermeture de la connexion SSE');
-                eventSource.close();
-                eventSource = null;
-            }
+            subscription.unsubscribe();
         };
-    }, [setModalReload, session]);
+    }, [session, setModalReload]);
 
     return null;
 } 

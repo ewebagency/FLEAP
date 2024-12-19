@@ -1,4 +1,4 @@
-import { addClient, updateClientTimestamp, removeClient, cleanupInactiveClients } from '../store';
+import { addClient, updateClientTimestamp, removeClient } from '../store';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,10 +14,7 @@ export async function GET(req: Request) {
 
     const stream = new ReadableStream({
         start: async (controller) => {
-            await addClient(clientId, {
-                controller,
-                userId
-            });
+            await addClient(clientId, userId);
 
             console.log(`👥 Nouveau client connecté (ID: ${clientId}, UserID: ${userId})`);
             controller.enqueue(`data: ${JSON.stringify({ type: 'ping' })}\n\n`);
@@ -26,13 +23,12 @@ export async function GET(req: Request) {
                 try {
                     controller.enqueue(`data: ${JSON.stringify({ type: 'ping' })}\n\n`);
                     await updateClientTimestamp(clientId);
-                    await cleanupInactiveClients();
                 } catch (error) {
                     console.log(`⚠️ Connexion interrompue pour ${clientId}, nettoyage...`);
                     await removeClient(clientId);
                     clearInterval(pingInterval);
                 }
-            }, 10000);
+            }, 5000);
 
             return async () => {
                 await removeClient(clientId);

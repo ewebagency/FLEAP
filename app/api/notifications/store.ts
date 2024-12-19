@@ -1,86 +1,50 @@
 import { supabase } from '@/app/database/supabaseClient';
 
 export interface Client {
-    controller: ReadableStreamDefaultController;
     userId: string;
+    connectionId: string;
 }
 
-// Store local pour les controllers qui ne peuvent pas être sérialisés
-const controllers = new Map<string, ReadableStreamDefaultController>();
-
-export async function addClient(clientId: string, client: Client) {
-    controllers.set(clientId, client.controller);
-    
-    // Nettoyer les anciennes connexions avant d'en ajouter une nouvelle
-    await cleanupOldConnections();
-    
+export async function addClient(connectionId: string, userId: string) {
     await supabase
         .from('notifications_connections')
         .insert({
-            client_id: clientId,
-            user_id: client.userId,
+            client_id: connectionId,
+            user_id: userId,
+            last_ping: new Date().toISOString()
         });
 }
 
-export async function removeClient(clientId: string) {
-    controllers.delete(clientId);
-    
+export async function removeClient(connectionId: string) {
     await supabase
         .from('notifications_connections')
         .delete()
-        .eq('client_id', clientId);
+        .eq('client_id', connectionId);
 }
 
-export async function getClientsByUserId(userId: string) {
+export async function getActiveConnections(userId: string) {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    
     const { data: connections } = await supabase
         .from('notifications_connections')
         .select('client_id')
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .gt('last_ping', fiveMinutesAgo.toISOString());
 
-    return connections
-        ?.map(conn => ({
-            controller: controllers.get(conn.client_id),
-            clientId: conn.client_id
-        }))
-        .filter(client => client.controller) || [];
+    return connections || [];
 }
 
-export async function updateClientTimestamp(clientId: string) {
+export async function updateClientTimestamp(connectionId: string) {
     await supabase
         .from('notifications_connections')
         .update({ last_ping: new Date().toISOString() })
-        .eq('client_id', clientId);
+        .eq('client_id', connectionId);
 }
 
-// Nettoie les connexions inactives (plus vieilles que 5 minutes)
-export async function cleanupInactiveClients() {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    
-    const { data: inactiveConnections } = await supabase
-        .from('notifications_connections')
-        .select('client_id')
-        .lt('last_ping', fiveMinutesAgo.toISOString());
-
-    inactiveConnections?.forEach(conn => {
-        controllers.delete(conn.client_id);
-    });
-
-    await supabase
-        .from('notifications_connections')
-        .delete()
-        .lt('last_ping', fiveMinutesAgo.toISOString());
-}
-
-// Nettoie les anciennes connexions (plus vieilles que 24 heures)
-async function cleanupOldConnections() {
+export async function cleanupOldConnections() {
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    
-    // Supprimer les connexions plus vieilles que 24 heures
     await supabase
         .from('notifications_connections')
         .delete()
         .lt('created_at', oneDayAgo.toISOString());
-
-    // Nettoyer aussi les connexions inactives
-    await cleanupInactiveClients();
 }
