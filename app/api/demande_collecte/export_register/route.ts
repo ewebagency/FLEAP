@@ -1,6 +1,6 @@
 import { supabase } from "@/app/database/supabaseClient";
 import { DataOnSupabase_infos_json, FormInput } from "@/app/register/interface/BSD_Interface";
-import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/utils_new";
+import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { format } from 'date-fns';

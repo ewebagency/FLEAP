@@ -14,7 +14,7 @@ const EnvBordereau = () => {
         bsds.forEach((bsd) => {
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
             const cedCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
-            const processingOperation = bsd.infos_json?.formAPI?.createFormInput?.processingOperation || 'default';
+            const processingOperation = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || 'default';
             const date = new Date(bsd.created_at);
             const month = date.getMonth();
 

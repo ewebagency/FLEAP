@@ -11,7 +11,7 @@ const AnalOpBordereau = () => {
         let totalWeight = 0;
         let currentMonthWeight = 0;
         let lastMonthWeight = 0;
-        let totalBSDs = bsds.length;
+        const totalBSDs = bsds.length;
 
         bsds.forEach(bsd => {
             const quantity = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;

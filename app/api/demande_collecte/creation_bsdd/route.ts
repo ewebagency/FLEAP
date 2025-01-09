@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { supabase } from '@/app/database/supabaseClient';
-import { pushOnTableParametrage } from '@/app/register/RegisterComponents/Modal/utils_new';
+import { pushOnTableParametrage } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import { cookies } from 'next/headers';
 
 
