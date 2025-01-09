@@ -3,29 +3,25 @@ import ImportPDF from "./ImportComponents/ImportPDF";
 import BandeauAPI from "./BandeauAPI";
 import TableImportedFilesFunctional from "./ImportComponents/TableImportedFilesFunctional";
 import { ImportProvider } from "./ImportComponents/ImportContext";
+import ConnectedToTrack from "../component/ConnectedToTrack";
 
 const ImportPage = () => {
 
     return (
         <ImportProvider>
             <div className='m-5'>
-                <div className="text-xl font-bold">Importer</div>
-                
-                <div className="h3 my-2">Importez vos bordereaux de suivi et vos factures</div>
-                <div className="text-xs text-gray-400 my-2">Automatisez la saisi des informations de vos documents PDF à votre registre des déchets grâce à notre foncitonnalité de lecture par intelligence artificielle</div>
-                
                 <Suspense fallback={<div>Chargement...</div>}>
                     <BandeauAPI/>
                 </Suspense>
 
+                <div className="h3 mb-0">Importez vos bordereaux de suivi et vos factures</div>
+                <div className="text-xs text-gray-400 mb-4">Automatisez la saisi des informations de vos documents PDF à votre registre des déchets grâce à notre foncitonnalité de lecture par intelligence artificielle</div>
+                
                 <ImportPDF/>
 
-                <div className="flex justify-between items-center mt-5">
-                    <div className="text-md font-bold">Documents importés</div>
-                    <div className="flex px-2 bg-green-700 items-center justify-center h-6 rounded-md">
-                        <div className="text-white text-[14px]">Exporter</div>
-                    </div>
-                </div>
+                
+                <div className="text-sm text-gray-500 mt-4 font-medium">Documents importés</div>
+                
 
                 <div>
                     <TableImportedFilesFunctional/>  

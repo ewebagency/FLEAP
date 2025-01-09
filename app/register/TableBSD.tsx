@@ -3,11 +3,13 @@ import { supabase } from "../database/supabaseClient";
 import { useSession } from "../component/SessionProvider";
 import { useModalContextNew } from "./RegisterComponents/Modal/ContextModal";
 import toast from "react-hot-toast";
-import { Filiere, Site, useFilterContext } from "../FilterContext";
+import { Filiere, PointCollecte, Site, useFilterContext } from "../FilterContext";
 import { BSDD_TrackDechets, FormInput } from "./interface/BSD_Interface";
 import Swal from 'sweetalert2';
 import SendDraftModal from "./RegisterComponents/Modal/SendDraftModal";
-import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/utils_new";
+import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/FormulaireFull/utils_new";
+import 'boxicons'
+import { RecurrenceEntry } from "./RegisterComponents/Modal/Recurrence/RecurrenceFunctionnal";
 
 const cleanCED = (ced: string): string => {
     const ced_clean = ced.replaceAll(' ', '').replace('*', '').trim();
@@ -19,6 +21,7 @@ const cleanCED = (ced: string): string => {
 type BSD = {
     id: string;
     created_at: string;
+    on_track_dechets: boolean;
     readable_id_track_dechets: string;
     infos_json: {formAPI: {createFormInput: BSDD_TrackDechets}};
     facture_treated: boolean;
@@ -43,46 +46,46 @@ const normalizeString = (str: string): string => {
         .replace(/[^a-z0-9]/g, "");
 };
 
-const getWasteIcon = (filiere: string): string => {
+const getWasteIcon = (filiere: string): { name: string, type?: 'solid' | 'regular' | 'logo' } => {
     const filiereNormalized = normalizeString(filiere);
     
-    const iconMapping: { keywords: string[], icon: string }[] = [
+    const iconMapping: { keywords: string[], icon: { name: string, type?: 'solid' | 'regular' | 'logo' } }[] = [
         {
             keywords: ['bois', 'palette', 'meuble'],
-            icon: '🪵'
+            icon: { name: 'tree' }
         },
         {
             keywords: ['metal', 'metaux', 'ferraille', 'fer', 'acier', 'aluminium', 'cuivre'],
-            icon: '🔧'
+            icon: { name: 'wrench' }
         },
         {
             keywords: ['gravat', 'beton', 'pierre', 'construction', 'demolition', 'btp'],
-            icon: '🏗️'
+            icon: { name: 'building-house' }
         },
         {
             keywords: ['dib', 'dechetindustriel', 'industriel', 'melange'],
-            icon: '🗑️'
+            icon: { name: 'trash' }
         },
         {
             keywords: ['carton', 'papier', 'emballage'],
-            icon: '📦'
+            icon: { name: 'package' }
         },
         {
             keywords: ['plastique', 'pvc', 'pet', 'polyethylene', 'polystyrene'],
-            icon: '♳'
+            icon: { name: 'recycle' }
         },
         {
             keywords: ['deee', 'electronique', 'electrique', 'informatique', 'ordinateur'],
-            icon: '💻'
+            icon: { name: 'microchip' }
         },
         {
             keywords: ['dangereux', 'toxique', 'chimique', 'corrosif', 'inflammable'],
-            icon: '⚠️'
+            icon: { name: 'error' }
         },
         {
-            keywords: ['vegetal', 'vert', 'organique', 'plante', 'herbe', 'feuille'],
-            icon: '🌱'
-        }
+            keywords: ['vegetal', 'vert', 'organique', 'plante', 'herbe', 'feuille',  'biodechets'],
+            icon: { name: 'leaf' }
+        },
     ];
 
     for (const mapping of iconMapping) {
@@ -93,7 +96,7 @@ const getWasteIcon = (filiere: string): string => {
         }
     }
 
-    return '♻️'; // Icône par défaut pour "Autres"
+    return { name: 'question-mark' }; // Icône par défaut
 };
 
 const getSommeBSD = (facture_infos: {montant_ht: number}) => {
@@ -135,16 +138,17 @@ const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres
     return [];
 }
 
-const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Site[], entreprise_id: string | null, page: number = 1) => {
+const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filiere[], points_collecte: PointCollecte[], entreprise_id: string | null, page: number = 1) => {
     if (!entreprise_id) return [];
 
     const limit = 50;
     const offset = (page - 1) * limit;
 
     const checkedFilieres = filieres.filter(f => f.checked).map(f => f.name);
-    const checkedSites = sites.filter(site => site.checked).map(site => site.name);
+    const checkedPointsCollecte = points_collecte.filter(point_collecte => point_collecte.checked).map(point_collecte => point_collecte.name);
+    const checkedSites = sites.filter(site => site.checked).map(site => site.orgId);
 
-    if (checkedFilieres.length === 0 || checkedSites.length === 0) {
+    if (checkedFilieres.length === 0 || checkedPointsCollecte.length === 0) {
         return [];
     }
 
@@ -152,6 +156,29 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
         .from('bsd')
         .select('*')
         .eq('entreprise_id', entreprise_id);
+
+    //console.log('checkedSites', checkedSites);
+    if(sites.length === 0){
+        //ne rien filtrer, on veut quand meme les autres infos
+    }
+    if(checkedSites.length > 0){
+        let or_condition = ``;
+        if(checkedSites.includes('----')){
+            //console.log('Autres checked', checkedSites);
+            or_condition = `infos_json->formAPI->createFormInput->emitter->company->>siret.eq.""`;
+            if(checkedSites.length > 1){
+                or_condition += `,infos_json->formAPI->createFormInput->emitter->company->>siret.in.(${checkedSites.join(',')})`;
+            }
+        } else {
+            or_condition = `infos_json->formAPI->createFormInput->emitter->company->>siret.in.(${checkedSites.join(',')})`;
+        }
+        query = query.or(or_condition);
+    } else {
+        if(sites.length > 0 && checkedSites.length === 0){
+            return [];
+        }
+    }
+
 
     // Gestion des filtres de filières
     if (checkedFilieres.length === 1 && checkedFilieres[0] === 'Autres') {
@@ -163,17 +190,17 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
             .eq('id', entreprise_id)
             .single();
 
-        console.log('mappingData', mappingData);
+        //console.log('mappingData', mappingData);
         if (mappingData) {
             const allMappedCEDs: string[] = mappingData.mapping_ced_filiere.map((mapping: {ced: string}) => cleanCED(mapping.ced));
-            console.log('allMappedCEDs', allMappedCEDs);
+            //console.log('allMappedCEDs', allMappedCEDs);
             const ceds_all_types = allMappedCEDs.map((ced: string) => [
                 ced,
                 ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim(),
                 ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim() + '*'
             ]);
             const ced_all = ceds_all_types.flatMap(ced_types => ced_types);
-            console.log('Quand autres est sélectionné -> tous les ceds', ced_all);
+            //console.log('Quand autres est sélectionné -> tous les ceds', ced_all);
 
             if (ced_all.length > 0) {
                 query = query.not('infos_json->formAPI->createFormInput->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
@@ -195,17 +222,17 @@ const fetchBSDs = async (user_id: string | null, filieres: Filiere[], sites: Sit
         }
     }
 
-    // Ajouter le filtre sur les sites
-    if (checkedSites.length > 0) {
-        if (!checkedSites.includes("Non renseigné")) {
+    // Ajouter le filtre sur les points de collecte
+    if (checkedPointsCollecte.length > 0) {
+        if (!checkedPointsCollecte.includes("Non renseigné")) {
             // Cas où "Non renseigné" n'est pas inclus
-            query = query.filter('infos_json->formAPI->createFormInput->emitter->workSite->>name', 'in', `(${checkedSites.join(',')})`);
+            query = query.filter('infos_json->formAPI->createFormInput->emitter->workSite->>name', 'in', `(${checkedPointsCollecte.join(',')})`);
         } else {
             // Cas où "Non renseigné" est inclus
             query = query.or(
                 `infos_json->formAPI->createFormInput->emitter->>workSite.is.null,` +
                 `infos_json->formAPI->createFormInput->emitter->workSite->>name.eq."",` +
-                `infos_json->formAPI->createFormInput->emitter->workSite->>name.in.(${checkedSites.filter(site => site !== "Non renseigné").join(',')})`
+                `infos_json->formAPI->createFormInput->emitter->workSite->>name.in.(${checkedPointsCollecte.filter(point_collecte => point_collecte !== "Non renseigné").join(',')})`
             );
         }
     } else {
@@ -234,7 +261,7 @@ const TableBSD = () => {
     //const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
     //A faire passer sur useModalContextNew
     const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModalContextNew();
-    const { filieres, sites } = useFilterContext();
+    const { sites, filieres, points_collecte } = useFilterContext();
 
     const [webhooksInitialized, setWebhooksInitialized] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -245,6 +272,9 @@ const TableBSD = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const itemsPerPage = 50;
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+    const [hoveredMenuId, setHoveredMenuId] = useState<string | null>(null);
+    const [weightInputs, setWeightInputs] = useState<Record<string, number>>({});
 
     // Ajouter un useEffect pour charger la table de mapping au démarrage
     useEffect(() => {
@@ -261,7 +291,7 @@ const TableBSD = () => {
     useEffect(() => {
         setCurrentPage(1);
         setBSDs([]); // Vider la liste des BSDs
-    }, [filieres, sites]); // Se déclenche quand les filtres changent
+    }, [filieres, points_collecte]); // Se déclenche quand les filtres changent
 
     // Fonction pour vérifier et initialiser les webhooks
     const initializeWebhooks = async () => {
@@ -316,7 +346,7 @@ const TableBSD = () => {
 
             try {
                 setLoadingBSDs(true);
-                const newData = await fetchBSDs(session.user_id, filieres, sites, session.entreprise_id, currentPage);
+                const newData = await fetchBSDs(session.user_id, sites, filieres, points_collecte, session.entreprise_id, currentPage);
                 
                 if (newData && newData.length > 0) {
                     setBSDs(prevBsds => {
@@ -346,7 +376,7 @@ const TableBSD = () => {
         };
 
         loadBSDs();
-    }, [session?.user_id, session?.entreprise_id, filieres, sites, modalReload, currentPage]);
+    }, [session?.user_id, session?.entreprise_id, sites, filieres, points_collecte, modalReload, currentPage]);
 
     useEffect(() => {
         // Exécution immédiate
@@ -366,7 +396,7 @@ const TableBSD = () => {
     
 
 
-    const handleDelete = async (id: string, silent: boolean = false) => {
+    const handleDelete = async (id: string, on_track_dechets: boolean, silent: boolean = false) => {
         if (!silent) {
             const result = await Swal.fire({
                 title: 'Êtes-vous sûr ?',
@@ -382,25 +412,39 @@ const TableBSD = () => {
         }
 
         setDeletingId(id);
-        try {
-            const result = await fetch('/api/demande_collecte/delete_bsd', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id })
-            });
-            const data = await result.json();
-            if (data.error) {
-                if (!silent) {
-                    Swal.fire('Erreur !', data.error, 'error');
+        if(on_track_dechets){
+            try {
+                const result = await fetch('/api/demande_collecte/delete_bsd', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                const data = await result.json();
+                if (data.error) {
+                    if (!silent) {
+                        Swal.fire('Erreur !', data.error, 'error');
+                    }
+                } else {
+                    if (!silent) {
+                        toast.success("BSD supprimé avec succès");
+                    }
+                    setModalReload(!modalReload);
                 }
+            } finally {
+                setDeletingId(null);
+            }
+        } else {
+            const result = await supabase
+                .from('bsd')
+                .delete()
+                .eq('id', id);
+            if(result.error){
+                toast.error("Erreur lors de la suppression du BSD");
             } else {
-                if (!silent) {
-                    toast.success("BSD supprimé avec succès");
-                }
+                toast.success("BSD supprimé avec succès");
+                setDeletingId(null);
                 setModalReload(!modalReload);
             }
-        } finally {
-            setDeletingId(null);
         }
     }
 
@@ -482,16 +526,218 @@ const TableBSD = () => {
         }
     };
 
+    const handleValidateLine = async (bsd: BSD) => {
+        const updatedFormInput = {
+            ...bsd.infos_json.formAPI.createFormInput,
+            wasteDetails: {
+                ...bsd.infos_json.formAPI.createFormInput.wasteDetails,
+                quantity: weightInputs[bsd.id] || 0
+            }
+        };
+
+        const { data, error } = await supabase
+            .from('bsd')
+            .update({ 
+                status_track_dechets: 'Collecté',
+                infos_json: {
+                    ...bsd.infos_json,
+                    formAPI: {
+                        ...bsd.infos_json.formAPI,
+                        createFormInput: updatedFormInput
+                    }
+                }
+            })
+            .eq('id', bsd.id)
+            .select()
+            .single();
+
+        if (!error && data) {
+            setBSDs(prevBsds => prevBsds.map(prevBsd => 
+                prevBsd.id === bsd.id 
+                    ? { 
+                        ...prevBsd, 
+                        status_track_dechets: 'Collecté',
+                        infos_json: {
+                            ...prevBsd.infos_json,
+                            formAPI: {
+                                ...prevBsd.infos_json.formAPI,
+                                createFormInput: updatedFormInput
+                            }
+                        }
+                    }
+                    : prevBsd
+            ));
+            toast.success("BSD mis à jour avec succès");
+        } else {
+            toast.error("Erreur lors de la mise à jour du BSD");
+        }
+    };
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (openMenuId !== null) {
+                setOpenMenuId(null);
+            }
+        };
+
+        document.addEventListener('click', handleClickOutside);
+        return () => {
+            document.removeEventListener('click', handleClickOutside);
+        };
+    }, [openMenuId]);
+
+    const getStatusStyle = (status: string): { mainText: string, subText?: string, color: string } => {
+        const baseStatus: Record<string, { mainText: string, subText?: string, color: string }> = {
+            "DRAFT": { mainText: "Brouillon", subText: "en attente de finalisation", color: "text-[var(--green-light)]" },
+            "Brouillon": { mainText: "Brouillon", subText: "en attente de finalisation", color: "text-[var(--green-light)]" },
+            "Brouillon Local": { mainText: "Brouillon", subText: "en attente d'envoi", color: "text-[var(--green-light)]" },
+            
+            // En cours
+            "SEALED": { mainText: "Finalisé", subText: "en attente de signature", color: "text-blue-600" },
+            "SIGNED_BY_PRODUCER": { mainText: "Signé", subText: "en attente d'enlèvement", color: "text-blue-600" },
+            "SENT": { mainText: "Envoyé", subText: "en cours de transport", color: "text-blue-600" },
+            "Collecte demandée": { mainText: "Collecte demandée", subText: "en attente d'enlèvement", color: "text-blue-600" },
+            "Collecté": { mainText: "Collecté", subText: "en cours de transport", color: "text-blue-600" },
+            
+            // Réception/Traitement
+            "RECEIVED": { mainText: "Reçu", subText: "en attente d'acceptation", color: "text-orange-600" },
+            "ACCEPTED": { mainText: "Accepté", subText: "en attente de traitement", color: "text-orange-600" },
+            "Accepté": { mainText: "Accepté", subText: "en attente de traitement", color: "text-orange-600" },
+            
+            'GROUPED': { mainText: "Groupé", color: "text-green-600" },
+            'AWAITING_GROUP': { mainText: "Regroupement", subText: "en attente", color: "text-orange-600" },
+
+            // Terminé
+            "PROCESSED": { mainText: "Traité", color: "text-[var(--green-light)]" },
+            "Traité": { mainText: "Traité", color: "text-[var(--green-light)]" },
+            
+            // Autres cas
+            "REFUSED": { mainText: "Refusé", color: "text-red-600" },
+            "NO_TRACEABILITY": { mainText: "Rupture de traçabilité", color: "text-red-600" },
+            "CANCELED": { mainText: "Annulé", color: "text-red-600" },
+            "IMPORTED": { mainText: "Importé", subText: "dans FLEAP", color: "text-gray-600" },
+            
+            "Ligne créée": { mainText: "Ligne créée", color: "text-gray-600" },
+            "Ligne validée": { mainText: "Ligne validée", color: "text-[var(--green-light)]" },
+
+        };
+
+        return baseStatus[status] || { mainText: status, color: "text-[var(--green-light)]" };
+    };
+
+    const handleUpdateWeight = (bsd: BSD) => {
+        // Initialiser le poids si pas encore défini
+        if (weightInputs[bsd.id] === undefined) {
+            setWeightInputs(prev => ({
+                ...prev,
+                [bsd.id]: bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0
+            }));
+        }
+
+        return (
+            <input 
+                type="number" 
+                value={weightInputs[bsd.id] || 0}
+                onChange={(e) => setWeightInputs(prev => ({
+                    ...prev,
+                    [bsd.id]: parseFloat(e.target.value)
+                }))}
+                className="w-12 text-xs border-[var(--green-medium)] border-[1px] rounded pl-1"
+                step="0.1"
+            />
+        );
+    };
+
+    const handleDeleteRecurrence = async (bsdId: string) => {
+        try {
+            const { data: recurrences, error: recurrenceError } = await supabase
+                .from('recurrence')
+                .select('*')
+                .eq('entreprise_id', session?.entreprise_id);
+
+            if (recurrenceError) {
+                throw recurrenceError;
+            }
+
+            const recurrence = recurrences?.find(rec => 
+                rec.pattern.created_bsd_ids?.includes(bsdId)
+            ) as RecurrenceEntry;
+
+            if (!recurrence) {
+                toast.error("Aucune récurrence trouvée pour ce BSD");
+                return;
+            }
+
+            const result = await Swal.fire({
+                title: 'Êtes-vous sûr de vouloir supprimer cette récurrence ?',
+                html: `
+                    <div class="p-3">
+                        <div class="mb-0">
+                            <h3 class="text-2xl font-bold mt-[-10px] mb-4">${recurrence.pattern.name}</h3>
+                            <div class="flex justify-center gap-8 text-sm">
+                                <div class="text-center bg-gray-100 rounded-md p-2">
+                                    <p class="text-gray-600">Fréquence</p>
+                                    <p class="font-medium mt-1">${recurrence.pattern.frequencyNumber} ${recurrence.pattern.frequency}</p>
+                                </div>
+                                <div class="text-center bg-gray-100 rounded-md p-2">
+                                    <p class="text-gray-600">BSDs créés</p>
+                                    <p class="font-medium mt-1">${recurrence.execution_count}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-left text-sm text-red-500 mt-4">
+                                Cette action supprimera la récurrence mais pas les BSDs déjà créés.
+                        </div>
+                    </div>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Oui, supprimer',
+                cancelButtonText: 'Annuler',
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                customClass: {
+                    confirmButton: 'swal2-confirm',
+                    cancelButton: 'swal2-cancel'
+                }
+            });
+
+            if (result.isConfirmed) {
+                const { error: deleteError } = await supabase
+                    .from('recurrence')
+                    .delete()
+                    .eq('id', recurrence.id);
+
+                if (deleteError) {
+                    toast.error("Erreur lors de la suppression de la récurrence");
+                    console.error("Erreur suppression récurrence:", deleteError);
+                    return;
+                }
+
+                toast.success("Récurrence supprimée avec succès");
+                setModalReload(!modalReload);
+            }
+        } catch (error) {
+            console.error("Erreur lors de la suppression de la récurrence:", error);
+            toast.error("Erreur lors de la suppression de la récurrence");
+        }
+    };
+
     return (
         <div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }} className="table-fixed">
                 <thead>
                     <tr style={{ backgroundColor: 'white' }}>
-                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '26%', textAlign: 'left', paddingLeft: '3rem' }}>Déchet</th>
-                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'center' }}>Statut</th>
-                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '25%', textAlign: 'left', paddingLeft: '1rem' }}>Prestataires</th>
-                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '10%', textAlign: 'right', paddingRight: '1.25rem' }}>Montant</th>
-                        <th style={{ padding: '10px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'center' }}>Actions</th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '0' }} 
+                            className="text-sm font-normal text-gray-500 mb-0">Déchet</th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '23px' }}
+                            className="text-sm font-normal text-gray-500 mb-0">Statut</th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '25px' }}
+                            className="text-sm font-normal text-gray-500 mb-0">Prestataires</th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'right', paddingRight: '1.25rem' }}
+                            className="text-sm font-normal text-gray-500 mb-0">Montant</th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'right', paddingRight: '3.5rem' }}
+                            className="text-sm font-normal text-gray-500 mb-0">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -499,175 +745,274 @@ const TableBSD = () => {
                         <tr><td colSpan={5}>Chargement des BSDs...</td></tr>
                     ) : bsds.length > 0 ? (
                         bsds.map((bsd) => (
-                        <tr key={bsd.id} style={{ borderBottom: '1px solid #ddd' }}>
-                            <td style={{ padding: '10px', position: 'relative', height: '100px' }}>
-                                <div className="absolute top-2 left-0 w-full">
-                                    <div className="font-medium text-[10px] text-gray-600 ml-10">
+                        <tr key={bsd.id} style={{ borderBottom: '1px solid #ddd' }} className={`${bsd.status_track_dechets === "Ligne créée automatiquement" ? "bg-[var(--gray-light)]" : ""}`}>
+                            <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px'}}>
+                                <div className="absolute top-1 left-2 w-full">
+                                    <div className="font-medium text-[10px] text-gray-600">
                                         {bsd.readable_id_track_dechets || "ID non disponible"}
                                     </div>
-                                    <div className="text-[8px] text-gray-400 ml-10">
-                                        N° {bsd.id}
-                                    </div>
                                 </div>
-                                <div className="h-full flex items-center mt-4">
-                                    <div className="flex items-center justify-start gap-4 ml-10">
+                                <div className="h-full flex items-center mt-2">
+                                    <div className="flex items-center justify-start gap-4">
                                         <div className="text-2xl h-full">
-                                            {getWasteIcon(getFiliere(
-                                                bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
-                                                mappingTable
-                                            ))}
+                                            {(() => {
+                                                const icon = getWasteIcon(getFiliere(
+                                                    bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
+                                                    mappingTable
+                                                ));
+                                                return <box-icon type={icon.type} name={icon.name} color="#000000" size="30px"></box-icon>;
+                                            })()}
                                         </div>
-                                        <div className="text-xs space-y-1">
+                                        <div className="space-y-0.5">
                                             {/* Informations sur le déchet */}
-                                            <div>
+                                            <div className="text-sm font-bold mb-[-5px]">
                                                 <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.code}</div>
                                             </div>
 
                                             <div>
-                                                <div className="text-blue-500 mb-0">
+                                                <div className="text-blue-500 mb-0 hidden">
                                                     {getFiliere(
                                                         bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
                                                         mappingTable
                                                     )}
                                                 </div>
                                                 {bsd.infos_json.formAPI.createFormInput.wasteDetails.name && (
-                                                    <div className="text-gray-500 text-[10px] mt-0">
+                                                    <div className="text-xs mt-0 truncate overflow-hidden whitespace-nowrap w-[180px]">
                                                         {bsd.infos_json.formAPI.createFormInput.wasteDetails.name}
                                                     </div>
                                                 )}
-                                                <div className="text-[10px] mt-0">
-                                                    {bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity} tonnes
-                                                </div>
+                                                
+                                                {bsd.status_track_dechets === "Ligne créée automatiquement" ?
+                                                    <div className="text-xs mt-0">
+                                                        {handleUpdateWeight(bsd)} T
+                                                    </div>
+                                                :
+                                                    <div className="text-xs mt-0">
+                                                        {bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity} T
+                                                    </div>
+                                                }
+
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </td>
-                            <td style={{ padding: '10px', position: 'relative', height: '100px' }}>
-                                <div className="absolute top-2 left-0 w-full text-center">
-                                    <div className="text-[10px] text-gray-600">
-                                        Créé le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}
+                            <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px' }}>
+                                <div className="absolute top-1 left-2 w-full">
+                                    <div className="text-[10px] text-gray-600 ml-4 flex justify-start gap-2">
+                                        <p>Créé le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>
+                                        {bsd.infos_json.formAPI.createFormInput.takenOverAt && <p>Collecté le {new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p>}
+                                        {/* {bsd.infos_json.formAPI.createFormInput.emittedAt} */}
+                                        {/* {bsd.infos_json.formAPI.createFormInput.createdAt} */}
+                                        {/* {bsd.infos_json.formAPI.createFormInput.processedAt} */}
+                                        {/* {bsd.infos_json.formAPI.createFormInput.receivedAt} */}
+                                        {/* {bsd.infos_json.formAPI.createFormInput.signedAt} */}  
+                                        {/* {bsd.infos_json.formAPI.createFormInput.takenOverAt} */}
+                                        {/* {bsd.infos_json.formAPI.createFormInput.updatedAt} */}
                                     </div>
                                 </div>
-                                <div className="h-full flex items-center justify-center mt-4">
-                                    {bsd.status_track_dechets !== null ? 
-                                        <div className="flex flex-col items-center gap-2">
-                                            <div className="text-xs">{frenchTranslation(bsd.status_track_dechets)}</div>
-                                            {bsd.status_track_dechets === "DRAFT" ?
-                                                <button 
-                                                    className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md text-xs 
-                                                    hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors" 
-                                                    onClick={() => handleSeal(bsd.id)}
-                                                >
-                                                    Sceller
-                                                </button>
-                                            : bsd.status_track_dechets === "SEALED" ?
-                                                <button 
-                                                    className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md text-xs 
-                                                    hover:bg-green-50 hover:border-green-200 hover:text-green-600 transition-colors" 
-                                                    onClick={() => handleSign(bsd.id)}
-                                                >
-                                                    Signer
-                                                </button>
-                                            : bsd.status_track_dechets === "Brouillon Local" ?
-                                                <button 
-                                                    className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md text-xs 
-                                                    hover:bg-yellow-50 hover:border-yellow-200 hover:text-yellow-600 transition-colors" 
-                                                    onClick={() => handleSendDraft(bsd)}
-                                                >
-                                                    Envoyer
-                                                </button>
-                                            : nonDangerousStatut(bsd.status_track_dechets) ?
-                                                <div className="flex flex-col items-center gap-2">
-                                                    {/* <div className="text-xs text-gray-600">Déchet non dangereux</div> */}
-                                                    <div className="flex justify-between items-center gap-2">
-                                                        <div className="text-xs text-gray-800">Statut :</div>
-                                                        <select 
-                                                            className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md text-xs 
-                                                            hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors w-[30px]" 
-                                                            onChange={(e) => handleChangeNonDangerous(bsd, e.target.value)}
-                                                            >
-                                                                <option value="Brouillon">Brouillon</option>
-                                                                <option value="Collecte demandée">Collecte demandée</option>
-                                                                <option value="Collecté">Collecté</option>
-                                                                <option value="Accepté">Accepté</option>
-                                                                <option value="Traité">Traité</option>
-                                                            {/*<option value="Rupture de traçabilité">Rupture de traçabilité</option>
-                                                            <option value="Mail envoyé">Mail envoyé</option>
-                                                            <option value="Accepté par le prestataire">Accepté par le prestataire</option>
-                                                            <option value="Refusé par le prestataire">Refusé par le prestataire</option>
-                                                            <option value="Pris en charge par le prestataire">Pris en charge par le prestataire</option>
-                                                            <option value="En attente de prise en charge">En attente de prise en charge</option>
-                                                            <option value="En attente de réception">En attente de réception</option>
-                                                            <option value="Réceptionné">Réceptionné</option>
-                                                            <option value="Réceptionné et traité">Réceptionné et traité</option>*/}
-                                                        </select>
-                                                    </div>
+                                <div className="h-full flex flex-col justify-center ml-4 mt-0">
+                                    {bsd.status_track_dechets !== null ? (
+                                        <>
+                                            <div className={`text-md font-semibold ${getStatusStyle(bsd.status_track_dechets).color}`}>
+                                                {getStatusStyle(bsd.status_track_dechets).mainText}
+                                            </div>
+                                            {getStatusStyle(bsd.status_track_dechets).subText && (
+                                                <div className={`text-xs ${getStatusStyle(bsd.status_track_dechets).color} mt-[-4px]`}>
+                                                    {getStatusStyle(bsd.status_track_dechets).subText}
                                                 </div>
-                                            : null}
-                                        </div>
-                                    : 
-                                        <div className="text-xs">...</div>
-                                    }
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="text-md">...</div>
+                                    )}
                                 </div>
                             </td>
-                            <td style={{ padding: '10px' }}>
-                                <div className="text-xs ml-4">
-                                    {/* Site de travail */}
-                                    <div className="mb-2 pr-2 line-clamp-1">
-                                        📍 {bsd.infos_json.formAPI.createFormInput.emitter?.workSite?.name || "Site non spécifié"}
+                            <td style={{ padding: '6px', width: '20%', height: '80px' }} className="overflow-hidden">
+                                <div className="text-xs ml-4 overflow-hidden space-y-0">
+                                    {/* Site Etablissement */}
+                                    <div className="overflow-hidden">
+                                        <span className="flex items-center gap-2">
+                                            <box-icon type='solid' color='#727272' size="20px" name='map' className="flex-shrink-0"></box-icon>
+                                            <span className="truncate block">{bsd.infos_json.formAPI.createFormInput.emitter?.company?.name || "Site non spécifié"}</span>
+                                        </span>
                                     </div>
                                     {/* Entreprises */}
-                                    <div className="mb-2 pr-2 line-clamp-1">
-                                        🚚 {bsd.infos_json.formAPI.createFormInput.transporter?.company?.name || ""}
+                                    <div className="overflow-hidden">
+                                        <span className="flex items-center gap-2">
+                                            <box-icon type='solid' color='#727272' size="20px" name='truck' className="flex-shrink-0"></box-icon>
+                                            <span className="truncate block">{bsd.infos_json.formAPI.createFormInput.transporter?.company?.name || ""}</span>
+                                        </span>
                                     </div>
-                                    <div className="mb-2 pr-2 line-clamp-1">
-                                        🔩 {bsd.infos_json.formAPI.createFormInput.recipient?.company?.name || ""}
+                                    <div className="overflow-hidden">
+                                        <span className="flex items-center gap-2">
+                                            <box-icon type='solid' color='#727272' size="20px" name='factory' className="flex-shrink-0"></box-icon>
+                                            <span className="truncate block">{bsd.infos_json.formAPI.createFormInput.recipient?.company?.name || ""}</span>
+                                        </span>
                                     </div>
                                 </div>
                             </td>
-                            <td style={{ padding: '10px' }}>
+                            <td style={{ padding: '6px', width: '15%', height: '80px' }}>
                                 {
                                 bsd.facture_treated ? 
-                                    <div className="text-xs text-right mr-5">
+                                    <div className="text-md font-550 text-right mr-5">
                                         {getSommeBSD(bsd.facture_infos)} € HT
                                     </div> 
                                 : 
-                                    <div className="text-xs text-right mr-5">-€ HT</div>
+                                    <div className="text-md font-550 text-right mr-5">-€ HT</div>
                                 }
                             </td>
-                            <td style={{ padding: '10px' }}>
-                                <div className="flex flex-col justify-center items-center gap-2 text-xs">
-                                    {canModify(bsd.id_track_dechets, bsd.status_track_dechets) && (
-                                        <button 
-                                            className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md 
-                                            hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors" 
-                                            onClick={() => handleModify(bsd.id)}
-                                        >
-                                            Modifier
-                                        </button>
-                                    )}
-                                    {!canModify(bsd.id_track_dechets, bsd.status_track_dechets) && (
-                                        <button 
-                                            className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md 
-                                            hover:bg-green-50 hover:border-green-200 hover:text-green-600 transition-colors" 
-                                            onClick={() => handleDisplay(bsd.id)}
-                                        >
-                                            Voir
-                                        </button>
-                                    )}
-                                    <button 
-                                        className="px-3 py-1 border border-gray-300 text-gray-600 rounded-md 
-                                        hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors" 
-                                        onClick={() => handleDelete(bsd.id)}
-                                        disabled={deletingId === bsd.id}
-                                    >
-                                        {deletingId === bsd.id ? (
-                                            <span className="loading loading-spinner loading-xs"></span>
-                                        ) : (
-                                            'Supprimer'
+                            <td style={{ padding: '6px', width: '15%', height: '80px' }}>
+                                <div className="flex items-center justify-end gap-2 w-full">
+                                    {/* Actions principales */}
+                                    <div className="flex items-center gap-0">
+                                        {bsd.status_track_dechets === "DRAFT" && (
+                                            <button 
+                                                className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
+                                                hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
+                                                onClick={() => handleSeal(bsd.id)}
+                                            >
+                                                Sceller
+                                            </button>
                                         )}
-                                    </button>
+                                        {bsd.status_track_dechets === "SEALED" && (
+                                            <button 
+                                                className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
+                                                hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
+                                                onClick={() => handleSign(bsd.id)}
+                                            >
+                                                Signer
+                                            </button>
+                                        )}
+                                        {bsd.status_track_dechets === "Brouillon Local" && (
+                                            <button 
+                                                className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
+                                                hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
+                                                onClick={() => handleSendDraft(bsd)}
+                                            >
+                                                Envoyer
+                                            </button>
+                                        )}
+                                        {nonDangerousStatut(bsd.status_track_dechets) && (
+                                            <div className="relative">
+                                                <select 
+                                                    className="appearance-none px-2 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs
+                                                    hover:bg-[var(--green-dark)] transition-colors w-[60px] cursor-pointer"
+                                                    onChange={(e) => handleChangeNonDangerous(bsd, e.target.value)}
+                                                    value={bsd.status_track_dechets}
+                                                >
+                                                    <option value={bsd.status_track_dechets} hidden></option>
+                                                    <option value="Brouillon">Brouillon</option>
+                                                    <option value="Collecte demandée">Collecte demandée</option>
+                                                    <option value="Collecté">Collecté</option>
+                                                    <option value="Accepté">Accepté</option>
+                                                    <option value="Traité">Traité</option>
+                                                </select>
+                                                <div className="pointer-events-none absolute inset-0 flex items-center px-2 py-1 text-white text-xs ml-1">
+                                                    Statut
+                                                </div>
+                                            </div>
+                                        )}
+                                        {bsd.status_track_dechets === "Ligne créée automatiquement" && (
+                                            <button 
+                                                className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs
+                                                hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
+                                                onClick={() => handleValidateLine(bsd)}
+                                            >
+                                                Ajouter au registre
+                                            </button>
+                                        )}
+                                        {/*bsd.status_track_dechets === "Ligne validée" && (
+                                            <button 
+                                                className="px-1 py-1 text-[var(--green-medium)] rounded-md text-xs mr-3 whitespace-nowrap" 
+                                            >
+                                                Validée
+                                            </button>
+                                        )*/}
+                                    </div>
+
+                                    {/* Menu trois points */}
+                                    <div className="relative">
+                                        <button 
+                                            className="px-1 py-1 text-gray-600 rounded-md hover:bg-gray-100 mt-0.5 h-8"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setOpenMenuId(openMenuId === bsd.id ? null : bsd.id);
+                                            }}
+                                            onMouseEnter={() => setHoveredMenuId(bsd.id)}
+                                            onMouseLeave={() => setHoveredMenuId(null)}
+                                        >
+                                            <box-icon name='dots-vertical-rounded' size="20px"></box-icon>
+                                        </button>
+
+                                        {/* Menu déroulant (inchangé) */}
+                                        {openMenuId === bsd.id && (
+                                            <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg z-50 top-8">
+                                                <div className="py-1">
+                                                    {canModify(bsd.id_track_dechets, bsd.status_track_dechets) ? (
+                                                        <button 
+                                                            className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600 text-left"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleModify(bsd.id);
+                                                                setOpenMenuId(null);
+                                                            }}
+                                                        >
+                                                            Modifier
+                                                        </button>
+                                                    ) : (
+                                                        <button 
+                                                            className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-green-50 hover:text-green-600 text-left"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDisplay(bsd.id);
+                                                                setOpenMenuId(null);
+                                                            }}
+                                                        >
+                                                            Voir
+                                                        </button>
+                                                    )}
+                                                    <button 
+                                                        className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-red-50 hover:text-red-600 text-left relative"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDelete(bsd.id, bsd.on_track_dechets);
+                                                            setOpenMenuId(null);
+                                                        }}
+                                                        disabled={deletingId === bsd.id}
+                                                    >
+                                                        <span className="flex items-center">
+                                                            {deletingId === bsd.id ? (
+                                                                <>
+                                                                    <span className="mr-2">Suppression</span>
+                                                                    <span className="loading loading-spinner loading-xs"></span>
+                                                                </>
+                                                            ) : (
+                                                                'Supprimer'
+                                                            )}
+                                                        </span>
+                                                    </button>
+                                                    {bsd.id_track_dechets === "Ligne automatique" && <button 
+                                                        className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-orange-50 hover:text-orange-600 text-left"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteRecurrence(bsd.id);
+                                                            setOpenMenuId(null);
+                                                        }}
+                                                    >
+                                                        Supprimer la récurrence
+                                                    </button>}                                                    
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="relative h-0">
+                                {hoveredMenuId === bsd.id && (
+                                        <div className="absolute text-[8px] text-gray-400 text-right mr-14 z-50 right-0 top-0">
+                                        N° {bsd.id}
+                                    </div>
+                                )}
                                 </div>
                             </td>
                         </tr>
@@ -716,12 +1061,12 @@ const TableBSD = () => {
 export default TableBSD
 
 const nonDangerousStatut = (statut: string) => {
-    const acceptableStatuts = ["Déchet non dangereux", "Brouillon", "Collecte demandée", "Collecté", "Accepté", "Traité", "Rupture de traçabilité"];
+    const acceptableStatuts = ["Déchet non dangereux", "Brouillon", "Collecte demandée", "Collecté", "Accepté", "Traité", "Rupture de traçabilité", "Ligne créée"];
     return acceptableStatuts.includes(statut);
 }
 
 const canModify = (id_track: string, statut_track: string) => {
-    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED" || statut_track === "DRAFT") {
+    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED" || statut_track === "DRAFT" || id_track === "Ligne créée" || id_track === "Ligne automatique") {
         return true;
     }
     return false;
@@ -751,3 +1096,4 @@ const frenchTranslation = (statut: string): string => {
     };
     return mapping[statut] || statut;
 };
+

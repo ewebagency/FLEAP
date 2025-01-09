@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { parseAddress, extractSiret, getRaisonSocial, sendData_to_Cloud } from "./utils_new";
-import { Company, FormInput } from "../../interface/BSD_Interface";
+import { Company, FormInput } from "../../../interface/BSD_Interface";
 import { toast } from "react-hot-toast";
 import { useSession } from "@/app/component/SessionProvider";
-import { useModalContextNew } from "./ContextModal";
+import { useModalContextNew } from "../ContextModal";
 import Swal from 'sweetalert2';
-import { useMailContext } from "../../MailComponents/MailContext";
+import { useMailContext } from "../../../MailComponents/MailContext";
 import Cookies from 'js-cookie';
+import { supabase } from "@/app/database/supabaseClient";
+import Recurrence from "../Recurrence/Recurrence";
+import RecurrenceFunctions, { RecurrencePattern } from "../Recurrence/RecurrenceFunctionnal";
 
 // Ajout des types nécessaires en haut du fichier
 type NestedKeyOf<ObjectType extends object> = {
@@ -136,12 +139,16 @@ const ModifyCardInFormulaireNew = ({
     onClose, 
     dataText, 
     setDataText,
-    pastBrouillon=false
+    pastBrouillon=false,
+    displayModifyCardInFormulaireNew=true,
+    modalType='',
 }: { 
     onClose: () => void, 
     dataText: FormInput, 
     setDataText: React.Dispatch<React.SetStateAction<FormInput>>,
-    pastBrouillon?:boolean
+    pastBrouillon?:boolean,
+    displayModifyCardInFormulaireNew?:boolean,
+    modalType?:string,
 }) => {
   
   const {dataToogle } = useModalContextNew();
@@ -158,6 +165,9 @@ const ModifyCardInFormulaireNew = ({
   const [showEcoOrganisme, setShowEcoOrganisme] = useState(false);
   const { isValidMail, sendMail } = useMailContext();
   const [cookie_token, setCookie_token] = useState<boolean>(false)
+  const [isHoveringTrackDechet, setIsHoveringTrackDechet] = useState(false);
+  const [recurrenceData, setRecurrenceData] = useState(null);
+  const [recurrencePattern, setRecurrencePattern] = useState<RecurrencePattern | null>(null);
   
   useEffect(() => {
     const cookie_track = Cookies.get('trackdechets_token');
@@ -225,8 +235,8 @@ const ModifyCardInFormulaireNew = ({
       toast.success('Mail prêt à être envoyé');
     }
     const willSubmit = await Swal.fire({
-        title: 'Envoyer à TrackDéchet ?',
-        text: "Cette demande sera envoyée à TrackDéchet et par mail",
+        title: 'Envoyer à TrackDéchets ?',
+        text: "Cette demande sera envoyée à TrackDéchets et par mail",
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#3085d6',
@@ -304,6 +314,10 @@ const ModifyCardInFormulaireNew = ({
       newData.wasteDetails.packagingInfos[0].quantity = Number(newData.wasteDetails.packagingInfos[0].quantity);
 
       delete newData.emitter.workSite.fullAddress;
+      delete newData.filiere;
+      if(newData.wasteDetails.packagingInfos[0].type !== "AUTRE"){
+        delete newData.wasteDetails.packagingInfos[0].other;
+      }
       newData.recipient.isTempStorage = newData.recipient.isTempStorage === true;
       if(!newData.recipient.isTempStorage)delete newData.temporaryStorageDetail;
       if(!showTrader)delete newData.trader;
@@ -369,7 +383,7 @@ const ModifyCardInFormulaireNew = ({
     setIsSubmittingBrouillon(true);
     try {
       const newData = { ...dataText };
-      
+
       // Conversion des quantités en nombres avant envoi
       if (typeof newData.wasteDetails.quantity === 'string' || typeof newData.wasteDetails.quantity === 'number') {
         newData.wasteDetails.quantity = Number(String(newData.wasteDetails.quantity).replace(',', '.'));
@@ -433,6 +447,10 @@ const ModifyCardInFormulaireNew = ({
       newData.wasteDetails.packagingInfos[0].quantity = Number(newData.wasteDetails.packagingInfos[0].quantity);
 
       delete newData.emitter.workSite.fullAddress;
+      delete newData.filiere;
+      if(newData.wasteDetails.packagingInfos[0].type !== "AUTRE"){
+        delete newData.wasteDetails.packagingInfos[0].other;
+      }
       newData.recipient.isTempStorage = newData.recipient.isTempStorage === true;
       if(!newData.recipient.isTempStorage)delete newData.temporaryStorageDetail;
       if(!showTrader)delete newData.trader;
@@ -495,7 +513,9 @@ const ModifyCardInFormulaireNew = ({
         cancelButtonText: 'Annuler'
     });
 
-    if (!willSendMail.isConfirmed || !sendMail) return;
+    const conditions_pour_submit = conditionsPourSubmit(dataText);
+
+    if (!willSendMail.isConfirmed || !sendMail || !conditions_pour_submit) return;
 
     const {data:newData, success} = await prepareDataToCloud(dataText, showTrader, showBroker, showEcoOrganisme, showParcelFields);
     
@@ -541,9 +561,105 @@ const ModifyCardInFormulaireNew = ({
     //console.log('dataText.isDangerous', dataText.wasteDetails.isDangerous);
   }, [dataText.wasteDetails.code]);
 
+
+
+  const handleRecurrenceChange = (data: RecurrencePattern | null) => {
+    setRecurrencePattern(data);
+  };
+
+  const handleCreateLine = async () => {
+    if (recurrencePattern && session?.user_id && session?.entreprise_id) {
+        const willCreateRecurrence = await Swal.fire({
+            title: 'Créer une récurrence ?',
+            text: `Voulez-vous créer une récurrence pour cette ligne avec le pattern "${recurrencePattern.name}" ?`,
+            icon: 'question',
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            denyButtonColor: '#6c757d',
+            confirmButtonText: 'Oui, créer la récurrence',
+            denyButtonText: 'Non, juste la ligne',
+            cancelButtonText: 'Annuler'
+        });
+
+        if (willCreateRecurrence.isDismissed) {
+            return;
+        }
+
+        if (willCreateRecurrence.isConfirmed) {
+            // Créer d'abord la ligne BSD
+            const bsdId = await RecurrenceFunctions.createBSDFromTemplate(
+                session.user_id,
+                session.entreprise_id,
+                dataText
+            );
+
+            if (!bsdId) {
+                toast.error("Erreur lors de la création de la ligne BSD");
+                return;
+            }
+
+            // Ajouter l'ID du BSD créé au pattern de récurrence
+            const updatedPattern = {
+                ...recurrencePattern,
+                created_bsd_ids: [bsdId]
+            };
+
+            const success = await RecurrenceFunctions.createRecurrence(
+                session.user_id,
+                session.entreprise_id,
+                updatedPattern,
+                dataText
+            );
+
+            if (success) {
+                toast.success("Récurrence créée avec succès");
+                setDisplayFormulaire(false);
+                setModalReload(!modalReload);
+                onClose();
+                return;
+            } else {
+                toast.error("Erreur lors de la création de la récurrence");
+                return;
+            }
+        }
+    }
+
+    // Si pas de récurrence ou si l'utilisateur a choisi "Non, juste la ligne"
+    const {data:newData, success} = await prepareDataToCloud(dataText, showTrader, showBroker, showEcoOrganisme, showParcelFields);
+    if(session?.user_id && session?.entreprise_id && success) {
+        const result = await supabase.from('bsd').insert({
+            user_id: session.user_id,
+            created_on_fleap: true,
+            infos_json: {
+                formAPI: {createFormInput: newData},
+            },
+            on_track_dechets: false,
+            status_track_dechets: 'Ligne créée',
+            id_track_dechets: 'Ligne créée',
+            readable_id_track_dechets: 'Ligne créée',
+            entreprise_id: session.entreprise_id
+        });
+
+        if(result.status === 201) {
+            toast.success("Ligne créée");
+            setDisplayFormulaire(false);
+            setModalReload(!modalReload);
+        } else {
+            toast.error("Erreur avec la création de la ligne");
+        }
+    } else {
+        toast.error("Erreur lors de la préparation des données pour la création de la ligne");
+    }
+    setDisplayFormulaire(false);
+    setModalReload(!modalReload);
+    onClose();
+  };
+
   return (
     <div className="p-4">
-      <div className="grid grid-cols-3 gap-4">
+      {displayModifyCardInFormulaireNew && <div className="grid grid-cols-3 gap-4">
         {/* Colonne 1 - Point de collecte et Émetteur */}
         <div className="space-y-4">
           <SectionForm
@@ -813,18 +929,29 @@ const ModifyCardInFormulaireNew = ({
             />
           )}
         </div>
-      </div>
+      </div>}
+
+      {modalType === 'create_line' && (
+        <div className="flex">
+          <Recurrence 
+            onRecurrenceChange={handleRecurrenceChange}
+          />
+          <div className="flex-1">
+            {/* Autres composants */}
+          </div>
+        </div>
+      )}
 
       {/* Boutons */}
-      <div className="flex justify-end space-x-2 mt-6">
+      <div className="fixed bottom-8 mb-14 right-[180px] flex justify-center space-x-2">
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 text-gray-600 border rounded hover:bg-gray-100"
+          className="px-4 py-2 text-gray-600 border rounded bg-gray-100 hover:bg-gray-200"
         >
           Fermer
         </button>
-        {!pastBrouillon && <button
+        {(!pastBrouillon && modalType !== 'create_line') && <button
           type="button"
           onClick={() => handleSubmitBrouillon()}
           disabled={isSubmittingBrouillon}
@@ -832,26 +959,66 @@ const ModifyCardInFormulaireNew = ({
         >
           {isSubmittingBrouillon ? "En cours..." : "Brouillon"}
         </button>}
-        {(!cookie_token && dataText.wasteDetails.isDangerous) && <div className="bg-red-400 text-white text-sm text-center item-center p-2 w-1/4 rounded-md">Vous devez être connecté pour envoyer à TrackDéchet</div>}
-        {(dataText.wasteDetails.isDangerous && cookie_token) && <button
-          type="button"
-          onClick={() => handleSubmitHere()}
-          disabled={isSubmitting}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-        >
-          {isSubmitting ? "Envoie à TrackDéchet et par mail en cours..." : "Envoyer à TrackDéchet & par Mail"}
-        </button>}
-        {!dataText.wasteDetails.isDangerous && (
+        {(!cookie_token && dataText.wasteDetails.isDangerous && modalType !== 'create_line') && 
+          <div className="bg-red-400 text-white text-sm text-center item-center p-2 w-2/4 rounded-md">
+            Vous devez être connecté pour envoyer à TrackDéchets
+          </div>
+        }
+        <div className="relative group">
+          {(dataText.wasteDetails.isDangerous && cookie_token && modalType !== 'create_line') && 
             <button
+              type="button"
+              onClick={() => handleSubmitHere()}
+              disabled={isSubmitting}
+              onMouseEnter={() => setIsHoveringTrackDechet(true)}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isSubmitting ? "Envoie à TrackDéchet et par mail en cours..." : "Envoyer à TrackDéchets & par Mail"}
+            </button>
+          }
+          {/* Bouton mail qui apparaît au survol */}
+          {isHoveringTrackDechet && dataText.wasteDetails.isDangerous && cookie_token && modalType !== 'create_line' && (
+            <div 
+              className="absolute bottom-full right-0 mb-2 w-full"
+              onMouseEnter={() => setIsHoveringTrackDechet(true)}
+              onMouseLeave={() => setIsHoveringTrackDechet(false)}
+            >
+              <button
                 type="button"
                 onClick={handleMailSubmit}
                 disabled={isSubmittingMail}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-            >
-                {isSubmittingMail ? "Envoie du mail en cours..." : "Envoyer le mail"}
-            </button>
+                className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {isSubmittingMail ? "Envoie du mail en cours..." : "Envoyer uniquement par mail"}
+              </button>
+            </div>
+          )}
+        </div>
+        {/* Afficher le bouton mail normalement si ce n'est pas un déchet dangereux */}
+        {(!dataText.wasteDetails.isDangerous  && modalType !== 'create_line') && (
+          <button
+            type="button"
+            onClick={handleMailSubmit}
+            disabled={isSubmittingMail}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+          >
+            {isSubmittingMail ? "Envoie du mail en cours..." : "Envoyer le mail"}
+          </button>
+        )}
+
+        {modalType === 'create_line' && (
+          <button
+            type="button"
+            onClick={handleCreateLine}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+          >
+            Créer la ligne
+          </button>
         )}
       </div>
+
+      {/* Ajouter un div avec du padding en bas pour éviter que le contenu ne soit caché par les boutons fixes */}
+      <div className="pb-20"></div>
     </div>
   );
 };
@@ -878,6 +1045,10 @@ const conditionsPourSubmit = (newData: FormInput) => {
     if(newData.emitter.workSite.name === ''){
         toast.error('Le nom du point de collecte est requis');
         return false;
+    }
+    if(newData.wasteDetails.consistence === ''){
+      toast.error('La consistance du déchet est requise');
+      return false;
     }
     return true;
 }
@@ -940,6 +1111,11 @@ const prepareDataToCloud = async (data: FormInput, showTrader: boolean, showBrok
     newData.wasteDetails.packagingInfos[0].quantity = Number(newData.wasteDetails.packagingInfos[0].quantity);
 
     delete newData.emitter.workSite.fullAddress;
+    delete newData.filiere;
+    console.log('newdata supprimer le type de contenant', newData.wasteDetails);
+    if(newData.wasteDetails.packagingInfos[0].type !== "AUTRE"){
+      delete newData.wasteDetails.packagingInfos[0].other;
+    }
     newData.recipient.isTempStorage = newData.recipient.isTempStorage === true;
     if(!newData.recipient.isTempStorage)delete newData.temporaryStorageDetail;
     if(!showTrader)delete newData.trader;

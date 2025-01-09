@@ -4,7 +4,14 @@ import TabBarAnalyses from "../component/Analyse/TabBarAnalyses";
 import FiltreFilieres from "../component/FiltreFilieres";
 import { useSession } from "../component/SessionProvider";
 import { supabase } from "../database/supabaseClient";
-import { useFilterContext } from "../FilterContext";
+import { useFilterContext, Filiere, PointCollecte, Site } from "../FilterContext";
+import { getFiliere, getMappingTableFiliere } from "../register/RegisterComponents/Modal/FormulaireFull/utils_new";
+import { getColors } from "../component/Analyse/MetaComponent/Colours";
+import { AnalysisProvider } from './AnalysisProvider';
+import AnalOpPieChart from "../component/Analyse/Operationelle/AnalOpPieChart";
+import AnalOpTable from "../component/Analyse/Operationelle/AnalOpTable";
+import AnalOpMainChart from "../component/Analyse/Operationelle/AnalOpMainChart";
+import { FormInput } from '../register/interface/BSD_Interface';
 
 //Juste to remove the vercel toolbar do a git push
 // Créer le contexte
@@ -16,18 +23,69 @@ interface MaterialType {
 interface DatasetInterface {
     id: number;
     label: string;
-    data: number[];  // Tableau de données numériques
+    data: number[];
     backgroundColor: string;
     borderColor: string;
     fill: boolean;
-    remplissage: number[];  // Tableau de pourcentages ou de valeurs numériques
-    declassement: number;   // Valeur numérique
-  }
+    totalWeight: number;
+    monthlyAverage: number;
+    trend: number;
+}
+
+const getColorForFiliere = (filiere: string): string => {
+    // Enlever le préfixe 'bg-' pour chart.js
+    return getColors(1)[0].replace('bg-', '');
+};
+
+const calculateTrend = (data: number[]): number => {
+    // Calculer la tendance sur les 3 derniers mois
+    const lastThreeMonths = data.slice(-3);
+    if (lastThreeMonths.length < 2) return 0;
+    
+    const firstValue = lastThreeMonths[0];
+    const lastValue = lastThreeMonths[lastThreeMonths.length - 1];
+    
+    if (firstValue === 0) return 0;
+    return ((lastValue - firstValue) / firstValue) * 100;
+};
+
+const calculateOverallTrend = (datasets: DatasetInterface[]): number => {
+    // Calculer la tendance globale en sommant les poids par mois
+    const monthlyTotals = Array(12).fill(0);
+    datasets.forEach(dataset => {
+        dataset.data.forEach((value: number, index: number) => {
+            monthlyTotals[index] += value;
+        });
+    });
+    
+    return calculateTrend(monthlyTotals);
+};
 
 const AnalysisPage = () => {
     
-    const { filieres_ou_prestataires, setFilieresOuPrestataires } = useFilterContext();
+    const { 
+        filieres_ou_prestataires, 
+        setFilieresOuPrestataires,
+        filieres,
+        points_collecte,
+        sites 
+    } = useFilterContext();
     const session = useSession();
+    const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
+    const [serverData, setServerData] = useState<{ 
+        labels: string[]; 
+        datasets: DatasetInterface[];
+        totalWeight: number;
+        monthlyAverage: number;
+        yearlyTrend: number;
+    }>({ 
+        labels: [], 
+        datasets: [],
+        totalWeight: 0,
+        monthlyAverage: 0,
+        yearlyTrend: 0
+    });
+    const [loading, setLoading] = useState(true);
 
     const handleRadioValueChainChange = (event :React.ChangeEvent<HTMLInputElement>) => {
       setFilieresOuPrestataires({ nom: event.target.value as 'filiere' | 'prestataire' }); // Mise à jour du state avec la valeur sélectionnée
@@ -46,7 +104,7 @@ const AnalysisPage = () => {
     }, []);
     console.log("Token : ", token);*/
 
-    const [selectedMaterials, setSelectedMaterials] = useState([
+    /*const [selectedMaterials, setSelectedMaterials] = useState([
         { id: 1, checked: false, color:'bg-blue-300', label: 'DIB'},
         { id: 2, checked: false, color:'bg-blue-400', label: 'Dangereux'},
         { id: 3, checked: false, color:'bg-blue-500', label: 'Verre'},
@@ -55,9 +113,9 @@ const AnalysisPage = () => {
         { id: 6, checked: false, color:'bg-purple-300', label: 'DEE'},
         { id: 7, checked: false, color:'bg-purple-500', label: 'Matériaux'},
         { id: 8, checked: false, color:'bg-purple-700', label: 'Bois'},
-      ]);
+      ]);*/
 
-      const getFilieres = async (user_id:string) => {
+      /*const getFilieres = async (user_id:string) => {
         const { data, error } = await supabase
         .from('bsd')
         .select('infos_json')
@@ -77,14 +135,14 @@ const AnalysisPage = () => {
         }
         if(autres) this_materials.push({ id: filieres_unique.length, checked: false, color:'bg-red-300', label: 'Autres'});
         return this_materials;
-      }
+      }*/
 
-      useEffect(() => {
+      /*useEffect(() => {
         if(session?.user_id) getFilieres(session?.user_id).then((filieres) => setSelectedMaterials(filieres));
-      }, [session]);
+      }, [session]);*/
     
       // Fonction pour gérer les changements de checkbox
-      const handleMaterialsChange = (id:number) => {
+      /*const handleMaterialsChange = (id:number) => {
         // Mettre à jour l'état en fonction de la checkbox sélectionnée
         setSelectedMaterials((prevMaterials) =>
           prevMaterials.map((checkbox) =>
@@ -93,48 +151,180 @@ const AnalysisPage = () => {
               : checkbox
           )
         );
-      };
+      };*/
 
 
-      const [serverData, setServerData] = useState<{ labels: string[]; datasets: DatasetInterface[] }>({ labels: [], datasets: [] });
-      const [loading, setLoading] = useState(true);
-      //const [error, setError] = useState(null);
-  
-      useEffect(() => {
-          const fetchData = async () => {
-              try {
-                  const response = await fetch('/api/analysis');
-                  if (!response.ok) {
-                      throw new Error('Erreur lors de la récupération des données');
-                  }
-                  const data_all = await response.json();
-                  setServerData(data_all); // Assurez-vous que data_all a la structure attendue
-              } catch (err) {
-                  //console.log(err.message);
-              } finally {
-                  setLoading(false);
-              }
-          };
-          fetchData();
-      }, []);
+      const fetchAnalysisData = async () => {
+        if (!session?.entreprise_id) return;
 
+        const checkedFilieres = filieres.filter(f => f.checked).map(f => f.name);
+        const checkedPointsCollecte = points_collecte.filter(pc => pc.checked).map(pc => pc.name);
+        const checkedSites = sites.filter(site => site.checked).map(site => site.orgId);
 
+        if (checkedFilieres.length === 0 || checkedPointsCollecte.length === 0) {
+            return;
+        }
+
+        let query = supabase
+            .from('bsd')
+            .select('*')
+            .eq('entreprise_id', session.entreprise_id);
+
+        // Appliquer les filtres de sites
+        if (checkedSites.length > 0) {
+            let or_condition = ``;
+            if (checkedSites.includes('autres')) {
+                or_condition = `infos_json->formAPI->createFormInput->emitter->company->>siret.eq.""`;
+                if (checkedSites.length > 1) {
+                    or_condition += `,infos_json->formAPI->createFormInput->emitter->company->>siret.in.(${checkedSites.join(',')})`;
+                }
+            } else {
+                or_condition = `infos_json->formAPI->createFormInput->emitter->company->>siret.in.(${checkedSites.join(',')})`;
+            }
+            query = query.or(or_condition);
+        }
+
+        // Appliquer les filtres de points de collecte
+        if (checkedPointsCollecte.length > 0) {
+            if (!checkedPointsCollecte.includes("Non renseigné")) {
+                query = query.filter('infos_json->formAPI->createFormInput->emitter->workSite->>name', 'in', `(${checkedPointsCollecte.join(',')})`);
+            } else {
+                query = query.or(
+                    `infos_json->formAPI->createFormInput->emitter->>workSite.is.null,` +
+                    `infos_json->formAPI->createFormInput->emitter->workSite->>name.eq."",` +
+                    `infos_json->formAPI->createFormInput->emitter->workSite->>name.in.(${checkedPointsCollecte.filter(pc => pc !== "Non renseigné").join(',')})`
+                );
+            }
+        }
+
+        const { data: bsds, error } = await query;
+
+        if (error) {
+            console.error("Error fetching BSDs:", error);
+            return;
+        }
+
+        // Traiter les données pour l'analyse
+        const processedData = processAnalysisData(bsds);
+        setServerData(processedData);
+    };
+
+    const processAnalysisData = (bsds: {created_at:string, infos_json:{formAPI:{createFormInput:FormInput}}}[]) => {
+        const monthLabels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+        const datasets: Array<{
+            id: number;
+            label: string;
+            data: number[];
+            backgroundColor: string;
+            borderColor: string;
+            fill: boolean;
+            totalWeight: number;
+            monthlyAverage: number;
+            trend: number;
+        }> = [];
+        const weightsByFiliere: {
+            [key: string]: {
+                monthlyData: number[];
+                total: number;
+            };
+        } = {};
+        let totalWeight = 0;
+
+        // Grouper les poids par filière et par mois
+        bsds.forEach(bsd => {
+            const quantity = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
+            const filiere = getFiliere(bsd.infos_json.formAPI.createFormInput.wasteDetails.code, mappingTable);
+            const date = new Date(bsd.created_at);
+            const month = date.getMonth();
+
+            if (!weightsByFiliere[filiere]) {
+                weightsByFiliere[filiere] = {
+                    monthlyData: Array(12).fill(0),
+                    total: 0
+                };
+            }
+
+            weightsByFiliere[filiere].monthlyData[month] += quantity;
+            weightsByFiliere[filiere].total += quantity;
+            totalWeight += quantity;
+        });
+
+        // Créer les datasets
+        Object.entries(weightsByFiliere).forEach(([filiere, data], index) => {
+            const monthlyAverage = data.total / 12;
+            const trend = calculateTrend(data.monthlyData);
+
+            datasets.push({
+                id: index,
+                label: filiere,
+                data: data.monthlyData,
+                backgroundColor: getColorForFiliere(filiere),
+                borderColor: getColorForFiliere(filiere),
+                fill: false,
+                totalWeight: data.total,
+                monthlyAverage,
+                trend
+            });
+        });
+
+        return {
+            labels: monthLabels,
+            datasets: datasets as DatasetInterface[],
+            totalWeight,
+            monthlyAverage: totalWeight / 12,
+            yearlyTrend: calculateOverallTrend(datasets)
+        };
+    };
+
+    useEffect(() => {
+        if (session?.entreprise_id && mappingTable.length > 0) {
+            setLoading(true);
+            fetchAnalysisData().finally(() => setLoading(false));
+        }
+    }, [session, filieres, points_collecte, sites, mappingTable]);
+
+    useEffect(() => {
+        const loadMappingTable = async () => {
+            if (session?.entreprise_id) {
+                const mapping = await getMappingTableFiliere(session.entreprise_id);
+                setMappingTable(mapping || []);
+            }
+        };
+        loadMappingTable();
+    }, [session?.entreprise_id]);
 
     if (!session) return <p>Chargement de vos id de connexion...</p>;
     return (
-            <div className='m-5'>
+        <AnalysisProvider>
+            <div className='mx-5 mt-2'>
                 <div className="flex justify-between items-center">
-                    <div className="text-xl">Analyse</div>
+                    <FiltreFilieres/>
                     <div className="join">
-                        <input className="join-item btn btn-xs text-xs font-normal" type="radio" name="options_value_chaine" aria-label="Filières" value="filiere" checked={filieres_ou_prestataires.nom == 'filiere'} onChange={handleRadioValueChainChange}/>
-                        <input className="join-item btn btn-xs text-xs font-normal" type="radio" name="options_value_chaine" aria-label="Prestataires" value="prestataire" checked={filieres_ou_prestataires.nom=='prestataire'} onChange={handleRadioValueChainChange} />
+                        <input 
+                            className="join-item btn btn-xs text-xs font-normal" 
+                            type="radio" 
+                            name="options_value_chaine" 
+                            aria-label="Filières" 
+                            value="filiere" 
+                            checked={filieres_ou_prestataires.nom == 'filiere'} 
+                            onChange={handleRadioValueChainChange}
+                        />
+                        <input 
+                            className="join-item btn btn-xs text-xs font-normal" 
+                            type="radio" 
+                            name="options_value_chaine" 
+                            aria-label="Prestataires" 
+                            value="prestataire" 
+                            checked={filieres_ou_prestataires.nom=='prestataire'} 
+                            onChange={handleRadioValueChainChange} 
+                        />
                     </div>
                 </div>
 
-                <FiltreFilieres/>
                 {loading && <div>Loading</div>}
                 <TabBarAnalyses/>
             </div>
+        </AnalysisProvider>
     )
 }
 

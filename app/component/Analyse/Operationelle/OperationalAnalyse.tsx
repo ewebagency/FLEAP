@@ -14,7 +14,7 @@ const OperationalAnalyse = ({active}: {active: boolean}) => {
                         <AnalOpBordereau/>
                         <AnalOpMainChart/>
 
-                        <div className="flex justify-between m-5">
+                        <div className="flex justify-between gap-5 my-4">
                             <AnalOpTable/>
                             <AnalOpPieChart/>
                         </div>

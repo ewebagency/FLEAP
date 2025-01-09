@@ -67,13 +67,6 @@ export async function POST(request: Request) {
         url_track = process.env.TRACKDECHETS_URL_APP;
     }
 
-    if (!token_track || !url_track) {
-        return NextResponse.json({ 
-            success: false, 
-            message: "Configuration manquante (token ou URL)" 
-        }, { status: 500 });
-    }
-
     try {
         const { user_id, bsd_id, data } = await request.json();
 
@@ -87,9 +80,11 @@ export async function POST(request: Request) {
         // 1. Récupérer l'ID Trackdéchets du BSD
         const { data: bsdData, error: bsdError } = await supabase
             .from('bsd')
-            .select('id_track_dechets')
+            .select('id_track_dechets, on_track_dechets')
             .eq('id', bsd_id)
             .single();
+
+        console.log("bsdDataaaa", bsdData);
 
         if (bsdError || !bsdData) {
             throw new Error("Erreur lors de la récupération de l'ID Trackdéchets");
@@ -99,34 +94,61 @@ export async function POST(request: Request) {
         //On enlève les champs qui ne sont pas modifiable sur Trackdéchets (orgId, other..)
         const data_augmented = augmentData(data);
         const data_on_track = cleanData(data_augmented);
-        // 2. Mise à jour dans Trackdéchets
-        const trackdechetsResponse = await updateTrackdechets(data_on_track, bsdData.id_track_dechets, token_track, url_track);
         
-        if (!trackdechetsResponse.success) {
+        if(bsdData.on_track_dechets){
+            // 2. Mise à jour dans Trackdéchets
+            if (!token_track || !url_track) {
+                return NextResponse.json({ 
+                    success: false, 
+                    message: "Configuration manquante (token ou URL)" 
+                }, { status: 500 });
+            }
+
+            const trackdechetsResponse = await updateTrackdechets(data_on_track, bsdData.id_track_dechets, token_track, url_track);
+            
+            if (!trackdechetsResponse.success) {
+                return NextResponse.json({ 
+                    success: false, 
+                    message: `Erreur lors de la mise à jour sur Trackdéchets: ${trackdechetsResponse.error}` 
+                }, { status: 400 });
+            }
+            // 3. Mise à jour dans Supabase
+            const { error: supabaseError } = await supabase
+                .from('bsd')
+                .update({ 
+                    infos_json: data,
+                })
+                .eq('id', bsd_id)
+                .eq('user_id', user_id);
+
+            if (supabaseError) {
+                throw new Error(supabaseError.message);
+            }
+
             return NextResponse.json({ 
-                success: false, 
-                message: `Erreur lors de la mise à jour sur Trackdéchets: ${trackdechetsResponse.error}` 
-            }, { status: 400 });
+                success: true, 
+                message: "BSD modifié avec succès",
+                trackdechetsData: trackdechetsResponse.data
+            });
+        } else {
+            const { error: supabaseError } = await supabase
+                .from('bsd')
+                .update({ 
+                    infos_json: data,
+                })
+                .eq('id', bsd_id)
+                .eq('user_id', user_id);
+
+            if (supabaseError) {
+                throw new Error(supabaseError.message);
+            }
+
+            return NextResponse.json({ 
+                success: true, 
+                message: "BSD modifié avec succès",
+                trackdechetsData: null
+            });
         }
-
-        // 3. Mise à jour dans Supabase
-        const { error: supabaseError } = await supabase
-            .from('bsd')
-            .update({ 
-                infos_json: data,
-            })
-            .eq('id', bsd_id)
-            .eq('user_id', user_id);
-
-        if (supabaseError) {
-            throw new Error(supabaseError.message);
-        }
-
-        return NextResponse.json({ 
-            success: true, 
-            message: "BSD modifié avec succès",
-            trackdechetsData: trackdechetsResponse.data
-        });
 
     } catch (error) {
         console.error("Erreur lors de la modification du BSD:", error);

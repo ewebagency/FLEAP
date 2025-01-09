@@ -13,6 +13,7 @@ interface PdfInfoInterface {
     pdf_path: string;
     created_at: string;
     url: string;
+    file_size: number;
 }
 
 const TableImportedFilesFunctional: React.FC = () => {

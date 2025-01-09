@@ -673,6 +673,7 @@ export interface BSDD_TrackDechets_DEPRECATED {
 
 export interface Company {
     name: string;
+    givenName?: string; //Celui qu'on utilise nous
     orgId?: string; //SIRET ou TVA de l'entreprise
     siret: string;
     address: string;
@@ -739,7 +740,7 @@ interface ParcelNumber {
 interface PackagingInfos{
     type:'FUT'|'GRV'|'CITERNE'|'BENNE'|'PIPELINE'|'AUTRE',
     other?:string,
-    quantity:number
+    quantity:number,
 }
 
 interface TemporaryStorer {
@@ -907,6 +908,7 @@ export interface FormInput {
     //customId?: string;
     //status?: string;
     //isImportedFromPaper?: boolean;
+    filiere?:string;
     emittedAt?: string;
     createdAt?: string;
     updatedAt?: string;
@@ -928,7 +930,7 @@ export interface FormInput {
   
     transporter: {
       company: Company;
-      isExemptedOfReceipt?: boolean;
+      isExemptedOfReceipt: boolean;
       receipt?: string; //juste pour nous
       numberPlate?: string;
       customInfo?: string; //"Information libre, destinée aux transporteurs"

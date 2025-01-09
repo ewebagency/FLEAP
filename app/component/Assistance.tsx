@@ -3,8 +3,14 @@ import { useState } from "react";
 export default function Assistance() {
     const [open, setOpen] = useState(false);
     return (
-        <div className="flex items-center justify-start">
-            <div onClick={() => setOpen(!open)} className="text-md font-bold text-gray-400 mt-2 bg-gray-200 cursor-pointer rounded-lg px-2 py-1">📞 Assistance</div>
+        <div className="mt-1">
+            <button 
+                onClick={() => setOpen(!open)} 
+                className="w-full px-1 py-1 text-sm text-gray-700 rounded-lg hover:bg-gray-200 active:bg-gray-400 transition-colors duration-200 flex items-center gap-2"
+            >
+                <box-icon name='phone' size="sm" color="currentColor"></box-icon>
+                <div className="ml-2">Assistance</div>
+            </button>
             {open && 
             <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={() => setOpen(false)}>
                 <div className="bg-white p-6 rounded-lg shadow-lg max-w-md text-center" onClick={e => e.stopPropagation()}>

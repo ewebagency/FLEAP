@@ -2,8 +2,7 @@
 import { supabase } from '@/app/database/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { SessionMore, useSession } from '@/app/component/SessionProvider';
-import { Session } from '@supabase/supabase-js';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function UserSettings() {
     const router = useRouter();
@@ -16,6 +15,26 @@ export default function UserSettings() {
     const [lastName, setLastName] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [currentProfile, setCurrentProfile] = useState<{first_name?: string, last_name?: string} | null>(null);
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            if (session) {
+                const { data } = await supabase
+                    .from('profiles')
+                    .select('first_name, last_name')
+                    .eq('user_id', session.user_id)
+                    .single();
+                setCurrentProfile(data);
+            }
+        };
+        fetchProfile();
+    }, [session]);
+
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        router.push('/auth/signin');
+    };
 
     const handleChangePassword = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -92,48 +111,81 @@ export default function UserSettings() {
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-            <div className="bg-white p-6 rounded shadow-md w-96">
-                <h2 className="text-2xl font-bold mb-4">Changer votre mot de passe</h2>
-                <div>Votre compte : {email}</div>
-                {error && <p className="text-red-500">{error}</p>}
-                {success && <p className="text-green-500">{success}</p>}
+            <div className="absolute top-4 right-4">
+                <button
+                    onClick={handleSignOut}
+                    className="bg-red-700 hover:bg-red-800 text-sm text-white px-2 py-1 rounded-lg flex items-center gap-2"
+                >
+                    <box-icon name='log-out' size="sm" color="currentColor"></box-icon>
+                    Déconnexion
+                </button>
+            </div>
 
-                <form onSubmit={handleChangePassword} className="mb-4">
-                    <input
-                        type="password"
-                        placeholder="Ancien mot de passe"
-                        value={pastPassword}
-                        onChange={(e) => setPastPassword(e.target.value)}
-                        className="border border-gray-300 p-2 mb-4 w-full rounded"
-                    />
-                    <input
-                        type="password"
-                        placeholder="Nouveau mot de passe"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="border border-gray-300 p-2 mb-4 w-full rounded"
-                    />
-                    <button type="submit" className="bg-blue-500 text-white p-2 rounded w-full">Changer mon mot de passe</button>
-                </form>
+            <h1 className="text-4xl font-bold text-green-800 mb-8">Paramètres</h1>
+            
+            <div className="flex gap-8 w-[80%] justify-center">
+                <div className="bg-white rounded-lg shadow-lg p-6 w-[40%]">
+                    <h2 className="text-2xl font-bold text-gray-800 mb-6">Changer le mot de passe</h2>
+                    <div className="text-gray-600 mb-4">{email}</div>
+                    {error && <p className="text-red-500 mb-4">{error}</p>}
+                    {success && <p className="text-green-500 mb-4">{success}</p>}
 
-                <h2 className="text-2xl font-bold mb-4">Changer votre prénom et nom</h2>
-                <form onSubmit={handleChangeProfile}>
-                    <input
-                        type="text"
-                        placeholder="Prénom"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        className="border border-gray-300 p-2 mb-4 w-full rounded"
-                    />
-                    <input
-                        type="text"
-                        placeholder="Nom"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        className="border border-gray-300 p-2 mb-4 w-full rounded"
-                    />
-                    <button type="submit" className="bg-blue-500 text-white p-2 rounded w-full">Changer mon prénom et nom</button>
-                </form>
+                    <form onSubmit={handleChangePassword} className="flex flex-col h-[200px] justify-between">
+                        <div className="space-y-4">
+                            <input
+                                type="password"
+                                placeholder="Ancien mot de passe"
+                                value={pastPassword}
+                                onChange={(e) => setPastPassword(e.target.value)}
+                                className="border border-gray-300 p-3 w-full rounded"
+                            />
+                            <input
+                                type="password"
+                                placeholder="Nouveau mot de passe"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                className="border border-gray-300 p-3 w-full rounded"
+                            />
+                        </div>
+                        <button 
+                            type="submit" 
+                            className="w-full p-3 rounded bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white text-lg mt-auto"
+                        >
+                            Changer mon mot de passe
+                        </button>
+                    </form>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-lg p-6 w-[40%]">
+                    <h2 className="text-2xl font-bold text-gray-800 mb-6">Modifier votre profil</h2>
+                    <div className="text-gray-600 mb-4">
+                        {currentProfile?.first_name || 'Non défini'} {currentProfile?.last_name || 'Non défini'}
+                    </div>
+                    <form onSubmit={handleChangeProfile} className="flex flex-col h-[200px] justify-between">
+                        <div className="space-y-4">
+                            <input
+                                type="text"
+                                placeholder="Prénom"
+                                value={firstName}
+                                onChange={(e) => setFirstName(e.target.value)}
+                                className="border border-gray-300 p-3 w-full rounded"
+                            />
+                            <input
+                                type="text"
+                                placeholder="Nom"
+                                value={lastName}
+                                onChange={(e) => setLastName(e.target.value)}
+                                className="border border-gray-300 p-3 w-full rounded"
+                            />
+                        </div>
+                        <button 
+                            type="submit" 
+                            className="w-full p-3 rounded bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white text-lg mt-auto"
+                        >
+                            Mettre à jour mon profil
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     );

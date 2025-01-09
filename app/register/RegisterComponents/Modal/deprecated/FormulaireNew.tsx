@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
-import InputDeroulant from "../InputDeroulant";
-import { useModalContextNew } from "./ContextModal";
+/*import React, { useEffect, useRef, useState } from "react";
+import InputDeroulant from "../../InputDeroulant";
+import { useModalContextNew } from "../ContextModal";
 import { formatText, getDataAutocompletion, getMappingTableFiliere, getFiliere, parseAddress, getDataAutocompletionVertical } from "./utils_new";
 import { useSession } from "@/app/component/SessionProvider";
-import { FormInput } from "../../interface/BSD_Interface";
-import ModifyCardInFormulaireNew from "./ModifyCardInFormulaireNew";
-import MailComponent from "../../MailComponents/MailComponent";
+import { FormInput } from "../../../interface/BSD_Interface";
+import ModifyCardInFormulaireNew from "../ModifyCardInFormulaireNew";
+import MailComponent from "../../../MailComponents/MailComponent";
 
 type StadeType = "current" | "freeze" | "done";
 
@@ -156,13 +156,7 @@ const FormulaireNew = () => {
     }, [displayFormulaire]);
 
 
-    /*useEffect(() => {
-        //Recréer la fullAddress à chaque changement du worksite pour la fullAddress
-        if(dataToogle.emitter.workSite.address.length > 0) {
-            dataText.emitter.workSite.fullAddress = dataToogle.emitter.workSite.address + ' ' + dataToogle.emitter.workSite.postalCode + ' ' + dataToogle.emitter.workSite.city;
-            //setDataText(dataText);
-        }
-      }, [dataToogle.emitter.workSite]);*/
+
 
     const modifyCardRef = useRef<HTMLDivElement>(null);
 
@@ -750,4 +744,4 @@ const FormulaireNew = () => {
     );
 }
 
-export default FormulaireNew;
+export default FormulaireNew;*/

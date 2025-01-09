@@ -8,10 +8,10 @@ const ExportRegisterButton = () => {
     const [messageType, setMessageType] = useState<'success' | 'error' | null>(null);
 
     const handleExport = async () => {
-        if(session && session.user_id) {
+        if(session && session.entreprise_id) {
             setIsLoading(true);
             try {
-                const response = await fetch(`/api/demande_collecte/export_register?user_id=${session.user_id}`);
+                const response = await fetch(`/api/demande_collecte/export_register?entreprise_id=${session.entreprise_id}`);
                 if(response.ok) {
                     const filename = response.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'export_register.xlsx';
                     const blob = await response.blob();
@@ -48,18 +48,18 @@ const ExportRegisterButton = () => {
     return (
         <div className="relative">
             <button 
-                className="flex justify-between items-center bg-gray-300 rounded-xl px-2 mx-1 cursor-pointer active:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed" 
+                className="h-[30px] flex justify-between items-center gap-2 bg-gray-100 rounded-md px-2 pb-1 cursor-pointer active:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed" 
                 onClick={handleExport}
                 disabled={isLoading}
             >
-                <div className="text-white bg-green-600 mr-2 my-[3px] rounded-full px-2 font-thin">
+                <div className="text-[var(--green-light)] rounded-full py-1 font-thin flex">
                     {isLoading ? (
                         <span className="inline-block animate-spin">↻</span>
                     ) : (
-                        "⇪"
+                        <box-icon name='export' type='solid' color='green' size="18px"></box-icon>
                     )}
                 </div>
-                <div className="text-black font-thin text-xs">
+                <div className="text-black font-thin text-xs mt-1">
                     {isLoading ? 'Export en cours...' : 'Exporter'}
                 </div>
             </button>

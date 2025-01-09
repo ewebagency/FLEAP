@@ -7,11 +7,15 @@ import PieChart from "../MetaComponent/PieChart";
 import { DechetCost, PieChartProps } from "../MetaComponent/PieChart";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
-import { AnalysisContext, useAnalysisContext } from "@/app/analysis/AnalysisContext_deprecated";
-import { supabase } from "@/app/database/supabaseClient";
-import { useSession } from "../../SessionProvider";
+import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { useFilterContext } from "@/app/FilterContext";
 import { TooltipItem } from 'chart.js';
+import { calculateFinancialAmount } from '@/app/utils/financial';
+import { tailwindToRgb } from '../MetaComponent/Colours';
+import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
+import FinancialMainChart from './FinancialMainChart';
+import FinancialTable from './FinancialTable';
+import FinancialPieChart from "./FinancialPieChart";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -19,113 +23,62 @@ interface Props {
     active: boolean;
 }
 
-interface FactureBDD {
-    infos_json: {
-        depart: {
-          bsd_id: number;
-          montant_ht: number;
-          code_dechet: string;
-          type_dechet: string;
-          date_collecte: string;
-          lieu_collecte: string;
-          linked_to_bsd: boolean;
-          type_operation: string;
-        },
-        footer: {
-          total_ht: number;
-        },
-        header: {
-          prestataire_nom: string;
-        }
-      }
-}
-
 const FinancialAnalyse = ({active}: Props) => {
-    const session = useSession();
-    const { filieres_ou_prestataires } = useFilterContext();
-    const [financialData, setFinancialData] = useState<FactureBDD[]>([]);
+    const { bsds, loading, mappingTable, filieres_ou_prestataires, siretToName } = useAnalysis();
+    const { filieres } = useFilterContext();
+    const [financialData, setFinancialData] = useState<{[key: string]: number}[]>([]);
 
-    const getFinancialData = async (user_id: string) => {
-        const {data, error} = await supabase
-        .from('facture')
-        .select('infos_json')
-        .eq('user_id', user_id);
-        if(error) console.log(error);
-        return data;
-    }
+    const processFinancialData = () => {
+        const monthlyData: { [key: string]: number[] } = {};
+        let totalRevenue = 0;
+        let totalCost = 0;
+        
+        bsds.forEach(bsd => {
+            const filiere = getFiliere(
+                bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
+                mappingTable
+            ) || 'Autres';
+            const weight = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
+            const wasteCode = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
+            const amount = calculateFinancialAmount(weight, wasteCode);
+            const month = new Date(bsd.created_at).getMonth();
 
-
-    useEffect(() => {
-        if(session && session.user_id){
-            getFinancialData(session.user_id).then((data) => {
-                setFinancialData(data || []);
-            });
-        }
-    }, [session]);
-
-    const renderPrestatairePieChart = () => {
-        // Préparation des données pour le pie chart des prestataires
-        const prestatairesData = financialData.reduce((acc, facture) => {
-            const prestataire = facture.infos_json.header.prestataire_nom;
-            const montant = facture.infos_json.depart.montant_ht || 0;
-            acc[prestataire] = (acc[prestataire] || 0) + montant;
-            return acc;
-        }, {} as { [key: string]: number });
-
-        // Arrondir les montants à 2 décimales
-        Object.keys(prestatairesData).forEach(key => {
-            prestatairesData[key] = Math.round(prestatairesData[key] * 100) / 100;
-        });
-
-        return createPieChart(
-            prestatairesData,
-            'Répartition des montants HT par prestataire (€)',
-            'Montants HT par prestataire'
-        );
-    };
-
-    const renderFilierePieChart = () => {
-        // Préparation des données pour le pie chart des filières
-        const filiereData = financialData.reduce((acc, facture) => {
-            const typeDechet = facture.infos_json.depart.type_dechet;
-            const montant = facture.infos_json.depart.montant_ht || 0;
-            acc[typeDechet] = (acc[typeDechet] || 0) + montant;
-            return acc;
-        }, {} as { [key: string]: number });
-
-        // Arrondir les montants à 2 décimales
-        Object.keys(filiereData).forEach(key => {
-            filiereData[key] = Math.round(filiereData[key] * 100) / 100;
-        });
-
-        return createPieChart(
-            filiereData,
-            'Répartition des montants HT par filière (€)',
-            'Montants HT par filière'
-        );
-    };
-
-    const createPieChart = (data: { [key: string]: number }, titleText: string, captionText: string) => {
-        const generateColors = (count: number) => {
-            const colors = [];
-            for (let i = 0; i < count; i++) {
-                colors.push(`hsl(${(i * 360) / count}, 70%, 50%)`);
+            if (!monthlyData[filiere]) {
+                monthlyData[filiere] = Array(12).fill(0);
             }
-            return colors;
+            monthlyData[filiere][month] += amount;
+
+            if (amount > 0) {
+                totalCost += amount;
+            } else {
+                totalRevenue += Math.abs(amount);
+            }
+        });
+
+        return {
+            monthlyData,
+            totalRevenue,
+            totalCost,
+            netAmount: totalRevenue - totalCost
+        };
+    };
+
+    /*const renderFinancialPieChart = () => {
+        const data = processFinancialData();
+        const chartData = {
+            labels: Object.keys(data.monthlyData),
+            datasets: [{
+                data: Object.values(data.monthlyData).map(amounts => 
+                    amounts.reduce((sum, amount) => sum + amount, 0)
+                ),
+                backgroundColor: Object.keys(data.monthlyData).map(filiereName => {
+                    const filiere = filieres.find(f => f.name === filiereName);
+                    return filiere ? tailwindToRgb(filiere.color) : '#000000';
+                }),
+            }]
         };
 
-        const pieChartData = {
-            labels: Object.keys(data),
-            datasets: [
-                {
-                    data: Object.values(data),
-                    backgroundColor: generateColors(Object.keys(data).length),
-                    borderWidth: 1,
-                },
-            ],
-        };
-
-        const pieChartOptions = {
+        const options = {
             responsive: true,
             plugins: {
                 legend: {
@@ -133,86 +86,62 @@ const FinancialAnalyse = ({active}: Props) => {
                 },
                 title: {
                     display: true,
-                    text: titleText,
+                    text: 'Répartition des coûts par filière (€)',
                 },
                 tooltip: {
                     callbacks: {
                         label: function(context: TooltipItem<'pie'>) {
-                            const label = context.label || '';
-                            const value = context.raw as number || 0;
+                            const value = context.raw as number;
                             const total = (context.dataset.data as number[]).reduce((a, b) => a + b, 0);
                             const percentage = Math.round((value / total) * 100);
-                            return `${label}: ${value.toLocaleString('fr-FR')}€ (${percentage}%)`;
+                            return `${context.label}: ${value.toLocaleString('fr-FR')}€ (${percentage}%)`;
                         }
                     }
                 }
-            },
+            }
         };
 
         return (
-            <div>
-                <div className="text-gray-300 text-sm text-center m-0">{captionText}</div>
-                <div className="w-96 h-96">
-                    <Pie data={pieChartData} options={pieChartOptions} />
-                </div>
+            <div className="w-96 h-96">
+                <Pie data={chartData} options={options} />
             </div>
         );
+    };*/
+
+    const bordereauData = () => {
+        const { totalRevenue, totalCost, netAmount } = processFinancialData();
+        return {
+            titre_g1: "Bilan financier total (HT)",
+            chiffre_g1: Math.abs(netAmount),
+            unite_g1: "€",
+            titre_d1: "Coûts totaux (HT)",
+            chiffre_d1: totalCost,
+            unite_d1: "€",
+            titre_d2: "Revenus totaux (HT)",
+            chiffre_d2: totalRevenue,
+            unite_d2: "€",
+        };
     };
-
-    const bordereauData = {
-        titre_g1 : "Coûts et revenues totaux (HT)",
-        chiffre_g1 : 258872.4,
-        unite_g1 : "€",
-        titre_d1 : "Coût total (HT)",
-        chiffre_d1 : 287347.9,
-        unite_d1 : "€",
-        titre_d2 : "Revenue total (HT)",
-        chiffre_d2 : 28475.5,
-        unite_d2 : "€",
-    }
-
-    const dechets_plus:DechetCost[] = [
-        {name:'DIB', value:31, unite:'€'},
-        {name:'Verre', value:21, unite:'€'},
-        {name:'Dangereux', value:90, unite:'€'},
-    ]
-
-    const dechets_moins:DechetCost[] = [
-        {name:'Carton et Papier', value:31, unite:'€'},
-        {name:'Plastique', value:21, unite:'€'},
-    ]
-
-    const pie_data:PieChartProps[] = [
-        { logo_center : '+', dechets_cost : dechets_plus },
-        { logo_center : '-', dechets_cost : dechets_moins },
-    ]
 
     return (
         <div>
-            { active &&
+            {active && (
                 <div className="border-b border-r border-l border-gray-200 rounded-br rounded-bl">
                     <div className="pt-5 mb-5 ml-5 mr-5">
                         <TopCaption/>
-                        <TopBordereau {...bordereauData}/>
-                        <BarChart/>
-
+                        <TopBordereau {...bordereauData()}/>
+                        <FinancialMainChart/>
+                        
                         <div className="flex justify-between m-1">
-                            <Table/>
-                            <div>
-                                {filieres_ou_prestataires.nom === 'prestataire' && renderPrestatairePieChart()}
-                                {filieres_ou_prestataires.nom === 'filiere' && renderFilierePieChart()}
-                                <div className="flex space-x-4">
-                                    {pie_data.map((data, index) => (
-                                        <PieChart key={index} {...data} />
-                                    ))}
-                                </div>
-                            </div>
+                            <FinancialTable/>
+                            {/* {renderFinancialPieChart()} */}
+                            <FinancialPieChart/>
                         </div>
                     </div>
-                </div>  
-            }
+                </div>
+            )}
         </div>
     );
-}
+};
 
 export default FinancialAnalyse;

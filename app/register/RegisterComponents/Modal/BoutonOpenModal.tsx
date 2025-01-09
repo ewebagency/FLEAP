@@ -1,21 +1,23 @@
 import { useModalContextNew } from "./ContextModal";
-
+import 'boxicons';
 
 export const BoutonOpenModal = () => {
-    const { setDisplayFormulaire } = useModalContextNew();
-    const handleOpenModal = () => setDisplayFormulaire(true);
+    const { setDisplayFormulaire, setModalType } = useModalContextNew();
+    const handleOpenModal = () => {
+        setDisplayFormulaire(true);
+        setModalType('');
+    };
     return (
         <div>
-            <button 
-                onClick={handleOpenModal} 
-                className={`flex justify-between items-center 
-                    bg-green-600 active:scale-95 
-                    rounded-xl px-2 mx-1 cursor-pointer duration-300 
-                    focus:px-3 focus:py-1`}
-            >
-                <div className="text-white mr-2 mb-1">🚚</div>
-                <div className="text-white font-thin text-xs">Demander une collecte</div>
-            </button>
+            <div className="flex items-center space-x-4">
+                <button 
+                    onClick={handleOpenModal} 
+                    className="bg-[var(--green-medium)] hover:bg-[var(--green-dark)] text-white px-4 py-2 ml-2 rounded-lg flex items-center space-x-2 text-lg font-medium transition-colors duration-200"
+                >
+                <box-icon name='truck' type='solid' color='white' size="24px"></box-icon>
+                <span>Demander une collecte</span>
+                </button>
+            </div>
         </div>
     );
 }

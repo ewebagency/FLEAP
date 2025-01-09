@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import toast from "react-hot-toast";
 import { supabase } from "../database/supabaseClient";
 import { BSDD_TrackDechets, FormInput } from "./interface/BSD_Interface";
-import { pushOnTableParametrage } from "./RegisterComponents/Modal/utils_new";
+import { pushOnTableParametrage } from "./RegisterComponents/Modal/FormulaireFull/utils_new";
 
 interface Row {
     [key: string]: string | number | boolean;
@@ -34,6 +34,31 @@ const cofounders_user_id = (user_id:string|null) => {
     return false;
 }
 
+const convertToISO = (dateInput: string | number | boolean | undefined): string => {
+    // Gérer les cas vides
+    if (!dateInput) {
+        return '';
+    }
+
+    try {
+            // Convertir le nombre Excel en date JavaScript
+        const excelDate = Number(dateInput);
+        const date = new Date(Date.UTC(0, 0, excelDate - 1));
+            
+            // Vérifier si la date est valide
+            if (isNaN(date.getTime())) {
+            console.warn(`Date invalide: ${dateInput}`);
+            return '';
+        }
+
+        return date.toISOString();
+
+    } catch (error) {
+        console.error(`Erreur lors de la conversion de la date: ${dateInput}`, error);
+        return '';
+    }
+};
+
 const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDechets } } => {
     const new_bsdd: {formAPI: {createFormInput: BSDD_TrackDechets}} = {
         formAPI: {
@@ -46,18 +71,21 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
 
                 //isImportedFromPaper: false,
 
+                //------------IMPORTANT Site(lié au siret emetteur):nomSiteEmetteur, Point de collecte : nomPointCollecte
+
+
                 // Émetteur
                 emitter: {
                     type: "PRODUCER",
                     workSite: {
-                        name: row["nomSiteEmetteur"]?.toString() || "",
+                        name: row["nomPointCollecte"]?.toString() || "",
                         address: row["adresseCollecte"]?.toString() || "",
                         postalCode: row["codePostalCollecte"]?.toString() || "",
                         city: row["communeCollecte"]?.toString() || "",
                         infos: row["infosCollecte"]?.toString() || ""
                     },
                     company: {
-                        name: "", //row[""]?.toString() || "", //nomEntrepriseEmettrice
+                        name: row["nomSiteEmetteur"]?.toString() || "", //nomEntrepriseEmettrice > nomSiteEmetteur (je pense que c'est SIREN>SIRET)
                         orgId: row["siretEmetteur"]?.toString() || "",
                         siret: siretFunction(row["siretEmetteur"]?.toString()) || "",
                         address: `${row["adresseEmetteur"] || ""} ${row["codePostalEmetteur"] || ""} ${row["communeEmetteur"] || ""}`,
@@ -117,7 +145,7 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                     numberPlate: row["immatriculationTransporteur"]?.toString() || "",
                     //customInfo: "",
                     mode: row["modeTransportTransporteur"]?.toString() || "",
-                    takenOverAt: row["dateCollecteTransporteur"]?.toString() || "",
+                    takenOverAt: convertToISO(row["dateCollecteTransporteur"]),
                     takenOverBy: row["prenomContactTransporteur"]?.toString() + " " + row["nomContactTransporteur"]?.toString() || ""    
                 },
 
@@ -201,24 +229,24 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                 //transporters: [],
 
                 // Dates
-                createdAt: row["dateCreationBordereau"]?.toString() || "",
-                updatedAt: row["dateModifBordereau"]?.toString() || "",
+                createdAt: convertToISO(row["dateCreationBordereau"]),
+                updatedAt: convertToISO(row["dateModifBordereau"]),
                 
-                emittedAt: row["dateCreationBordereau"]?.toString() || "", //normalement c'est la signature du trasnporteur mais bon
+                emittedAt: convertToISO(row["dateCreationBordereau"]), //normalement c'est la signature du trasnporteur mais bon
                 emittedBy: row["prenomContactEmetteur"]?.toString() + " " + row["nomContactEmetteur"]?.toString() || "",
                 emittedByEcoOrganisme: row["prenomContactEcoOrganisme"]?.toString() + " " + row["nomContactEcoOrganisme"]?.toString() || "",
                 
-                takenOverAt: row["dateCollecteTransporteur"]?.toString() || "",
+                takenOverAt: convertToISO(row["dateCollecteTransporteur"]),
                 takenOverBy: row["prenomContactTransporteur"]?.toString() + " " + row["nomContactTransporteur"]?.toString() || "",
                 
-                wasteAcceptationStatus: row["statutReceptionInstallationDestination"]?.toString(),
+                wasteAcceptationStatus: row["statutReceptionInstallationDestination"]?.toString() || "",
                 wasteRefusalReason: row["motifRefusInstallationDestination"]?.toString() || "",
                 
                 hasCiterneBeenWashedOut: row["rincageCiterneInstallationDestination"] === "O", 
                 //citerneNotWashedOutReason: row["motifNonLavageCiterne"]?.toString() || "",
                 
                 receivedBy: row["prenomContactInstallationDestination"]?.toString() + " " + row["nomContactInstallationDestination"]?.toString() || "",
-                receivedAt: row["dateReceptionInstallationDestination"]?.toString() || "",
+                receivedAt: convertToISO(row["dateReceptionInstallationDestination"]),
 
                 signedAt: '',//row["dateReceptionInstallationDestination"]?.toString() || "",
 
@@ -230,7 +258,7 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                 processingOperationDone: row["codeTraitementRealiseInstallationDestination"]?.toString() || "",
                 processingOperationDescription: row["qualificationTraitementInstallationDestination"]?.toString() || "",
                 processedBy: row["prenomContactInstallationDestination"]?.toString() + " " + row["nomContactInstallationDestination"]?.toString() || "",
-                processedAt: row["dateTraitementInstallationDestination"]?.toString() || "",
+                processedAt: convertToISO(row["dateTraitementInstallationDestination"]),
                 
                 noTraceability: row["ruptureTracabiliteInstallationDestination"] === "O" || row['ruptureTracabiliteInstallationIntermediaire'] === "O" || row['ruptureTracabiliteInstallationDestination2'] === "O", // regarder toute et yen aura qu'une seule théoriqueemnt
 
@@ -422,7 +450,8 @@ const sendToSupabase = async (ligne_BSD: { formAPI: { createFormInput: BSDD_Trac
                         entreprise_id: entreprise_id,
                         infos_json: ligne_BSD,
                         created_on_fleap: false,
-                        status_track_dechets: "IMPORTED"
+                        status_track_dechets: "IMPORTED",
+                        created_at:  new Date('2024-10-01T00:00:00Z').toISOString(),
                     }
                 )
             if (error) {
@@ -446,6 +475,7 @@ const ImportRegisterButton = () => {
     const [userId, setUserId] = useState('');
     const [tableType, setTableType] = useState('table_parametrage');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isTestMode, setIsTestMode] = useState(false);
     //const [selectedConfig, setSelectedConfig] = useState<{userId: string, tableType: string} | null>(null);
     
     useEffect(() => {
@@ -474,11 +504,6 @@ const ImportRegisterButton = () => {
     };
 
     const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        /*if (!tableType) {
-            toast.error('Configuration manquante');
-            return;
-        }*/
-        
         const file = event.target.files?.[0];
         if (!file) return;
         
@@ -491,17 +516,25 @@ const ImportRegisterButton = () => {
             const data = await file.arrayBuffer();
             const workbook = XLSX.read(data);
             
-            // Récupérer la première feuille ⚠
             let firstSheetName;
             if(tableType == "table_parametrage"){
-                firstSheetName = workbook.SheetNames[0];//Maintenant on base la table de paramétrage sur le registre des déchets
+                firstSheetName = workbook.SheetNames[0];
             } else {
                 firstSheetName = workbook.SheetNames[0];    
             }
             const worksheet = workbook.Sheets[firstSheetName];
             
             // Convertir en JSON
-            const jsonData = XLSX.utils.sheet_to_json(worksheet) as Row[];
+            let jsonData = XLSX.utils.sheet_to_json(worksheet) as Row[];
+
+            // Si mode test, sélectionner 3 lignes aléatoires
+            if (isTestMode) {
+                jsonData = jsonData
+                    .sort(() => 0.5 - Math.random()) // Mélanger le tableau
+                    .slice(0, 3); // Prendre les 3 premières lignes
+            }
+
+            // Traiter les données
             jsonData.forEach((row: Row|BSDD_TrackDechets) => {
                 if(tableType == "table_parametrage"){
                     if(!userId){
@@ -524,7 +557,6 @@ const ImportRegisterButton = () => {
             setMessage('Import réussi !');
             setMessageType('success');
             
-            // Déclencher le rechargement de la page après 1 seconde
             setTimeout(() => {
                 setModalReload(!modalReload);
             }, 3*1000);
@@ -545,14 +577,14 @@ const ImportRegisterButton = () => {
         {display && (
             <button 
                 onClick={handleButtonClick}
-                className="flex justify-between items-center bg-gray-300 rounded-xl px-2 mx-1 cursor-pointer active:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-[30px] flex justify-between items-center gap-2 bg-gray-100 rounded-md px-2 cursor-pointer active:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isLoading}
             >
-                <div className="text-white bg-green-600 mr-2 my-[3px] rounded-full px-2 font-thin">
+                <div className="text-[var(--green-light)] rounded-full py-1 mt-1 font-thin">
                     {isLoading ? (
                         <span className="inline-block animate-spin">↻</span>
                     ) : (
-                        "▼"
+                        <box-icon name='import' type='solid' color='green' size="18px"></box-icon>
                     )}
                 </div>
                 <div className="text-black font-thin text-xs">
@@ -592,6 +624,18 @@ const ImportRegisterButton = () => {
                                     <option value="table_parametrage">Table Paramétrage</option>
                                     <option value="registre_historique">Registre Historique</option>
                                 </select>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <input
+                                    type="checkbox"
+                                    id="testMode"
+                                    checked={isTestMode}
+                                    onChange={(e) => setIsTestMode(e.target.checked)}
+                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <label htmlFor="testMode" className="text-sm text-gray-700">
+                                    Mode test (3 lignes aléatoires)
+                                </label>
                             </div>
                             <div className="flex justify-end space-x-3 mt-4">
                                 <button

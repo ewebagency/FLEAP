@@ -1,5 +1,5 @@
 import { toast } from "react-hot-toast";
-import { Gouv, Anything, FormInput } from "../../interface/BSD_Interface";
+import { Gouv, Anything, FormInput } from "../../../interface/BSD_Interface";
 import { supabase } from "@/app/database/supabaseClient";
 
 

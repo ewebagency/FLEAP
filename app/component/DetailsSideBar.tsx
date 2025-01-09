@@ -16,16 +16,31 @@ const DetailsSideBar = ({
 return (
     <div>
         {session && (
-            <div className="mt-auto pt-4 border-t border-base-300">
-                <p className="text-sm text-base-content/70">Connecté en tant que :</p>
-                <p className="font-semibold">{userNames.first_name} {userNames.last_name}</p>
+            <div className="mt-auto pt-4">
+                <p className="text-sm text-gray-500 hidden">Connecté :</p>
+                <p className="font-medium text-gray-700 hidden">{userNames.first_name} {userNames.last_name}</p>
             </div>
         )}
-        <div className='flex items-center justify-between'>
-            <button className="mt-2 p-1 text-white bg-red-300 rounded-lg duration-300 active:scale-90" onClick={handleLogout}>Déconnexion</button>
-            <button onClick={handleParameterPage} className='mt-2 mr-4 text-4xl font-bold text-gray-400'>⚙</button>
+        <div className='flex flex-col gap-0 mt-1'>
+            <Assistance />
+            <button 
+                onClick={handleParameterPage} 
+                className='w-full px-1 py-1 text-sm text-gray-700 rounded-lg hover:bg-gray-200 active:bg-gray-400 transition-colors duration-200 flex items-center gap-2'
+            >
+                <box-icon name='cog' size="sm" color="currentColor"></box-icon>
+                <div className="ml-2">Paramètres</div>
+            </button>
+            <div className="flex justify-between items-center">
+
+            </div>
+            <button 
+                className={`w-full px-1 py-1 text-sm text-gray-700 rounded-lg hover:bg-gray-200 active:bg-gray-400 transition-colors duration-200 flex items-center gap-2 ${userNames.last_name==='Pouzargue' ? '' : 'hidden'}`} 
+                onClick={handleLogout}
+            >
+                <box-icon name='log-out' size="sm" color="currentColor"></box-icon>
+                <div className="ml-2">Déconnexion</div>
+            </button>
         </div>
-        <Assistance />
     </div>
     )
 }

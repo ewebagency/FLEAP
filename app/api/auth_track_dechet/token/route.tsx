@@ -7,11 +7,11 @@ import { NextResponse } from "next/server";
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  console.log("GET AUTH TOKEN ------------");
+  //console.log("GET AUTH TOKEN ------------");
   try {
     const token_cookie = cookies().get('trackdechets_token');
 
-    console.log('cookie stocké:', token_cookie?.value);
+    //console.log('cookie stocké:', token_cookie?.value);
     const response = NextResponse.json({ data: token_cookie?.value }, { status: 200 });
     
     // Ajouter des headers pour empêcher la mise en cache

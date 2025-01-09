@@ -67,6 +67,8 @@ const ImportPDF = () => {
 
                 setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
 
+                const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+
                 const { error: insertError } = await supabase
                     .from('pdf_infos')
                     .insert([{
@@ -74,6 +76,7 @@ const ImportPDF = () => {
                         name_pdf: file.name,
                         name_pdf_in_bucket: filePath,
                         pdf_path: data.fullPath,
+                        file_size: parseFloat(fileSizeInMB)
                     }]);
 
                 if (insertError) {
@@ -106,15 +109,18 @@ const ImportPDF = () => {
     return (
         <div className="flex flex-col items-center w-full">
             <div 
-                className="border-2 border-dashed border-gray-400 p-4 rounded-md w-full text-center cursor-pointer"
+                className="border-[1px] border-dashed border-gray-400 p-4 rounded-md w-full text-center cursor-pointer"
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
             >
-                <label className="btn btn-success text-white h-8 px-2 flex items-center mx-auto max-w-[400px]">
+                <label className="btn bg-[var(--green-medium)] hover:bg-[var(--green-dark)] text-white h-8 px-2 flex items-center mx-auto max-w-[400px]">
                     {loading ? (
                         <span className="loader"></span>
                     ) : (
-                        "Sélectionner ou déposer des fichiers PDF"
+                        <div className="flex items-center gap-2">
+                            <box-icon color='white' name='import'></box-icon>
+                            <p>Sélectionner des fichiers PDF</p>
+                        </div>
                     )}
                     <input 
                         ref={fileInputRef}

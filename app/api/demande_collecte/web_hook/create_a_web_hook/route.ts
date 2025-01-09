@@ -27,10 +27,11 @@ export async function POST(req:Request) {
     }
 
     console.log('Création d\'un webhook');
-    const response_id_company = await GetIdCompany(token_track, url_track); //Id de la companie lié au token
-    if(response_id_company.status === 200){
-        const id_company =  response_id_company.id_company;
-        createWebHook(token_track, url_track, id_company);
+    const response_ids_company = await GetIdsCompany(token_track, url_track); //Id de la companie lié au token
+    if(response_ids_company.status === 200){
+        for(const id_company of response_ids_company.ids_company){
+            createWebHook(token_track, url_track, id_company);
+        }
         return NextResponse.json({ status: 200, webhooks: "ok" }, { status: 200 });
     } else {
         return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
@@ -95,7 +96,7 @@ const createWebHook = async (token_track:string, url_track:string, id_company:st
     }
 }
 
-const GetIdCompany = async (token_track:string, url_track:string) => {
+const GetIdsCompany = async (token_track:string, url_track:string) => {
     const query = `query {
         myCompanies {
             edges {
@@ -143,11 +144,11 @@ const GetIdCompany = async (token_track:string, url_track:string) => {
         );
         
         //console.log('Response data:', response.data.data.myCompanies.edges[0].node.id);
-        const id_company = response.data.data.myCompanies.edges[0].node.id;
-        return {status: 200, id_company: id_company};
+        const ids_company = response.data.data.myCompanies.edges.map(edge => edge.node.id);
+        return {status: 200, ids_company: ids_company};
 
     } catch (error) {
         console.error('Error details:', error);
-        return {status: 500, id_company: 'null'};
+        return {status: 500, ids_company: []};
     }
 }

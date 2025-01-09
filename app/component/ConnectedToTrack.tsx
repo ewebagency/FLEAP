@@ -27,12 +27,12 @@ const ConnectedToTrack = () => {
   return (
     <div>
       {token ?
-        <div className="inline-block text-xs text-white py-1 px-2 rounded-lg bg-green-600">
-          Connecté à TrackDéchet
+        <div className="inline-block text-xs text-white py-1 px-2 rounded-md bg-[var(--green-medium)]">
+          Connecté à TrackDéchets
         </div>
         :
-        <div className="inline-block text-xs text-white py-1 px-2 rounded-lg bg-gray-400">
-          Non connecté à TrackDéchet
+        <div className="inline-block text-xs text-white py-1 px-2 rounded-md bg-gray-400">
+          Non connecté à TrackDéchets
         </div>
       }
     </div>

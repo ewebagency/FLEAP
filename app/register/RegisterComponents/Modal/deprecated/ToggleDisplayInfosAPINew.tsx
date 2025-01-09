@@ -1,4 +1,4 @@
-import { useModal } from "../../component/context/ModalReloadcontext";
+import { useModal } from "../../../../component/context/ModalReloadcontext";
 import { BSD_Data_Interface } from "@/app/register/interface/BSD_Interface";
 
 export default function ToggleDisplayInfosAPI({data, onChange}:{data:BSD_Data_Interface, onChange: (e: React.ChangeEvent<HTMLInputElement>) => void}){

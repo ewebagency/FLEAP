@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import ConnectedToTrack from "../component/ConnectedToTrack";
 import { useSession } from "../component/SessionProvider";
 import { useSearchParams } from 'next/navigation';
@@ -71,18 +71,19 @@ const BandeauAPI = () => {
         console.log("cookie dans useEffect : ", Cookies.get('trackdechets_token'));
     }, []);
     return (
-        <div className="p-2 my-3 w-full rounded-xl border-gray-800 border-[1px]">
+        <div className="py-0 px-3 my-3 w-full rounded-md border-gray-300 border-[1px]">
             <div className="flex justify-between items-center">
-                <div className="text-md">Interfaces clients connectées</div>
+                {/* <div className="text-md">Interfaces clients connectées</div> */}
+                <ConnectedToTrack/>
                 <button 
-                    className="btn flex bg-gray-200 rounded-xl text-xs font-thin justify-between items-center"
+                    className="p-2 my-2 flex hover:bg-gray-100 active:bg-gray-200 rounded-xl text-xs font-thin justify-between items-center space-x-2"
                     onClick={handleAPIConnection}
                     title="Vous allez être redirigé vers la page de connexion TrackDéchet">
                     <div className="px-1 text-md text-white bg-green-800 rounded-full">+</div>
-                    <div>Ajouter une API</div>
+                    <div>Se connecter à TrackDéchets</div>
                 </button>
             </div>
-            <ConnectedToTrack/>
+            {/* <ConnectedToTrack/> */}
         </div>
     );
 }

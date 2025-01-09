@@ -1,53 +1,46 @@
 import { supabase } from "@/app/database/supabaseClient";
-import { DataOnSupabase_infos_json } from "@/app/register/interface/BSD_Interface";
+import { DataOnSupabase_infos_json, FormInput } from "@/app/register/interface/BSD_Interface";
+import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/utils_new";
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 interface BSD_Export_Interface {
+    "Filière": string | number | null,
     "Code déchet": string | number | null,
     "Nom du déchet": string | number | null,
-    "Volume estimé": string | number | null,
-    "Code de convention Bâle": string | number | null,
-    "Date de collecte": string | number | null,
-    "N° BSD": string | number | null,
+    "Date de création": string | number | null,
     "N° TrackDéchet": string | number | null,
-    "Date de confirmation par le transporteur": string,
-
+    "Point de collecte": string | number | null,
     "Adresse de collecte": string | number | null,
     
     "N° Siret du Producteur": string | number | null,
     "Raison sociale du Producteur": string | number | null,
     "Adresse du siège social du Producteur": string | number | null,
 
-    "N° SIRET du transporteur": string|number|null,
+    "N° SIRET du transporteur": string | number | null,
     "Raison sociale du transporteur": string | number | null,
     "N° de récipissé du transporteur": string | number | null,
 
-    "N° SIRET du prestataire final": string |number | null,
-    "Raison sociale du prestataire final": string |number | null,
+    "N° SIRET du prestataire final": string | number | null,
+    "Raison sociale du prestataire final": string | number | null,
     "Adresse du prestataire final": string | number | null,
     "N° de récipissé du prestataire final": string | number | null,
     "Qualification de traitement": string | number | null,
     "Code de traitement": string | number | null,
+
+    "Date de collecte": string | number | null,
+    "Poids estimé en tonne": string | number | null,
+    "Type de contenant": string | number | null,
+    "Nombre de contenants": string | number | null,
     
-    /*
-    "N° SIRET de l'installation intermédiaire": string | number | null,
-    "Raison sociale de l'installation intermédiaire": string | number | null,
-    "N° de récipissé de l'installation intermédiaire": string | number | null,
-
-    "N° SIRET de l'Eco-organisme": string | number | null,
-    "Raison sociale de l'Eco-organisme": string | number | null,
-    "Adresse de l'Eco-organisme": string | number | null,
-    */
-
-    // Informations financières
-    "Montant TTC": string | number | null,
-    "Coûts de préparation HT": string | number | null,
-    "Coûts de transport HT": string | number | null,
-    "Coûts de traitement HT": string | number | null,
-    "Coûts HT/tonne": string | number | null,
-    "TVA": string | number | null,
-    "Coûts TTC": string | number | null
+    "Code ONU": string | number | null,
+    "Consistence": string | number | null,
+    "ADR": string | number | null,
+    "Déchet dangereux": string | number | null,
+    
+    "Montant TTC": string
 }
 
 interface Facture_Info_Interface {
@@ -110,28 +103,82 @@ interface Facture_Info_Interface {
 }
 
 export async function GET(request: Request) {
+    try {
     const { searchParams } = new URL(request.url);
-    const user_id = searchParams.get('user_id');
-    const {data, error} = await supabase
+    const entreprise_id = searchParams.get('entreprise_id');
+        
+        if (!entreprise_id) {
+            console.error('Pas d\'entreprise_id fourni');
+            return NextResponse.json({ message: 'entreprise_id manquant' }, { status: 400 });
+        }
+    
+    // Récupérer les données BSD
+    const {data: bsdData, error: bsdError} = await supabase
     .from('bsd')
-    .select('infos_json, facture_treated, facture_infos, readable_id_track_dechets')
-    .eq('user_id', user_id); //Attention à terme filtrer sur la  boite et pas le user id !!!! ⚠⚠⚠⚠⚠
+    .select('infos_json, created_at, facture_treated, facture_infos, readable_id_track_dechets')
+    .eq('entreprise_id', entreprise_id);
 
-    if(error) {
-        return NextResponse.json({ message: 'Erreur lors de l\'export' }, {status: 500});
-    } else {
-        return exportToExcel(formatBSDData(data), 'export_register');
-        //return NextResponse.json({ message: 'Export réussi' }, {status: 200});
+        if (bsdError) {
+            console.error('Erreur lors de la récupération des BSDs:', bsdError);
+            return NextResponse.json({ message: 'Erreur lors de la récupération des BSDs' }, { status: 500 });
+        }
+
+        if (!bsdData || bsdData.length === 0) {
+            console.log('Aucun BSD trouvé pour cette entreprise');
+            return NextResponse.json({ message: 'Aucun BSD trouvé' }, { status: 404 });
+        }
+
+    // Récupérer les informations de l'entreprise
+    const {data: entrepriseData, error: entrepriseError} = await supabase
+    .from('entreprise')
+    .select('name')
+    .eq('id', entreprise_id)
+    .single();
+
+        if (entrepriseError) {
+            console.error('Erreur lors de la récupération des infos entreprise:', entrepriseError);
+            return NextResponse.json({ message: 'Erreur lors de la récupération des infos entreprise' }, { status: 500 });
+    }
+
+        const mapping_filiere = await getMappingTableFiliere(entreprise_id);
+        console.log('Mapping filière récupéré:', mapping_filiere);
+
+        try {
+    const var_to_export = formatBSDData(bsdData, mapping_filiere) as BSD_Export_Interface[];
+            console.log('Données formatées avec succès, nombre d\'entrées:', var_to_export.length);
+    
+    return exportToExcel(
+        var_to_export, 
+        'export_register',
+        entrepriseData?.name ?? 'Entreprise'
+    );
+        } catch (formatError) {
+            console.error('Erreur lors du formatage des données:', formatError);
+            return NextResponse.json({ 
+                message: 'Erreur lors du formatage des données',
+                error: formatError instanceof Error ? formatError.message : 'Erreur inconnue'
+            }, { status: 500 });
+        }
+
+    } catch (error) {
+        console.error('Erreur générale:', error);
+        return NextResponse.json({ 
+            message: 'Erreur lors de l\'export',
+            error: error instanceof Error ? error.message : 'Erreur inconnue'
+        }, { status: 500 });
     }
 }
 
 const formatBSDData = (data: {
-    infos_json: DataOnSupabase_infos_json, 
+    infos_json: {formAPI: {createFormInput: FormInput}}, 
+    created_at: string,
     facture_treated: boolean, 
     facture_infos: Facture_Info_Interface,
     readable_id_track_dechets: string
-}[]) => {
-    return data.map((item) => {
+}[], mapping_filiere: {ced: string, filiere: string}[]) => {
+    try {
+        return data.map((item, index) => {
+            try {
         const getValue = (accessor: () => string|number|boolean|null, defaultValue: string = 'Non trouvé'): string|number|null => {
             try {
                 const value = accessor();
@@ -139,26 +186,33 @@ const formatBSDData = (data: {
                     return value.toString();
                 }
                 return value ?? defaultValue;
-            } catch {
+                    } catch (error) {
+                        console.error(`Erreur lors de l'accès à une valeur, index ${index}:`, error);
                 return defaultValue;
             }
         };
 
+        const filiere = mapping_filiere.find(mapping => mapping.ced?.replaceAll(' ', '').replace('*', '') === item.infos_json.formAPI.createFormInput.wasteDetails.code?.replaceAll(' ', '').replace('*', ''));
+        console.log("filiere dans export route", filiere);
         return {
+            "Filière": getValue(() => filiere ? filiere.filiere : ''),
             "Code déchet": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.code),
-            "Nom du déchet": getValue(() => ''),
-            "Volume estimé": getValue(() => ''),
-            "Code de convention Bâle": getValue(() => null, 'Pas encore disponible'),
-            "Date de collecte": getValue(() => ''),
-            "N° BSD": getValue(() => null, item.readable_id_track_dechets),
-            "N° TrackDéchet": getValue(() => null, 'Pas encore disponible'),
-            "Date de confirmation par le transporteur": getValue(() => null, 'Pas encore disponible')?.toString() ?? 'Pas encore disponible',
+            "Nom du déchet": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.name),
+            "Date de création": getValue(() => item.created_at),
+            //"Volume estimé": getValue(() => ''),
+            //"Code de convention Bâle": getValue(() => null, ''),
+            //"Date de collecte": getValue(() => item.infos_json.formAPI.createFormInput.),
+            "N° TrackDéchet": getValue(() => null, item.readable_id_track_dechets),
+            //"Date de confirmation par le transporteur": getValue(() => null, '')?.toString() ?? '',
 
+            "Point de collecte": getValue(() => {
+                const workSite = item.infos_json.formAPI.createFormInput.emitter.workSite;
+                return workSite?.name ?? '';
+            }),
             "Adresse de collecte": getValue(() => {
                 const workSite = item.infos_json.formAPI.createFormInput.emitter.workSite;
-                return workSite ? 
-                    `${workSite.address} ${workSite.postalCode} ${workSite.city}` : 
-                    'Non trouvé';
+                if (!workSite) return '';
+                return `${workSite.address ?? ''} ${workSite.postalCode ?? ''} ${workSite.city ?? ''}`.trim() || 'Non renseigné';
             }),
             
             "N° Siret du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.siret),
@@ -167,58 +221,108 @@ const formatBSDData = (data: {
 
             "N° SIRET du transporteur": getValue(() => item.infos_json.formAPI.createFormInput.transporter.company.siret),
             "Raison sociale du transporteur": getValue(() => item.infos_json.formAPI.createFormInput.transporter.company.name),
-            "N° de récipissé du transporteur": getValue(() => null, 'Pas encore disponible'),
+            "N° de récipissé du transporteur": getValue(() => null, ''),
 
             "N° SIRET du prestataire final": getValue(() => item.infos_json.formAPI.createFormInput.recipient.company.siret),
             "Raison sociale du prestataire final": getValue(() => item.infos_json.formAPI.createFormInput.recipient.company.name),
             "Adresse du prestataire final": getValue(() => item.infos_json.formAPI.createFormInput.recipient.company.address),
-            "N° de récipissé du prestataire final": getValue(() => null, 'Pas encore disponible'),
-            "Qualification de traitement": getValue(() => null, 'Pas encore disponible'),
-            "Code de traitement": getValue(() => null, item.infos_json.formAPI.createFormInput.recipient.processingOperation.toString()),
+            "N° de récipissé du prestataire final": getValue(() => null, ''),
+            "Code de traitement": getValue(() => null, item.infos_json.formAPI.createFormInput.recipient.processingOperation?.toString() ?? ''),
             
-            /*"N° SIRET de l'installation intermédiaire": getValue(() => item.infos_json.formAPI.createFormInput.intermediary.company.siret),
-            "Raison sociale de l'installation intermédiaire": getValue(() => item.infos_json.formAPI.createFormInput.intermediary.company.name),
-            "N° de récipissé de l'installation intermédiaire": getValue(() => null, 'Pas encore disponible'),
-
-            "N° SIRET de l'Eco-organisme": getValue(() => item.infos_json.formAPI.createFormInput.ecoOrganism.company.siret),
-            "Raison sociale de l'Eco-organisme": getValue(() => item.infos_json.formAPI.createFormInput.ecoOrganism.company.name),
-            "Adresse de l'Eco-organisme": getValue(() => item.infos_json.formAPI.createFormInput.ecoOrganism.company.address),*/
-
-            // Informations financières
-            "Montant TTC": item.facture_treated ? "Bientôt disponible" : "Pas encore disponible",
-            "Coûts de préparation HT": item.facture_treated ? 
-                getValue(() => item.facture_infos.ligne_compta_preparation.montant_ht.toString()) : 
-                "Pas encore disponible",
-            "Coûts de transport HT": item.facture_treated ? 
-                getValue(() => item.facture_infos.ligne_compta_transport.montant_ht.toString()) : 
-                "Pas encore disponible",
-            "Coûts de traitement HT": item.facture_treated ? 
-                getValue(() => item.facture_infos.ligne_compta_traitement.montant_ht.toString()) : 
-                "Pas encore disponible",
-            "Coûts HT/tonne": item.facture_treated ? 
-                getValue(() => item.facture_infos.ligne_compta_traitement.montant_ht.toString()) : 
-                "Pas encore disponible",
-            "TVA": item.facture_treated ? "Bientôt disponible" : "Pas encore disponible",
-            "Coûts TTC": item.facture_treated ? "Bientôt disponible" : "Pas encore disponible"
+            "Date de collecte": getValue(() => item.infos_json.formAPI.createFormInput.emittedAt ?? ''),
+            "Poids estimé en tonne": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.quantity),
+            "Type de contenant": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.packagingInfos.map(packaging => packaging.type).join(', ')),
+            "Nombre de contenants": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.packagingInfos.map(packaging => packaging.quantity).join(', ')),
+            
+            "Code ONU": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.onuCode),
+            "Consistence": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.consistence ?? ''),
+            "ADR": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.isSubjectToADR ?? ''),
+            "Déchet dangereux": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.isDangerous ?? ''),
+            
+            "Montant TTC": item.facture_treated ? "" : ""
         };
+            } catch (error) {
+                console.error(`Erreur lors du traitement de l'item ${index}:`, error);
+                throw error;
+            }
     });
+    } catch (error) {
+        console.error('Erreur dans formatBSDData:', error);
+        throw error;
+    }
 };
 
-const exportToExcel = (data : BSD_Export_Interface[], fileName: string) => {
-    // Convertir le JSON en feuille de calcul
-    const worksheet = XLSX.utils.json_to_sheet(data);
+const exportToExcel = (data: BSD_Export_Interface[], fileName: string, entrepriseName: string) => {
+    try {
+    // Créer une nouvelle feuille de calcul
+    const worksheet = XLSX.utils.aoa_to_sheet([]);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
-  
-    // Générer le fichier Excel en mémoire
-  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
-  // Configurer la réponse HTTP pour le téléchargement
+    // Ajouter le titre et la date
+    const today = format(new Date(), 'dd MMMM yyyy HH:mm', { locale: fr });
+    const title = `Registre des déchets - ${entrepriseName}`;
+    const subtitle = `Export réalisé le ${today}`;
+
+    // Définir les styles
+    const headerStyle = {
+        font: { bold: true, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "2B5797" } },
+        alignment: { horizontal: "center" }
+    };
+
+    const titleStyle = {
+        font: { bold: true, size: 16 },
+        alignment: { horizontal: "center" }
+    };
+
+    const subtitleStyle = {
+        font: { italic: true, size: 12 },
+        alignment: { horizontal: "center" }
+    };
+
+    // Ajouter le titre et sous-titre
+    worksheet['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: Object.keys(data[0]).length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: Object.keys(data[0]).length - 1 } }
+    ];
+
+    XLSX.utils.sheet_add_aoa(worksheet, [[title], [subtitle]], { origin: 'A1' });
+
+    // Ajouter les données à partir de la ligne 4
+    XLSX.utils.sheet_add_json(worksheet, data, { origin: 'A4' });
+
+    // Appliquer les styles aux en-têtes de colonnes
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+        const address = XLSX.utils.encode_col(C) + '4';
+        if (!worksheet[address]) continue;
+        worksheet[address].s = headerStyle;
+    }
+
+    // Ajuster la largeur des colonnes
+    const columnWidths = Object.keys(data[0]).map(key => ({
+        wch: Math.max(20, key.length * 1.2)
+    }));
+    worksheet['!cols'] = columnWidths;
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Registre BSD");
+
+    // Générer le fichier Excel
+    const buffer = XLSX.write(workbook, { 
+        type: 'buffer', 
+        bookType: 'xlsx',
+        bookSST: false
+    });
+
   return new NextResponse(buffer, {
     status: 200,
     headers: {
-      'Content-Disposition': `attachment; filename="${fileName}.xlsx"`,
+            'Content-Disposition': `attachment; filename="${fileName}_${format(new Date(), 'yyyy-MM-dd')}.xlsx"`,
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         },
     });
+    } catch (error) {
+        console.error('Erreur lors de la création du fichier Excel:', error);
+        throw error;
+    }
 };

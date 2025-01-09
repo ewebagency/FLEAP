@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { SessionMore, useSession } from '../component/SessionProvider'; // Assurez-vous d'importer le hook de session
+import { SessionMore, useSession } from '../../../../component/SessionProvider'; // Assurez-vous d'importer le hook de session
 
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 interface InfosJson {

@@ -1,5 +1,5 @@
 import { ModalProviderNew } from "../RegisterComponents/Modal/ContextModal";
-import ModalSource from "../RegisterComponents/Modal/ModalSource";
+import ModalSource from "../RegisterComponents/Modal/FormulaireFull/ModalSource";
 
 const ModalSourceBefore = () => {
 

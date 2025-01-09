@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { useModalContextNew } from "./ContextModal";
+import { useModalContextNew } from "../ContextModal";
 import { toast } from "react-hot-toast";
 import { useSession } from "@/app/component/SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
-import { BSDD_TrackDechets, DataOnSupabase_infos_json, DataSupplementaireInterface, DataTotalInterface, Form_API_Interface_Short, FormInput } from "../../interface/BSD_Interface";
+import { FormInput } from "../../../interface/BSD_Interface";
 import Swal from 'sweetalert2';
-import { getMappingTableFiliere, getFiliere } from "./utils_new";
+import { getMappingTableFiliere, getFiliere } from "../FormulaireFull/utils_new";
 
 const LabelInput = ({ label, value, onChange, path }: { 
     label: string, 
@@ -25,7 +25,7 @@ const LabelInput = ({ label, value, onChange, path }: {
 );
 
 const ModifyCard = () => {
-    const { modalId, modalType, setModalType, dataToogle, setDataToogle, modalReload, setModalReload } = useModalContextNew();
+    const { modalId, modalType, setModalType, setDataToogle, modalReload, setModalReload } = useModalContextNew();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [localData, setLocalData] = useState<FormInput>({
         emitter: {
@@ -87,7 +87,6 @@ const ModifyCard = () => {
       });
     const session = useSession();
     const [filiere, setFiliere] = useState<string>("");
-    const [createdAt, setCreatedAt] = useState<string>("");
 
     const getBSD = async (entrepriseId: string) => {
         const result = await supabase
@@ -100,7 +99,7 @@ const ModifyCard = () => {
         if (result.data) {
             //setBSDAutresInfos(result.data);
             setLocalData(result.data.infos_json.formAPI.createFormInput);
-            console.log('localData', localData);
+            //console.log('localData', localData);
         }
     }
 
@@ -122,17 +121,22 @@ const ModifyCard = () => {
     }, [localData, session]);
 
     const handleChange = (path: string, value: string) => {
+        console.log("localData", localData);
         setLocalData(prev => {
             if (!prev) return prev;
             const newData = { ...prev };
             
             if (path.includes('packagingInfos')) {
-                if (path.includes('type')) {
-                    newData.wasteDetails.packagingInfos[0].type = value as "AUTRE" | "FUT" | "GRV" | "CITERNE" | "BENNE" | "PIPELINE";
-                } else if (path.includes('quantity')) {
-                    newData.wasteDetails.packagingInfos[0].quantity = Number(value);
-                } else if(path.includes('other')){
-                    newData.wasteDetails.packagingInfos[0].other = value;
+                if(newData.wasteDetails.packagingInfos.length === 0){
+                    newData.wasteDetails.packagingInfos.push({ type: "AUTRE", quantity: 0, other: "" });
+                } else {
+                    if (path.includes('type')) {
+                        newData.wasteDetails.packagingInfos[0].type = value as "AUTRE" | "FUT" | "GRV" | "CITERNE" | "BENNE" | "PIPELINE";
+                    } else if (path.includes('quantity')) {
+                        newData.wasteDetails.packagingInfos[0].quantity = Number(value);
+                    } else if(path.includes('other')){
+                        newData.wasteDetails.packagingInfos[0].other = value;
+                    }
                 }
                 return newData;
             }
@@ -178,6 +182,7 @@ const ModifyCard = () => {
             const dataToSend = { ...localData };
             
             // Conversion des quantités en nombres avant envoi
+            console.log("datatoSend", typeof dataToSend.wasteDetails.packagingInfos[0]);
             if (typeof dataToSend.wasteDetails.quantity === 'string' || typeof dataToSend.wasteDetails.quantity === 'number') {
                 dataToSend.wasteDetails.quantity = Number(String(dataToSend.wasteDetails.quantity).replace(',', '.'));
             }
@@ -200,10 +205,11 @@ const ModifyCard = () => {
             const apiResult = await response.json();
             if (apiResult.success) {
                 setDataToogle(dataToSend);
-                toast.success("BSD modifié avec succès");
+                toast.success(apiResult.message);
                 setModalType("");
                 setModalReload(!modalReload);
             } else {
+                console.log('dataToSend', dataToSend);
                 toast.error(apiResult.message || "Erreur lors de la modification");
             }
         } catch (error) {
@@ -216,7 +222,7 @@ const ModifyCard = () => {
 
     if (!localData || modalType !== "modify") return null;
 
-    console.log('localData', localData);
+    
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-lg p-6 max-w-6xl w-[80%] max-h-[90vh] overflow-y-auto">

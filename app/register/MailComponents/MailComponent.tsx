@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useMailContext } from './MailContext';
-import { getMappingTableFiliere, getFiliere } from '../RegisterComponents/Modal/utils_new';
+import { getMappingTableFiliere, getFiliere } from '../RegisterComponents/Modal/FormulaireFull/utils_new';
 
 interface EmailTemplate {
     name: string;
@@ -39,8 +39,7 @@ const emailTemplates: EmailTemplate[] = [
             const filiere = getFiliere(params.wasteCode, mappingTable);
             return `Demande de collecte - ${filiere} | ${params.entrepriseName}`;
         },
-        getBody: (params: EmailParams) => `
-Bonjour Madame, Monsieur,
+        getBody: (params: EmailParams) => `Bonjour Madame, Monsieur,
 
 Nous souhaitons organiser une collecte de déchets au nom de l'entreprise ${params.entrepriseName} dès que possible.
 
@@ -178,15 +177,15 @@ const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=fal
     };
 
     return (
-        <div className="mt-8 max-w-5xl mx-auto mb-7">
+        <div className="mt-7 w-[95%] ml-8 mb-0">
             {pastBrouillon && false && <div className="text-center text-xl text-black font-bold">Brouillon</div>}
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
                 <div className="grid grid-cols-12 divide-x divide-gray-200">
-                    <div className="col-span-4 p-4 space-y-4">
+                    <div className="col-span-4 p-3 space-y-2.5">
                         <div>
-                            <label className="block text-sm text-gray-600 mb-1">Modèle</label>
+                            <label className="block text-xs text-gray-600 mb-1">Modèle</label>
                             <select 
-                                className="block w-full text-sm rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                className="block w-full text-xs py-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={selectedTemplate}
                                 onChange={(e) => setSelectedTemplate(Number(e.target.value))}
                             >
@@ -196,38 +195,40 @@ const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=fal
                             </select>
                         </div>
 
-                        <div>
-                            <label className="block text-sm text-gray-600 mb-1">À:</label>
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-600 w-24">À:</label>
                             <input
                                 type="email"
                                 required
-                                className="block w-full text-sm pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                className="block w-full text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={to}
                                 onChange={(e) => setTo(e.target.value)}
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm text-gray-600 mb-1">Cc:</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="email"
-                                    className="block flex-1 text-sm pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                    value={cc}
-                                    onChange={(e) => setCc(e.target.value)}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={handleAddCc}
-                                    className="px-2 py-1 text-sm bg-gray-100 rounded-md hover:bg-gray-200"
-                                >
-                                    +
-                                </button>
+                            <div className="flex items-center gap-2">
+                                <label className="text-xs text-gray-600 w-24">Cc:</label>
+                                <div className="flex flex-1 gap-1">
+                                    <input
+                                        type="email"
+                                        className="block flex-1 text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        value={cc}
+                                        onChange={(e) => setCc(e.target.value)}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleAddCc}
+                                        className="px-2 py-1 text-xs bg-gray-100 rounded-md hover:bg-gray-200"
+                                    >
+                                        +
+                                    </button>
+                                </div>
                             </div>
                             {ccList.length > 0 && (
-                                <div className="mt-2 space-y-1">
+                                <div className="mt-1 ml-24 space-y-1">
                                     {ccList.map((email) => (
-                                        <div key={email} className="flex items-center gap-2 text-sm">
+                                        <div key={email} className="flex items-center gap-1 text-xs">
                                             <span className="flex-1 truncate">{email}</span>
                                             <button
                                                 type="button"
@@ -242,43 +243,33 @@ const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=fal
                             )}
                         </div>
 
-                        <div>
-                            <label className="block text-sm text-gray-600 mb-1">Répondre à:</label>
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-600 w-24">Répondre à:</label>
                             <input
                                 type="email"
                                 required
-                                className="block w-full text-sm pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                className="block w-full text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={replyTo}
                                 onChange={(e) => setReplyTo(e.target.value)}
                             />
                         </div>
 
-                        <div>
-                            <label className="block text-sm text-gray-600 mb-1">Objet:</label>
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-600 w-24">Objet:</label>
                             <input
                                 type="text"
                                 required
-                                className="block w-full text-sm pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                className="block w-full text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={subject}
                                 onChange={handleSubjectChange}
                             />
                         </div>
-
-                        {/*<div className="pt-4">
-                            <button
-                                type="submit"
-                                onClick={handleSubmit}
-                                className="w-full inline-flex justify-center items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                            >
-                                Envoyer l'email
-                            </button>
-                        </div>*/}
                     </div>
 
                     <div className="col-span-8 flex flex-col">
                         <textarea
                             required
-                            className="flex-1 w-full p-4 text-sm text-gray-800 font-sans leading-relaxed bg-gray-50 border-0 focus:ring-0 resize-none min-h-[250px]"
+                            className="flex-1 w-full p-3 text-xs leading-tight text-black font-sans bg-gray-50 border-0 focus:ring-0 resize-none min-h-[250px]"
                             value={emailBody}
                             onChange={handleEmailBodyChange}
                         />

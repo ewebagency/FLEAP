@@ -64,7 +64,7 @@ interface ModalContextType {
     displayFormulaire: boolean;
     setDisplayFormulaire: (value: boolean) => void;
     dataToogle: FormInput;
-    setDataToogle: (data: FormInput) => void;
+    setDataToogle: React.Dispatch<React.SetStateAction<FormInput>>;
     options: FormInput[];
     setOptions: (options: FormInput[]) => void;
 

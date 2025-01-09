@@ -8,6 +8,16 @@ export interface Filiere {
 }
 
 export interface Site {
+  orgId: string;
+  name: string;
+  givenName: string;
+  checked: boolean;
+  activated: boolean;
+  isTrackDechets?: boolean;
+  isInDb?: boolean;
+}
+
+export interface PointCollecte {
   name: string;
   checked: boolean;
 }
@@ -26,21 +36,24 @@ export interface FiliereOuPrestataireInterface {
   nom : 'filiere' | 'prestataire';
 }
 
-interface FilterContextType {
+export interface FilterContextType {
   filieres: Filiere[];
   sites: Site[];
+  points_collecte: PointCollecte[];
   prestataires: Prestataire[];
   segmentDates: SegmentDates;
   filieres_ou_prestataires: FiliereOuPrestataireInterface;
 
   setFilieres: (filieres: Filiere[]) => void;
   setSites: (sites: Site[]) => void;
+  setPointsCollecte: (points_collecte: PointCollecte[]) => void;
   setPrestataires: (prestataires: Prestataire[]) => void;
   setSegmentDates: (dates: SegmentDates) => void;
   setFilieresOuPrestataires: (filieres_ou_prestataires: FiliereOuPrestataireInterface) => void;
 
   toggleFiliere: (name: string) => void;
-  toggleSite: (name: string) => void;
+  toggleSite: (orgId: string) => void;
+  togglePointsCollecte: (name: string) => void;
   togglePrestataire: (name: string) => void;
   resetAllFilters: () => void;
 }
@@ -62,6 +75,7 @@ interface FilterProviderProps {
 export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   const [filieres, setFilieres] = useState<Filiere[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [points_collecte, setPointsCollecte] = useState<PointCollecte[]>([]);
   const [prestataires, setPrestataires] = useState<Prestataire[]>([]);
   const [segmentDates, setSegmentDates] = useState<SegmentDates>({ debut: null, fin: null });
   const [filieres_ou_prestataires, setFilieresOuPrestataires] = useState<FiliereOuPrestataireInterface>({ nom: 'filiere' });
@@ -83,11 +97,19 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
     }
   };
 
-  const toggleSite = (name: string) => {
+  const toggleSite = (orgId: string) => {
     setSites(prev => prev.map(site => 
-      site.name === name 
+      site.orgId === orgId 
         ? { ...site, checked: !site.checked }
         : site
+    ));
+  };
+
+  const togglePointsCollecte = (name: string) => {
+    setPointsCollecte(prev => prev.map(point_collecte => 
+      point_collecte.name === name 
+        ? { ...point_collecte, checked: !point_collecte.checked }
+        : point_collecte
     ));
   };
 
@@ -102,6 +124,7 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   const resetAllFilters = () => {
     setFilieres(prev => prev.map(f => ({ ...f, checked: true })));
     setSites(prev => prev.map(s => ({ ...s, checked: true })));
+    setPointsCollecte(prev => prev.map(p => ({ ...p, checked: true })));
     setPrestataires(prev => prev.map(p => ({ ...p, checked: true })));
     setSegmentDates({ debut: null, fin: null });
   };
@@ -118,6 +141,11 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
         setSites(JSON.parse(savedSites));
       }
 
+      const savedPointsCollecte = localStorage.getItem('points_collecte');
+      if (savedPointsCollecte) {
+        setPointsCollecte(JSON.parse(savedPointsCollecte));
+      }
+
       setIsInitialized(true);
     }
   }, [isInitialized]);
@@ -126,22 +154,26 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
     if (isInitialized) {
       localStorage.setItem('filieres', JSON.stringify(filieres));
       localStorage.setItem('sites', JSON.stringify(sites));
+      localStorage.setItem('points_collecte', JSON.stringify(points_collecte));
     }
-  }, [filieres, sites, isInitialized]);
+  }, [filieres, sites, points_collecte, isInitialized]);
 
   const value = {
     filieres,
     sites,
+    points_collecte,
     prestataires,
     segmentDates,
     filieres_ou_prestataires,
     setFilieres,
     setSites,
+    setPointsCollecte,
     setPrestataires,
     setSegmentDates,
     setFilieresOuPrestataires,
     toggleFiliere,
     toggleSite,
+    togglePointsCollecte,
     togglePrestataire,
     resetAllFilters,
   };

@@ -81,7 +81,7 @@ export async function POST(req: Request) {
         console.log("token_track : ", token_track);
         const cond_signature = await tokenAlreadyRegister(signature);
 
-        if (!cond_signature.already_register){ //|| signature !== token_track) {
+        if (!cond_signature.already_register) {
             console.log('Signature invalide');
             return NextResponse.json({ message: 'Signature invalide' }, { status: 204 });
         }
@@ -91,7 +91,13 @@ export async function POST(req: Request) {
 
         // Lire le corps de la requête
         const rawBody = await req.text();
-        //console.log('Corps de la requête:', rawBody);
+        console.log('Corps de la requête:', rawBody);
+
+        // Vérifier si le corps est vide
+        if (!rawBody || rawBody.trim() === '') {
+            console.log('Corps de requête vide - probablement une vérification de webhook');
+            return NextResponse.json({ message: 'Webhook vérifié avec succès' }, { status: 200 });
+        }
 
         try {
             const event = JSON.parse(rawBody);
@@ -100,26 +106,26 @@ export async function POST(req: Request) {
             const {action, id} = event[0];
             await HandleBSD_Supabase(action, id, token_track, url_track??'', cond_signature.user_id, cond_signature.entreprise_id);
             
-            // Émettre la notification via fetch
-            console.log("🤙 appel de la route emit notif")
-            await fetch(process.env.NEXT_PUBLIC_APP_URL + '/api/notifications/emit', {
+            // Après avoir traité le BSD, ajouter une notification au cache
+            await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/notifications/cache`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    type: 'bsd_update',
-                    userId: cond_signature.user_id
+                    userId: cond_signature.user_id,
+                    type: 'bsd_update'
                 })
             });
 
             return NextResponse.json({ status: 200 });
         } catch (parseError) {
             console.error('Erreur de parsing JSON:', parseError);
-            return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
+            // Si le corps n'est pas du JSON valide, on renvoie quand même un succès
+            return NextResponse.json({ message: 'Requête reçue' }, { status: 200 }); 
         }
 
     } catch (error) {
         console.error('Erreur générale:', error);
-        return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
+        return NextResponse.json({ status: 200 }); 
     }
 }
 
@@ -485,7 +491,9 @@ const HandleBSD_Supabase = async (action: string, id: string, token_track: strin
         console.error('Erreur lors de la requête à TrackDéchet:');//, error.response.data.errors[0]);
     }
     
-    return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
+
+
+    return { status: 200 }; //Sinon on nous désactive le webhook
 }
 
 
@@ -522,7 +530,7 @@ const createBSD_Supabase = async (readableId: string, data: {data: {form: formAP
     } catch (error) {
         console.error('Erreur lors de la création du BSD : ', error);
     }
-    return NextResponse.json({ status: 200 });
+    return { status: 200 };
 }
 
 const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAPI_Track}}, user_id: string, entreprise_id: string) => {
@@ -579,7 +587,7 @@ const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAP
         //console.log("BDD mise à jour : ", response);
         //console.log("Truc modifié : ", past_infos_json.formAPI.createFormInput.emitter);
 
-        return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
+        return { status: 200 }; //Sinon on nous désactive le webhook
     }
 }
 
@@ -591,10 +599,10 @@ const deleteBSD_Supabase = async (readableId: string) => {
 
     if(response){
         console.log("BSD supprimé de la BDD");
-        return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
+        return { status: 200 }; //Sinon on nous désactive le webhook
     } else {
         console.log("Erreur lors de la suppression du BSD de la BDD");
-        return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
+        return { status: 200 }; //Sinon on nous désactive le webhook
     }
 }
 
@@ -613,7 +621,7 @@ const handleBSD_Created_on_Track = async (readableId: string, data: {data: {form
         return createBSD_Supabase(readableId, data, [user_id], [entreprise_id]);
     } else {
         console.log("BSD déjà existant dans la BDD");
-        return NextResponse.json({ status: 200 }); //Sinon on nous désactive le webhook
+        return { status: 200 }; //Sinon on nous désactive le webhook
     }
 }
 

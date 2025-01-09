@@ -3,11 +3,11 @@ import React, { useEffect, useState } from 'react';
 import { SessionMore, useSession } from './SessionProvider';
 import { supabase } from '../database/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { Session } from '@supabase/supabase-js';
 import DetailsSideBar from './DetailsSideBar';
-import FiltreSite from './FiltreSite';
-import FiltreDate from './FiltreDate';
-
+import FiltrePointCollecte from './FiltrePointCollecte';
+//import FiltreDate from './FiltreDate';
+import FiltreSiteEtablissement from '../import_page/FiltreSiteEtablissement';
+import 'boxicons';
 
 interface SideBarProps {
     className_props: string;
@@ -23,6 +23,7 @@ const cofounders_user_id = (user_id:string|null) => {
 }
 
 const SideBar = (props:SideBarProps) => {
+    const [isCollapsed, setIsCollapsed] = useState(false);
     const session = useSession() as SessionMore;
     const router = useRouter();
     const [userNames, setUserNames] = useState({first_name:'', last_name:''});
@@ -55,7 +56,7 @@ const SideBar = (props:SideBarProps) => {
                 if(data){
                     setUserNames({first_name:data.first_name, last_name:data.last_name});
                     if (data.entreprise_id){
-                        const {data:entreprise, error:error_entreprise} = await supabase
+                        const {data:entreprise} = await supabase
                         .from('entreprise')
                         .select('name')
                         .eq('id', data.entreprise_id)
@@ -95,26 +96,100 @@ const SideBar = (props:SideBarProps) => {
 
     return (
         <div>
-            {connected &&<div className={`menu h-screen bg-base-200 w-60 p-4 flex flex-col ${props.className_props}`}>
-                <div className="flex-grow">
-                    <h1 className="font-bold text-xl mb-4 ml-4">{entreprise_name}</h1>
-                    <FiltreSite/>
-                    {/*<FiltreDate/>*/}
-                    <ul className="space-y-2">
-                        {cofounderPermission && <li><a href="/analysis" className="menu-item">Analyses</a></li>}
-                        <li><a href="/register" className="menu-item">Registre</a></li>
-                        <li><a href="/import_page" className="menu-item">Importer</a></li>
-                        {cofounderPermission && <li><a href="/interface_admin_2" className="menu-item">Vérification de factures</a></li>}
-                        {cofounderPermission && <li><a href="/lien" className="menu-item">Lien entre Factures et BSDs</a></li>}
-                    </ul>
+            {connected && 
+                <div className={`menu h-screen bg-gray-100 ${isCollapsed ? 'w-16' : 'w-47'} p-4 flex flex-col transition-all duration-300 ${props.className_props}`}>
+                    <div className="flex-grow">
+                        <div className="flex justify-between items-center mb-4">
+                            {!isCollapsed && <h1 className="font-bold text-xl ml-4">{entreprise_name}</h1>}
+                            <button 
+                                onClick={() => setIsCollapsed(!isCollapsed)}
+                                className="hover:bg-gray-300 p-2 rounded-full"
+                            >
+                                <box-icon 
+                                    name={isCollapsed ? 'chevron-right' : 'chevron-left'} 
+                                    size="sm"
+                                />
+                            </button>
+                        </div>
+                        
+                        {!isCollapsed && (
+                            <>
+                                <FiltreSiteEtablissement/>
+                                <FiltrePointCollecte/>
+                            </>
+                        )}
+                        <ul className="space-y-1">
+                            {cofounderPermission && (
+                                <li>
+                                    <a 
+                                        href="/analysis" 
+                                        className={`menu-item flex items-center px-2 py-1 rounded-lg text-gray-700 hover:bg-gray-300 active:bg-gray-400 ${
+                                            window.location.pathname === '/analysis' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
+                                        } ${isCollapsed ? 'justify-center' : ''}`}
+                                    >
+                                        <box-icon name='stats' color={window.location.pathname === '/analysis' ? 'var(--green-medium)' : 'currentColor'}></box-icon>
+                                        {!isCollapsed && <span className="ml-2 text-sm font-semibold">Analyses</span>}
+                                    </a>
+                                </li>
+                            )}
+                            <li>
+                                <a 
+                                    href="/register" 
+                                    className={`menu-item flex items-center px-2 py-1 rounded-lg text-gray-700 hover:bg-gray-300 active:bg-gray-200 ${
+                                        window.location.pathname === '/register' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
+                                    } ${isCollapsed ? 'justify-center' : ''}`}
+                                >
+                                    <box-icon name='data' color={window.location.pathname === '/register' ? 'var(--green-medium)' : 'currentColor'}></box-icon>
+                                    {!isCollapsed && <span className="ml-2 text-sm font-semibold">Registre</span>}
+                                </a>
+                            </li>
+                            <li>
+                                <a 
+                                    href="/import_page" 
+                                    className={`menu-item flex items-center px-2 py-1 rounded-lg text-gray-700 hover:bg-gray-300 active:bg-gray-400 ${
+                                        window.location.pathname === '/import_page' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
+                                    } ${isCollapsed ? 'justify-center' : ''}`}
+                                >
+                                    <box-icon name='import' color={window.location.pathname === '/import_page' ? 'var(--green-medium)' : 'currentColor'}></box-icon>
+                                    {!isCollapsed && <span className="ml-2 text-sm font-semibold">Importer</span>}
+                                </a>
+                            </li>
+                            {cofounderPermission && (
+                                <li>
+                                    <a 
+                                        href="/interface_admin_2" 
+                                        className={`menu-item flex items-center px-2 py-1 rounded-lg text-gray-700 hover:bg-gray-300 active:bg-gray-400 ${
+                                            window.location.pathname === '/interface_admin_2' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
+                                        } ${isCollapsed ? 'justify-center' : ''}`}
+                                    >
+                                        <box-icon name='file' color={window.location.pathname === '/interface_admin_2' ? 'var(--green-medium)' : 'currentColor'}></box-icon>
+                                        {!isCollapsed && <span className="ml-2 text-sm font-semibold">Vérification</span>}
+                                    </a>
+                                </li>
+                            )}
+                            {cofounderPermission && (
+                                <li>
+                                    <a 
+                                        href="/lien" 
+                                        className={`menu-item flex items-center px-2 py-1 rounded-lg text-gray-700 hover:bg-gray-300 active:bg-gray-400 ${
+                                            window.location.pathname === '/lien' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
+                                        } ${isCollapsed ? 'justify-center' : ''}`}
+                                    >
+                                        <box-icon type='solid' name='cross' color={window.location.pathname === '/lien' ? 'white' : 'currentColor'}></box-icon>
+                                        {!isCollapsed && <span className="ml-2 text-sm font-semibold">Factures - BSDs</span>}
+                                    </a>
+                                </li>
+                            )}
+                        </ul>
+                    </div>
+                    {!isCollapsed && <DetailsSideBar 
+                        session={!!session}
+                        userNames={userNames} 
+                        handleParameterPage={handleParameterPage} 
+                        handleLogout={handleLogout}
+                    />}
                 </div>
-                <DetailsSideBar 
-                    session={!!session} // Convert session to boolean
-                    userNames={userNames} 
-                    handleParameterPage={handleParameterPage} 
-                    handleLogout={handleLogout}
-                />
-            </div>}
+            }
         </div>
     )
 }

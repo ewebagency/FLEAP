@@ -4,9 +4,9 @@ import { MailProvider } from "../../MailComponents/MailContext";
 import MailComponent from "../../MailComponents/MailComponent";
 import { toast } from "react-hot-toast";
 import Swal from 'sweetalert2';
-import { sendData_to_Cloud } from "./utils_new";
+import { sendData_to_Cloud } from "./FormulaireFull/utils_new";
 import { useState } from "react";
-import ModifyCardInFormulaireNew, { SectionForm } from "./ModifyCardInFormulaireNew";
+import ModifyCardInFormulaireNew, { SectionForm } from "./FormulaireFull/ModifyCardInFormulaireNew";
 
 interface SendDraftModalProps {
     isOpen: boolean;

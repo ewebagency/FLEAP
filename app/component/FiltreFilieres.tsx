@@ -79,8 +79,16 @@ const FiltreFilieres = () => {
                 };
             });
 
+            // Séparer "Autres" des autres filières
+            const autresIndex = formattedFilieres.findIndex(f => f.name === 'Autres');
+            let autresFiliere;
+            if (autresIndex !== -1) {
+                autresFiliere = formattedFilieres[autresIndex];
+                formattedFilieres.splice(autresIndex, 1);
+            }
+
+            setFilieres(autresFiliere ? [...formattedFilieres, autresFiliere] : formattedFilieres);
             
-            setFilieres(formattedFilieres);      
             //console.log("Filières formatées à sauvegarder:", formattedFilieres);
         } else {
             console.log("Pas de mapping trouvé");
@@ -116,54 +124,88 @@ const FiltreFilieres = () => {
     }, [session?.user_id, session?.entreprise_id, modalReload]);
     
     const toggleAll = () => {
-        const areAllChecked = filieres.every(f => f.checked);
+        const areAllChecked = filieres
+            .filter(f => f.name !== 'Autres')
+            .every(f => f.checked);
         const updatedFilieres = filieres.map(f => ({
             ...f,
-            checked: !areAllChecked
+            checked: f.name === 'Autres' ? false : !areAllChecked
         }));
         setFilieres(updatedFilieres);
     };
 
     return (
-        <div className="m-5">
+        <div className="my-2">
             <div className="flex flex-wrap gap-2">
-            {filieres && filieres.length > 0 && (
+                {filieres && filieres.filter(f => f.name !== 'Autres').length > 0 && (
                     <button
                         onClick={toggleAll}
                         className="text-xs h-[22px] px-3 flex items-center justify-center transition-colors duration-200 
-                        bg-gray-200 hover:bg-gray-300 rounded-md"
+                        bg-gray-200 hover:bg-gray-300 rounded-md border"
                     >
-                        {filieres.every(f => f.checked) ? 'Tout désélectionner' : 'Tout sélectionner'}
+                        {filieres.filter(f => f.name !== 'Autres').every(f => f.checked) 
+                            ? 'Tout désélectionner' 
+                            : 'Tout sélectionner'}
                     </button>
                 )}
                 <div className="join flex flex-wrap">
                     {loadingFilieres ? (
                         <div className="text-gray-500">Chargement des filières...</div>
                     ) : filieres && filieres.length > 0 ? (
-                        filieres.map((filiere, index) => (
-                            <label
-                                key={`filiere-${index}`}
-                                className="flex items-center cursor-pointer join-item"
-                            >
-                                <input
-                                    className="hidden"
-                                    type="checkbox"
-                                    name="options_filiere"
-                                    aria-label={filiere.name}
-                                    checked={filiere.checked}
-                                    onChange={() => toggleFiliere(filiere.name)}
-                                />
-                                <span
-                                    className={`text-xs h-[22px] px-3 flex items-center justify-center transition-colors duration-200 
-                                    ${filiere.checked ? filiere.color : 'bg-gray-300'} 
-                                    ${filiere.checked ? 'text-white' : 'text-gray-700'}
-                                    ${index === 0 ? 'rounded-l-md' : ''}
-                                    ${index === filieres.length - 1 ? 'rounded-r-md' : ''}`}
-                                >
-                                    {filiere.name}
-                                </span>
-                            </label>
-                        ))
+                        <>
+                            {/* Afficher d'abord toutes les filières sauf "Autres" */}
+                            {filieres
+                                .filter(f => f.name !== 'Autres')
+                                .map((filiere, index, filteredArray) => (
+                                    <label
+                                        key={`filiere-${index}`}
+                                        className="flex items-center cursor-pointer join-item"
+                                    >
+                                        <input
+                                            className="hidden"
+                                            type="checkbox"
+                                            name="options_filiere"
+                                            aria-label={filiere.name}
+                                            checked={filiere.checked}
+                                            onChange={() => toggleFiliere(filiere.name)}
+                                        />
+                                        <span
+                                            className={`text-xs h-[22px] px-3 flex items-center justify-center transition-colors duration-200 
+                                            ${filiere.checked ? filiere.color : 'bg-gray-300'} 
+                                            ${filiere.checked ? 'text-white' : 'text-gray-700'}
+                                            ${index === 0 ? 'rounded-l-md' : ''}
+                                            ${index === filteredArray.length - 1 ? 'rounded-r-md' : ''}`}
+                                        >
+                                            {filiere.name}
+                                        </span>
+                                    </label>
+                                ))}
+                            
+                            {/* Afficher "Autres" séparément s'il existe */}
+                            {filieres.find(f => f.name === 'Autres') && (
+                                <label className="flex items-center cursor-pointer ml-2">
+                                    <input
+                                        className="hidden"
+                                        type="checkbox"
+                                        name="options_filiere"
+                                        aria-label="Autres"
+                                        checked={filieres.find(f => f.name === 'Autres')?.checked}
+                                        onChange={() => toggleFiliere('Autres')}
+                                    />
+                                    <span
+                                        className={`text-xs h-[22px] px-3 flex items-center justify-center transition-colors duration-200 rounded-md
+                                        ${filieres.find(f => f.name === 'Autres')?.checked 
+                                            ? filieres.find(f => f.name === 'Autres')?.color 
+                                            : 'bg-gray-300'} 
+                                        ${filieres.find(f => f.name === 'Autres')?.checked 
+                                            ? 'text-white' 
+                                            : 'text-gray-700'}`}
+                                    >
+                                        Autres
+                                    </span>
+                                </label>
+                            )}
+                        </>
                     ) : (
                         <div className="text-gray-500">Aucune filière disponible</div>
                     )}

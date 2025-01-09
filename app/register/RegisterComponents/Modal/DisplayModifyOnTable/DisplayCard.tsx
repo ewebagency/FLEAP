@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useModalContextNew } from "./ContextModal";
-import { Anything, BSDD_TrackDechets, DataTotalInterface, Form_API_Interface_Short } from "../../interface/BSD_Interface";
+import { useModalContextNew } from "../ContextModal";
+import { Anything, BSDD_TrackDechets, DataTotalInterface, Form_API_Interface_Short } from "../../../interface/BSD_Interface";
 import { supabase } from "@/app/database/supabaseClient";
 import { useSession } from "@/app/component/SessionProvider";
-import { getMappingTableFiliere, getFiliere } from "./utils_new";
+import { getMappingTableFiliere, getFiliere } from "../FormulaireFull/utils_new";
 
 const DisplayCard = () => {
     const { modalId, modalType, setModalType, modalReload } = useModalContextNew();
