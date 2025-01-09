@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Bar } from 'react-chartjs-2';
+import dynamic from 'next/dynamic';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,14 +16,23 @@ import { getFiliere } from '../../../register/RegisterComponents/Modal/Formulair
 import { tailwindToRgb, tailwindToRgba } from '../MetaComponent/Colours';
 import { FormInput } from '../../../register/interface/BSD_Interface';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
+// Importer Bar dynamiquement avec une condition de chargement côté client uniquement
+const Bar = dynamic(
+  () => import('react-chartjs-2').then(mod => mod.Bar),
+  { ssr: false } // Désactive le rendu côté serveur pour ce composant
 );
+
+// Enregistrer Chart.js uniquement côté client
+if (typeof window !== 'undefined') {
+  ChartJS.register(
+    CategoryScale,
+    LinearScale,
+    BarElement,
+    Title,
+    Tooltip,
+    Legend
+  );
+}
 
 interface ChartData {
     labels: string[];
