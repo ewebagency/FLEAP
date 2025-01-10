@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Doughnut } from 'react-chartjs-2';
+import dynamic from 'next/dynamic';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
@@ -8,7 +8,16 @@ import { useFilterContext } from '@/app/FilterContext';
 import { calculateFinancialAmount } from '@/app/utils/financial';
 import { FormInput } from '@/app/register/interface/BSD_Interface';
 
-ChartJS.register(ArcElement, Tooltip, Legend);
+// Importer Doughnut dynamiquement
+const Doughnut = dynamic(
+  () => import('react-chartjs-2').then(mod => mod.Doughnut),
+  { ssr: false }
+);
+
+// Enregistrer Chart.js uniquement côté client
+if (typeof window !== 'undefined') {
+  ChartJS.register(ArcElement, Tooltip, Legend);
+}
 
 interface TooltipContext {
     raw: unknown;

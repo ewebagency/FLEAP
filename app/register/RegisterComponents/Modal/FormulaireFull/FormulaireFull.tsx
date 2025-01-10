@@ -635,7 +635,7 @@ const toogleFunction = () => {
                         </div>
                     </div>
 
-                    <div className="text-sm font-semibold ml-6 mt-2">Contactes collecte</div>
+                    <div className="text-sm font-semibold ml-6 mt-2">Prestataires</div>
                     <div className="w-[95%] pb-2 border-b border-3 mt-0 mx-auto border-gray-300">
                         {/*5ème ligne*/}
                         <div className="mt-0 flex justify-between gap-4 w-1/2 ml-8">

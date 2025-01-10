@@ -1,9 +1,18 @@
 'use client'
 import React from "react";
-import { Doughnut } from "react-chartjs-2";
+import dynamic from 'next/dynamic';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 
-ChartJS.register(ArcElement, Tooltip, Legend);
+// Importer Doughnut dynamiquement
+const Doughnut = dynamic(
+  () => import('react-chartjs-2').then(mod => mod.Doughnut),
+  { ssr: false }
+);
+
+// Enregistrer Chart.js uniquement côté client
+if (typeof window !== 'undefined') {
+  ChartJS.register(ArcElement, Tooltip, Legend);
+}
 
 export interface DechetCost {
     name: string;

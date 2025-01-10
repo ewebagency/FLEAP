@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bar } from 'react-chartjs-2';
+import dynamic from 'next/dynamic';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -16,14 +16,23 @@ import { useFilterContext } from '@/app/FilterContext';
 import { calculateFinancialAmount } from '@/app/utils/financial';
 import { FormInput } from '../../../register/interface/BSD_Interface';
 
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend
+// Importer Bar dynamiquement
+const Bar = dynamic(
+    () => import('react-chartjs-2').then(mod => mod.Bar),
+    { ssr: false }
 );
+
+// Enregistrer Chart.js uniquement côté client
+if (typeof window !== 'undefined') {
+    ChartJS.register(
+        CategoryScale,
+        LinearScale,
+        BarElement,
+        Title,
+        Tooltip,
+        Legend
+    );
+}
 
 interface TooltipItem {
     raw: unknown;
