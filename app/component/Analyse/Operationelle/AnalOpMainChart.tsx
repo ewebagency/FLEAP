@@ -1,22 +1,12 @@
 import React, { useEffect, useMemo } from 'react';
-import dynamic from 'next/dynamic';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Colors, Filler } from 'chart.js';
+import { DynamicCharts } from '../MetaComponent/ChartWrapper';
 import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import { tailwindToRgb } from '../MetaComponent/Colours';
 import { getColors } from "../MetaComponent/Colours";
 import { useFilterContext } from '@/app/FilterContext';
 
-// Importer Line dynamiquement
-const Line = dynamic(
-  () => import('react-chartjs-2').then(mod => mod.Line),
-  { ssr: false }
-);
-
-// Enregistrer Chart.js uniquement côté client
-if (typeof window !== 'undefined') {
-  ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
-}
+const { Line } = DynamicCharts;
 
 const AnalOpMainChart = () => {
   const { bsds, loading, mappingTable, filieres_ou_prestataires, siretToName } = useAnalysis();

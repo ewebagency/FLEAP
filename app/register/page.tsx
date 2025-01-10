@@ -1,4 +1,5 @@
 "use client"
+export const dynamic = 'force-dynamic';
 import React from "react";
 import FiltreFilieres from "../component/FiltreFilieres";
 import TableBSD from "./TableBSD";

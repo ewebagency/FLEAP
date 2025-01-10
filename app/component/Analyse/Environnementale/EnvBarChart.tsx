@@ -1,14 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-} from 'chart.js';
+import { DynamicCharts } from '../MetaComponent/ChartWrapper';
 import { useAnalysis } from '../../../analysis/AnalysisProvider';
 import { useFilterContext } from '../../../FilterContext';
 import { estimerCarbone } from './environnement_utils';
@@ -16,23 +7,7 @@ import { getFiliere } from '../../../register/RegisterComponents/Modal/Formulair
 import { tailwindToRgb, tailwindToRgba } from '../MetaComponent/Colours';
 import { FormInput } from '../../../register/interface/BSD_Interface';
 
-// Importer Bar dynamiquement avec une condition de chargement côté client uniquement
-const Bar = dynamic(
-  () => import('react-chartjs-2').then(mod => mod.Bar),
-  { ssr: false } // Désactive le rendu côté serveur pour ce composant
-);
-
-// Enregistrer Chart.js uniquement côté client
-if (typeof window !== 'undefined') {
-  ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend
-  );
-}
+const { Bar } = DynamicCharts;
 
 interface ChartData {
     labels: string[];

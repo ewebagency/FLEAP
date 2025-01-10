@@ -1,17 +1,7 @@
 import React from 'react';
-import { Bar } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js';
+import { DynamicCharts } from './ChartWrapper';
 
-// Enregistrement des composants nécessaires
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+const { Bar } = DynamicCharts;
 
 const BarChart = () => {
   const data = {

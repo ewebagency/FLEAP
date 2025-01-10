@@ -1,14 +1,5 @@
 import React from 'react';
-import dynamic from 'next/dynamic';
-import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend
-} from 'chart.js';
+import { DynamicCharts, type TooltipItem, ChartJS} from '../MetaComponent/ChartWrapper';
 import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import { tailwindToRgb } from '../MetaComponent/Colours';
@@ -16,36 +7,9 @@ import { useFilterContext } from '@/app/FilterContext';
 import { calculateFinancialAmount } from '@/app/utils/financial';
 import { FormInput } from '../../../register/interface/BSD_Interface';
 
-// Importer Bar dynamiquement
-const Bar = dynamic(
-    () => import('react-chartjs-2').then(mod => mod.Bar),
-    { ssr: false }
-);
+const { Bar } = DynamicCharts;
 
-// Enregistrer Chart.js uniquement côté client
-if (typeof window !== 'undefined') {
-    ChartJS.register(
-        CategoryScale,
-        LinearScale,
-        BarElement,
-        Title,
-        Tooltip,
-        Legend
-    );
-}
-
-interface TooltipItem {
-    raw: unknown;
-    dataset: {
-        label?: string;
-        stack?: string;
-    };
-}
-
-interface ChartLegendItem {
-    text: string;
-    // autres propriétés de l'item si nécessaire
-}
+type CustomTooltipItem = TooltipItem<'bar'>;
 
 const FinancialMainChart = () => {
     const { bsds, mappingTable, filieres_ou_prestataires, siretToName } = useAnalysis();
@@ -127,13 +91,13 @@ const FinancialMainChart = () => {
         };
     };
 
-    const options = {
+    /*const options = {
         responsive: true,
         plugins: {
             legend: {
                 position: 'top' as const,
                 labels: {
-                    filter: (item: ChartLegendItem) => !item.text.includes('(-)'),
+                    filter: (item: CustomTooltipItem) => !item.text.includes('(-)'),
                     generateLabels: (chart: ChartJS) => {
                         const originalLabels = ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
                         // Regrouper les labels par filière/prestataire
@@ -155,7 +119,7 @@ const FinancialMainChart = () => {
             },
             tooltip: {
                 callbacks: {
-                    label: (context: TooltipItem) => {
+                    label: (context: CustomTooltipItem) => {
                         const isRevenue = context.dataset.stack === 'revenues';
                         const value = context.raw as number;
                         const label = context.dataset.label?.split(' (')[0] ?? '';
@@ -183,13 +147,13 @@ const FinancialMainChart = () => {
                 }
             }
         }
-    };
+    };*/
 
     return (
         <div className="mt-4 p-2 bg-white rounded-lg shadow">
             {bsds.length > 0 ? (
                 <div>
-                    <Bar data={processChartData()} options={options} height={60} />
+                    <Bar data={processChartData()} /*options={options}*/ height={60} />
                     <div className="flex justify-center gap-4 text-xs text-gray-500 mt-2">
                         <div>- Coûts</div>
                         <div>+ Revenus</div>

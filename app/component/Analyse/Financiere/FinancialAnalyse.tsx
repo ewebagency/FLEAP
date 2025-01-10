@@ -1,23 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import TopBordereau from "../MetaComponent/TopBordereau";
-import BarChart from "../MetaComponent/BarChart";
 import TopCaption from "../MetaComponent/TopCaption";
-import Table from "../MetaComponent/Table";
-import PieChart from "../MetaComponent/PieChart";
-import { DechetCost, PieChartProps } from "../MetaComponent/PieChart";
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { Pie } from 'react-chartjs-2';
 import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { useFilterContext } from "@/app/FilterContext";
-import { TooltipItem } from 'chart.js';
 import { calculateFinancialAmount } from '@/app/utils/financial';
-import { tailwindToRgb } from '../MetaComponent/Colours';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import FinancialMainChart from './FinancialMainChart';
 import FinancialTable from './FinancialTable';
 import FinancialPieChart from "./FinancialPieChart";
-
-ChartJS.register(ArcElement, Tooltip, Legend);
 
 interface Props {
     active: boolean;

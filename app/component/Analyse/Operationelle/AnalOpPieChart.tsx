@@ -1,7 +1,6 @@
 'use client'
 import React, { useEffect, useMemo } from "react";
-import { Pie } from "react-chartjs-2";
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { DynamicCharts } from '../MetaComponent/ChartWrapper';
 import { useAnalysis } from "@/app/analysis/AnalysisProvider";
 import { getColors } from "../MetaComponent/Colours";
 import { tailwindToRgba } from '@/app/component/Analyse/MetaComponent/Colours';
@@ -10,7 +9,7 @@ import { useFilterContext } from '@/app/FilterContext';
 import { FormInput } from '@/app/register/interface/BSD_Interface';
 import { BSD } from '@/app/analysis/AnalysisProvider';
 
-ChartJS.register(ArcElement, Tooltip, Legend);
+const { Pie } = DynamicCharts;
 
 const AnalOpPieChart = () => {
     const { bsds, loading, mappingTable, filieres_ou_prestataires, siretToName } = useAnalysis();
