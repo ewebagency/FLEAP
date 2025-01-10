@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { supabase } from "../database/supabaseClient";
 import { BSDD_TrackDechets, FormInput } from "./interface/BSD_Interface";
 import { pushOnTableParametrage } from "./RegisterComponents/Modal/FormulaireFull/utils_new";
+import BoxIcon from "../component/BoxIconWrapper";
 
 interface Row {
     [key: string]: string | number | boolean;
@@ -584,7 +585,7 @@ const ImportRegisterButton = () => {
                     {isLoading ? (
                         <span className="inline-block animate-spin">↻</span>
                     ) : (
-                        <box-icon name='import' type='solid' color='green' size="18px"></box-icon>
+                        <BoxIcon name='import' type='solid' color='green' size="18px" />
                     )}
                 </div>
                 <div className="text-black font-thin text-xs">

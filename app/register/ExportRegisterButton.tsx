@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useSession } from "../component/SessionProvider";
+import BoxIcon from '@/app/component/BoxIconWrapper';
 
 const ExportRegisterButton = () => {
     const session = useSession();
@@ -15,19 +16,18 @@ const ExportRegisterButton = () => {
                 if(response.ok) {
                     const filename = response.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'export_register.xlsx';
                     const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
+                    const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
                     a.download = filename;
                     document.body.appendChild(a);
                     a.click();
-                    window.URL.revokeObjectURL(url);
+                    URL.revokeObjectURL(url);
                     document.body.removeChild(a);
 
                     setMessage('Export réussi');
                     setMessageType('success');
                     
-                    // Faire disparaître le message après 3 secondes
                     setTimeout(() => {
                         setMessage('');
                         setMessageType(null);
@@ -56,7 +56,7 @@ const ExportRegisterButton = () => {
                     {isLoading ? (
                         <span className="inline-block animate-spin">↻</span>
                     ) : (
-                        <box-icon name='export' type='solid' color='green' size="18px"></box-icon>
+                        <BoxIcon name='export' type='solid' color='green' size="18px" />
                     )}
                 </div>
                 <div className="text-black font-thin text-xs mt-1">

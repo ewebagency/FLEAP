@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useModalContextNew } from "./Modal/ContextModal";
+import BoxIcon from '@/app/component/BoxIconWrapper';
 
 const CreateBSDLine = () => {
     const [isLoading, setIsLoading] = useState(false);
@@ -24,7 +25,7 @@ const CreateBSDLine = () => {
                     {isLoading ? (
                         <span className="inline-block animate-spin">↻</span>
                     ) : (
-                        <box-icon name='add-to-queue' color='green' size="18px" className="mt-1"></box-icon>
+                        <BoxIcon name='add-to-queue' color='green' size="18px" className="mt-1" />
                     )}
                 </div>
                 <div className="text-black font-thin text-xs mt-1">

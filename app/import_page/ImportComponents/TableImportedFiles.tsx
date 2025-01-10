@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import BoxIcon from '@/app/component/BoxIconWrapper';
 
 interface PdfInfo {
     id: number;
@@ -61,7 +62,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                     {[...pdfInfos].reverse().map((pdf) => (
                         <tr key={pdf.id} style={{ borderBottom: '1px solid #ddd' }}>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle mt-1">
-                                <box-icon name='file-pdf' color='red' type='solid'></box-icon>
+                                <BoxIcon name='file-pdf' color='red' type='solid' />
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <span className="px-2 py-1 rounded-full font-semibold text-orange-600 text-xs">
@@ -128,7 +129,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                                 setOpenMenuId(openMenuId === pdf.id ? null : pdf.id);
                                             }}
                                         >
-                                            <box-icon name='dots-vertical-rounded' size="20px"></box-icon>
+                                            <BoxIcon name='dots-vertical-rounded' size="20px" />
                                         </button>
 
                                         {openMenuId === pdf.id && (

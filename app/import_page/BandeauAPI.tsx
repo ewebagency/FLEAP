@@ -2,13 +2,15 @@
 import React, { useEffect } from "react";
 import ConnectedToTrack from "../component/ConnectedToTrack";
 import { useSession } from "../component/SessionProvider";
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Cookies from 'js-cookie';
 
 
 const BandeauAPI = () => {
     const session = useSession();
     const searchParams = useSearchParams();
+    const router = useRouter();
+    const pathname = usePathname();
 
     // Premier useEffect pour gérer le refresh
     useEffect(() => {
@@ -42,14 +44,13 @@ const BandeauAPI = () => {
                     stockToken(new_token);
                 }
                 
-                // Attendre un peu avant de rediriger pour s'assurer que le cookie est bien défini
+                // Utiliser router.replace au lieu de window.location
                 setTimeout(() => {
-                    const newUrl = window.location.origin + window.location.pathname;
-                    window.location.replace(newUrl);
+                    router.replace(pathname);
                 }, 100);
             }
         }   
-    }, [session]);
+    }, [session, router, searchParams, pathname]);
 
     let client_id = process.env.NEXT_PUBLIC_TRACK_CLIENT_ID_SANDBOX;
     if (process.env.NEXT_PUBLIC_TRACK_TYPE === "app") {
@@ -58,17 +59,21 @@ const BandeauAPI = () => {
     const redirect_uri = encodeURIComponent(`${process.env.NEXT_PUBLIC_APP_URL}/api/auth_track_dechet/callback`);
 
     const handleAPIConnection = () => {
-        //Attention remplaceer par app de manière dynamique !
         let url = `https://sandbox.trackdechets.beta.gouv.fr/oauth2/authorize/dialog?response_type=code&redirect_uri=${redirect_uri}&client_id=${client_id}`;
         if(process.env.NEXT_PUBLIC_TRACK_TYPE === "app") {
             url = `https://app.trackdechets.beta.gouv.fr/oauth2/authorize/dialog?response_type=code&redirect_uri=${redirect_uri}&client_id=${client_id}`;
         }
-        console.log("url : ", url);
-        window.location.href = url;
+        
+        // Protéger l'utilisation de window
+        if (typeof window !== 'undefined') {
+            window.location.href = url;
+        }
     }
 
     useEffect(() => {
-        console.log("cookie dans useEffect : ", Cookies.get('trackdechets_token'));
+        if (typeof window !== 'undefined') {
+            console.log("cookie dans useEffect : ", Cookies.get('trackdechets_token'));
+        }
     }, []);
     return (
         <div className="py-0 px-3 my-3 w-full rounded-md border-gray-300 border-[1px]">

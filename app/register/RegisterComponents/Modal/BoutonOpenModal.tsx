@@ -1,5 +1,6 @@
 import { useModalContextNew } from "./ContextModal";
-import 'boxicons';
+import BoxIcon from '@/app/component/BoxIconWrapper';
+//import 'boxicons';
 
 export const BoutonOpenModal = () => {
     const { setDisplayFormulaire, setModalType } = useModalContextNew();
@@ -14,7 +15,7 @@ export const BoutonOpenModal = () => {
                     onClick={handleOpenModal} 
                     className="bg-[var(--green-medium)] hover:bg-[var(--green-dark)] text-white px-4 py-2 ml-2 rounded-lg flex items-center space-x-2 text-lg font-medium transition-colors duration-200"
                 >
-                <box-icon name='truck' type='solid' color='white' size="24px"></box-icon>
+                <BoxIcon name='truck' type='solid' color='white' size="24px" />
                 <span>Demander une collecte</span>
                 </button>
             </div>

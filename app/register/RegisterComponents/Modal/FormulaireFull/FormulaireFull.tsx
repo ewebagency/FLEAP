@@ -7,6 +7,7 @@ import { useSession } from "@/app/component/SessionProvider";
 import MailComponent from "@/app/register/MailComponents/MailComponent";
 import ModifyCardInFormulaireNew from "./ModifyCardInFormulaireNew";
 import { supabase } from "@/app/database/supabaseClient";
+import BoxIcon from "@/app/component/BoxIconWrapper";
 
 const initialToogleData: FormInput = {
     emitter: {
@@ -323,7 +324,7 @@ const toogleFunction = () => {
             <div className="bg-white p-6 rounded-lg shadow-lg mb-2 w-[80%] max-w-8xl" onClick={(e) => e.stopPropagation()}>
                 <div className="flex justify-between items-center gap-4 mb-6">
                     <h3 className="font-bold text-lg ml-8 flex items-center gap-2">
-                        <box-icon className="mb-1" name='truck' type='solid'></box-icon>
+                        <BoxIcon className="mb-1" name='truck' type='solid' />
                         <span className="text-green-medium mt-1 font-bold">
                             {modalType === 'create_line' ? 'Créer une ligne' : 'Demande de collecte'}
                         </span>

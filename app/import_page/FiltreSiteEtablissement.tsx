@@ -6,6 +6,7 @@ import { useModalContextNew } from '../register/RegisterComponents/Modal/Context
 import { useSession } from '../component/SessionProvider';
 import { supabase } from '../database/supabaseClient';
 import Cookies from 'js-cookie';
+import BoxIcon from '@/app/component/BoxIconWrapper';
 
 interface AdditionalSite {
     siret: string;
@@ -195,7 +196,7 @@ const FiltreSiteEtablissement = () => {
         >
             <div className="btn flex items-center justify-between px-2 py-0 bg-white rounded-lg hover:bg-gray-50 transition-all duration-200 w-full">
                 <div className="flex items-center space-x-4">
-                    <box-icon name='map' type='solid' size="18px"></box-icon>
+                    <BoxIcon name='map' type='solid' size="18px" />
                     <h1 className="text-sm font-semibold text-gray-700">Sites</h1>
                 </div>
                 <span className={`transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
@@ -237,7 +238,7 @@ const FiltreSiteEtablissement = () => {
                                                     )}
                                                     {site.isInDb && (
                                                         <span className="mr-1">
-                                                            <box-icon name='data' size="16px" color="#666666"></box-icon>
+                                                            <BoxIcon name='data' size="16px" color="#666666" />
                                                         </span>
                                                     )}
                                                 </div>

@@ -1,5 +1,5 @@
 // components/FormulaireMano.tsx
-
+/*
 import { useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -477,7 +477,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
             <h2 className="text-lg font-bold mb-3">Formulaire de facture</h2>
 
             <form onSubmit={handleSubmit} className="space-y-3">
-                {/* En-tête */}
+                
                 <div className="bg-white p-3 rounded shadow text-sm">
                     <h3 className="text-base font-semibold mb-2">Informations générales</h3>
                     <SelectInput
@@ -493,7 +493,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                     />
                 </div>
 
-                {/* Lignes de départ */}
+
                 <div className="bg-white p-3 rounded shadow text-sm">
                     <div className="flex justify-between items-center mb-2">
                         <h3 className="text-base font-semibold">Lignes de départ</h3>
@@ -508,7 +508,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
 
                     {formData.departs.map((depart, index) => (
                         <div key={index} className="border p-2 rounded mb-2">
-                            {/* Header */}
+                            
                             <div className="grid grid-cols-2 gap-2 mb-3 bg-gray-100 p-2 rounded">
                                 <SelectInput
                                     label="Type de déchet"
@@ -563,9 +563,9 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                                 </div>
                             </div>
 
-                            {/* Body */}
+                            
                             <div className="space-y-2">
-                                {/* Toutes les opérations dans une grille */}
+                                
                                 <div className="grid grid-cols-2 gap-2">
                                     {depart.line_body.map((body, bodyIndex) => (
                                         <div key={bodyIndex} className="flex justify-between items-center">
@@ -581,7 +581,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                                     ))}
                                 </div>
 
-                                {/* Champ de commentaires */}
+                                
                                 <div className="mt-3">
                                     <label className="block text-xs font-medium text-gray-700 mb-1">
                                         Commentaires
@@ -596,7 +596,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                                 </div>
                             </div>
 
-                            {/* Button to remove the depart line */}
+                            
                             <button
                                 type="button"
                                 onClick={() => removeDepartLine(index)}
@@ -608,7 +608,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                     ))}
                 </div>
 
-                {/* Pied de page */}
+                
                 <div className="bg-white p-2 rounded shadow text-sm">
                     <div className="flex justify-end items-center">
                         <span className="text-sm font-semibold">
@@ -617,7 +617,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
                     </div>
                 </div>
 
-                {/* Boutons en bas */}
+                
                 <div className="flex justify-between items-center gap-2">
                     <button
                         type="button"
@@ -726,3 +726,4 @@ const cleanOptions = (liste_options: (string | number)[][]) => {
 const addInconnuChamp = (liste_options: (string | number)[][]) => {
     return liste_options.map(option => [...option, "Inconnu"]);
 };
+*/

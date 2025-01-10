@@ -1,11 +1,13 @@
 import { Profil, useAccessOtherAccount } from './AccessOtherAccountContext';
+import { useRouter } from 'next/navigation';
 
 export function AccountSelector() {
+    const router = useRouter();
     const { accounts, selectedAccounts, setSelectedAccounts } = useAccessOtherAccount();
 
     const handleRadioChange = (account: Profil) => {
         setSelectedAccounts([account]);
-        window.location.reload();
+        router.refresh();
     };
 
     return (

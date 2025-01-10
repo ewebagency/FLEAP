@@ -8,8 +8,9 @@ import { BSDD_TrackDechets, FormInput } from "./interface/BSD_Interface";
 import Swal from 'sweetalert2';
 import SendDraftModal from "./RegisterComponents/Modal/SendDraftModal";
 import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/FormulaireFull/utils_new";
-import 'boxicons'
+//import 'boxicons'
 import { RecurrenceEntry } from "./RegisterComponents/Modal/Recurrence/RecurrenceFunctionnal";
+import BoxIcon from "../component/BoxIconWrapper";
 
 const cleanCED = (ced: string): string => {
     const ced_clean = ced.replaceAll(' ', '').replace('*', '').trim();
@@ -760,7 +761,7 @@ const TableBSD = () => {
                                                     bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
                                                     mappingTable
                                                 ));
-                                                return <box-icon type={icon.type} name={icon.name} color="#000000" size="30px"></box-icon>;
+                                                return <BoxIcon type={icon.type} name={icon.name} color="#000000" size="30px" />;
                                             })()}
                                         </div>
                                         <div className="space-y-0.5">
@@ -833,20 +834,20 @@ const TableBSD = () => {
                                     {/* Site Etablissement */}
                                     <div className="overflow-hidden">
                                         <span className="flex items-center gap-2">
-                                            <box-icon type='solid' color='#727272' size="20px" name='map' className="flex-shrink-0"></box-icon>
+                                            <BoxIcon type='solid' color='#727272' size="20px" name='map' className="flex-shrink-0" />
                                             <span className="truncate block">{bsd.infos_json.formAPI.createFormInput.emitter?.company?.name || "Site non spécifié"}</span>
                                         </span>
                                     </div>
                                     {/* Entreprises */}
                                     <div className="overflow-hidden">
                                         <span className="flex items-center gap-2">
-                                            <box-icon type='solid' color='#727272' size="20px" name='truck' className="flex-shrink-0"></box-icon>
+                                            <BoxIcon type='solid' color='#727272' size="20px" name='truck' className="flex-shrink-0" />
                                             <span className="truncate block">{bsd.infos_json.formAPI.createFormInput.transporter?.company?.name || ""}</span>
                                         </span>
                                     </div>
                                     <div className="overflow-hidden">
                                         <span className="flex items-center gap-2">
-                                            <box-icon type='solid' color='#727272' size="20px" name='factory' className="flex-shrink-0"></box-icon>
+                                            <BoxIcon type='solid' color='#727272' size="20px" name='factory' className="flex-shrink-0" />
                                             <span className="truncate block">{bsd.infos_json.formAPI.createFormInput.recipient?.company?.name || ""}</span>
                                         </span>
                                     </div>
@@ -942,7 +943,7 @@ const TableBSD = () => {
                                             onMouseEnter={() => setHoveredMenuId(bsd.id)}
                                             onMouseLeave={() => setHoveredMenuId(null)}
                                         >
-                                            <box-icon name='dots-vertical-rounded' size="20px"></box-icon>
+                                            <BoxIcon name='dots-vertical-rounded' size="20px" />
                                         </button>
 
                                         {/* Menu déroulant (inchangé) */}

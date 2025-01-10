@@ -6,7 +6,7 @@ import { supabase } from "../database/supabaseClient";
 import FormulaireDisplayer from "./InterfaceAdmin2/FormulaireDisplayer";
 import FormulaireManoJson from "./InterfaceAdmin2/FormulaireManoJson";
 import DisplayInfosPython from "./DisplayInfosPython";
-import FormulaireMano from "./InterfaceAdmin2/FormulaireMano";
+//import FormulaireMano from "./InterfaceAdmin2/FormulaireMano";
 import { AccessOtherAccountProvider, useAccessOtherAccount } from "./AccessOtherAccounts/AccessOtherAccountContext";
 import { AccountSelector } from "./AccessOtherAccounts/AccountSelector";
 
@@ -156,7 +156,7 @@ const InterfaceAdmin2 = () => {
                                 {currentPdfPath && <PdfDisplayer pdfUrl={currentPdfUrl} />}
                             </div>
                             <div className="w-[400px] bg-gray-100 rounded-lg overflow-y-auto">
-                                <FormulaireMano currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />
+                                {/*<FormulaireMano currentPdfId={currentPdfId} onNextPdf={handleNextPdf} />*/}
                             </div>
                         </div>
                     </div>

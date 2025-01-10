@@ -21,7 +21,6 @@ const AccessOtherAccountContext = createContext<AccessOtherAccountContextType | 
 export function AccessOtherAccountProvider({ children }: { children: React.ReactNode }) {
     const [accounts, setAccounts] = useState<Profil[]>([]);
     const [selectedAccounts, setSelectedAccounts] = useState<Profil[]>(() => {
-        // Initialiser avec les données du localStorage si elles existent
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('selectedAccounts');
             return saved ? JSON.parse(saved) : [];
@@ -52,7 +51,9 @@ export function AccessOtherAccountProvider({ children }: { children: React.React
 
     // Sauvegarder dans le localStorage quand selectedAccounts change
     useEffect(() => {
-        localStorage.setItem('selectedAccounts', JSON.stringify(selectedAccounts));
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('selectedAccounts', JSON.stringify(selectedAccounts));
+        }
     }, [selectedAccounts]);
 
     return (

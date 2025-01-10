@@ -3,6 +3,7 @@ import { supabase } from '@/app/database/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { SessionMore, useSession } from '@/app/component/SessionProvider';
 import { useState, useEffect } from 'react';
+import BoxIcon from '@/app/component/BoxIconWrapper';
 
 export default function UserSettings() {
     const router = useRouter();
@@ -116,7 +117,7 @@ export default function UserSettings() {
                     onClick={handleSignOut}
                     className="bg-red-700 hover:bg-red-800 text-sm text-white px-2 py-1 rounded-lg flex items-center gap-2"
                 >
-                    <box-icon name='log-out' size="sm" color="currentColor"></box-icon>
+                    <BoxIcon name='log-out' size="sm" color="currentColor" />
                     Déconnexion
                 </button>
             </div>

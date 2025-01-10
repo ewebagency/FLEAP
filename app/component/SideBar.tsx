@@ -2,12 +2,24 @@
 import React, { useEffect, useState } from 'react';
 import { SessionMore, useSession } from './SessionProvider';
 import { supabase } from '../database/supabaseClient';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import DetailsSideBar from './DetailsSideBar';
 import FiltrePointCollecte from './FiltrePointCollecte';
-//import FiltreDate from './FiltreDate';
 import FiltreSiteEtablissement from '../import_page/FiltreSiteEtablissement';
-import 'boxicons';
+import dynamic from 'next/dynamic';
+
+// Chargement dynamique de boxicons sans SSR
+const BoxIcon = dynamic(
+  () => import('boxicons').then((mod) => {
+    // Importer boxicons globalement une fois chargé
+    import('boxicons');
+    // Retourner un composant wrapper
+    return function BoxIconWrapper({ name, size, type, color }: {name?:string, size?:string, type?:string, color?:string}) {
+      return <box-icon name={name} size={size} color={color}></box-icon>;
+    };
+  }),
+  { ssr: false } // Désactiver le SSR pour ce composant
+);
 
 interface SideBarProps {
     className_props: string;
@@ -26,6 +38,7 @@ const SideBar = (props:SideBarProps) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const session = useSession() as SessionMore;
     const router = useRouter();
+    const pathname = usePathname();
     const [userNames, setUserNames] = useState({first_name:'', last_name:''});
     const [cofounderPermission, setCofounderPermission] = useState(false);
     const [entreprise_name, setEntrepriseName] = useState('Chargement...');
@@ -105,7 +118,7 @@ const SideBar = (props:SideBarProps) => {
                                 onClick={() => setIsCollapsed(!isCollapsed)}
                                 className="hover:bg-gray-300 p-2 rounded-full"
                             >
-                                <box-icon 
+                                <BoxIcon 
                                     name={isCollapsed ? 'chevron-right' : 'chevron-left'} 
                                     size="sm"
                                 />
@@ -124,10 +137,10 @@ const SideBar = (props:SideBarProps) => {
                                     <a 
                                         href="/analysis" 
                                         className={`menu-item flex items-center px-2 py-1 rounded-lg text-gray-700 hover:bg-gray-300 active:bg-gray-400 ${
-                                            window.location.pathname === '/analysis' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
+                                            pathname === '/analysis' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
                                         } ${isCollapsed ? 'justify-center' : ''}`}
                                     >
-                                        <box-icon name='stats' color={window.location.pathname === '/analysis' ? 'var(--green-medium)' : 'currentColor'}></box-icon>
+                                        <BoxIcon name='stats' color={pathname === '/analysis' ? 'var(--green-medium)' : 'currentColor'} />
                                         {!isCollapsed && <span className="ml-2 text-sm font-semibold">Analyses</span>}
                                     </a>
                                 </li>
@@ -136,10 +149,10 @@ const SideBar = (props:SideBarProps) => {
                                 <a 
                                     href="/register" 
                                     className={`menu-item flex items-center px-2 py-1 rounded-lg text-gray-700 hover:bg-gray-300 active:bg-gray-200 ${
-                                        window.location.pathname === '/register' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
+                                        pathname === '/register' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
                                     } ${isCollapsed ? 'justify-center' : ''}`}
                                 >
-                                    <box-icon name='data' color={window.location.pathname === '/register' ? 'var(--green-medium)' : 'currentColor'}></box-icon>
+                                    <BoxIcon name='data' color={pathname === '/register' ? 'var(--green-medium)' : 'currentColor'} />
                                     {!isCollapsed && <span className="ml-2 text-sm font-semibold">Registre</span>}
                                 </a>
                             </li>
@@ -147,10 +160,10 @@ const SideBar = (props:SideBarProps) => {
                                 <a 
                                     href="/import_page" 
                                     className={`menu-item flex items-center px-2 py-1 rounded-lg text-gray-700 hover:bg-gray-300 active:bg-gray-400 ${
-                                        window.location.pathname === '/import_page' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
+                                        pathname === '/import_page' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
                                     } ${isCollapsed ? 'justify-center' : ''}`}
                                 >
-                                    <box-icon name='import' color={window.location.pathname === '/import_page' ? 'var(--green-medium)' : 'currentColor'}></box-icon>
+                                    <BoxIcon name='import' color={pathname === '/import_page' ? 'var(--green-medium)' : 'currentColor'} />
                                     {!isCollapsed && <span className="ml-2 text-sm font-semibold">Importer</span>}
                                 </a>
                             </li>
@@ -159,10 +172,10 @@ const SideBar = (props:SideBarProps) => {
                                     <a 
                                         href="/interface_admin_2" 
                                         className={`menu-item flex items-center px-2 py-1 rounded-lg text-gray-700 hover:bg-gray-300 active:bg-gray-400 ${
-                                            window.location.pathname === '/interface_admin_2' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
+                                            pathname === '/interface_admin_2' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
                                         } ${isCollapsed ? 'justify-center' : ''}`}
                                     >
-                                        <box-icon name='file' color={window.location.pathname === '/interface_admin_2' ? 'var(--green-medium)' : 'currentColor'}></box-icon>
+                                        <BoxIcon name='file' color={pathname === '/interface_admin_2' ? 'var(--green-medium)' : 'currentColor'} />
                                         {!isCollapsed && <span className="ml-2 text-sm font-semibold">Vérification</span>}
                                     </a>
                                 </li>
@@ -172,10 +185,10 @@ const SideBar = (props:SideBarProps) => {
                                     <a 
                                         href="/lien" 
                                         className={`menu-item flex items-center px-2 py-1 rounded-lg text-gray-700 hover:bg-gray-300 active:bg-gray-400 ${
-                                            window.location.pathname === '/lien' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
+                                            pathname === '/lien' ? 'bg-gray-200 text-[var(--green-medium)]' : ''
                                         } ${isCollapsed ? 'justify-center' : ''}`}
                                     >
-                                        <box-icon type='solid' name='cross' color={window.location.pathname === '/lien' ? 'white' : 'currentColor'}></box-icon>
+                                        <BoxIcon type='solid' name='cross' color={pathname === '/lien' ? 'white' : 'currentColor'} />
                                         {!isCollapsed && <span className="ml-2 text-sm font-semibold">Factures - BSDs</span>}
                                     </a>
                                 </li>

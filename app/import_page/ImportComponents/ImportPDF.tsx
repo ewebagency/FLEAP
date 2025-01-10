@@ -4,6 +4,7 @@ import { supabase } from '@/app/database/supabaseClient';
 import { SessionMore, useSession } from '../../component/SessionProvider';
 import { Session } from '@supabase/supabase-js';
 import { useImport } from './ImportContext';
+import BoxIcon from '@/app/component/BoxIconWrapper';
 
 const ImportPDF = () => {
     const [loading, setLoading] = useState(false);
@@ -118,7 +119,7 @@ const ImportPDF = () => {
                         <span className="loader"></span>
                     ) : (
                         <div className="flex items-center gap-2">
-                            <box-icon color='white' name='import'></box-icon>
+                            <BoxIcon color='white' name='import' />
                             <p>Sélectionner des fichiers PDF</p>
                         </div>
                     )}

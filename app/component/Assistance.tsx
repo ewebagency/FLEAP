@@ -1,4 +1,5 @@
 import { useState } from "react";
+import BoxIcon from './BoxIconWrapper';
 
 export default function Assistance() {
     const [open, setOpen] = useState(false);
@@ -8,7 +9,7 @@ export default function Assistance() {
                 onClick={() => setOpen(!open)} 
                 className="w-full px-1 py-1 text-sm text-gray-700 rounded-lg hover:bg-gray-200 active:bg-gray-400 transition-colors duration-200 flex items-center gap-2"
             >
-                <box-icon name='phone' size="sm" color="currentColor"></box-icon>
+                <BoxIcon name='phone' size="sm" color="currentColor" />
                 <div className="ml-2">Assistance</div>
             </button>
             {open && 

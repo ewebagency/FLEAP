@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { supabase } from "@/app/database/supabaseClient";
 import { DataOnSupabase_infos_json, FormInput } from "@/app/register/interface/BSD_Interface";
 import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";

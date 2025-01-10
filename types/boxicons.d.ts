@@ -1,3 +1,5 @@
+declare module 'boxicons';
+
 declare namespace JSX {
   interface IntrinsicElements {
     'box-icon': {

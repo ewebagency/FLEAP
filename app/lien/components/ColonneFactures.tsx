@@ -17,38 +17,54 @@ const ColonneFactures = ({
 
     // Fonction pour gérer la suppression d'une facture et la réinitialisation du PDF associé
     const handleDelete = async (factureId: string) => {
-        try {
-            // 1. Récupérer le pdf_infos_id associé à cette facture
-            const { data: factureData, error: factureError } = await supabase
-                .from('facture')
-                .select('pdf_infos_id')
-                .eq('id', factureId)
-                .single();
+        // Remplacer window.confirm par un composant modal
+        const confirmDelete = () => {
+            return new Promise((resolve) => {
+                if (typeof window !== 'undefined') {
+                    resolve(window.confirm('Êtes-vous sûr de vouloir supprimer cette facture ?'));
+                } else {
+                    resolve(false);
+                }
+            });
+        };
 
-            if (factureError) throw factureError;
+        if (await confirmDelete()) {
+            try {
+                // 1. Récupérer le pdf_infos_id associé à cette facture
+                const { data: factureData, error: factureError } = await supabase
+                    .from('facture')
+                    .select('pdf_infos_id')
+                    .eq('id', factureId)
+                    .single();
 
-            // 2. Mettre à jour le statut du PDF à 'unread'
-            const { error: pdfError } = await supabase
-                .from('pdf_infos')
-                .update({ status: 'unread' })
-                .eq('id', factureData.pdf_infos_id);
+                if (factureError) throw factureError;
 
-            if (pdfError) throw pdfError;
+                // 2. Mettre à jour le statut du PDF à 'unread'
+                const { error: pdfError } = await supabase
+                    .from('pdf_infos')
+                    .update({ status: 'unread' })
+                    .eq('id', factureData.pdf_infos_id);
 
-            // 3. Supprimer toutes les factures associées à ce PDF
-            const { error: deleteError } = await supabase
-                .from('facture')
-                .delete()
-                .eq('pdf_infos_id', factureData.pdf_infos_id);
+                if (pdfError) throw pdfError;
 
-            if (deleteError) throw deleteError;
+                // 3. Supprimer toutes les factures associées à ce PDF
+                const { error: deleteError } = await supabase
+                    .from('facture')
+                    .delete()
+                    .eq('pdf_infos_id', factureData.pdf_infos_id);
 
-            // 4. Rafraîchir la page pour voir les changements
-            window.location.reload();
+                if (deleteError) throw deleteError;
 
-        } catch (error) {
-            console.error('Erreur lors de la suppression:', error);
-            alert('Erreur lors de la suppression de la facture');
+                // 4. Rafraîchir la page pour voir les changements
+                
+                if (typeof window !== 'undefined') {
+                    window.location.reload();
+                }
+
+            } catch (error) {
+                console.error('Erreur lors de la suppression:', error);
+                alert('Erreur lors de la suppression de la facture');
+            }
         }
     };
 
@@ -145,9 +161,7 @@ const ColonneFactures = ({
                     {/* Bouton de suppression */}
                     <button
                         onClick={() => {
-                            if (window.confirm('Êtes-vous sûr de vouloir supprimer cette facture ?')) {
-                                handleDelete(factureLine.id);
-                            }
+                            handleDelete(factureLine.id);
                         }}
                         className="absolute top-0.5 right-0.5 text-gray-400 hover:text-red-500 transition-colors"
                     >
