@@ -35,9 +35,6 @@ const AnalOpPieChart = () => {
         }
     };
 
-    useEffect(() => {
-        console.log("BSDs from PieChart:", bsds);
-    }, [bsds]);
 
     const pieData = useMemo(() => {
         const quantities: { [key: string]: number } = {};
@@ -71,16 +68,16 @@ const AnalOpPieChart = () => {
 
         // Palette de couleurs pour les prestataires
         const prestatairesColors = [
-            'rgba(142, 202, 230, 0.8)',    // Bleu clair
-            'rgba(255, 183, 178, 0.8)',    // Rose pâle
-            'rgba(181, 234, 215, 0.8)',    // Vert menthe
-            'rgba(199, 206, 234, 0.8)',    // Lavande
-            'rgba(255, 218, 193, 0.8)',    // Pêche
-            'rgba(168, 218, 220, 0.8)',    // Turquoise
-            'rgba(241, 192, 232, 0.8)',    // Rose lilas
-            'rgba(204, 213, 174, 0.8)',    // Vert sauge
-            'rgba(254, 200, 216, 0.8)',    // Rose poudré
-            'rgba(173, 216, 230, 0.8)',    // Bleu poudré
+            'rgba(142, 202, 230, 1)',    // Bleu clair
+            'rgba(255, 183, 178, 1)',    // Rose pâle
+            'rgba(181, 234, 215, 1)',    // Vert menthe
+            'rgba(199, 206, 234, 1)',    // Lavande
+            'rgba(255, 218, 193, 1)',    // Pêche
+            'rgba(168, 218, 220, 1)',    // Turquoise
+            'rgba(241, 192, 232, 1)',    // Rose lilas
+            'rgba(204, 213, 174, 1)',    // Vert sauge
+            'rgba(254, 200, 216, 1)',    // Rose poudré
+            'rgba(173, 216, 230, 1)',    // Bleu poudré
         ];
 
         return {

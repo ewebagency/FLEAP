@@ -70,32 +70,85 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
         let query = supabase
             .from('bsd')
             .select('*')
-            .eq('entreprise_id', session.entreprise_id);
+            .eq('entreprise_id', session.entreprise_id)
+            .order('created_at', { ascending: false });
 
-        if (checkedSites.length > 0) {
-            let or_condition = ``;
-            if (checkedSites.includes('autres')) {
-                or_condition = `infos_json->formAPI->createFormInput->emitter->company->>siret.eq.""`;
-                if (checkedSites.length > 1) {
-                    or_condition += `,infos_json->formAPI->createFormInput->emitter->company->>siret.in.(${checkedSites.join(',')})`;
+        // Récupérer tous les CEDs de toutes les filières
+        const { data: mappingData } = await supabase
+            .from('entreprise')
+            .select('mapping_ced_filiere')
+            .eq('id', session.entreprise_id)
+            .single();
+
+        let filiere_conditions = [];
+
+        // Conditions pour les CEDs (filières)
+        if (mappingData) {
+            const mapping_table = mappingData.mapping_ced_filiere;
+            
+            // Liste de tous les CEDs de toutes les filières
+            const ced_from_all_filiere = mapping_table.map((mapping: {ced: string}) => cleanCED(mapping.ced));
+            
+            // Liste des CEDs des filières sélectionnées
+            const ced_from_checked_filiere = mapping_table
+                .filter((mapping: {filiere: string}) => 
+                    checkedFilieres.filter(f => f !== 'Autres').includes(mapping.filiere))
+                .map((mapping: {ced: string}) => cleanCED(mapping.ced));
+
+            const formatCEDs = (ceds: string[]) => {
+                return ceds.flatMap(ced => [
+                    ced,
+                    ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim(),
+                    ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim() + '*'
+                ]);
+            };
+
+            // Si "Autres" est sélectionné
+            if (checkedFilieres.includes('Autres')) {
+                const all_formatted_ceds = formatCEDs(ced_from_all_filiere);
+                if (all_formatted_ceds.length > 0) {
+                    filiere_conditions.push(
+                        `infos_json->formAPI->createFormInput->wasteDetails->>code.not.in.(${all_formatted_ceds.join(',')})`
+                    );
                 }
-            } else {
-                or_condition = `infos_json->formAPI->createFormInput->emitter->company->>siret.in.(${checkedSites.join(',')})`;
             }
-            query = query.or(or_condition);
-        }
 
-        if (checkedPointsCollecte.length > 0) {
-            if (!checkedPointsCollecte.includes("Non renseigné")) {
-                query = query.filter('infos_json->formAPI->createFormInput->emitter->workSite->>name', 'in', `(${checkedPointsCollecte.join(',')})`);
-            } else {
-                query = query.or(
-                    `infos_json->formAPI->createFormInput->emitter->>workSite.is.null,` +
-                    `infos_json->formAPI->createFormInput->emitter->workSite->>name.eq."",` +
-                    `infos_json->formAPI->createFormInput->emitter->workSite->>name.in.(${checkedPointsCollecte.filter(pc => pc !== "Non renseigné").join(',')})`
+            // Pour les filières normales
+            const checked_formatted_ceds = formatCEDs(ced_from_checked_filiere);
+            if (checked_formatted_ceds.length > 0) {
+                filiere_conditions.push(
+                    `infos_json->formAPI->createFormInput->wasteDetails->>code.in.(${checked_formatted_ceds.join(',')})`
                 );
             }
         }
+
+        // Conditions pour les sites
+        let site_conditions = [];
+        if (checkedSites.length > 0) {
+            if (checkedSites.includes('----')) {
+                site_conditions.push(`infos_json->formAPI->createFormInput->emitter->company->>siret.eq.""`);
+            }
+            
+            const realSites = checkedSites.filter(site => site !== '----');
+            if (realSites.length > 0) {
+                site_conditions.push(`infos_json->formAPI->createFormInput->emitter->company->>siret.in.(${realSites.join(',')})`);
+            }
+        } else {
+            setBsds([]);
+            return;
+        }
+
+        // Appliquer les conditions avec AND entre sites et filières
+        if (filiere_conditions.length > 0) {
+            query = query.or(filiere_conditions.join(','));
+        }
+
+        if (site_conditions.length > 0) {
+            query = query.or(site_conditions.join(','));
+        }
+
+        console.log('filiere_conditions', filiere_conditions);
+        console.log('site_conditions', site_conditions);
 
         const { data, error } = await query;
 
@@ -104,6 +157,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
             return;
         }
 
+        console.log('Nombre de BSDs récupérés dans analyse', data.length);
         setBsds(data || []);
     };
 
@@ -132,4 +186,39 @@ export const useAnalysis = (): AnalysisContextType => {
         throw new Error('useAnalysis must be used within an AnalysisProvider');
     }
     return context;
+};
+
+const cleanCED = (ced: string): string => {
+    const ced_clean = ced.replaceAll(' ', '').replace('*', '').trim();
+    return ced_clean;
+};
+
+const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres: string[]) => {
+    const { data, error } = await supabase
+        .from('entreprise')
+        .select('mapping_ced_filiere')
+        .eq('id', entreprise_id)
+        .single();
+
+    if (data) {
+        const mapping_table = data.mapping_ced_filiere;
+        const ced_uniques: string[] = [];
+        
+        if (checkedFilieres.length === 1 && checkedFilieres[0] === 'Autres') {
+            return [];
+        }
+
+        const checkedFilieres_sans_autres = checkedFilieres.filter(filiere => filiere !== 'Autres');
+        
+        for (const mapping of mapping_table) {
+            for (const filiere of checkedFilieres_sans_autres) {
+                if (mapping.filiere === filiere) {
+                    ced_uniques.push(cleanCED(mapping.ced));
+                }
+            }
+        }
+
+        return ced_uniques;
+    }
+    return [];
 }; 

@@ -82,19 +82,11 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);
 
   const toggleFiliere = (name: string) => {
-    if (name === 'Autres') {
-      setFilieres(prev => prev.map(filiere => 
-        filiere.name === 'Autres' 
-          ? { ...filiere, checked: true }
-          : { ...filiere, checked: false }
-      ));
-    } else {
       setFilieres(prev => prev.map(filiere => 
         filiere.name === name 
           ? { ...filiere, checked: !filiere.checked }
-          : (filiere.name === 'Autres' ? { ...filiere, checked: false } : filiere)
+          : filiere
       ));
-    }
   };
 
   const toggleSite = (orgId: string) => {

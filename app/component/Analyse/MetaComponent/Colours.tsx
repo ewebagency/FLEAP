@@ -50,7 +50,7 @@ export const tailwindToRgb = (tailwindColor: string): string => {
     return colorMap[tailwindColor.replace('bg-', '')] || 'rgb(156, 163, 175)';
 };
 
-export const tailwindToRgba = (tailwindColor: string, alpha: number = 0.6): string => {
+export const tailwindToRgba = (tailwindColor: string, alpha: number = 1): string => {
     const rgb = tailwindToRgb(tailwindColor);
     return rgb.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
 };

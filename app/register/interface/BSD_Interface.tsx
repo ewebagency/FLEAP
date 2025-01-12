@@ -912,6 +912,7 @@ export interface FormInput {
     emittedAt?: string;
     createdAt?: string;
     updatedAt?: string;
+    takenOverAt?: string;
   
     emitter: {
       type: string;

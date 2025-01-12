@@ -299,7 +299,7 @@ const AnalysisPage = () => {
             <div className='mx-5 mt-2'>
                 <div className="flex justify-between items-center">
                     <FiltreFilieres/>
-                    <div className="join">
+                    <div className="join hidden">
                         <input 
                             className="join-item btn btn-xs text-xs font-normal" 
                             type="radio" 

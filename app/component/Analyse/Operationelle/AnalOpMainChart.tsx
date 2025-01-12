@@ -13,12 +13,44 @@ const AnalOpMainChart = () => {
   const { filieres } = useFilterContext();
 
   const filteredChartData = useMemo(() => {
-    const monthLabels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+    // Calculer la plage de dates (12 mois avant la date actuelle)
+    const now = new Date();
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Dernier jour du mois actuel
+    const startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1); // Premier jour d'il y a 12 mois
+
+    // Générer les labels des mois pour la période
+    const monthLabels: string[] = [];
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+        const label = currentDate.toLocaleString('fr-FR', { 
+            month: 'short',
+            year: '2-digit'
+        });
+        monthLabels.push(label.charAt(0).toUpperCase() + label.slice(1));
+        currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+
     const quantitiesBySegment: { [key: string]: number[] } = {};
-    const colors = getColors(20);
 
     // Initialiser les données par segment (filière ou prestataire)
     bsds.forEach(bsd => {
+      let bsdDate; //-------------------A voir comment on fait pour les dates
+      if (bsd.infos_json.formAPI.createFormInput.takenOverAt) {
+        const takenOverDate = new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt);
+        // Vérifier si la date est valide et entre 2020 et 2030
+        if (!isNaN(takenOverDate.getTime()) && 
+            takenOverDate.getFullYear() >= 2020 && 
+            takenOverDate.getFullYear() <= 2030) {
+          bsdDate = takenOverDate;
+        } else {
+          bsdDate = new Date(bsd.created_at);
+        }
+      } else {
+        bsdDate = new Date(bsd.created_at);
+      }
+      // Ignorer les BSDs hors de la plage de dates
+      if (bsdDate < startDate || bsdDate > endDate) return;
+
       let segmentKey;
       if (filieres_ou_prestataires.nom === 'prestataire') {
         const siret = bsd.infos_json.formAPI.createFormInput.recipient.company.siret;
@@ -34,12 +66,17 @@ const AnalOpMainChart = () => {
       }
 
       if (!quantitiesBySegment[segmentKey]) {
-        quantitiesBySegment[segmentKey] = Array(12).fill(0);
+        quantitiesBySegment[segmentKey] = Array(monthLabels.length).fill(0);
       }
 
-      const month = new Date(bsd.created_at).getMonth();
-      const quantity = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
-      quantitiesBySegment[segmentKey][month] += quantity;
+      // Calculer l'index du mois relatif à la période
+      const monthIndex = Math.floor(
+        (bsdDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+      );
+      if (monthIndex >= 0 && monthIndex < monthLabels.length) {
+        const quantity = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
+        quantitiesBySegment[segmentKey][monthIndex] += quantity;
+      }
     });
 
     // Trier les segments
@@ -78,9 +115,6 @@ const AnalOpMainChart = () => {
         }
     };
 
-    // Ajouter des console.log pour déboguer
-    console.log("Filières disponibles:", filieres);
-    console.log("Segments triés:", sortedSegments);
 
     // Créer les datasets
     const datasets = sortedSegments.map(([segment, data], index) => {
@@ -92,14 +126,15 @@ const AnalOpMainChart = () => {
             label: segment,
             data: data,
             borderColor: color,
-            backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.6)'),
+            backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 1)'),
             fill: true,
             borderWidth: 1,
             pointRadius: 0,
+            tension: 0.2,
+            cubicInterpolationMode: 'monotone' as 'default' | 'monotone'
         };
     });
 
-    console.log("Datasets finaux:", datasets);
 
     return {
         labels: monthLabels,
@@ -111,11 +146,24 @@ const AnalOpMainChart = () => {
     responsive: true,
     plugins: {
       legend: {
-        position: 'top' as const,
+        position: 'bottom' as const,
       },
       title: {
         display: true,
         text: 'Évolution des tonnages mensuels'
+      },
+      tooltip: {
+        mode: 'index' as 'x' | 'y' | 'nearest' | 'index' | 'dataset' | 'point',
+        intersect: false,
+        position: 'nearest' as const,
+        caretPadding: 10,
+        caretSize: 0,
+        yAlign: 'bottom' as const,
+        callbacks: {
+          title: (tooltipItems: any) => {
+            return tooltipItems[0].label;
+          }
+        }
       }
     },
     scales: {
@@ -125,6 +173,10 @@ const AnalOpMainChart = () => {
         title: {
           display: true,
           text: 'Tonnes'
+        },
+        grid: {
+          color: 'rgba(0, 0, 0, 0.1)',
+          drawBorder: false
         }
       },
       x: {
@@ -137,12 +189,14 @@ const AnalOpMainChart = () => {
     interaction: {
       intersect: false,
       mode: 'index' as const
+    },
+    elements: {
+      line: {
+        tension: 0.2
+      }
     }
   };
 
-  useEffect(() => {
-    console.log("Filtered Chart Data:", filteredChartData);
-  }, [filteredChartData]);
 
   return (
     <div className="mt-4 p-2 bg-white rounded-lg shadow">
