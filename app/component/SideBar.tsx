@@ -132,7 +132,7 @@ const SideBar = (props:SideBarProps) => {
                             </>
                         )}
                         <ul className="space-y-1">
-                            {cofounderPermission && (
+                            {(cofounderPermission || true) && (
                                 <li>
                                     <a 
                                         href="/analysis" 

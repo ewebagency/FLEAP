@@ -5,8 +5,27 @@ import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFu
 import { tailwindToRgb } from '../MetaComponent/Colours';
 import { getColors } from "../MetaComponent/Colours";
 import { useFilterContext } from '@/app/FilterContext';
+import { TooltipItem } from 'chart.js';
 
 const { Line } = DynamicCharts;
+
+// Ajout des interfaces pour les types
+interface Dataset {
+  label: string;
+  data: number[];
+  borderColor: string;
+  backgroundColor: string;
+  fill: boolean;
+  borderWidth: number;
+  pointRadius: number;
+  tension: number;
+  cubicInterpolationMode: 'default' | 'monotone';
+}
+
+interface ChartData {
+  labels: string[];
+  datasets: Dataset[];
+}
 
 const AnalOpMainChart = () => {
   const { bsds, loading, mappingTable, filieres_ou_prestataires, siretToName } = useAnalysis();
@@ -153,14 +172,14 @@ const AnalOpMainChart = () => {
         text: 'Évolution des tonnages mensuels'
       },
       tooltip: {
-        mode: 'index' as 'x' | 'y' | 'nearest' | 'index' | 'dataset' | 'point',
+        mode: 'index' as const,
         intersect: false,
         position: 'nearest' as const,
         caretPadding: 10,
         caretSize: 0,
         yAlign: 'bottom' as const,
         callbacks: {
-          title: (tooltipItems: any) => {
+          title: (tooltipItems: TooltipItem<"line">[]) => {
             return tooltipItems[0].label;
           }
         }

@@ -80,7 +80,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
             .eq('id', session.entreprise_id)
             .single();
 
-        let filiere_conditions = [];
+        const filiere_conditions: string[] = [];
 
         // Conditions pour les CEDs (filières)
         if (mappingData) {
@@ -123,7 +123,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
         }
 
         // Conditions pour les sites
-        let site_conditions = [];
+        const site_conditions: string[] = [];
         if (checkedSites.length > 0) {
             if (checkedSites.includes('----')) {
                 site_conditions.push(`infos_json->formAPI->createFormInput->emitter->company->>siret.eq.""`);
