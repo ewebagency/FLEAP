@@ -34,7 +34,7 @@ const AnalOpTable = () => {
                 };
             }
 
-            const quantity = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
+            const quantity = Number(bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity) || 0;
             const month = new Date(bsd.created_at).getMonth();
 
             stats[segmentKey].totalWeight += quantity;

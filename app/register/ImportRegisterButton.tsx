@@ -42,17 +42,34 @@ const convertToISO = (dateInput: string | number | boolean | undefined): string 
     }
 
     try {
-            // Convertir le nombre Excel en date JavaScript
-        const excelDate = Number(dateInput);
-        const date = new Date(Date.UTC(0, 0, excelDate - 1));
+        // Si c'est une chaîne de caractères au format jj/mm/aaaa
+        if (typeof dateInput === 'string' && dateInput.includes('/')) {
+            const [day, month, year] = dateInput.split('/').map(Number);
+            const date = new Date(year, month - 1, day); // month - 1 car les mois sont 0-indexés
             
-            // Vérifier si la date est valide
             if (isNaN(date.getTime())) {
-            console.warn(`Date invalide: ${dateInput}`);
-            return '';
+                console.warn(`Date invalide: ${dateInput}`);
+                return '';
+            }
+            
+            return date.toISOString();
+        }
+        
+        // Si c'est un nombre (format Excel)
+        const excelDate = Number(dateInput);
+        if (!isNaN(excelDate)) {
+            const date = new Date(Date.UTC(0, 0, excelDate - 1));
+            
+            if (isNaN(date.getTime())) {
+                console.warn(`Date invalide: ${dateInput}`);
+                return '';
+            }
+            
+            return date.toISOString();
         }
 
-        return date.toISOString();
+        console.warn(`Format de date non reconnu: ${dateInput}`);
+        return '';
 
     } catch (error) {
         console.error(`Erreur lors de la conversion de la date: ${dateInput}`, error);
@@ -452,7 +469,7 @@ const sendToSupabase = async (ligne_BSD: { formAPI: { createFormInput: BSDD_Trac
                         infos_json: ligne_BSD,
                         created_on_fleap: false,
                         status_track_dechets: "IMPORTED",
-                        created_at:  new Date('2024-10-01T00:00:00Z').toISOString(),
+                        created_at:  new Date('2024-10-01T00:00:00Z').toISOString(), 
                     }
                 )
             if (error) {

@@ -805,8 +805,7 @@ const TableBSD = () => {
                             <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px' }}>
                                 <div className="absolute top-1 left-2 w-full">
                                     <div className="text-[10px] text-gray-600 ml-4 flex justify-start gap-2">
-                                        <p>Créé le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>
-                                        {bsd.infos_json.formAPI.createFormInput.takenOverAt && <p>Collecté le {new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p>}
+                                        {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p>Collecté le {new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>Créé le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}
                                         {/* {bsd.infos_json.formAPI.createFormInput.emittedAt} */}
                                         {/* {bsd.infos_json.formAPI.createFormInput.createdAt} */}
                                         {/* {bsd.infos_json.formAPI.createFormInput.processedAt} */}
