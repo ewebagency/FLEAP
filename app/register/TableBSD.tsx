@@ -11,6 +11,7 @@ import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/F
 //import 'boxicons'
 import { RecurrenceEntry } from "./RegisterComponents/Modal/Recurrence/RecurrenceFunctionnal";
 import BoxIcon from "../component/BoxIconWrapper";
+import { getPendingBSDs } from "./RegisterComponents/BordereauxRegister";
 
 const cleanCED = (ced: string): string => {
     const ced_clean = ced.replaceAll(' ', '').replace('*', '').trim();
@@ -139,8 +140,17 @@ const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres
     return [];
 }
 
-const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filiere[], points_collecte: PointCollecte[], entreprise_id: string | null, page: number = 1) => {
+const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filiere[], points_collecte: PointCollecte[], entreprise_id: string | null, page: number = 1, filterPendingBSDs: boolean = false) => {
     if (!entreprise_id) return [];
+
+    console.log("filterPendingBSDs dans fetchBSDs:", filterPendingBSDs);
+
+    if (filterPendingBSDs) {
+        console.log("Récupération des BSDs en attente");
+        const pendingBSDs = await getPendingBSDs(entreprise_id);
+        console.log("BSDs en attente récupérés:", pendingBSDs);
+        return pendingBSDs || [];
+    }
 
     const limit = 50;
     const offset = (page - 1) * limit;
@@ -157,6 +167,9 @@ const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filier
         .from('bsd')
         .select('*')
         .eq('entreprise_id', entreprise_id);
+
+    //const { data: datafalse, error: errorfalse } = await query; //---------------!!!!!!!!!!!
+    //return datafalse || [];
 
     // Récupérer tous les CEDs de toutes les filières
     const { data: mappingData } = await supabase
@@ -232,8 +245,8 @@ const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filier
         query = query.or(site_conditions.join(','));
     }
 
-    // Ajouter le filtre sur les points de collecte
-    if (checkedPointsCollecte.length > 0) {
+    // Ajouter le filtre sur les points de collecte --> on ne met jamais  car ça a filtré des trucs qu'on voulait pas filtréé pour lallemand
+    /*if (checkedPointsCollecte.length > 0) {
         if (!checkedPointsCollecte.includes("Non renseigné")) {
             query = query.filter('infos_json->formAPI->createFormInput->emitter->workSite->>name', 'in', `(${checkedPointsCollecte.join(',')})`);
         } else {
@@ -243,8 +256,8 @@ const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filier
                 `infos_json->formAPI->createFormInput->emitter->workSite->>name.in.(${checkedPointsCollecte.filter(point_collecte => point_collecte !== "Non renseigné").join(',')})`
             );
         }
-    }
-
+    }*/
+    
     // Ajouter la pagination
     query = query
         .order('created_at', { ascending: false })
@@ -265,7 +278,7 @@ const TableBSD = () => {
     const [bsds, setBSDs] = useState<BSD[]>([]);
     //const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
     //A faire passer sur useModalContextNew
-    const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModalContextNew();
+    const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType, filterPendingBSDs, setFilterPendingBSDs } = useModalContextNew();
     const { sites, filieres, points_collecte } = useFilterContext();
 
     const [webhooksInitialized, setWebhooksInitialized] = useState(false);
@@ -351,7 +364,15 @@ const TableBSD = () => {
 
             try {
                 setLoadingBSDs(true);
-                const newData = await fetchBSDs(session.user_id, sites, filieres, points_collecte, session.entreprise_id, currentPage);
+                const newData = await fetchBSDs(
+                    session.user_id, 
+                    sites, 
+                    filieres, 
+                    points_collecte, 
+                    session.entreprise_id, 
+                    currentPage,
+                    filterPendingBSDs
+                );
                 
                 if (newData && newData.length > 0) {
                     setBSDs(prevBsds => {
@@ -381,7 +402,7 @@ const TableBSD = () => {
         };
 
         loadBSDs();
-    }, [session?.user_id, session?.entreprise_id, sites, filieres, points_collecte, modalReload, currentPage]);
+    }, [session?.user_id, session?.entreprise_id, sites, filieres, points_collecte, modalReload, currentPage, filterPendingBSDs]);
 
     useEffect(() => {
         // Exécution immédiate

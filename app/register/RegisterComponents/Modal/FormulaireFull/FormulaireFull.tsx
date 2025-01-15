@@ -364,7 +364,7 @@ const toogleFunction = () => {
                                 enableText={true}
                                 display={displayAll || shouldDisplayField("emitter.company.siret", changedField)}
                             />
-                            <InputFull
+                            {/*<InputFull
                                 titre="Adresse"
                                 placeholder="Adresse"
                                 options={getUniqueOptions(options, allOptions, opt => opt.emitter.company.address)}
@@ -374,7 +374,7 @@ const toogleFunction = () => {
                                 onChange={handleChange}
                                 enableText={true}
                                 display={displayAll || shouldDisplayField("emitter.company.address", changedField)}
-                            />
+                            />*/}
                         </div>
 
                         </div>

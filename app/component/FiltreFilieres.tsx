@@ -10,7 +10,7 @@ const FiltreFilieres = () => {
     const { filieres, setFilieres, toggleFiliere } = useFilterContext();
     const session = useSession();
     const [loadingFilieres, setLoadingFilieres] = useState(true);
-    const {modalReload} = useModalContextNew();
+    const {modalReload, setFilterPendingBSDs} = useModalContextNew();
 
     const getFilieresFromEntreprise = async () => {
         
@@ -128,7 +128,10 @@ const FiltreFilieres = () => {
             <div className="flex flex-wrap gap-2">
                 {filieres && filieres.length > 0 && (
                     <button
-                        onClick={toggleAll}
+                        onClick={() => {
+                            setFilterPendingBSDs(false);
+                            toggleAll();
+                        }}
                         className="text-xs h-[22px] px-3 flex items-center justify-center transition-colors duration-200 
                         bg-gray-200 hover:bg-gray-300 rounded-md border"
                     >
@@ -152,7 +155,10 @@ const FiltreFilieres = () => {
                                     name="options_filiere"
                                     aria-label={filiere.name}
                                     checked={filiere.checked}
-                                    onChange={() => toggleFiliere(filiere.name)}
+                                    onChange={() => {
+                                        setFilterPendingBSDs(false);
+                                        toggleFiliere(filiere.name);
+                                    }}
                                 />
                                 <span
                                     className={`text-xs h-[22px] px-3 flex items-center justify-center transition-colors duration-200 

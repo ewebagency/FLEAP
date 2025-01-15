@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { DynamicCharts } from '../MetaComponent/ChartWrapper';
 import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
@@ -6,6 +6,8 @@ import { tailwindToRgb } from '../MetaComponent/Colours';
 import { getColors } from "../MetaComponent/Colours";
 import { useFilterContext } from '@/app/FilterContext';
 import { TooltipItem } from 'chart.js';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
 
 const { Line } = DynamicCharts;
 
@@ -31,22 +33,25 @@ const AnalOpMainChart = () => {
   const { bsds, loading, mappingTable, filieres_ou_prestataires, siretToName } = useAnalysis();
   const { filieres } = useFilterContext();
 
-  const filteredChartData = useMemo(() => {
-    // Calculer la plage de dates (12 mois avant la date actuelle)
-    const now = new Date();
-    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Dernier jour du mois actuel
-    const startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1); // Premier jour d'il y a 12 mois
+  const [startDate, setStartDate] = useState<Date>(() => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - 11);
+    return date;
+  });
+  const [endDate, setEndDate] = useState<Date>(new Date());
 
-    // Générer les labels des mois pour la période
+  const filteredChartData = useMemo(() => {
+    // Utiliser directement les dates du state sans créer de nouvelles instances
     const monthLabels: string[] = [];
     const currentDate = new Date(startDate);
+    
     while (currentDate <= endDate) {
-        const label = currentDate.toLocaleString('fr-FR', { 
-            month: 'short',
-            year: '2-digit'
-        });
-        monthLabels.push(label.charAt(0).toUpperCase() + label.slice(1));
-        currentDate.setMonth(currentDate.getMonth() + 1);
+      const label = currentDate.toLocaleString('fr-FR', { 
+        month: 'short',
+        year: '2-digit'
+      });
+      monthLabels.push(label.charAt(0).toUpperCase() + label.slice(1));
+      currentDate.setMonth(currentDate.getMonth() + 1);
     }
 
     const quantitiesBySegment: { [key: string]: number[] } = {};
@@ -159,7 +164,7 @@ const AnalOpMainChart = () => {
         labels: monthLabels,
         datasets
     };
-  }, [bsds, mappingTable, filieres_ou_prestataires, siretToName, filieres]);
+  }, [bsds, mappingTable, filieres_ou_prestataires, siretToName, filieres, startDate, endDate]);
 
   const options = {
     responsive: true,
@@ -216,14 +221,110 @@ const AnalOpMainChart = () => {
     }
   };
 
+  const handleDateChange = (date: Date | null, setter: (date: Date) => void) => {
+    if (date) {
+      setter(date);
+    }
+  };
 
   return (
-    <div className="mt-4 p-2 bg-white rounded-lg shadow">
-      {bsds.length > 0 ? (
-        <Line data={filteredChartData} options={options} height={60} />
-      ) : (
-        <div className="text-center text-gray-500">Aucune donnée disponible</div>
-      )}
+    <div className="mt-4">
+      <div className="bg-white rounded-lg shadow relative">
+        <div className="absolute top-2 left-14 z-10 flex items-center space-x-2">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => {
+                const newDate = new Date(startDate);
+                newDate.setMonth(startDate.getMonth() - 1);
+                setStartDate(newDate);
+              }}
+              className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <div className="flex items-center space-x-0">
+              <span className="text-xs text-gray-600">Début:</span>
+              <DatePicker
+                selected={startDate}
+                onChange={(date) => handleDateChange(date, setStartDate)}
+                selectsStart
+                startDate={startDate}
+                endDate={endDate}
+                dateFormat="MMM yy"
+                showMonthYearPicker
+                className="w-12 mb-[5px] pl-[4px] px-0 py-0 text-xs rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <button
+              onClick={() => {
+                const newDate = new Date(startDate);
+                newDate.setMonth(startDate.getMonth() + 1);
+                if (newDate < endDate) {
+                  setStartDate(newDate);
+                }
+              }}
+              className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="h-6 w-px bg-gray-300"></div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => {
+                const newDate = new Date(endDate);
+                newDate.setMonth(endDate.getMonth() - 1);
+                if (newDate > startDate) {
+                  setEndDate(newDate);
+                }
+              }}
+              className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <div className="flex items-center space-x-0">
+              <span className="text-xs text-gray-600">Fin :</span>
+              <DatePicker
+                selected={endDate}
+                onChange={(date) => handleDateChange(date, setEndDate)}
+                selectsEnd
+                startDate={startDate}
+                endDate={endDate}
+                dateFormat="MMM yy"
+                showMonthYearPicker
+                className="w-12 mb-[5px] pl-[4px] px-0 py-0 text-xs rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <button
+              onClick={() => {
+                const newDate = new Date(endDate);
+                newDate.setMonth(endDate.getMonth() + 1);
+                setEndDate(newDate);
+              }}
+              className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div className="pt-1">
+          {bsds.length > 0 ? (
+            <Line data={filteredChartData} options={options} height={60} />
+          ) : (
+            <div className="text-center text-gray-500">Aucune donnée disponible</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 // components/FormulaireMano.tsx
-/*
+
 import { useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -726,4 +726,3 @@ const cleanOptions = (liste_options: (string | number)[][]) => {
 const addInconnuChamp = (liste_options: (string | number)[][]) => {
     return liste_options.map(option => [...option, "Inconnu"]);
 };
-*/

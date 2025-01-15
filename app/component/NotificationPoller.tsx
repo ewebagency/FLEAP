@@ -32,7 +32,7 @@ export default function NotificationPoller() {
         };
 
         // Démarrer le polling toutes les 5 secondes
-        const intervalId = setInterval(pollNotifications, 5000);
+        const intervalId = setInterval(pollNotifications, 5*60*1000); // 5 minutes
 
         // Cleanup à la destruction du composant
         return () => clearInterval(intervalId);

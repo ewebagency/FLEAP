@@ -8,6 +8,7 @@ import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFu
 import FinancialMainChart from './FinancialMainChart';
 import FinancialTable from './FinancialTable';
 import FinancialPieChart from "./FinancialPieChart";
+import NewFinancialSource from "./New/NewFinancialSource";
 
 interface Props {
     active: boolean;
@@ -117,17 +118,17 @@ const FinancialAnalyse = ({active}: Props) => {
         <div>
             {active && (
                 <div className="border-b border-r border-l border-gray-200 rounded-br rounded-bl">
-                    <div className="pt-5 mb-5 ml-5 mr-5">
+                    {/*<div className="pt-5 mb-5 ml-5 mr-5">
                         <TopCaption/>
                         <TopBordereau {...bordereauData()}/>
                         <FinancialMainChart/>
                         
                         <div className="flex justify-between m-1">
                             <FinancialTable/>
-                            {/* {renderFinancialPieChart()} */}
                             <FinancialPieChart/>
                         </div>
-                    </div>
+                    </div>*/}
+                    <NewFinancialSource/>
                 </div>
             )}
         </div>

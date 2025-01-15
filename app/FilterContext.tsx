@@ -1,5 +1,6 @@
 'use client'
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import { useModalContextNew } from './register/RegisterComponents/Modal/ContextModal';
 
 export interface Filiere {
     name: string;
@@ -82,11 +83,11 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);
 
   const toggleFiliere = (name: string) => {
-      setFilieres(prev => prev.map(filiere => 
-        filiere.name === name 
-          ? { ...filiere, checked: !filiere.checked }
-          : filiere
-      ));
+    setFilieres(prev => prev.map(filiere => 
+      filiere.name === name 
+        ? { ...filiere, checked: !filiere.checked }
+        : filiere
+    ));
   };
 
   const toggleSite = (orgId: string) => {

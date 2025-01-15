@@ -10,7 +10,7 @@ const FiltrePointCollecte = () => {
     const { points_collecte, setPointsCollecte, togglePointsCollecte } = useFilterContext();
     const session = useSession();
     const containerRef = useRef<HTMLDivElement>(null);
-    const { modalReload } = useModalContextNew();
+    const { modalReload, setFilterPendingBSDs } = useModalContextNew();
 
     useEffect(() => {
         const getPointsCollecteFromEntreprise = async () => {
@@ -130,7 +130,10 @@ const FiltrePointCollecte = () => {
                                         <input
                                             type="checkbox"
                                             checked={point_collecte.checked}
-                                            onChange={() => togglePointsCollecte(point_collecte.name)}
+                                            onChange={() => {
+                                                setFilterPendingBSDs(false);
+                                                togglePointsCollecte(point_collecte.name);
+                                            }}
                                             className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                                         />
                                         <span className="ml-3 text-sm text-gray-700 truncate">

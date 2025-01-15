@@ -1,4 +1,4 @@
-/*export interface Facture {
+export interface Facture {
     id: string;
     user_id: string;
     entreprise_id: string;
@@ -40,4 +40,4 @@ export interface ChartData {
         borderColor?: string;
         fill?: boolean;
     }[];
-} */
+}

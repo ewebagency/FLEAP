@@ -28,7 +28,7 @@ const FiltreSiteEtablissement = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const { sites, setSites, toggleSite } = useFilterContext();
 
-    const {modalReload} = useModalContextNew();
+    const {modalReload, setFilterPendingBSDs} = useModalContextNew();
     const session = useSession();
     const [additionnalSites, setAdditionnalSites] = useState<AdditionalSite[]>([]);
     const [isLoadingTrack, setIsLoadingTrack] = useState(false);
@@ -247,8 +247,11 @@ const FiltreSiteEtablissement = () => {
                                             <input
                                                 type="checkbox"
                                                 checked={site.checked}
-                                                onChange={() => toggleSite(site.orgId)}
-                                                disabled={!site.activated}
+                                                onChange={() => {
+                                                    setFilterPendingBSDs(false);
+                                                    toggleSite(site.orgId);
+                                                }}
+                                                //disabled={!site.activated}
                                                 className="form-checkbox h-4 w-4 text-blue-600 transition duration-150 ease-in-out"
                                             />
                                         </div>
