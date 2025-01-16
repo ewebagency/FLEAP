@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import BoxIcon from '@/app/component/BoxIconWrapper';
+import { supabase } from '@/app/database/supabaseClient';
+import { useSession } from '@/app/component/SessionProvider';
+import ExtractData from './ExtractData';
 
 interface PdfInfo {
+    status: string;
     id: number;
     name_pdf: string;
     name_pdf_in_bucket: string;
@@ -9,6 +13,9 @@ interface PdfInfo {
     created_at: string;
     url: string;
     file_size: number;
+    document_type?: string;
+    site_siret?: string;
+    provider?: ProviderJSON;
 }
 
 interface TableImportedFilesProps {
@@ -16,8 +23,35 @@ interface TableImportedFilesProps {
     onDelete: (pdfPath: string, id: number) => void;
 }
 
+interface Site {
+    siret: string;
+    name: string;
+}
+
+interface DocumentType {
+    id: string;
+    name: string;
+}
+
+interface Provider {
+    siret: string;
+    name: string;
+    is_transporter: boolean;
+    is_destination: boolean;
+}
+
+interface ProviderJSON {
+    siret: string;
+    name: string;
+    is_transporter: boolean;
+    is_destination: boolean;
+}
+
 const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDelete }) => {
     const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+    const session = useSession();
+    const [entrepriseId, setEntrepriseId] = useState<string | null>(null);
+    const [providerType, setProviderType] = useState<'transporter' | 'destination' | ''>('');
 
     // Gestionnaire de clic en dehors du menu
     React.useEffect(() => {
@@ -32,6 +66,12 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
             document.removeEventListener('click', handleClickOutside);
         };
     }, [openMenuId]);
+
+    useEffect(() => {
+        if (session.entreprise_id) {
+            setEntrepriseId(session.entreprise_id);
+        }
+    }, [session]);
 
     return (
         <div>
@@ -50,10 +90,10 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                             className="text-xs font-normal text-gray-500 mb-0">Document</th>
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '14%', textAlign: 'left' }}
                             className="text-xs font-normal text-gray-500 mb-0">Site</th>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '14%', textAlign: 'left' }}
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '25%', textAlign: 'left' }}
                             className="text-xs font-normal text-gray-500 mb-0">Prestataire</th>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '8%', textAlign: 'left' }}
-                            className="text-xs font-normal text-gray-500 mb-0">Taille</th>
+                        {/*<th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '8%', textAlign: 'left' }}
+                            className="text-xs font-normal text-gray-500 mb-0">Taille</th>*/}
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '12%', textAlign: 'right', paddingRight: '3.5rem' }}
                             className="text-xs font-normal text-gray-500 mb-0">Actions</th>
                     </tr>
@@ -65,9 +105,11 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                 <BoxIcon name='file-pdf' color='red' type='solid' />
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
-                                <span className="px-2 py-1 rounded-full font-semibold text-orange-600 text-xs">
+                                {pdf.status === 'unread' ? <span className="px-2 py-1 rounded-full font-semibold text-orange-600 text-xs">
                                     En cours..
-                                </span>
+                                </span> : <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
+                                    Extraction terminée
+                                </span>}
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <div className="text-xs font-medium truncate pr-4" title={pdf.name_pdf}>
@@ -85,32 +127,28 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                 </div>
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
-                                <select className="border rounded p-1 text-xs w-full max-w-[100px]">
-                                    <option value="">Type</option>
-                                    <option value="bsd">BSD</option>
-                                    <option value="facture">Facture</option>
-                                    <option value="autre">Autre</option>
-                                </select>
+                                <SelectDocumentType 
+                                    pdf_id={pdf.id} 
+                                    initialType={pdf.document_type} 
+                                />
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
-                                <select className="border rounded p-1 text-xs w-full max-w-[100px]">
-                                    <option value="">Site</option>
-                                    <option value="paprec">Paprec</option>
-                                    <option value="veolia">Veolia</option>
-                                    <option value="suez">Suez</option>
-                                </select>
+                                <SelectSite 
+                                    entreprise_id={entrepriseId} 
+                                    pdf_id={pdf.id}
+                                    initialSite={pdf.site_siret}
+                                />
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
-                                <select className="border rounded p-1 text-xs w-full max-w-[100px]">
-                                    <option value="">Prestataire</option>
-                                    <option value="paprec">Paprec</option>
-                                    <option value="veolia">Veolia</option>
-                                    <option value="suez">Suez</option>
-                                </select>
+                                <SelectProvider 
+                                    entreprise_id={entrepriseId} 
+                                    pdf_id={pdf.id}
+                                    initialProvider={pdf.provider}
+                                />
                             </td>
-                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                            {/*<td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <div className="text-xs">{pdf.file_size ? `${pdf.file_size} MB` : 'Inconnu'}</div>
-                            </td>
+                            </td>*/}
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <div className="flex items-center justify-end gap-2">
                                     <a 
@@ -149,6 +187,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             </div>
                                         )}
                                     </div>
+                                    {cofounders_permission(session?.user_id) && <ExtractData pdf_id={pdf.id} pdfUrl={pdf.url} />}
                                 </div>
                             </td>
                         </tr>
@@ -157,6 +196,354 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
             </table>
         </div>
     );
+};
+
+const cofounders_permission = (user_id:string|null) => {
+    if (user_id){
+        if (user_id == "a0542794-bbae-4132-9dde-485595bfa2aa" || user_id == "8f05a291-f8b3-429d-839e-6f0b12f1bede" || user_id == "dd9acb15-4678-442f-af72-79331bc43d91"){
+            return true;
+        }
+    }
+    return false;
+}
+const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initialSite?: string }> = ({ 
+    entreprise_id, 
+    pdf_id, 
+    initialSite 
+}) => {
+    const [sites, setSites] = useState<Site[]>([]);
+    const [selectedSite, setSelectedSite] = useState<string>(initialSite || '');
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchSites = async () => {
+            setIsLoading(true);
+            if (entreprise_id) {
+                try {
+                const sites = await getSites(entreprise_id);
+                setSites(sites);
+                } catch (error) {
+                    console.error('Erreur lors du chargement des sites:', error);
+                }
+            }
+            setIsLoading(false);
+        };
+        fetchSites();
+    }, [entreprise_id]);
+
+    if (isLoading) {
+        return <div className="text-xs">Chargement...</div>;
+    }
+
+    const handleSelectSite = async (siret: string) => {
+        setSelectedSite(siret);
+        const { error } = await supabase
+            .from('pdf_infos')
+            .update({ site_siret: siret })
+            .eq('id', pdf_id);
+
+        if (error) {
+            console.error('Erreur lors de la mise à jour du site:', error);
+        }
+    };
+
+    return (
+        <select 
+            className="border rounded p-1 text-xs w-full max-w-[100px]"
+            value={selectedSite}
+            onChange={(e) => handleSelectSite(e.target.value)}
+            disabled={isLoading}
+        >
+            <option value="">Sélectionner</option>
+            {sites.map((site) => (
+                <option key={site.siret} value={site.siret}>
+                    {site.name} - {site.siret}
+                </option>
+            ))}
+        </select>
+    );
+};
+
+const getSites = async (entreprise_id: string): Promise<Site[]> => {
+    const { data, error } = await supabase
+        .from('bsd')
+        .select(`
+            infos_json,
+            entreprise_id
+        `)
+        .eq('entreprise_id', entreprise_id);
+
+    if (error) {
+        console.error('Erreur lors de la récupération des sites:', error);
+        return [];
+    }
+
+    // Extraire et transformer les données
+    const sitesData = data.map(row => {
+        const emitterCompany = row.infos_json?.formAPI?.createFormInput?.emitter?.company;
+        return {
+            siret: emitterCompany?.siret || '',
+            name: emitterCompany?.name || ''
+        };
+    }).filter(site => site.siret && site.name); // Filtrer les entrées invalides
+
+    // Regrouper par siret et compter les occurrences des noms
+    const siteMap = sitesData.reduce((acc, curr) => {
+        if (!curr.siret) return acc;
+        
+        if (!acc[curr.siret]) {
+            acc[curr.siret] = { names: {}, siret: curr.siret };
+        }
+        
+        const name = curr.name || 'Inconnu';
+        acc[curr.siret].names[name] = (acc[curr.siret].names[name] || 0) + 1;
+        
+        return acc;
+    }, {} as Record<string, { names: Record<string, number>; siret: string }>);
+
+    // Convertir en tableau et prendre le nom le plus fréquent pour chaque siret
+    return Object.values(siteMap).map(({ names, siret }) => {
+        const mostFrequentName = Object.entries(names)
+            .reduce((a, b) => (a[1] > b[1] ? a : b))[0];
+        
+        return {
+            siret,
+            name: mostFrequentName
+        };
+    });
+};
+
+const SelectDocumentType: React.FC<{ pdf_id: number; initialType?: string }> = ({ pdf_id, initialType }) => {
+    const [selectedType, setSelectedType] = useState<string>(initialType || '');
+
+    const documentTypes: DocumentType[] = [
+        { id: 'bsd', name: 'BSD' },
+        { id: 'facture', name: 'Facture' },
+        { id: 'autre', name: 'Autre' }
+    ];
+
+    const handleSelectType = async (type: string) => {
+        setSelectedType(type);
+        const { error } = await supabase
+            .from('pdf_infos')
+            .update({ document_type: type })
+            .eq('id', pdf_id);
+
+        if (error) {
+            console.error('Erreur lors de la mise à jour du type:', error);
+        }
+    };
+
+    return (
+        <select 
+            className="border rounded p-1 text-xs w-full max-w-[100px]"
+            value={selectedType}
+            onChange={(e) => handleSelectType(e.target.value)}
+        >
+            <option value="">Type</option>
+            {documentTypes.map((type) => (
+                <option key={type.id} value={type.id}>
+                    {type.name}
+                </option>
+            ))}
+        </select>
+    );
+};
+
+const SelectProvider: React.FC<{ 
+    entreprise_id: string | null; 
+    pdf_id: number;
+    initialProvider?: ProviderJSON;
+}> = ({ entreprise_id, pdf_id, initialProvider }) => {
+    const [providers, setProviders] = useState<Provider[]>([]);
+    const [selectedProvider, setSelectedProvider] = useState<string>(initialProvider?.siret || '');
+    const [providerType, setProviderType] = useState<'transporter' | 'destination' | ''>(() => {
+        if (initialProvider?.is_transporter) return 'transporter';
+        if (initialProvider?.is_destination) return 'destination';
+        return '';
+    });
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchProviders = async () => {
+            setIsLoading(true);
+            if (entreprise_id) {
+                try {
+                const providers = await getProviders(entreprise_id);
+                setProviders(providers);
+                } catch (error) {
+                    console.error('Erreur lors du chargement des prestataires:', error);
+                }
+            }
+            setIsLoading(false);
+        };
+        fetchProviders();
+    }, [entreprise_id]);
+
+    if (isLoading) {
+        return <div className="text-xs">Chargement...</div>;
+    }
+
+    const handleSelectProvider = async (siret: string) => {
+        const selectedProviderData = providers.find(p => p.siret === siret);
+        if (!selectedProviderData) return;
+
+        setSelectedProvider(siret);
+        
+        const providerJSON: ProviderJSON = {
+            siret: selectedProviderData.siret,
+            name: selectedProviderData.name,
+            is_transporter: providerType === 'transporter',
+            is_destination: providerType === 'destination'
+        };
+
+        const { error } = await supabase
+            .from('pdf_infos')
+            .update({ 
+                provider: providerJSON
+            })
+            .eq('id', pdf_id);
+
+        if (error) {
+            console.error('Erreur lors de la mise à jour du prestataire:', error);
+        }
+    };
+
+    // Filtrer les providers selon le type sélectionné
+    const filteredProviders = providers.filter(provider => {
+        if (providerType === 'transporter') return provider.is_transporter;
+        if (providerType === 'destination') return provider.is_destination;
+        return true;
+    });
+
+    return (
+        <div className="space-y-2 flex justify-start gap-2">
+            <div className="flex flex-col gap-2">
+                <label className="flex items-center space-x-1">
+                    <input
+                        type="radio"
+                        checked={providerType === 'transporter'}
+                        onChange={() => {
+                            setProviderType('transporter');
+                            setSelectedProvider(''); // Réinitialiser la sélection
+                        }}
+                        className="form-radio h-3 w-3"
+                        name={`provider-type-${pdf_id}`}
+                    />
+                    <span className="text-xs">Transporteur</span>
+                </label>
+                <label className="flex items-center space-x-1">
+                    <input
+                        type="radio"
+                        checked={providerType === 'destination'}
+                        onChange={() => {
+                            setProviderType('destination');
+                            setSelectedProvider(''); // Réinitialiser la sélection
+                        }}
+                        className="form-radio h-3 w-3"
+                        name={`provider-type-${pdf_id}`}
+                    />
+                    <span className="text-xs">Destinataire</span>
+                </label>
+            </div>
+            {providerType && (
+                <select 
+                    className="border rounded p-1 text-xs w-full max-w-[150px]"
+                    value={selectedProvider}
+                    onChange={(e) => handleSelectProvider(e.target.value)}
+                >
+                    <option value="">Prestataire</option>
+                    {filteredProviders.map((provider) => (
+                        <option key={provider.siret} value={provider.siret}>
+                            {provider.name} - {provider.siret}
+                        </option>
+                    ))}
+                </select>
+            )}
+        </div>
+    );
+};
+
+const getProviders = async (entreprise_id: string): Promise<Provider[]> => {
+    const { data, error } = await supabase
+        .from('bsd')
+        .select(`
+            infos_json,
+            entreprise_id
+        `)
+        .eq('entreprise_id', entreprise_id);
+
+    if (error) {
+        console.error('Erreur lors de la récupération des prestataires:', error);
+        return [];
+    }
+
+    // Extraire et transformer les données
+    const providersData = data.map(row => {
+        const transporterCompany = row.infos_json?.formAPI?.createFormInput?.transporter?.company;
+        const destinationCompany = row.infos_json?.formAPI?.createFormInput?.recipient?.company;
+        
+        const providers: Provider[] = [];
+        
+        if (transporterCompany?.siret && transporterCompany?.name) {
+            providers.push({
+                siret: transporterCompany.siret,
+                name: transporterCompany.name,
+                is_transporter: true,
+                is_destination: false
+            });
+        }
+        
+        if (destinationCompany?.siret && destinationCompany?.name) {
+            providers.push({
+                siret: destinationCompany.siret,
+                name: destinationCompany.name,
+                is_transporter: false,
+                is_destination: true
+            });
+        }
+        
+        return providers;
+    }).flat();
+
+    // Regrouper par siret
+    const providerMap = providersData.reduce((acc, curr) => {
+        if (!curr.siret) return acc;
+        
+        if (!acc[curr.siret]) {
+            acc[curr.siret] = { 
+                names: {},
+                siret: curr.siret,
+                is_transporter: curr.is_transporter || false,
+                is_destination: curr.is_destination || false
+            };
+        }
+        
+        const name = curr.name || 'Inconnu';
+        acc[curr.siret].names[name] = (acc[curr.siret].names[name] || 0) + 1;
+        acc[curr.siret].is_transporter = acc[curr.siret].is_transporter || curr.is_transporter;
+        acc[curr.siret].is_destination = acc[curr.siret].is_destination || curr.is_destination;
+        
+        return acc;
+    }, {} as Record<string, { 
+        names: Record<string, number>; 
+        siret: string;
+        is_transporter: boolean;
+        is_destination: boolean;
+    }>);
+
+    // Convertir en tableau et prendre le nom le plus fréquent
+    return Object.values(providerMap).map(({ names, siret, is_transporter, is_destination }) => {
+        const mostFrequentName = Object.entries(names)
+            .reduce((a, b) => (a[1] > b[1] ? a : b))[0];
+        
+        return {
+            siret,
+            name: mostFrequentName,
+            is_transporter,
+            is_destination
+        };
+    });
 };
 
 export default TableImportedFiles;

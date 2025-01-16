@@ -3,7 +3,7 @@ import { supabase } from "@/app/database/supabaseClient";
 import { SessionMore, useSession } from "../../../SessionProvider";
 import { useEffect, useState } from "react";
 import { Facture } from "../types";
-//import NewMainFinancialChart from "./NewMainFinancialChart";
+import NewMainFinancialChart from "./NewMainFinancialChart";
 import NewPieFinancialChart from "./NewPieFinancialChart";
 import NewTableFinancial from "./NewTableFinancial";
 import NewBordereauxFinancial from "./NewBordereauxFinancial";
@@ -53,9 +53,9 @@ const NewFinancialSource = () => {
         <div>
             {entreprise_id && <div className="space-y-4 p-2">
                 <NewBordereauxFinancial factures={factures} />
-                {/*<div className="bg-white rounded-lg shadow">
+                <div className="bg-white rounded-lg shadow">
                     <NewMainFinancialChart factures={factures} entreprise_id={entreprise_id} />
-                </div>*/}
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                     <div className="bg-white rounded-lg shadow">
                         <h2 className="text-sm text-gray-600 font-thin p-2">Détail des factures</h2>

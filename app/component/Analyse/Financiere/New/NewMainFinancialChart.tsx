@@ -1,7 +1,7 @@
-/*'use client'
+'use client'
 import { Line } from 'react-chartjs-2';
 import { Facture, ChartData } from '../types';
-import { Chart as ChartJS } from 'chart.js/auto';
+import { Chart as ChartJS, ChartEvent, LegendItem, LegendElement } from 'chart.js/auto';
 import { useEffect, useState, useMemo } from 'react';
 import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { useFilterContext } from '@/app/FilterContext';
@@ -9,6 +9,7 @@ import { tailwindToRgb } from '../../MetaComponent/Colours';
 import { TooltipItem } from 'chart.js';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
+import { Chart } from 'chart.js';
 
 interface Props {
     factures: Facture[];
@@ -125,12 +126,17 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
         plugins: {
             legend: {
                 position: 'bottom' as const,
-                onClick: function(e: any, legendItem: any, legend: any) {
-                    const index = legendItem.datasetIndex;
+                onClick: function(
+                    this: LegendElement<"line">,
+                    e: ChartEvent,
+                    legendItem: LegendItem,
+                    legend: LegendElement<"line">
+                ) {
+                    const index = legendItem.datasetIndex ?? 0;
                     const ci = legend.chart;
                     const meta = ci.getDatasetMeta(index);
 
-                    meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
+                    meta.hidden = meta.hidden === null || meta.hidden === undefined ? true : !meta.hidden;
                     ci.update();
                 }
             },
@@ -148,6 +154,10 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                 callbacks: {
                     title: (tooltipItems: TooltipItem<"line">[]) => {
                         return tooltipItems[0].label;
+                    },
+                    label: function(tooltipItem: TooltipItem<"line">) {
+                        const value = tooltipItem.raw as number;
+                        return `${value.toLocaleString('fr-FR')} €`;
                     }
                 }
             }
@@ -291,4 +301,4 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
     );
 };
 
-export default NewMainFinancialChart;*/
+export default NewMainFinancialChart;

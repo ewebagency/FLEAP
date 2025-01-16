@@ -186,6 +186,10 @@ const AnalOpMainChart = () => {
         callbacks: {
           title: (tooltipItems: TooltipItem<"line">[]) => {
             return tooltipItems[0].label;
+          },
+          label: function(tooltipItem: TooltipItem<"line">) {
+            const value = tooltipItem.raw as number;
+            return `${value.toLocaleString('fr-FR')} T`;
           }
         }
       }

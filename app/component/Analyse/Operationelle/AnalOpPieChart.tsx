@@ -19,6 +19,30 @@ const AnalOpPieChart = () => {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function(context: { 
+                        dataset: { data: number[] };
+                        dataIndex: number;
+                        label: string;
+                    }) {
+                        const dataset = context.dataset;
+                        const total = dataset.data.reduce((acc: number, data: number) => acc + data, 0);
+                        const value = dataset.data[context.dataIndex];
+                        const percentage = ((value / total) * 100).toFixed(1);
+                        return `${context.label}: ${percentage}% (${value.toLocaleString('fr-FR')} T)`;
+                    }
+                },
+                position: 'nearest' as const,
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                padding: 12,
+                titleFont: {
+                    size: 14
+                },
+                bodyFont: {
+                    size: 13
+                }
+            },
             legend: {
                 position: 'bottom' as const,
                 labels: {

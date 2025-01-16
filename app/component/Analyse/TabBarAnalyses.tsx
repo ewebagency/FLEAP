@@ -1,11 +1,13 @@
 'use client';
-import React, {useState } from "react";
+import React, {useEffect, useState } from "react";
 import OperationalAnalyse from "./Operationelle/OperationalAnalyse";
 import FinancialAnalyse from "./Financiere/FinancialAnalyse";
 import FactureAnalyse from "./Factures/FacturesAnalyse";
 import EnvAnalyse from "./Environnementale/EnvAnalyse";
 import { SessionMore } from "../SessionProvider";
 import { useSession } from "../SessionProvider";
+import { supabase } from "@/app/database/supabaseClient";
+import { useEntrepriseId } from "@/app/interface_admin_2/InterfaceAdmin2/hooks/useEntrepriseId";
 
 export interface Material { id: number, checked: boolean, color: string, label: string}
 export interface DataMaterialStructured { valueChain:string, materials:Material[]}
@@ -14,16 +16,54 @@ export interface DataMaterialStructured { valueChain:string, materials:Material[
 const TabBarAnalyses = () => {
     
     const [activeTab, setActiveTab] = useState('tab_ops');
-    const user_id = useSession().user_id;
+    const session = useSession();
+    const [hasFinanceData, setHasFinanceData] = useState(false);
+    const [entrepriseId, setEntrepriseId] = useState<string | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
     const handleTabClick = (tab:string) => {
         setActiveTab(tab);
       };
 
-      const cofounders_user_id = (user_id:string|null) => {
-        if (user_id){
-            if (user_id == "a0542794-bbae-4132-9dde-485595bfa2aa" || user_id == "8f05a291-f8b3-429d-839e-6f0b12f1bede" || user_id == "dd9acb15-4678-442f-af72-79331bc43d91"){
-                return true;
+    useEffect(() => {
+        if (session?.entreprise_id) {
+            setEntrepriseId(session.entreprise_id);
+            setUserId(session.user_id);
+        }
+    }, [session]);
+
+    useEffect(() => {
+        const checkFinanceData = async () => {
+            if (session?.entreprise_id) {
+                const hasData = await has_finance_data(session.entreprise_id);
+                setHasFinanceData(hasData);
             }
+        };
+        checkFinanceData();
+    }, [session?.entreprise_id]);
+
+      const cofounders_user_id = (user_id: string | null) => {
+        if (user_id) {
+            return ["a0542794-bbae-4132-9dde-485595bfa2aa", 
+                    "8f05a291-f8b3-429d-839e-6f0b12f1bede", 
+                    "dd9acb15-4678-442f-af72-79331bc43d91"].includes(user_id);
+        }
+        return false;
+    }
+
+    const has_finance_data = async (entreprise_id: string | null) => {
+        if (entreprise_id) {
+            const { data, error } = await supabase
+                .from('facture')
+                .select('*')
+                .eq('entreprise_id', entreprise_id);
+
+            console.log("facture data", data);
+
+            if (error) {
+                console.error(error);
+                return false;
+            }
+            return data.length > 0;
         }
         return false;
     }
@@ -31,13 +71,13 @@ const TabBarAnalyses = () => {
     return (
         <div>
             <div role="tablist" className="tabs tabs-lifted">
-                <a role="tab" className={`tab ${activeTab === 'tab_finance' ? 'tab-active' : ''} ${cofounders_user_id(user_id) ? '' : 'hidden'}`} onClick={() => handleTabClick('tab_finance')}>Analyse financière</a>          
+                <a role="tab" className={`tab ${activeTab === 'tab_finance' ? 'tab-active' : ''} ${hasFinanceData ? '' : 'hidden'}`} onClick={() => handleTabClick('tab_finance')}>Analyse financière</a>          
                 <a role="tab" className={`tab ${activeTab === 'tab_ops' ? 'tab-active' : ''}`} onClick={() => handleTabClick('tab_ops')}>Analyse opérationnelle</a>
                 <a role="tab" className={`tab ${activeTab === 'tab_facture' ? 'tab-active' : ''} hidden`} onClick={() => handleTabClick('tab_facture')}>Analyse des factures</a>
                 <a role="tab" className={`tab ${activeTab === 'tab_env' ? 'tab-active' : ''} hidden`} onClick={() => handleTabClick('tab_env')}>Analyse environnementale</a>
             </div>
 
-            {cofounders_user_id(user_id) ? <FinancialAnalyse active={activeTab == 'tab_finance'}/> : null}
+            {hasFinanceData ? <FinancialAnalyse active={activeTab == 'tab_finance'}/> : null}
             <OperationalAnalyse active={activeTab == 'tab_ops'}/>
             {/*<FactureAnalyse active={activeTab == 'tab_facture'}/>*/}
             {/*<EnvAnalyse active={activeTab == 'tab_env'}/>*/}

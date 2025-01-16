@@ -38,7 +38,7 @@ const FiltreFilieres = () => {
         
         const array_codes_propres = codes.map(code => code.replaceAll(' ', '').replace('*', '').trim());
         
-        const array_codes_clean = array_codes_propres.map(code => String(parseInt(code)));
+        const array_codes_clean = array_codes_propres.map(code => String(code));
         
         const set_codes_clean = new Set(array_codes_clean);
         const codes_uniques = Array.from(set_codes_clean); //tous les codes CED uniques de l'entreprise

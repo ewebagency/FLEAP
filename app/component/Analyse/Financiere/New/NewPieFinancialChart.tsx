@@ -43,6 +43,9 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
         return tailwindToRgb(filiereColor);
     });
 
+    // Calculer le total pour les pourcentages
+    const total = Object.values(operationData).reduce((sum, value) => sum + value, 0);
+
     const chartData: ChartData = {
         labels: Object.keys(operationData),
         datasets: [{
@@ -59,6 +62,34 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
                 options={{
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.raw as number;
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${context.label}: ${percentage}% (${value.toLocaleString('fr-FR')} €)`;
+                                }
+                            },
+                            position: 'nearest',
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: {
+                                size: 14
+                            },
+                            bodyFont: {
+                                size: 13
+                            }
+                        },
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    }
                 }}
             />
         </div>
