@@ -2,22 +2,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/app/database/supabaseClient'; // Import Supabase client
 import { useSession } from '../../component/SessionProvider';
-import TableImportedFiles from './TableImportedFiles';
+import TableImportedFiles, { PdfInfo } from './TableImportedFiles';
 import { SessionMore } from '../../component/SessionProvider';
 import { useImport } from './ImportContext';
 
-interface PdfInfoInterface {
-    id: number;
-    name_pdf: string;
-    name_pdf_in_bucket: string;
-    pdf_path: string;
-    created_at: string;
-    url: string;
-    file_size: number;
-}
 
 const TableImportedFilesFunctional: React.FC = () => {
-    const [pdfInfos, setPdfInfos] = useState<PdfInfoInterface[]>([]); // État pour stocker les informations des PDF
+    const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]); // État pour stocker les informations des PDF
     const [loading, setLoading] = useState(true); // État pour gérer le chargement
     const session = useSession() as SessionMore; // Récupérer la session utilisateur
     const user_id = session?.user_id; // Récupérer l'ID de l'utilisateur

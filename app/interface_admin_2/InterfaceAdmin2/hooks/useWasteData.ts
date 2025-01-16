@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
-import { useAccessOtherAccount } from '../../AccessOtherAccounts/AccessOtherAccountContext';
 
 interface FiliereItem {
     filiere?: string;

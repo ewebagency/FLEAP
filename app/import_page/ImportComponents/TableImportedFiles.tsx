@@ -4,7 +4,7 @@ import { supabase } from '@/app/database/supabaseClient';
 import { useSession } from '@/app/component/SessionProvider';
 import ExtractData from './ExtractData';
 
-interface PdfInfo {
+export interface PdfInfo {
     status: string;
     id: number;
     name_pdf: string;
