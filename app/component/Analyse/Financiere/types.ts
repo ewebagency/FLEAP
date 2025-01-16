@@ -2,6 +2,7 @@ export interface Facture {
     id: string;
     user_id: string;
     entreprise_id: string;
+    created_at: string;
     other_infos: {
         code_ced: string;
         date_collecte: string;

@@ -13,7 +13,7 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
 
         // Grouper les coûts par mois
         const costsByMonth = factures.reduce((acc: { [key: string]: number }, facture) => {
-            const date = new Date(facture.other_infos.date_collecte);
+            const date = new Date(facture.other_infos?.date_collecte || facture.created_at);
             const monthYear = `${date.getMonth()}-${date.getFullYear()}`;
             
             if (!acc[monthYear]) {

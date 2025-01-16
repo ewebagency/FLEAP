@@ -74,7 +74,7 @@ export const HeaderSection = ({
                         handleChange('prestataire_nom', nom);
                         handleChange('prestataire_siret', siret);
                     }}
-                    options={prestataires.map(p => `${p.nom} - ${p.siret}`)}
+                    options={['', ...Array.from(prestataires.map(p => `${p.nom} - ${p.siret}`))]}
                 />
                 <input
                     type="date"

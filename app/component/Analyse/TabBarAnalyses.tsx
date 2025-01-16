@@ -55,7 +55,8 @@ const TabBarAnalyses = () => {
             const { data, error } = await supabase
                 .from('facture')
                 .select('*')
-                .eq('entreprise_id', entreprise_id);
+                .eq('entreprise_id', entreprise_id)
+                .not('other_infos', 'is', null);
 
             console.log("facture data", data);
 

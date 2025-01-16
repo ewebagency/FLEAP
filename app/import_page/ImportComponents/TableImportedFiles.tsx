@@ -68,7 +68,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
     }, [openMenuId]);
 
     useEffect(() => {
-        if (session.entreprise_id) {
+        if (session && session?.entreprise_id) {
             setEntrepriseId(session.entreprise_id);
         }
     }, [session]);

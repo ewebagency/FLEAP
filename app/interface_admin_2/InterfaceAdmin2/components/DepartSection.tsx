@@ -157,7 +157,7 @@ export const DepartSection = ({
                             label=""
                             value={depart.line_header.site_nom || ''}
                             onChange={(value) => handleDepartHeaderChange(departIndex, 'site_nom', value)}
-                            options={sites}
+                            options={['', ...sites]}
                         />
                     </div>
 
@@ -174,19 +174,19 @@ export const DepartSection = ({
                             label=""
                             value={depart.line_header.type_dechet}
                             onChange={(value) => handleDepartHeaderChange(departIndex, 'type_dechet', value)}
-                            options={wasteTypes}
+                            options={['', ...wasteTypes]}
                         />
                         <SelectInput
                             label=""
                             value={depart.line_header.code_dechet}
                             onChange={(value) => handleDepartHeaderChange(departIndex, 'code_dechet', value)}
-                            options={wasteCodes}
+                            options={['', ...wasteCodes]}
                         />
                         <SelectInput
                             label=""
                             value={depart.line_header.filiere || ''}
                             onChange={(value) => handleDepartHeaderChange(departIndex, 'filiere', value)}
-                            options={filieres}
+                            options={['', ...filieres]}
                         />
                     </div>
 
