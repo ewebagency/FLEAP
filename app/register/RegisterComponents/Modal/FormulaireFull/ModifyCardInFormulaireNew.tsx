@@ -339,7 +339,8 @@ const ModifyCardInFormulaireNew = ({
             delete dataToSend.emitter.workSite.fullAddress;
             
             const isDraft=false;
-            const result = await sendData_to_Cloud(dataToSend, session?.user_id, session?.entreprise_id, isDraft);
+            const nonDangereux=false;
+            const result = await sendData_to_Cloud(dataToSend, session?.user_id, session?.entreprise_id, isDraft, nonDangereux);
             if(result.success) {
                 toast.success(result.message);
 
@@ -520,7 +521,7 @@ const ModifyCardInFormulaireNew = ({
     const {data:newData, success} = await prepareDataToCloud(dataText, showTrader, showBroker, showEcoOrganisme, showParcelFields);
     
     if(session && session?.entreprise_id && session?.user_id && success) {
-      const isDraft=true; //isDraft=true => Pas de track dechet en gros
+      const isDraft=false; //isDraft=true => Pas de track dechet en gros
       const nonDangereux = true;
       const result = await sendData_to_Cloud(newData, session?.user_id, session?.entreprise_id, isDraft, nonDangereux);
       

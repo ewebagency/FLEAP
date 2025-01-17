@@ -248,10 +248,18 @@ export const sendData_to_Cloud = async (data: FormInput, user_id: string, entrep
           user_id: user_id, 
           entreprise_id: entreprise_id,
           data: {formAPI: {createFormInput: data}},
-          isDraft: isDraft,  // Ajout du paramètre isDraft
+          isDraft: isDraft,
           nonDangereux: nonDangereux
       }),
     });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      return {
+        success: false, 
+        message: errorData.message || "Erreur lors de la sauvegarde"
+      };
+    }
     
     const result = await response.json();
     if (!result.success) {
@@ -264,10 +272,10 @@ export const sendData_to_Cloud = async (data: FormInput, user_id: string, entrep
     };
     
   } catch (error) {
-    console.error("Erreur dans l'envoie du formulaire:", error);
+    console.error("Erreur dans l'envoi du formulaire:", error);
     return {
       success: false, 
-      message: isDraft ? "Erreur lors de la sauvegarde du brouillon" : "Erreur inconnue dans l'envoie du formulaire"
+      message: isDraft ? "Erreur lors de la sauvegarde du brouillon" : "Erreur inconnue dans l'envoi du formulaire"
     };
   }
 }

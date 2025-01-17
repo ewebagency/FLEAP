@@ -249,57 +249,64 @@ interface AxiosErrorResponse {
 }
 
 export async function POST(request: Request) {
-
     const token_track = cookies().get('trackdechets_token')?.value;
     let url_track = process.env.TRACKDECHETS_URL_SANDBOX;
     if(process.env.NEXT_PUBLIC_TRACK_TYPE === 'app'){
         url_track = process.env.TRACKDECHETS_URL_APP;
     }
 
-    if (!token_track || !url_track) {
-        return NextResponse.json({ 
-            success: false, 
-            message: 'Token ou URL TrackDéchets non trouvés',
-            error: 'Token ou URL TrackDéchets non trouvés'
-        }, { status: 400 });
-    }
-
     const response = await request.json();
     const isDraft = response.isDraft || false;
-
-    const continue_process = await pushOnTableParametrage(response.user_id, response.entreprise_id, response.data);
-    if (!continue_process?.success) {
-        return NextResponse.json({ success: false, message: 'problème lors de l\'envoi des données à la table de paramétrage' }, { status: 200 });
-    }
+    const nonDangereux = response.nonDangereux || false;
 
     try {
-        if(response.nonDangereux){
-            // Si c'est un brouillon, on sauvegarde uniquement dans Fleap
+        // Vérifier d'abord si l'utilisateur et l'entreprise existent
+        if (!response.user_id || !response.entreprise_id) {
+            return NextResponse.json({ 
+                success: false, 
+                message: 'Identifiants utilisateur ou entreprise manquants'
+            }, { status: 400 });
+        }
+
+        // Pour les brouillons et déchets non dangereux, pas besoin de token TrackDéchets
+        if (isDraft || nonDangereux) {
+            console.log("isDraft : ", isDraft);
+            console.log("nonDangereux : ", nonDangereux);
+            const status = isDraft ? 'Brouillon Local' : 'Collecte demandée';
+            const id = isDraft ? 'draft' : 'Déchet non dangereux';
+            const readableId = isDraft ? 'BROUILLON LOCAL' : 'Déchet non dangereux';
+            
+            const continue_process = await pushOnTableParametrage(response.user_id, response.entreprise_id, response.data);
+            if (!continue_process?.success) {
+                return NextResponse.json({ success: false, message: 'problème lors de l\'envoi des données à la table de paramétrage' }, { status: 200 });
+            }
+
             await createBSD_Fleap(
-                response.user_id, 
-                response.data, 
-                'Déchet non dangereux', // id_track temporaire pour brouillon
-                'Collecte demandée', // status spécial pour brouillon
-                'Déchet non dangereux' // readable_id pour brouillon
+                response.user_id,
+                response.data,
+                id,
+                status,
+                readableId,
+                false
             );
+
             return NextResponse.json({ 
                 success: true, 
-                message: 'BSD non dangereux sauvegardé avec succès'
+                message: isDraft ? 'Brouillon sauvegardé avec succès' : 'BSD non dangereux sauvegardé avec succès'
             });
         }
-        if (isDraft && !response.nonDangereux) {
-            // Si c'est un brouillon, on sauvegarde uniquement dans Fleap
-            await createBSD_Fleap(
-                response.user_id, 
-                response.data, 
-                'draft', // id_track temporaire pour brouillon
-                'Brouillon Local', // status spécial pour brouillon
-                'BROUILLON LOCAL' // readable_id pour brouillon
-            );
+
+        // Pour les autres cas, vérifier le token TrackDéchets
+        if (!token_track || !url_track) {
             return NextResponse.json({ 
-                success: true, 
-                message: 'Brouillon sauvegardé avec succès'
-            });
+                success: false, 
+                message: 'Token ou URL TrackDéchets non trouvés'
+            }, { status: 400 });
+        }
+
+        const continue_process = await pushOnTableParametrage(response.user_id, response.entreprise_id, response.data);
+        if (!continue_process?.success) {
+            return NextResponse.json({ success: false, message: 'problème lors de l\'envoi des données à la table de paramétrage' }, { status: 200 });
         }
 
         // Si ce n'est pas un brouillon, on continue avec l'envoi à TrackDéchets
@@ -322,7 +329,7 @@ export async function POST(request: Request) {
         }
 
         const {id, status, readableId} = trackDechetsResponse.data.data.createForm;
-        await createBSD_Fleap(response.user_id, response.data, id, status, readableId);
+        await createBSD_Fleap(response.user_id, response.data, id, status, readableId, true);
         
         return NextResponse.json({ 
             success: true, 
@@ -330,24 +337,20 @@ export async function POST(request: Request) {
             trackDechetsData: trackDechetsResponse.data 
         });
 
-    } catch (error) {       
+    } catch (error) {
         console.error('Error:', error);
-        let error_message = 'Erreur inconnue';
+        const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
         
-        if (error instanceof Error) {
-            error_message = error.message;
-        }
-
         return NextResponse.json({ 
             success: false, 
-            message: `Erreur lors de la création du BSD : ${error_message}`,
-            error: error_message 
+            message: `Erreur lors de la création du BSD : ${errorMessage}`,
+            error: errorMessage 
         }, { status: 500 });
     }
 }
 
 
-const createBSD_Fleap = async (user_id:string, data:DataTransfer, id_track:string, status_track:string, readableId_track:string) => {
+const createBSD_Fleap = async (user_id:string, data:DataTransfer, id_track:string, status_track:string, readableId_track:string, on_track_dechets:boolean) => {
     
     const entreprise_id = await getEntrepriseId(user_id);
     
@@ -359,7 +362,7 @@ const createBSD_Fleap = async (user_id:string, data:DataTransfer, id_track:strin
         user_id: user_id,
         created_on_fleap: true,
         infos_json: data,
-        on_track_dechets: true,
+        on_track_dechets: on_track_dechets,
         id_track_dechets: id_track,
         status_track_dechets: status_track,
         readable_id_track_dechets: readableId_track,
