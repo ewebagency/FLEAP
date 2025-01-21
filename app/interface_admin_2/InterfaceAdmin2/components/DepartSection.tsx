@@ -1,9 +1,48 @@
 import { SelectInput } from './SelectInput';
-import { FactureLine, DepartLine } from '../types/interfaces';
+import { FactureLine, DepartLine, Option } from '../types/interfaces';
 import { ALL_OPERATIONS, UNITES, TYPES_CONTENANTS } from '../constants/formConstants';
-import { useWasteData } from '../hooks/useWasteData';
 
-type DepartLineBody = {
+import { getNestedValue, getMappingTableFiliere, getFiliere } from '../utils/helpers';
+import { useState, useEffect } from 'react';
+
+// Mise à jour des types
+type CompanyValue = {
+    name?: string;
+    siret?: string;
+    [key: string]: string | undefined;
+};
+
+type WasteDetailsValue = {
+    name?: string;
+    code?: string;
+    filiere?: string;
+    [key: string]: string | undefined;
+};
+
+// Mise à jour du type NestedValue pour gérer les valeurs undefined
+type NestedValue = string | number | boolean | CompanyValue | WasteDetailsValue | Record<string, unknown> | undefined;
+
+// Mise à jour des types pour plus de précision
+type RawValue = {
+    [key: string]: string | number | boolean | undefined | RawValue;
+};
+
+type BSDBsdValue = {
+    formAPI: {
+        createFormInput: {
+            emitter: {
+                company: CompanyValue;
+            };
+            wasteDetails: WasteDetailsValue;
+            transporter: {
+                company: CompanyValue;
+            };
+        };
+    };
+};
+
+// Ajout d'un index signature à DepartLineBody
+interface DepartLineBody {
     type_operation: string;
     quantite: number;
     unite: string;
@@ -12,7 +51,7 @@ type DepartLineBody = {
     description_contenant?: string;
     type_contenant?: string;
     [key: string]: string | number | undefined;
-};
+}
 
 interface DepartSectionProps {
     formData: FactureLine;
@@ -20,26 +59,173 @@ interface DepartSectionProps {
     wasteTypes: string[];
     wasteCodes: string[];
     filieres: string[];
-    onUpdate: (formData: FactureLine) => void;
+    onUpdate: (formData: FactureLine, departIndex: number) => void;
+    allOptions: FactureLine[];
+    filteredOptionsByDepart: FactureLine[][];
+    departFilters: Array<{
+        departIndex: number;
+        filters: {
+            field: string;
+            value: string;
+        }[];
+    }>;
+    entrepriseId: string | null;
 }
 
 export const DepartSection = ({ 
     formData, 
-    sites, 
-    wasteTypes,
-    wasteCodes,
-    filieres,
-    onUpdate 
+    onUpdate,
+    allOptions,
+    filteredOptionsByDepart,
+    departFilters,
+    entrepriseId
 }: DepartSectionProps) => {
-    //const { wasteTypes, wasteCodes, filieres } = useWasteData();
+    
+    // Ajouter un état pour le mapping
+    const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
+    
+    // Charger le mapping au montage du composant
+    useEffect(() => {
+        const loadMapping = async () => {
+            const mapping = await getMappingTableFiliere(entrepriseId);
+            setMappingTable(mapping);
+        };
+        loadMapping();
+    }, [entrepriseId]);
+
+    // Déplacer formatValue à l'intérieur du composant pour avoir accès à mappingTable
+    const formatValue = (value: NestedValue, field: string): string => {
+        if (!value) return '';
+        
+        // Si la valeur est une string directe, la retourner
+        if (typeof value === 'string') return value;
+        
+        switch (field) {
+            case 'formAPI.createFormInput.emitter.company':
+                const companyValue = value as CompanyValue;
+                return companyValue.name && companyValue.siret ? 
+                    `${companyValue.name} - ${companyValue.siret}` : '';
+            
+            case 'formAPI.createFormInput.wasteDetails.name':
+            case 'formAPI.createFormInput.wasteDetails.code':
+                // Pour ces champs, la valeur est déjà extraite, pas besoin de cast
+                return String(value);
+            
+            case 'formAPI.createFormInput.wasteDetails.filiere':
+                const filiereValue = value as WasteDetailsValue;
+                return getFiliere(filiereValue.code, mappingTable);
+            
+            case 'formAPI.createFormInput.transporter.company':
+                const transporterValue = value as CompanyValue;
+                return transporterValue.name || '';
+            
+            default:
+                return typeof value === 'object' ? 
+                    JSON.stringify(value) : String(value);
+        }
+    };
+
+    // Helper pour extraire les options uniques des BSDs
+    const extractUniqueValues = (field: string, departIndex: number, specificField?: string) => {
+        const allValues = new Set<string>();
+        const suggestedValues = new Set<string>();
+        
+        allOptions.forEach(bsd => {
+            try {
+                let value = getNestedValue(bsd, field);
+                
+                if (field === 'formAPI.createFormInput.wasteDetails') {
+                    if (value && typeof value === 'object') {
+                        const wasteDetails = value as WasteDetailsValue;
+                        value = specificField ? wasteDetails?.[specificField as keyof WasteDetailsValue] : value;
+                    }
+                }
+                
+                const formattedValue = formatValue(value, specificField ? `${field}.${specificField}` : field);
+                if (formattedValue) allValues.add(formattedValue);
+            } catch (error) {
+                console.warn(`Erreur lors de l'extraction de la valeur pour le champ ${field}:`, error);
+            }
+        });
+
+        // Pour les valeurs suggérées
+        const departFilteredOptions = filteredOptionsByDepart[departIndex] || [];
+        departFilteredOptions.forEach(bsd => {
+            try {
+                let value = getNestedValue(bsd, field);
+                
+                if (field === 'formAPI.createFormInput.wasteDetails') {
+                    if (value && typeof value === 'object') {
+                        const wasteDetails = value as WasteDetailsValue;
+                        value = specificField ? wasteDetails?.[specificField as keyof WasteDetailsValue] : value;
+                    }
+                }
+                
+                const formattedValue = formatValue(value, specificField ? `${field}.${specificField}` : field);
+                if (formattedValue) suggestedValues.add(formattedValue);
+            } catch (error) {
+                console.warn(`Erreur lors de l'extraction de la valeur suggérée pour le champ ${field}:`, error);
+            }
+        });
+
+        return Array.from(allValues)
+            .filter(value => value && value.trim() !== '')
+            .map(value => ({
+                value,
+                isSuggested: suggestedValues.has(value)
+            }))
+            .sort((a, b) => a.value.localeCompare(b.value));
+    };
+
+    // Créer les options pour chaque select avec l'index du départ
+    const getOptionsForDepart = (departIndex: number) => {
+        try {
+            const baseWastePath = 'formAPI.createFormInput.wasteDetails';
+            
+            // Obtenir uniquement les filières uniques du mapping
+            const filiereOptions = Array.from(new Set(
+                mappingTable.map(item => item.filiere)
+            )).map(filiere => ({
+                value: filiere.charAt(0).toUpperCase() + filiere.slice(1).toLowerCase(),
+                isSuggested: true
+            }));
+
+            return {
+                siteOptions: extractUniqueValues('formAPI.createFormInput.emitter.company', departIndex),
+                wasteTypeOptions: extractUniqueValues(baseWastePath, departIndex, 'name'),
+                wasteCodeOptions: extractUniqueValues(baseWastePath, departIndex, 'code'),
+                filiereOptions
+            };
+        } catch (error) {
+            console.error('Erreur lors de la création des options:', error);
+            return {
+                siteOptions: [],
+                wasteTypeOptions: [],
+                wasteCodeOptions: [],
+                filiereOptions: []
+            };
+        }
+    };
 
     const handleDepartHeaderChange = (departIndex: number, field: string, value: string) => {
         const newFormData = { ...formData };
-        newFormData.departs[departIndex].line_header = {
-            ...newFormData.departs[departIndex].line_header,
-            [field]: value
-        };
-        onUpdate(newFormData);
+        console.log('newformData', newFormData);
+        if (field === 'code_dechet') {
+            // Si on change le code CED, mettre à jour la filière correspondante
+            const filiere = getFiliere(value, mappingTable);
+            newFormData.departs[departIndex].line_header = {
+                ...newFormData.departs[departIndex].line_header,
+                code_dechet: value,
+                filiere: filiere
+            };
+        } else {
+            newFormData.departs[departIndex].line_header = {
+                ...newFormData.departs[departIndex].line_header,
+                [field]: value
+            };
+        }
+        
+        onUpdate(newFormData, departIndex);
     };
 
     const calculateTotal = (formData: FactureLine) => {
@@ -51,23 +237,25 @@ export const DepartSection = ({
         return total;
     };
 
-    const handleOperationChange = (departIndex: number, bodyIndex: number, field: string, value: number | string) => {
+    const handleOperationChange = (departIndex: number, lineIndex: number, field: keyof DepartLineBody, value: string | number) => {
         const newFormData = { ...formData };
-        const lineBody = newFormData.departs[departIndex].line_body[bodyIndex] as DepartLineBody;
-        
-        // Mettre à jour le champ
-        lineBody[field] = value;
+        const line = newFormData.departs[departIndex].line_body[lineIndex] as DepartLineBody;
 
-        // Si on modifie la quantité ou le prix unitaire, recalculer le montant HT
-        if (field === 'quantite' || field === 'prix_unitaire') {
-            lineBody.montant_ht = (lineBody.quantite || 0) * (lineBody.prix_unitaire || 0);
+        // Si on change le type d'opération et que ce n'est pas "Contenant", réinitialiser les champs liés
+        if (field === 'type_operation' && value !== 'Contenant') {
+            line.description_contenant = '';
+            line.type_contenant = '';
         }
 
-        // Calculer le nouveau total
-        const newTotal = calculateTotal(newFormData);
-        newFormData.footer.total_ht = newTotal;
+        // Mettre à jour le champ
+        line[field] = value;
 
-        onUpdate(newFormData);
+        // Recalculer le montant si nécessaire
+        if (field === 'quantite' || field === 'prix_unitaire') {
+            line.montant_ht = (line.quantite || 0) * (line.prix_unitaire || 0);
+        }
+
+        onUpdate(newFormData, departIndex);
     };
 
     const addPrestationLine = (departIndex: number) => {
@@ -79,13 +267,13 @@ export const DepartSection = ({
             prix_unitaire: 0,
             montant_ht: 0
         });
-        onUpdate(newFormData);
+        onUpdate(newFormData, departIndex);
     };
 
     const removePrestationLine = (departIndex: number, bodyIndex: number) => {
         const newFormData = { ...formData };
         newFormData.departs[departIndex].line_body.splice(bodyIndex, 1);
-        onUpdate(newFormData);
+        onUpdate(newFormData, departIndex);
     };
 
     const addNewDepart = () => {
@@ -108,19 +296,22 @@ export const DepartSection = ({
             }]
         });
         
-        onUpdate(newFormData);
+        onUpdate(newFormData, newFormData.departs.length - 1);
     };
 
     const removeDepart = (departIndex: number) => {
         if (departIndex === 0) return; // Ne pas supprimer le premier départ
         const newFormData = { ...formData };
         newFormData.departs.splice(departIndex, 1);
-        onUpdate(newFormData);
+        onUpdate(newFormData, departIndex);
     };
 
     return (
         <div className="space-y-4">
-            {formData.departs.map((depart, departIndex) => (
+            {formData.departs.map((depart, departIndex) => {
+                const options = getOptionsForDepart(departIndex);
+                
+                return (
                 <div key={departIndex} className="bg-white p-3 rounded shadow relative">
                     {/* Bouton de suppression du départ */}
                     {departIndex > 0 && (
@@ -154,10 +345,20 @@ export const DepartSection = ({
                             className="w-full p-1 text-xs border rounded"
                         />
                         <SelectInput
-                            label=""
-                            value={depart.line_header.site_nom || ''}
-                            onChange={(value) => handleDepartHeaderChange(departIndex, 'site_nom', value)}
-                            options={['', ...sites]}
+                            label="Site"
+                            value={`${depart.line_header.site_nom} - ${depart.line_header.site_siret}`}
+                            onChange={(value) => {
+                                const [nom, siret] = value.split(' - ');
+                                const newFormData = { ...formData };
+                                newFormData.departs[departIndex].line_header = {
+                                    ...newFormData.departs[departIndex].line_header,
+                                    site_nom: nom || '',
+                                    site_siret: siret || ''
+                                };
+                                onUpdate(newFormData, departIndex);
+                            }}
+                            options={options.siteOptions}
+                            className="w-full"
                         />
                     </div>
 
@@ -171,22 +372,22 @@ export const DepartSection = ({
                             className="w-full p-1 text-xs border rounded"
                         />
                         <SelectInput
-                            label=""
+                            label="type de déchet"
                             value={depart.line_header.type_dechet}
                             onChange={(value) => handleDepartHeaderChange(departIndex, 'type_dechet', value)}
-                            options={['', ...wasteTypes]}
+                            options={options.wasteTypeOptions}
                         />
                         <SelectInput
-                            label=""
+                            label="CED"
                             value={depart.line_header.code_dechet}
                             onChange={(value) => handleDepartHeaderChange(departIndex, 'code_dechet', value)}
-                            options={['', ...wasteCodes]}
+                            options={options.wasteCodeOptions}
                         />
                         <SelectInput
-                            label=""
+                            label="Filière"
                             value={depart.line_header.filiere || ''}
                             onChange={(value) => handleDepartHeaderChange(departIndex, 'filiere', value)}
-                            options={['', ...filieres]}
+                            options={options.filiereOptions}
                         />
                     </div>
 
@@ -225,15 +426,13 @@ export const DepartSection = ({
                     {/* Section Prestations */}
                     <div className="space-y-2 mb-4">
                         {depart.line_body.map((body, bodyIndex) => (
-                            <div key={bodyIndex} className="grid grid-cols-7 gap-2 items-end">
-                                <div className="col-span-1">
-                                    <SelectInput
-                                        label="Type de prestation"
-                                        value={body.type_operation}
-                                        onChange={(value) => handleOperationChange(departIndex, bodyIndex, 'type_operation', value)}
-                                        options={ALL_OPERATIONS}
-                                    />
-                                </div>
+                            <div key={bodyIndex} className="grid grid-cols-6 gap-2 items-center">
+                                <SelectInput
+                                    label="type d'opération"
+                                    value={body.type_operation}
+                                    onChange={(value) => handleOperationChange(departIndex, bodyIndex, 'type_operation', value)}
+                                    options={ALL_OPERATIONS.map(op => ({ value: op }))}
+                                />
 
                                 {/* Champs supplémentaires pour le type "Contenant" */}
                                 {body.type_operation === 'Contenant' && (
@@ -255,12 +454,18 @@ export const DepartSection = ({
                                                 label="Type"
                                                 value={body.type_contenant || ''}
                                                 onChange={(value) => handleOperationChange(departIndex, bodyIndex, 'type_contenant', value)}
-                                                options={TYPES_CONTENANTS}
+                                                options={TYPES_CONTENANTS.map(type => ({ value: type, isSuggested: true }))}
                                             />
                                         </div>
                                     </>
                                 )}
 
+                                <SelectInput
+                                    label="Unite"
+                                    value={body.unite}
+                                    onChange={(value) => handleOperationChange(departIndex, bodyIndex, 'unite', value)}
+                                    options={UNITES.map(u => ({ value: u }))}
+                                />
                                 <div className="col-span-1">
                                     <label className="block text-xs font-medium text-gray-700 mb-1">
                                         Quantité
@@ -276,14 +481,6 @@ export const DepartSection = ({
                                         }}
                                         className="w-full p-1 text-xs border rounded"
                                         step="1"
-                                    />
-                                </div>
-                                <div className="col-span-1">
-                                    <SelectInput
-                                        label="Unité"
-                                        value={body.unite}
-                                        onChange={(value) => handleOperationChange(departIndex, bodyIndex, 'unite', value)}
-                                        options={UNITES}
                                     />
                                 </div>
                                 <div className="col-span-1">
@@ -337,7 +534,8 @@ export const DepartSection = ({
                         ))}
                     </div>
                 </div>
-            ))}
+                );
+            })}
 
             {/* Bouton pour ajouter un nouveau départ */}
             <button

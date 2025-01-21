@@ -2,10 +2,9 @@
 
 import { useState } from 'react';
 import { useFormData } from './hooks/useFormData';
-import { usePrestataires } from './hooks/usePrestataires';
-import { useSites } from './hooks/useSites';
+
 import { useEntrepriseId } from './hooks/useEntrepriseId';
-import { useWasteData } from './hooks/useWasteData';
+
 import { HeaderSection } from './components/HeaderSection';
 import { DepartSection } from './components/DepartSection';
 import { FooterSection } from './components/FooterSection';
@@ -13,17 +12,30 @@ import { FormulaireManoProps } from './types/interfaces';
 import { supabase } from '@/app/database/supabaseClient';
 import { useAccessOtherAccount } from '../AccessOtherAccounts/AccessOtherAccountContext';
 import { cleanFormData } from './utils/cleanData';
+import { FactureLine } from './types/interfaces';
 
 export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireManoProps) {
     const [loading, setLoading] = useState(false);
     const entrepriseId = useEntrepriseId();
     const { selectedAccounts } = useAccessOtherAccount();
     const userId = selectedAccounts[0]?.user_id;
-    const { formData, setFormData } = useFormData(currentPdfId);
-    const { prestataires, prestataireType, setPrestataireType } = usePrestataires(entrepriseId);
-    const { sites } = useSites(entrepriseId);
-    const { wasteTypes, wasteCodes, filieres } = useWasteData(entrepriseId);
+    
+    const { 
+        formData, 
+        setFormData,
+        allOptions,
+        filteredOptionsByDepart,
+        departFilters,
+        resetFilteredFields
+    } = useFormData(currentPdfId, entrepriseId);
 
+    const calculateTotal = (formData: FactureLine): number => {
+        return formData.departs.reduce((departAcc, depart) => {
+            return departAcc + depart.line_body.reduce((lineAcc, line) => {
+                return lineAcc + (line.montant_ht || 0);
+            }, 0);
+        }, 0);
+    };
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -122,30 +134,47 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
         }
     };
 
+    const handleFormUpdate = (newData: FactureLine, departIndex?: number) => {
+        setFormData(newData, departIndex);
+    };
+
     return (
         <div className="w-full p-2">
-            <h2 className="text-lg font-bold mb-3">Formulaire de facture</h2>
+            <div className="flex justify-between items-center mb-3">
+                <h2 className="text-lg font-bold">Formulaire de facture</h2>
+                <button
+                    type="button"
+                    onClick={resetFilteredFields}
+                    className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                >
+                    Réinitialiser les filtres
+                </button>
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">
                 <HeaderSection 
                     formData={formData}
-                    prestataireType={prestataireType}
-                    setPrestataireType={setPrestataireType}
-                    prestataires={prestataires}
+                    
                     onUpdate={setFormData}
+                    allOptions={allOptions}
+                    filteredOptionsByDepart={filteredOptionsByDepart}
                 />
 
                 <DepartSection 
                     formData={formData}
-                    sites={sites}
-                    wasteTypes={wasteTypes}
-                    wasteCodes={wasteCodes}
-                    filieres={filieres}
                     onUpdate={setFormData}
+                    allOptions={allOptions}
+                    filteredOptionsByDepart={filteredOptionsByDepart}
+                    departFilters={departFilters}
+                    entrepriseId={entrepriseId}
+                    sites={[]}
+                    wasteTypes={[]}
+                    wasteCodes={[]}
+                    filieres={[]}
                 />
 
                 <FooterSection 
-                    total={formData.footer.total_ht}
+                    total={calculateTotal(formData)}
                     onSkip={handleSkip}
                     onReset={handleResetSkipped}
                     loading={loading}

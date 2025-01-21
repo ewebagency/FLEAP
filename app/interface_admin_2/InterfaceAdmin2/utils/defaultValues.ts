@@ -15,6 +15,7 @@ export const defaultFormData: FactureLine = {
             site_description: '',
             site_num_affaire: '',
             site_nom: '',
+            site_siret: '',
             dechet_description: '',
             type_dechet: '',
             code_dechet: '',

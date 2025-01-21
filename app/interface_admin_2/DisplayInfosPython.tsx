@@ -8,6 +8,7 @@ interface DisplayInfosPythonProps {
 const DisplayInfosPython = ({ currentPdfBlob }: DisplayInfosPythonProps) => {
     const [loading, setLoading] = useState(false);
     const [infosJsonFromPdf, setInfosJsonFromPdf] = useState<DataOnSupabase_infos_json | null>(null);
+    const [isVisible, setIsVisible] = useState(false);
 
     useEffect(() => {
         const sendBlobPdfToPythonServer = async () => {
@@ -47,9 +48,29 @@ const DisplayInfosPython = ({ currentPdfBlob }: DisplayInfosPythonProps) => {
 
     return (
         <div>
-            <h1>DisplayInfosPython</h1>
-            {loading && <p>Chargement en cours...</p>}
-            {infosJsonFromPdf && <pre>{JSON.stringify(infosJsonFromPdf, null, 2)}</pre>}
+            <div className="flex items-center gap-2 mb-2">
+                <input
+                    type="checkbox"
+                    id="toggleInfos"
+                    checked={isVisible}
+                    onChange={(e) => setIsVisible(e.target.checked)}
+                    className="w-4 h-4"
+                />
+                <label htmlFor="toggleInfos" className="text-lg font-semibold cursor-pointer">
+                    Données extraites
+                </label>
+            </div>
+            
+            {isVisible && (
+                <div className="max-h-[300px] overflow-y-auto">
+                    {loading && <p>Chargement en cours...</p>}
+                    {infosJsonFromPdf && (
+                        <pre className="whitespace-pre-wrap break-words text-sm bg-white p-2 rounded">
+                            {JSON.stringify(infosJsonFromPdf, null, 2)}
+                        </pre>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

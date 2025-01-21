@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from extract_text_from_pdf import extract_text, extract_text_only
 from utils import compta_lines_from_text, header_from_text
 from extract_info_xlsx_autocompletion.lecture_excel_autocompletion import data_from_excel
+from extract_info_from_text import extract_all_info
 from typing import Optional
 
 app = FastAPI()
@@ -32,19 +33,38 @@ async def treat_pdf(file: UploadFile = File(...)):
     # Appelle la fonction extract_text et retourne le résultat
     result = await extract_text(file)
     text = result["text"]
-    #infos_json = await extract_infos_json_from_text(text)
+    
+    # Extraction des informations du texte
+    extracted_info = extract_all_info(text)
     compta_lines = compta_lines_from_text(text)
     header = header_from_text(text)
-    result = {'header':header, 'compta_lines':compta_lines}
-    return {'compta_lines':compta_lines}
+    
+    return {
+        'compta_lines': compta_lines,
+        'header': header,
+        'extracted_info': extracted_info
+    }
 
 
 @app.post("/extract-text-only/")
 async def extract_text_only_endpoint(file: UploadFile = File(...)):
     result = await extract_text_only(file)
     text = result["text"]
-    print('Ce que retourne extract_text_only :', text)
-    return {'text':text}
+    method = result["method"]
+    
+    # Extraction des informations supplémentaires si le texte a été extrait avec succès
+    extracted_info = {}
+    if text != "Impossible":
+        extracted_info = extract_all_info(text)
+    
+    print(f'Texte extrait avec la méthode : {method}')
+    print('Contenu extrait :', text)
+    
+    return {
+        'text': text, 
+        'method': method,
+        'extracted_info': extracted_info
+    }
 
 
 @app.get("/get-table-demande-collecte/")

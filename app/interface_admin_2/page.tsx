@@ -19,7 +19,7 @@ const InterfaceAdmin2 = () => {
     const [currentPdfPath, setCurrentPdfPath] = useState<string | null>(null);
     const [currentPdfBlob, setCurrentPdfBlob] = useState<Blob | null>(null);
     const [currentPdfUrl, setCurrentPdfUrl] = useState<string | null>(null);
-    //const [infosJsonFromPdf, setInfosJsonFromPdf] = useState<InfosJsonFromPdf | null>(null);
+    const [infosJsonFromPdf, setInfosJsonFromPdf] = useState<InfosJsonFromPdf | null>(null); //-----
     const [currentPdfId, setCurrentPdfId] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const { selectedAccounts } = useAccessOtherAccount();
@@ -77,7 +77,7 @@ const InterfaceAdmin2 = () => {
         getPdfBlobAndUrl();
     }, [currentPdfPath]);
 
-    /*useEffect(() => {
+    useEffect(() => {
         const sendBlobPdfToPythonServer = async () => {
             if(currentPdfBlob){
                 const formData = new FormData();
@@ -104,13 +104,13 @@ const InterfaceAdmin2 = () => {
             }
         };
         sendBlobPdfToPythonServer();
-    }, [currentPdfBlob]);*/
+    }, [currentPdfBlob]);
 
     const handleNextPdf = () => {
         setCurrentPdfPath(null);
         setCurrentPdfBlob(null);
         setCurrentPdfUrl(null);
-        //setInfosJsonFromPdf(null);
+        setInfosJsonFromPdf(null); //--------
         setCurrentPdfId(null);
         fetchCurrentPdfPath();
     };

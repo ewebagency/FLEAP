@@ -7,7 +7,7 @@ export interface SelectInputProps {
     label: string;
     value: string;
     onChange: (value: string) => void;
-    options: string[];
+    options: Option[];
     className?: string;
 }
 
@@ -23,7 +23,8 @@ export interface FactureLineHeader {
 export interface DepartLineHeader {
     site_description?: string;
     site_num_affaire?: string;
-    site_nom?: string;
+    site_nom: string;
+    site_siret: string;
     dechet_description?: string;
     type_dechet: string;
     code_dechet: string;
@@ -58,4 +59,17 @@ export interface FactureLine {
     footer: {
         total_ht: number;
     };
+}
+
+export interface Option {
+    value: string;
+    isSuggested?: boolean;
+}
+
+export interface HeaderSectionProps {
+    formData: FactureLine;
+    prestataires: { nom: string; siret: string; }[];
+    onUpdate: (formData: FactureLine) => void;
+    filteredOptions: Option[];
+    allOptions: Option[];
 } 

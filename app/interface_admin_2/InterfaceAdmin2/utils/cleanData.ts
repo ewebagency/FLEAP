@@ -6,6 +6,7 @@ const cleanDepartLine = (depart: DepartLine): DepartLine => {
         site_description: depart.line_header.site_description || '',
         site_num_affaire: depart.line_header.site_num_affaire || '',
         site_nom: depart.line_header.site_nom || '',
+        site_siret :depart.line_header.site_siret || '',
         dechet_description: depart.line_header.dechet_description || '',
         type_dechet: depart.line_header.type_dechet || '',
         code_dechet: depart.line_header.code_dechet || '',

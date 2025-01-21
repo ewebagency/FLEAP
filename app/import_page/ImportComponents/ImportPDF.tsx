@@ -1,8 +1,7 @@
 'use client'
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
 import { SessionMore, useSession } from '../../component/SessionProvider';
-import { Session } from '@supabase/supabase-js';
 import { useImport } from './ImportContext';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 
@@ -11,6 +10,7 @@ const ImportPDF = () => {
     const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
     const session = useSession() as SessionMore;
     const user_id = session?.user_id;
+    const entreprise_id = session?.entreprise_id;
     const { triggerReload } = useImport();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -49,6 +49,11 @@ const ImportPDF = () => {
             return;
         }
 
+        if (!entreprise_id) {
+            alert("Vous devez être associé à une entreprise pour importer des fichiers.");
+            return;
+        }
+
         setLoading(true);
         const uploadPromises = files.map(async (file) => {
             try {
@@ -69,11 +74,13 @@ const ImportPDF = () => {
                 setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
 
                 const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2);
-
+                console.log("entreprise_id", entreprise_id);
+                console.log("user_id", user_id);
                 const { error: insertError } = await supabase
                     .from('pdf_infos')
                     .insert([{
                         user_id: user_id,
+                        entreprise_id: entreprise_id,
                         name_pdf: file.name,
                         name_pdf_in_bucket: filePath,
                         pdf_path: data.fullPath,

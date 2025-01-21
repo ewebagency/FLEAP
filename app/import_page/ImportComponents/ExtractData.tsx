@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import FormulaireMano from '@/app/interface_admin_2/InterfaceAdmin2/FormulaireMano';
 import PdfDisplayer from '@/app/interface_admin_2/InterfaceAdmin2/PdfDisplayer';
+import DisplayInfosPython from '@/app/interface_admin_2/DisplayInfosPython';
 
 interface ExtractDataProps {
     pdf_id: number;
@@ -9,15 +10,32 @@ interface ExtractDataProps {
 
 const ExtractData = ({ pdf_id, pdfUrl }: ExtractDataProps) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
 
     const handleNextPdf = () => {
         setIsOpen(false);
     };
 
+    // Fonction pour charger le PDF en tant que Blob
+    const loadPdfBlob = async () => {
+        try {
+            const response = await fetch(pdfUrl);
+            const blob = await response.blob();
+            setPdfBlob(blob);
+        } catch (error) {
+            console.error('Erreur lors du chargement du PDF:', error);
+        }
+    };
+
+    const handleOpen = () => {
+        setIsOpen(true);
+        loadPdfBlob();
+    };
+
     return (
         <>
             <button
-                onClick={() => setIsOpen(true)}
+                onClick={handleOpen}
                 className="px-3 py-1.5 bg-blue-500 text-white rounded-md text-xs hover:bg-blue-600 w-[100px] text-center"
             >
                 Extraire
@@ -45,12 +63,19 @@ const ExtractData = ({ pdf_id, pdfUrl }: ExtractDataProps) => {
                                 <PdfDisplayer pdfUrl={pdfUrl} />
                             </div>
 
-                            {/* Formulaire */}
-                            <div className="w-1/2 h-full overflow-y-auto">
-                                <FormulaireMano 
-                                    currentPdfId={pdf_id.toString()} 
-                                    onNextPdf={handleNextPdf}
-                                />
+                            {/* Formulaire et DisplayInfosPython */}
+                            <div className="w-1/2 h-full flex flex-col">
+                                <div className="flex-1 overflow-y-auto">
+                                    <FormulaireMano 
+                                        currentPdfId={pdf_id.toString()} 
+                                        onNextPdf={handleNextPdf}
+                                    />
+                                </div>
+                                {pdfBlob && (
+                                    <div className="mt-4 bg-gray-50 p-4 rounded-lg">
+                                        <DisplayInfosPython currentPdfBlob={pdfBlob} />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
