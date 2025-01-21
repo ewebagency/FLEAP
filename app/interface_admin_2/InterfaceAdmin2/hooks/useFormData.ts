@@ -72,6 +72,10 @@ export const useFormData = (currentPdfId: string | null, entrepriseId: string | 
                 // Mettre à jour le formulaire avec les données existantes
                 const formattedData = {
                     ...existingFacture.infos_json,
+                    header: {
+                        ...existingFacture.infos_json.header,
+                        date_facture: new Date(existingFacture.infos_json.header.date_facture).toISOString()
+                    },
                     departs: existingFacture.infos_json.departs.map((depart: DepartData) => ({
                         ...depart,
                         line_header: {

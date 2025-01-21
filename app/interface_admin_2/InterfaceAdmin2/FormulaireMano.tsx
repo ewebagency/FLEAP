@@ -30,11 +30,36 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
     } = useFormData(currentPdfId, entrepriseId);
 
     const calculateTotal = (formData: FactureLine): number => {
-        return formData.departs.reduce((departAcc, depart) => {
-            return departAcc + depart.line_body.reduce((lineAcc, line) => {
-                return lineAcc + (line.montant_ht || 0);
-            }, 0);
-        }, 0);
+        console.log('FormData pour calcul total:', JSON.stringify(formData, null, 2));
+        
+        if (!formData?.departs) {
+            console.log('Pas de departs trouvés');
+            return 0;
+        }
+        
+        let total = 0;
+        for (const depart of formData.departs) {
+            console.log('Depart:', JSON.stringify(depart, null, 2));
+            
+            if (!depart?.line_body) {
+                console.log('Pas de line_body trouvé pour un depart');
+                continue;
+            }
+            
+            console.log('Nombre d\'opérations:', depart.line_body.length);
+            
+            for (const line of depart.line_body) {
+                console.log(`Opération: ${line.type_operation}, Montant: ${line.montant_ht}, Prix unitaire: ${line.prix_unitaire}, Quantité: ${line.quantite}`);
+                if (line.type_operation.toLowerCase() === 'rachat') {
+                    total -= (line.montant_ht || 0);
+                } else {
+                    total += (line.montant_ht || 0);
+                }
+            }
+        }
+        
+        console.log('Total calculé:', total);
+        return Math.round(total * 100) / 100;
     };
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -43,6 +68,22 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
 
         try {
             if (!currentPdfId || !entrepriseId) return;
+
+            // Calculer et mettre à jour le total avant la sauvegarde
+            const total = calculateTotal(formData);
+            const updatedFormData = {
+                ...formData,
+                header: {
+                    ...formData.header,
+                    date_facture: formData.header.date_facture 
+                        ? new Date(formData.header.date_facture).toISOString()
+                        : new Date().toISOString()
+                },
+                footer: {
+                    ...formData.footer,
+                    total_ht: total
+                }
+            };
 
             // Mettre à jour le status de pdf_infos
             await supabase
@@ -61,25 +102,23 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
 
             let result;
             if (existingFacture) {
-                // Mise à jour si la facture existe
                 result = await supabase
                     .from('facture')
                     .update({
                         entreprise_id: entrepriseId,
                         user_id: userId,
-                        infos_json: cleanFormData(formData),
+                        infos_json: cleanFormData(updatedFormData),
                     })
                     .eq('id', existingFacture.id)
                     .select();
             } else {
-                // Création si la facture n'existe pas
                 result = await supabase
                     .from('facture')
                     .insert({
                         entreprise_id: entrepriseId,
                         user_id: userId,
                         pdf_infos_id: currentPdfId,
-                        infos_json: cleanFormData(formData),
+                        infos_json: cleanFormData(updatedFormData),
                     })
                     .select();
             }

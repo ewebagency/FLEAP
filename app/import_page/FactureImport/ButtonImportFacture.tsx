@@ -73,13 +73,13 @@ const convertToISO = (dateInput: string | number | boolean | undefined): string 
 interface FactureData {
     user_id: string;
     entreprise_id: string;
-    other_infos: {
+    /*other_infos: {
         code_ced: string;
         siret_emetteur: string;
         siret_transporteur: string;
         siret_destinataire: string;
         date_collecte: string;
-    };
+    };*/
     infos_json: FactureJSON; // Vous remplirez cette partie plus tard
 }
 
@@ -95,103 +95,137 @@ const parseNumber = (value: number | string): number => {
 };
 
 interface LineOperation {
+    unite: string;
+    quantite: number;
     montant_ht: number;
+    prix_unitaire: number;
     type_operation: string;
 }
 
 interface LineHeader {
+    filiere: string;
+    site_nom: string;
+    bon_pesee: string;
+    site_siret: string;
     code_dechet: string;
+    date_depart: string;
+    num_dossier: string;
     type_dechet: string;
-    date_collecte: string;
-    lieu_collecte: string;
+    bon_intention: string;
+    site_description: string;
+    site_num_affaire: string;
+    dechet_description: string;
+}
+
+interface Depart {
+    line_body: LineOperation[];
+    line_header: LineHeader;
+    linked_to_bsd: boolean;
 }
 
 interface FactureJSON {
-    depart: {
-        line_body: LineOperation[];
-        commentaire: string;
-        line_header: LineHeader;
-        linked_to_bsd: boolean;
-    };
+    departs: Depart[];
     footer: {
         total_ht: number;
     };
     header: {
+        num_facture: string;
+        date_facture: string;
         prestataire_nom: string;
+        prestataire_siret: string;
+        prestataire_num_client: string;
+        prestataire_description: string;
     };
 }
 
 // Fonction pour mapper les données Excel vers le format souhaité
 const mapToFactureFormat = (row: Row): FactureData => {
     const factureJSON: FactureJSON = {
-        depart: {
+        departs: [{
             line_body: [
                 {
+                    unite: "",
+                    quantite: parseNumber(row["quantitePreparation"]) || 0,
                     montant_ht: parseNumber(row["coutsPreparationHT"]) || 0,
-                    type_operation: "préparation"
+                    prix_unitaire: parseNumber(row["PuHTPreparation"]) || 0,
+                    type_operation: "Préparation"
                 },
                 {
+                    unite: "",
+                    quantite: parseNumber(row["quantiteTransport"]) || 0,
                     montant_ht: parseNumber(row["coutsTransportHT"]) || 0,
-                    type_operation: "transport"
+                    prix_unitaire: parseNumber(row["PuHTTransport"]) || 0,
+                    type_operation: "Transport"
                 },
                 {
+                    unite: "",
+                    quantite: parseNumber(row["quantiteTraitement"]) || 0,
                     montant_ht: parseNumber(row["coutsTraitementHT"]) || 0,
-                    type_operation: "traitement"
+                    prix_unitaire: parseNumber(row["PuHTTraitement"]) || 0,
+                    type_operation: "Traitement"
                 },
                 {
+                    unite: "",
+                    quantite: 0,
                     montant_ht: parseNumber(row["autresCoutsHT"]) || 0,
-                    type_operation: "gestion global"
+                    prix_unitaire: 0,
+                    type_operation: "Gestion global"
                 },
                 {
-                    montant_ht: 0, // À remplir si disponible
-                    type_operation: "TGAP"
-                },
-                {
-                    montant_ht: 0, // À remplir si disponible
-                    type_operation: "déclassement"
-                },
-                {
+                    unite: "",
+                    quantite: parseNumber(row["quantiteRachat"]) || 0,
                     montant_ht: parseNumber(row["rachatTotalHT"]) || 0,
-                    type_operation: "rachat"
+                    prix_unitaire: parseNumber(row["PuHTRachat"]) || 0,
+                    type_operation: "Rachat"
                 },
                 {
+                    unite: "",
+                    quantite: 0,
                     montant_ht: parseNumber(row["equivalentCoutsContenantsHT"]) || 0,
-                    type_operation: "contenant"
-                },
-                {
-                    montant_ht: 0,
-                    type_operation: "non expliqué"
+                    prix_unitaire: 0,
+                    type_operation: "Contenant"
                 }
             ],
-            commentaire: "",
             line_header: {
+                filiere: "",
+                site_nom: row["nomSiteEmetteur"]?.toString() || "",
+                bon_pesee: "",
+                site_siret: siretFunction(row["siretEmetteur"]?.toString()) || "",
                 code_dechet: row["codeCed"]?.toString() || "Inconnu",
+                date_depart: convertToISO(row["dateCollecteTransporteur"]) || "2023-11-30",
+                num_dossier: "",
                 type_dechet: row["descDechet"]?.toString() || "Inconnu",
-                date_collecte: convertToISO(row["dateCollecteTransporteur"]) || "2023-11-30",
-                lieu_collecte: row["nomPointCollecte"]?.toString() || "Lieu de collecte"
+                bon_intention: "",
+                site_description: "",
+                site_num_affaire: "",
+                dechet_description: ""
             },
             linked_to_bsd: false
-        },
+        }],
         footer: {
-            total_ht: parseNumber(row["montantTotalHT"]) || 0
+            total_ht: parseNumber(row["coutsTotauxHT"]) || 0
         },
         header: {
-            prestataire_nom: row["nomTransporteur"]?.toString() || ""
+            num_facture: "",
+            date_facture: convertToISO(row["dateCollecteTransporteur"]) || "2023-11-30",
+            prestataire_nom: row["nomTransporteur"]?.toString() || "",
+            prestataire_siret: siretFunction(row["siretTransporteur"]?.toString()) || "",
+            prestataire_num_client: "",
+            prestataire_description: ""
         }
     };
 
     return {
         user_id: "", // Sera rempli plus tard
         entreprise_id: "", // Sera rempli plus tard
-        other_infos: {
+        /*other_infos: {
             code_ced: row["codeCed"]?.toString() || "",
             siret_emetteur: siretFunction(row["siretEmetteur"]?.toString()) || "",
             siret_transporteur: siretFunction(row["siretTransporteur"]?.toString()) || "",
             siret_destinataire: siretFunction(row["siretInstallationDestination"]?.toString()) || "",
             date_collecte: convertToISO(row["dateCollecteTransporteur"]),
-        },
-        infos_json: factureJSON,
-        //pdf_infos_id : "IMPORTED_FACTURE" uuid
+        },*/
+        infos_json: factureJSON
     };
 };
 

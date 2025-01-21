@@ -27,14 +27,19 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
 
     // Group amounts by filière
     const operationData = factures.reduce((acc: { [key: string]: number }, facture) => {
-        const cleanedCed = facture.infos_json.depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
-        const filiere = mappingTable.find(m => m.ced === cleanedCed)?.filiere || 'Autres';
+        facture.infos_json.departs.forEach(depart => {
+            const cleanedCed = depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
+            const filiere = mappingTable.find(m => m.ced.replace(' ', '').replace('*', '') === cleanedCed)?.filiere || 'Autres';
+            
+            if (!acc[filiere]) {
+                acc[filiere] = 0;
+            }
+            
+            const departTotal = depart.line_body.reduce((sum, operation) => 
+                sum + (operation.montant_ht || 0), 0);
+            acc[filiere] += departTotal;
+        });
         
-        
-        if (!acc[filiere]) {
-            acc[filiere] = 0;
-        }
-        acc[filiere] += facture.infos_json.footer.total_ht;
         return acc;
     }, {});
 

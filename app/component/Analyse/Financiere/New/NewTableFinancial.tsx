@@ -3,6 +3,7 @@ import { Facture } from '../types';
 import { useEffect, useState } from 'react';
 import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { useFilterContext } from '@/app/FilterContext';
+import { MAIN_OPERATIONS, EXPANDED_OPERATIONS } from '@/app/interface_admin_2/InterfaceAdmin2/constants/formConstants';
 
 interface Props {
     factures: Facture[];
@@ -39,57 +40,57 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
     }, [entreprise_id]);
 
     const filiereData = factures.reduce((acc: FiliereData, facture) => {
-        const cleanedCed = facture.infos_json.depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
-        const filiere = mappingTable.find(m => m.ced.replace(' ', '').replace('*', '') === cleanedCed)?.filiere || 'Autres';
-        
-        
-        if (!acc[filiere]) {
-            acc[filiere] = {
-                preparation: 0,
-                transport: 0,
-                traitement: 0,
-                gestion_global: 0,
-                tgap: 0,
-                declassement: 0,
-                rachat: 0,
-                contenant: 0,
-                non_explique: 0,
-                total: 0
-            };
-        }
-
-        // Sum up each operation type
-        facture.infos_json.depart.line_body.forEach(operation => {
-            const montant = operation.montant_ht || 0;
-            switch (operation.type_operation.toLowerCase()) {
-                case 'préparation':
-                    acc[filiere].preparation += montant;
-                    break;
-                case 'transport':
-                    acc[filiere].transport += montant;
-                    break;
-                case 'traitement':
-                    acc[filiere].traitement += montant;
-                    break;
-                case 'gestion global':
-                    acc[filiere].gestion_global += montant;
-                    break;
-                case 'tgap':
-                    acc[filiere].tgap += montant;
-                    break;
-                case 'déclassement':
-                    acc[filiere].declassement += montant;
-                    break;
-                case 'rachat':
-                    acc[filiere].rachat += montant;
-                    break;
-                case 'contenant':
-                    acc[filiere].contenant += montant;
-                    break;
-                default:
-                    acc[filiere].non_explique += montant;
+        facture.infos_json.departs.forEach(depart => {
+            const cleanedCed = depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
+            const filiere = mappingTable.find(m => m.ced.replace(' ', '').replace('*', '') === cleanedCed)?.filiere || 'Autres';
+            
+            if (!acc[filiere]) {
+                acc[filiere] = {
+                    preparation: 0,
+                    transport: 0,
+                    traitement: 0,
+                    gestion_global: 0,
+                    tgap: 0,
+                    declassement: 0,
+                    rachat: 0,
+                    contenant: 0,
+                    non_explique: 0,
+                    total: 0
+                };
             }
-            acc[filiere].total += montant;
+
+            depart.line_body.forEach(operation => {
+                const montant = operation.montant_ht || 0;
+                switch (operation.type_operation) {
+                    case 'Préparation':
+                        acc[filiere].preparation += montant;
+                        break;
+                    case 'Transport':
+                        acc[filiere].transport += montant;
+                        break;
+                    case 'Traitement':
+                        acc[filiere].traitement += montant;
+                        break;
+                    case 'Gestion global':
+                        acc[filiere].gestion_global += montant;
+                        break;
+                    case 'TGAP':
+                        acc[filiere].tgap += montant;
+                        break;
+                    case 'Déclassement':
+                        acc[filiere].declassement += montant;
+                        break;
+                    case 'Rachat':
+                        acc[filiere].rachat += montant;
+                        break;
+                    case 'Contenant':
+                        acc[filiere].contenant += montant;
+                        break;
+                    default:
+                        acc[filiere].non_explique += montant;
+                }
+                acc[filiere].total += montant;
+            });
         });
 
         return acc;

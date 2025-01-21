@@ -7,19 +7,29 @@ interface Props {
 
 const NewBordereauxFinancial = ({ factures }: Props) => {
     const stats = useMemo(() => {
-        // Calculer le coût total
-        const totalCost = factures.reduce((sum, facture) => 
-            sum + (facture.infos_json.footer.total_ht || 0), 0);
+        // Calculate total cost from all departs and operations
+        const totalCost = factures.reduce((sum, facture) => {
+            const factureTotal = facture.infos_json.departs.reduce((departSum, depart) => {
+                return departSum + depart.line_body.reduce((operationSum, operation) => 
+                    operationSum + (operation.montant_ht || 0), 0);
+            }, 0);
+            return sum + factureTotal;
+        }, 0);
 
-        // Grouper les coûts par mois
+        // Group costs by month
         const costsByMonth = factures.reduce((acc: { [key: string]: number }, facture) => {
-            const date = new Date(facture.other_infos?.date_collecte || facture.created_at);
-            const monthYear = `${date.getMonth()}-${date.getFullYear()}`;
-            
-            if (!acc[monthYear]) {
-                acc[monthYear] = 0;
-            }
-            acc[monthYear] += facture.infos_json.footer.total_ht || 0;
+            facture.infos_json.departs.forEach(depart => {
+                const date = new Date(depart.line_header.date_depart);
+                const monthYear = `${date.getMonth()}-${date.getFullYear()}`;
+                
+                if (!acc[monthYear]) {
+                    acc[monthYear] = 0;
+                }
+                
+                const departTotal = depart.line_body.reduce((sum, operation) => 
+                    sum + (operation.montant_ht || 0), 0);
+                acc[monthYear] += departTotal;
+            });
             return acc;
         }, {});
 

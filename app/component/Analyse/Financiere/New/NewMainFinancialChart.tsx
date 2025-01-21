@@ -53,34 +53,38 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
         const amountsByFiliere: { [key: string]: number[] } = {};
 
         factures.forEach(facture => {
-            if (!facture.infos_json?.depart?.line_header?.code_dechet) {
-                return;
-            }
+            facture.infos_json.departs.forEach(depart => {
+                if (!depart.line_header?.code_dechet) {
+                    return;
+                }
 
-            const date = new Date(facture.other_infos.date_collecte);
-            if (date < startDate || date > endDate) {
-                return;
-            }
+                const date = new Date(depart.line_header.date_depart);
+                if (date < startDate || date > endDate) {
+                    return;
+                }
 
-            const cleanedCed = facture.infos_json.depart.line_header.code_dechet
-                .replaceAll(' ', '')
-                .replace('*', '');
+                const cleanedCed = depart.line_header.code_dechet
+                    .replaceAll(' ', '')
+                    .replace('*', '');
 
-            const filiere = mappingTable.find(m => 
-                m.ced.replaceAll(' ', '').replace('*', '') === cleanedCed
-            )?.filiere || 'Autres';
+                const filiere = mappingTable.find(m => 
+                    m.ced.replaceAll(' ', '').replace('*', '') === cleanedCed
+                )?.filiere || 'Autres';
 
-            if (!amountsByFiliere[filiere]) {
-                amountsByFiliere[filiere] = Array(monthLabels.length).fill(0);
-            }
+                if (!amountsByFiliere[filiere]) {
+                    amountsByFiliere[filiere] = Array(monthLabels.length).fill(0);
+                }
 
-            const monthIndex = Math.floor(
-                (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-            );
+                const monthIndex = Math.floor(
+                    (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+                );
 
-            if (monthIndex >= 0 && monthIndex < monthLabels.length) {
-                amountsByFiliere[filiere][monthIndex] += facture.infos_json.footer.total_ht;
-            }
+                if (monthIndex >= 0 && monthIndex < monthLabels.length) {
+                    const departTotal = depart.line_body.reduce((sum, operation) => 
+                        sum + (operation.montant_ht || 0), 0);
+                    amountsByFiliere[filiere][monthIndex] += departTotal;
+                }
+            });
         });
 
         const datasets = Object.entries(amountsByFiliere).map(([filiere, data]) => {

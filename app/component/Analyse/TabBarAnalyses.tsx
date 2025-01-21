@@ -64,7 +64,8 @@ const TabBarAnalyses = () => {
                 console.error(error);
                 return false;
             }
-            return data.length > 0;
+            //return data.length > 0;
+            return true; //ATTENTIOOOON
         }
         return false;
     }

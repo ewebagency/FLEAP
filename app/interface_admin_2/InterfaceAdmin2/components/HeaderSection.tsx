@@ -84,6 +84,17 @@ export const HeaderSection = ({
         onUpdate(newFormData);
     };
 
+    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newDate = e.target.value;
+        onUpdate({
+            ...formData,
+            header: {
+                ...formData.header,
+                date_facture: new Date(newDate).toISOString()
+            }
+        });
+    };
+
     return (
         <div className="bg-white p-3 rounded shadow">
             <h3 className="font-semibold mb-3">En-tête</h3>
@@ -118,8 +129,10 @@ export const HeaderSection = ({
                 />
                 <input
                     type="date"
-                    value={formData.header.date_facture || ''}
-                    onChange={(e) => handleChange('date_facture', e.target.value)}
+                    value={formData.header.date_facture 
+                        ? new Date(formData.header.date_facture).toISOString().split('T')[0]
+                        : new Date().toISOString().split('T')[0]}
+                    onChange={handleDateChange}
                     className="w-full p-1 text-xs border rounded"
                 />
             </div>

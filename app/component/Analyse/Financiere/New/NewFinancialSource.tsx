@@ -43,6 +43,29 @@ const NewFinancialSource = () => {
         fetchData();
     }, [session?.entreprise_id]);
 
+    // Filtrer les factures valides
+    const validFactures = factures.filter(facture => {
+        // Vérifier que chaque départ a les informations requises
+        return facture.infos_json.departs.every(depart => {
+            const header = depart.line_header;
+            
+            // Vérifier la date
+            const date = new Date(header.date_depart);
+            const isValidDate = !isNaN(date.getTime());
+
+            // Vérifier le SIRET du site
+            const hasValidSiret = !!header.site_siret && header.site_siret.length > 0;
+
+            // Vérifier le code CED
+            const hasValidCed = !!header.code_dechet && header.code_dechet.length > 0;
+            
+            
+            console.log("hasValidSiret", hasValidSiret)
+            console.log('siret', header.site_siret)
+            return isValidDate && hasValidSiret && hasValidCed;
+        });
+    });
+
     if (isLoading) {
         return <div className="flex justify-center items-center p-4">
             <div className="text-gray-500">Chargement des données...</div>
@@ -52,18 +75,18 @@ const NewFinancialSource = () => {
     return (
         <div>
             {entreprise_id && <div className="space-y-4 p-2">
-                <NewBordereauxFinancial factures={factures} />
+                <NewBordereauxFinancial factures={validFactures} />
                 <div className="bg-white rounded-lg shadow">
-                    <NewMainFinancialChart factures={factures} entreprise_id={entreprise_id} />
+                    <NewMainFinancialChart factures={validFactures} entreprise_id={entreprise_id} />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                     <div className="bg-white rounded-lg shadow">
                         <h2 className="text-sm text-gray-600 font-thin p-2">Détail des factures</h2>
-                        <NewTableFinancial factures={factures} entreprise_id={entreprise_id} />
+                        <NewTableFinancial factures={validFactures} entreprise_id={entreprise_id} />
                     </div>
                     <div className="bg-white rounded-lg shadow">
                         <h2 className="text-sm text-gray-600 font-thin p-2">Répartition par filière</h2>
-                        <NewPieFinancialChart factures={factures} entreprise_id={entreprise_id} />
+                        <NewPieFinancialChart factures={validFactures} entreprise_id={entreprise_id} />
                     </div>
                 </div>
             </div>}
