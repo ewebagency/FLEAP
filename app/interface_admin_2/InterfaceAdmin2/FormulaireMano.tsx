@@ -16,7 +16,7 @@ import { FactureLine } from './types/interfaces';
 
 export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireManoProps) {
     const [loading, setLoading] = useState(false);
-    const entrepriseId = useEntrepriseId();
+    const entrepriseId = useEntrepriseId(currentPdfId);
     const { selectedAccounts } = useAccessOtherAccount();
     const userId = selectedAccounts[0]?.user_id;
     
@@ -42,7 +42,7 @@ export default function FormulaireMano({ currentPdfId, onNextPdf }: FormulaireMa
         setLoading(true);
 
         try {
-            if (!currentPdfId) return;
+            if (!currentPdfId || !entrepriseId) return;
 
             // Mettre à jour le status de pdf_infos
             await supabase

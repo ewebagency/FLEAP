@@ -212,7 +212,7 @@ const FiltreSiteEtablissement = () => {
                     />
 
                     <div
-                        className="absolute top-full left-0 w-80 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+                        className="absolute top-full left-0 w-80 mt-0 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
                         onMouseEnter={() => setIsOpen(true)}
                         onMouseLeave={() => setIsOpen(false)}
                     >

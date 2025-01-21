@@ -48,7 +48,7 @@ const ImportPDF = () => {
             alert("Veuillez vous connecter pour importer des fichiers.");
             return;
         }
-
+        const entreprise_id = session?.entreprise_id;
         if (!entreprise_id) {
             alert("Vous devez être associé à une entreprise pour importer des fichiers.");
             return;

@@ -136,10 +136,6 @@ export const useFormData = (currentPdfId: string | null, entrepriseId: string | 
                 console.error('Erreur lors de la récupération des BSDs:', error);
                 return;
             }
-
-            // Log pour vérifier la structure des BSDs
-            //console.log('Premier BSD:', data[0]?.infos_json);
-            //console.log('Chemin wasteDetails:', data[0]?.infos_json?.formAPI?.createFormInput?.wasteDetails);
             
             setAllOptions(data.map(d => d.infos_json));
         };

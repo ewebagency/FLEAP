@@ -23,6 +23,7 @@
     "boxicons": "^2.1.4",
     "canvas": "^2.11.2",
     "chart.js": "^4.4.4",
+    "chartjs-plugin-datalabels": "^2.2.0",
     "cross-fetch": "^4.0.0",
     "danfojs": "^1.1.2",
     "date-fns": "^4.1.0",

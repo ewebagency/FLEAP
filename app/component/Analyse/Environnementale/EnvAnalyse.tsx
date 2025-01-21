@@ -11,10 +11,12 @@ const EnvAnalyse = ({active}: Props) => {
         <div>
             { active &&
                 <div className="border-b border-r border-l border-gray-200 rounded-br rounded-bl">
-                    <div className="pt-5 mb-5 ml-5 mr-5">
+                    <div className="p-5">
                         <h2 className="text-xl font-semibold mb-4">Analyse Environnementale</h2>
-                        <EnvBordereau />
-                        <EnvBarChart />
+                        <div className="space-y-6">
+                            <EnvBordereau />
+                            <EnvBarChart />
+                        </div>
                     </div>
                 </div>  
             }

@@ -130,14 +130,6 @@ const AnalOpMainChart = () => {
       'rgb(173, 216, 230)',    // Bleu poudré
     ];
 
-    const getColor = (segment: string, index: number) => {
-        if (filieres_ou_prestataires.nom === 'filiere') {
-            const filiereIndex = filieres.findIndex(f => f.name === segment);
-            return tailwindToRgb(filieres[filiereIndex].color);
-        } else {
-            return prestatairesColors[index % prestatairesColors.length];
-        }
-    };
 
 
     // Créer les datasets

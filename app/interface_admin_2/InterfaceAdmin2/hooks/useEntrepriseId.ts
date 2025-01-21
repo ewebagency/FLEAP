@@ -1,21 +1,17 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
-import { useAccessOtherAccount } from '../../AccessOtherAccounts/AccessOtherAccountContext';
 
-export const useEntrepriseId = () => {
+export const useEntrepriseId = (currentPdfId: string | null) => {
     const [entrepriseId, setEntrepriseId] = useState<string | null>(null);
-    const { selectedAccounts } = useAccessOtherAccount();
 
     useEffect(() => {
         const fetchEntrepriseId = async () => {
-            if (!selectedAccounts[0]?.user_id) return;
+            if (!currentPdfId) return;
 
-            console.log('Fetching entreprise_id for user_id:', selectedAccounts[0].user_id);
-
-            const { data: profilData, error } = await supabase
-                .from('profiles')
+            const { data: pdfData, error } = await supabase
+                .from('pdf_infos')
                 .select('entreprise_id')
-                .eq('user_id', selectedAccounts[0].user_id)
+                .eq('id', currentPdfId)
                 .single();
 
             if (error) {
@@ -23,13 +19,13 @@ export const useEntrepriseId = () => {
                 return;
             }
 
-            if (profilData?.entreprise_id) {
-                setEntrepriseId(profilData.entreprise_id);
+            if (pdfData?.entreprise_id) {
+                setEntrepriseId(pdfData.entreprise_id);
             }
         };
 
         fetchEntrepriseId();
-    }, [selectedAccounts]);
+    }, [currentPdfId]);
 
     return entrepriseId;
 }; 

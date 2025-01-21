@@ -10,16 +10,19 @@ import { useImport } from './ImportContext';
 const TableImportedFilesFunctional: React.FC = () => {
     const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]); // État pour stocker les informations des PDF
     const [loading, setLoading] = useState(true); // État pour gérer le chargement
-    const session = useSession() as SessionMore; // Récupérer la session utilisateur
+    const session = useSession(); // Récupérer la session utilisateur
     const user_id = session?.user_id; // Récupérer l'ID de l'utilisateur
+    const entreprise_id = session?.entreprise_id; // Récupérer l'ID de l'entreprise
     const { importReload } = useImport(); // Utiliser le contexte
 
     const fetchPdfInfos = useCallback(async () => { // Wrap in useCallback
         setLoading(true); // Démarrer le chargement
+        console.log("entreprise_id", entreprise_id, "session", session);
         const { data, error } = await supabase
             .from('pdf_infos') // Remplacez par le nom de votre table
             .select('*')
-            .eq('user_id', user_id); // Filtrer par user_id
+            //.eq('user_id', user_id)
+            .eq('entreprise_id', entreprise_id); // Filtrer par user_id et entreprise_id
 
         if (error) {
             console.error("Erreur lors de la récupération des informations PDF:", error);
@@ -39,13 +42,13 @@ const TableImportedFilesFunctional: React.FC = () => {
             setPdfInfos(pdfInfosWithUrls);
         }
         setLoading(false); // Arrêter le chargement
-    }, [user_id]); // Add user_id as a dependency
+    }, [user_id, entreprise_id]); // Add user_id as a dependency
 
     useEffect(() => {
-        if (user_id) {
+        if (session) {
             fetchPdfInfos(); // Appeler la fonction pour récupérer les informations
         }
-    }, [user_id, fetchPdfInfos, importReload]); // Ajouter importReload comme dépendance
+    }, [session, fetchPdfInfos, importReload]); // Ajouter importReload comme dépendance
 
     const handleDelete = async (pdfPath: string, id: number) => {
         // Supprimer le fichier du stockage
