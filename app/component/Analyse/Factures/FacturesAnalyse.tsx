@@ -1,121 +1,123 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { SessionMore, useSession } from "../../SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
-import { Session } from "@supabase/supabase-js";
+import BoxIcon from '../../BoxIconWrapper';
 
-type JsonDataType = { [key: string]: string | number | boolean | JsonDataType | JsonDataType[] };
-
-type Facture = {
-    infos_json: {
-        facture_form: {
-            header: {
-                personne_de_reference: {
-                    prenom_nom: string;
-                }
-            },
-            departs: Array<{
-                infos_pour_filtrer: {
-                    description_adresse_site: string;
-                    description_dechet: string;
-                    code_ced: string;
-                    date_collecte: string;
-                },
-                ligne_compta_contenant: { montant_ht: number },
-                ligne_compta_preparation: { montant_ht: number },
-                ligne_compta_transport: { montant_ht: number },
-                ligne_compta_traitement: { montant_ht: number },
-                ligne_compta_tgap: { montant_ht: number },
-                ligne_compta_rachat_matiere: { montant_ht: number }
-            }>
-        }
-    }
+interface PdfInfo {
+    id: number;
+    name_pdf: string;
+    name_pdf_in_bucket: string;
+    created_at: string;
+    status: string;
+    document_type?: string;
+    url?: string;
+    file_size?: number;
 }
 
 const FacturesAnalyse = ({ active }: { active: boolean }) => {
     const session = useSession() as SessionMore;
-    const [factures, setFactures] = useState<Facture[]>([]);
+    const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
+    const [loading, setLoading] = useState(true);
+    const entreprise_id = session?.entreprise_id;
 
-    /*useEffect(() => {
-        const fetchFactures = async () => {
-            if (session && session.user.id) {
-                try {
-                    const { data, error } = await supabase
-                        .from('factures')
-                        .select('*')
-                        .eq('user_id', session.user.id);
+    const fetchPdfInfos = useCallback(async () => {
+        setLoading(true);
+        console.log("entreprise_id", entreprise_id, "session", session);
+        const { data, error } = await supabase
+            .from('pdf_infos')
+            .select('*')
+            .eq('entreprise_id', entreprise_id);
 
-                    if (error) throw error;
-                    if (data) setFactures(data);
-                } catch (error) {
-                    console.error('Erreur lors de la récupération des factures:', error);
-                }
-            }
-        };
+        if (error) {
+            console.error("Erreur lors de la récupération des PDFs:", error);
+        } else if (data) {
+            const pdfInfosWithUrls = await Promise.all(data.map(async (pdf) => {
+                const { data: urlData } = await supabase
+                    .storage
+                    .from('pdfs_bucket')
+                    .createSignedUrl(pdf.name_pdf_in_bucket, 3600);
 
-        fetchFactures();
-    }, [session]);*/
+                return {
+                    ...pdf,
+                    url: urlData?.signedUrl || ''
+                };
+            }));
+            setPdfInfos(pdfInfosWithUrls);
+        }
+        setLoading(false);
+    }, [entreprise_id]);
+
+    useEffect(() => {
+        if (session) {
+            fetchPdfInfos();
+        }
+    }, [session, fetchPdfInfos]);
 
     if (!active) return null;
+    if (loading) return <p>Chargement des documents...</p>;
 
     return (
         <div className="overflow-x-auto p-5">
-            <h1 className="text-2xl font-bold mb-4">Formulaire JSON</h1>
-            <table className="min-w-full divide-y divide-gray-200 rounded-lg shadow-lg overflow-hidden">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Personne Référente</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Adresse Site</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description Déchet</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code CED</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date Collecte</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contenant HT</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Préparation HT</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transport HT</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Traitement HT</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">TGAP HT</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rachat HT</th>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }} className="table-fixed">
+                <thead>
+                    <tr style={{ backgroundColor: 'white' }}>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '5%', textAlign: 'left' }}
+                            className="text-xs font-normal text-gray-500">Type</th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '13%', textAlign: 'left', paddingLeft: '23px' }}
+                            className="text-xs font-normal text-gray-500">Statut</th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '25px' }}
+                            className="text-xs font-normal text-gray-500">Nom</th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '12%', textAlign: 'left' }}
+                            className="text-xs font-normal text-gray-500">Date</th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '25%', textAlign: 'left' }}
+                            className="text-xs font-normal text-gray-500">Anomalies</th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '12%', textAlign: 'right', paddingRight: '3.5rem' }}
+                            className="text-xs font-normal text-gray-500">Actions</th>
                     </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                    {factures.flatMap((facture, factureIndex) => 
-                        facture.infos_json.facture_form.departs.map((depart, departIndex) => (
-                            <tr key={`${factureIndex}-${departIndex}`} className="hover:bg-gray-50 transition duration-200">
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    {facture.infos_json.facture_form.header.personne_de_reference.prenom_nom}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    {depart.infos_pour_filtrer.description_adresse_site}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    {depart.infos_pour_filtrer.description_dechet}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    {depart.infos_pour_filtrer.code_ced}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    {depart.infos_pour_filtrer.date_collecte}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    {depart.ligne_compta_contenant.montant_ht}€
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    {depart.ligne_compta_preparation.montant_ht}€
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    {depart.ligne_compta_transport.montant_ht}€
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    {depart.ligne_compta_traitement.montant_ht}€
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    {depart.ligne_compta_tgap.montant_ht}€
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    {depart.ligne_compta_rachat_matiere.montant_ht}€
-                                </td>
-                            </tr>
-                        ))
-                    )}
+                <tbody>
+                    {pdfInfos.map((pdf) => (
+                        <tr key={pdf.id} style={{ borderBottom: '1px solid #ddd' }} 
+                            className="hover:bg-gray-50 transition duration-200">
+                            <td style={{ padding: '6px', height: '40px' }} className="align-middle mt-1">
+                                <BoxIcon name='file-pdf' color='red' type='solid' />
+                            </td>
+                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                                <span className="px-2 py-1 rounded-full font-semibold text-orange-600 text-xs">
+                                    En attente de vérification
+                                </span>
+                            </td>
+                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                                <div className="text-xs font-medium truncate pr-4" title={pdf.name_pdf}>
+                                    {pdf.name_pdf}
+                                </div>
+                            </td>
+                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                                <div className="flex justify-start items-center space-x-1">
+                                    <div className="text-xs font-medium">
+                                        {new Date(pdf.created_at).toLocaleDateString('fr-FR')}
+                                    </div>
+                                </div>
+                            </td>
+                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                                <div className="text-xs text-gray-600">
+                                    Aucune anomalie détectée
+                                </div>
+                            </td>
+                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                                <div className="flex items-center justify-end gap-2">
+                                    <a 
+                                        href={pdf.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-3 py-1.5 border border-[var(--green-medium)] text-[var(--green-medium)] rounded-md text-xs hover:bg-green-50 w-[100px] text-center"
+                                    >
+                                        Ouvrir
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
                 </tbody>
             </table>
         </div>

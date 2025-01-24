@@ -74,13 +74,13 @@ const TabBarAnalyses = () => {
             <div role="tablist" className="tabs tabs-lifted">
                 <a role="tab" className={`tab ${activeTab === 'tab_finance' ? 'tab-active' : ''} ${hasFinanceData ? '' : 'hidden'}`} onClick={() => handleTabClick('tab_finance')}>Analyse financière</a>          
                 <a role="tab" className={`tab ${activeTab === 'tab_ops' ? 'tab-active' : ''}`} onClick={() => handleTabClick('tab_ops')}>Analyse opérationnelle</a>
-                <a role="tab" className={`tab ${activeTab === 'tab_facture' ? 'tab-active' : ''} hidden`} onClick={() => handleTabClick('tab_facture')}>Analyse des factures</a>
+                <a role="tab" className={`tab ${activeTab === 'tab_facture' ? 'tab-active' : ''}`} onClick={() => handleTabClick('tab_facture')}>Analyse des factures</a>
                 <a role="tab" className={`tab ${activeTab === 'tab_env' ? 'tab-active' : ''}`} onClick={() => handleTabClick('tab_env')}>Analyse environnementale</a>
             </div>
 
             {hasFinanceData ? <FinancialAnalyse active={activeTab == 'tab_finance'}/> : null}
             <OperationalAnalyse active={activeTab == 'tab_ops'}/>
-            {/*<FactureAnalyse active={activeTab == 'tab_facture'}/>*/}
+            <FactureAnalyse active={activeTab == 'tab_facture'}/>
             <EnvAnalyse active={activeTab == 'tab_env'}/>
         </div>
     )

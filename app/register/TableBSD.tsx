@@ -762,7 +762,7 @@ const TableBSD = () => {
                     {loadingBSDs ? (
                         <tr><td colSpan={5}>Chargement des BSDs...</td></tr>
                     ) : bsds.length > 0 ? (
-                        bsds.map((bsd) => (
+                        OrderBSDs(bsds).map((bsd) => (
                         <tr key={bsd.id} style={{ borderBottom: '1px solid #ddd' }} className={`${bsd.status_track_dechets === "Ligne créée automatiquement" ? "bg-[var(--gray-light)]" : ""}`}>
                             <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px'}}>
                                 <div className="absolute top-1 left-2 w-full">
@@ -1117,3 +1117,11 @@ const frenchTranslation = (statut: string): string => {
     return mapping[statut] || statut;
 };
 
+
+const OrderBSDs = (bsds: BSD[]) => {
+    const getDate = (bsd: BSD) => {
+        if(bsd.infos_json.formAPI.createFormInput.takenOverAt) return new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt);
+        return new Date(bsd.created_at);
+    }
+    return bsds.sort((a, b) => getDate(b).getTime() - getDate(a).getTime());
+}

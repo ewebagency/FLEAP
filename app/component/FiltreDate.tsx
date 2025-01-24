@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useFilterContext } from "../FilterContext";
 import { useSession } from "./SessionProvider";
 import { supabase } from "../database/supabaseClient";
+import BoxIcon from '@/app/component/BoxIconWrapper';
 
 interface DateSegment {
     label: string;
@@ -15,73 +16,64 @@ const FiltreDate = () => {
     const { segmentDates, setSegmentDates } = useFilterContext();
     const session = useSession();
     const containerRef = useRef<HTMLDivElement>(null);
+    const [customStartDate, setCustomStartDate] = useState<string>('');
+    const [customEndDate, setCustomEndDate] = useState<string>('');
 
-    const getDateSegments = (dates: Date[]): DateSegment[] => {
-        if (dates.length === 0) return [];
-
+    const getDateSegments = (): DateSegment[] => {
         const now = new Date();
-        const oneDay = 24 * 60 * 60 * 1000;
-        const oneWeek = 7 * oneDay;
-        const oneMonth = 30 * oneDay;
-        const oneYear = 365 * oneDay;
+        const currentYear = now.getFullYear();
+        
+        // Début et fin de l'année en cours
+        const startOfYear = new Date(currentYear, 0, 1);
+        const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
+
+        // 12 derniers mois
+        const twelveMonthsAgo = new Date();
+        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
         return [
             {
-                label: "7 derniers jours",
-                debut: new Date(now.getTime() - oneWeek),
-                fin: now
+                label: "Année en cours",
+                debut: startOfYear,
+                fin: endOfYear
             },
             {
-                label: "dernier mois",
-                debut: new Date(now.getTime() - oneMonth),
+                label: "12 derniers mois",
+                debut: twelveMonthsAgo,
                 fin: now
-            },
-            {
-                label: "6 derniers mois",
-                debut: new Date(now.getTime() - (6 * oneMonth)),
-                fin: now
-            },
-            /*{
-                label: "Cette année",
-                debut: new Date(now.getFullYear(), 0, 1),
-                fin: now
-            },
-            {
-                label: "Année précédente",
-                debut: new Date(now.getFullYear() - 1, 0, 1),
-                fin: new Date(now.getFullYear() - 1, 11, 31)
-            }*/
+            }
         ];
     };
 
     const getDatesFromEntreprise = async () => {
         if (session?.entreprise_id) {
-            const { data, error } = await supabase
-            .from('bsd')
-            .select('created_at')
-            .eq('entreprise_id', session.entreprise_id)
-            .order('created_at');
+            const { data: bsdData, error: bsdError } = await supabase
+                .from('bsd')
+                .select('created_at, taken_over_at')
+                .eq('entreprise_id', session.entreprise_id);
             
-            if (error) {
-                console.error('Error fetching dates:', error);
+            if (bsdError) {
+                console.error('Error fetching dates:', bsdError);
                 return;
             }
 
-            if(data && data.length > 0) {
-                const dates = data.map(bsd => new Date(bsd.created_at));
-                const segments = getDateSegments(dates);
-                // Par défaut, sélectionner les 30 derniers jours
-                const defaultSegment = segments[1];
-                setSegmentDates({ debut: defaultSegment.debut, fin: defaultSegment.fin });
+            if(bsdData && bsdData.length > 0) {
+                const allDates = bsdData.flatMap(bsd => [
+                    bsd.created_at ? new Date(bsd.created_at) : null,
+                    bsd.taken_over_at ? new Date(bsd.taken_over_at) : null
+                ]).filter((date): date is Date => date !== null);
+
+                if (allDates.length > 0) {
+                    const defaultSegment = getDateSegments()[0]; // Année en cours par défaut
+                    setSegmentDates({ debut: defaultSegment.debut, fin: defaultSegment.fin });
+                }
             }
         }
     }
 
     useEffect(() => {
         const loadDates = async () => {
-            if (!session?.user_id || !session?.entreprise_id) {
-                return;
-            }
+            if (!session?.user_id || !session?.entreprise_id) return;
             await getDatesFromEntreprise();
         };
 
@@ -93,19 +85,27 @@ const FiltreDate = () => {
         setIsOpen(false);
     };
 
+    const handleCustomDateSubmit = () => {
+        if (customStartDate && customEndDate) {
+            setSegmentDates({
+                debut: new Date(customStartDate),
+                fin: new Date(customEndDate)
+            });
+            setIsOpen(false);
+        }
+    };
+
     return (
         <div 
             ref={containerRef}
-            className="m-4 relative"
+            className="my-1 relative hidden"
             onMouseEnter={() => setIsOpen(true)}
             onMouseLeave={() => setIsOpen(false)}
         >
-            <div className="btn flex items-center justify-between px-4 py-2 bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200">
-                <div className="flex items-center space-x-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                    </svg>
-                    <h1 className="text-lg font-semibold text-gray-700">Période</h1>
+            <div className="btn flex items-center justify-between px-2 py-0 bg-white rounded-lg hover:bg-gray-50 transition-all duration-200 w-full">
+                <div className="flex items-center space-x-4">
+                    <BoxIcon name='calendar' type='solid' size="18px" />
+                    <h1 className="text-sm font-semibold text-gray-700">Période</h1>
                 </div>
                 <span className={`transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
                     ▼
@@ -114,33 +114,45 @@ const FiltreDate = () => {
 
             {isOpen && (
                 <>
-                    {/* Zone invisible pour combler l'espace entre le bouton et le menu */}
-                    <div 
-                        className="absolute left-0 w-full h-2 -bottom-2"
-                        onMouseEnter={() => setIsOpen(true)}
-                    />
+                    <div className="absolute left-0 w-full h-2 -bottom-2" />
                     
-                    <div 
-                        className="absolute top-full left-0 w-80 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
-                        onMouseEnter={() => setIsOpen(true)}
-                        onMouseLeave={() => setIsOpen(false)}
-                    >
+                    <div className="absolute top-full left-0 w-80 mt-0 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                         <div className="p-3 border-b border-gray-200">
                             <span className="text-sm font-semibold text-gray-700">
                                 Sélectionner une période
                             </span>
                         </div>
+                        <div className="p-3 border-b border-gray-200">
+                            <div className="flex flex-col space-y-2">
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="date"
+                                        className="flex-1 p-1 border rounded"
+                                        value={customStartDate}
+                                        onChange={(e) => setCustomStartDate(e.target.value)}
+                                    />
+                                    <span>à</span>
+                                    <input
+                                        type="date"
+                                        className="flex-1 p-1 border rounded"
+                                        value={customEndDate}
+                                        onChange={(e) => setCustomEndDate(e.target.value)}
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleCustomDateSubmit}
+                                    className="w-full p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                                >
+                                    Appliquer
+                                </button>
+                            </div>
+                        </div>
                         <div className="max-h-64 overflow-y-auto p-2">
-                            {getDateSegments([new Date()]).map((segment, index) => (
+                            {getDateSegments().map((segment) => (
                                 <button
                                     key={segment.label}
                                     onClick={() => handleSegmentSelect(segment)}
-                                    className={`w-full text-left p-2 hover:bg-gray-50 rounded-md transition-colors duration-150 ${
-                                        segmentDates.debut?.getTime() === segment.debut.getTime() &&
-                                        segmentDates.fin?.getTime() === segment.fin.getTime()
-                                            ? 'bg-blue-50 text-blue-600'
-                                            : 'text-gray-700'
-                                    }`}
+                                    className="w-full text-left p-2 hover:bg-gray-50 rounded-md transition-colors duration-150"
                                 >
                                     {segment.label}
                                 </button>
