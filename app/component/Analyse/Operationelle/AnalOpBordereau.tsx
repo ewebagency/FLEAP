@@ -41,7 +41,9 @@ const AnalOpBordereau = () => {
             <div className="block ml-4">
                 <div className="text-sm text-gray-600 font-thin">Tonnage total</div>
                 <div className="flex items-center mt-2">
-                    <div className="font-bold text-xl ml-4">{stats.totalWeight.toFixed(2)} T</div>
+                    <div className="font-bold text-xl ml-4">
+                        {stats.totalWeight.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} T
+                    </div>
                     <div className={`badge ${stats.monthlyEvolution >= 0 ? 'bg-green-300' : 'bg-red-300'} ml-8 text-xs`}>
                         {stats.monthlyEvolution >= 0 ? '+' : ''}{stats.monthlyEvolution.toFixed(1)}%
                     </div>

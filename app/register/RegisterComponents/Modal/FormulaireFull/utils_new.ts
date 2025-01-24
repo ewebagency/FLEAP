@@ -1,6 +1,7 @@
 import { toast } from "react-hot-toast";
 import { Gouv, Anything, FormInput } from "../../../interface/BSD_Interface";
 import { supabase } from "@/app/database/supabaseClient";
+import { OtherInfos } from "./FormulaireFull";
 
 
 export const extractSiret = (number: string | number | boolean | null): string | null => {
@@ -235,7 +236,14 @@ export const formatText = (text: Anything) => {
 }
 
 
-export const sendData_to_Cloud = async (data: FormInput, user_id: string, entreprise_id: string, isDraft: boolean = false, nonDangereux: boolean = false) => {
+export const sendData_to_Cloud = async (
+    data: FormInput, 
+    user_id: string, 
+    entreprise_id: string, 
+    isDraft: boolean = false, 
+    nonDangereux: boolean = false,
+    otherInfos?: OtherInfos
+) => {
   console.log('data utils new', data);
   
   try {
@@ -249,7 +257,8 @@ export const sendData_to_Cloud = async (data: FormInput, user_id: string, entrep
           entreprise_id: entreprise_id,
           data: {formAPI: {createFormInput: data}},
           isDraft: isDraft,
-          nonDangereux: nonDangereux
+          nonDangereux: nonDangereux,
+          otherInfos: otherInfos
       }),
     });
     

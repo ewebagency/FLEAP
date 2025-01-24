@@ -4,6 +4,7 @@ import axios from 'axios';
 import { supabase } from '@/app/database/supabaseClient';
 import { pushOnTableParametrage } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import { cookies } from 'next/headers';
+import { OtherInfos } from "@/app/register/RegisterComponents/Modal/FormulaireFull/FormulaireFull";
 
 
 interface FormAPI {
@@ -258,6 +259,7 @@ export async function POST(request: Request) {
     const response = await request.json();
     const isDraft = response.isDraft || false;
     const nonDangereux = response.nonDangereux || false;
+    const otherInfos = response.otherInfos;
 
     try {
         // Vérifier d'abord si l'utilisateur et l'entreprise existent
@@ -287,7 +289,8 @@ export async function POST(request: Request) {
                 id,
                 status,
                 readableId,
-                false
+                false,
+                otherInfos
             );
 
             return NextResponse.json({ 
@@ -329,7 +332,7 @@ export async function POST(request: Request) {
         }
 
         const {id, status, readableId} = trackDechetsResponse.data.data.createForm;
-        await createBSD_Fleap(response.user_id, response.data, id, status, readableId, true);
+        await createBSD_Fleap(response.user_id, response.data, id, status, readableId, true, otherInfos);
         
         return NextResponse.json({ 
             success: true, 
@@ -350,7 +353,15 @@ export async function POST(request: Request) {
 }
 
 
-const createBSD_Fleap = async (user_id:string, data:DataTransfer, id_track:string, status_track:string, readableId_track:string, on_track_dechets:boolean) => {
+const createBSD_Fleap = async (
+    user_id: string, 
+    data: DataTransfer, 
+    id_track: string, 
+    status_track: string, 
+    readableId_track: string, 
+    on_track_dechets: boolean, 
+    otherInfos?: OtherInfos
+) => {
     
     const entreprise_id = await getEntrepriseId(user_id);
     
@@ -366,7 +377,8 @@ const createBSD_Fleap = async (user_id:string, data:DataTransfer, id_track:strin
         id_track_dechets: id_track,
         status_track_dechets: status_track,
         readable_id_track_dechets: readableId_track,
-        entreprise_id: entreprise_id // tester une création de bsd avec entreprise_id!!!!!
+        entreprise_id: entreprise_id,
+        other_infos: otherInfos
     });
 
     if (result.error)console.error('Erreur lors de l\'insertion dans la base de données :', result.error);

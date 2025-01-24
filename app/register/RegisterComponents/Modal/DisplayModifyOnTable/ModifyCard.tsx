@@ -6,6 +6,7 @@ import { supabase } from "@/app/database/supabaseClient";
 import { FormInput } from "../../../interface/BSD_Interface";
 import Swal from 'sweetalert2';
 import { getMappingTableFiliere, getFiliere } from "../FormulaireFull/utils_new";
+import { OtherInfos } from "../FormulaireFull/FormulaireFull";
 
 const LabelInput = ({ label, value, onChange, path }: { 
     label: string, 
@@ -85,21 +86,37 @@ const ModifyCard = () => {
         }, //Si le recipient est un stockage provisoire, on va mettre les infos du destinataire final pour le traitement 
         //intermediaries: [],
       });
+    const [otherInfos, setOtherInfos] = useState<OtherInfos>({
+        container: {
+            description: {
+                type: "",
+                volume: "",
+                volumeUnit: ""
+            }
+        }
+    });
     const session = useSession();
     const [filiere, setFiliere] = useState<string>("");
 
     const getBSD = async (entrepriseId: string) => {
         const result = await supabase
-        .from('bsd')
+            .from('bsd')
             .select('*')
             .eq('id', modalId)
             .eq('entreprise_id', entrepriseId)
             .single();
 
         if (result.data) {
-            //setBSDAutresInfos(result.data);
             setLocalData(result.data.infos_json.formAPI.createFormInput);
-            //console.log('localData', localData);
+            setOtherInfos(result.data.other_infos || {
+                container: {
+                    description: {
+                        type: "",
+                        volume: "",
+                        volumeUnit: ""
+                    }
+                }
+            });
         }
     }
 
@@ -182,7 +199,6 @@ const ModifyCard = () => {
             const dataToSend = { ...localData };
             
             // Conversion des quantités en nombres avant envoi
-            console.log("datatoSend", typeof dataToSend.wasteDetails.packagingInfos[0]);
             if (typeof dataToSend.wasteDetails.quantity === 'string' || typeof dataToSend.wasteDetails.quantity === 'number') {
                 dataToSend.wasteDetails.quantity = Number(String(dataToSend.wasteDetails.quantity).replace(',', '.'));
             }
@@ -198,7 +214,8 @@ const ModifyCard = () => {
                 body: JSON.stringify({
                     user_id: session.user_id,
                     bsd_id: modalId,
-                    data: {formAPI:{createFormInput: dataToSend}}
+                    data: {formAPI:{createFormInput: dataToSend}},
+                    other_infos: otherInfos
                 }),
             });
 
@@ -495,7 +512,71 @@ const ModifyCard = () => {
                                 />
                             </div>
                         </div>
+
+                {/* Ajout de la section other_infos */}
+                <div className="bg-indigo-50 p-3 rounded border border-indigo-100 mt-4">
+                    <div className="flex justify-start items-center space-x-2">
+                        <h3 className="font-semibold text-indigo-800 mb-2">Informations contenant</h3>
+                        <p className="text-sm text-gray-600 mb-2">- Cette partie n&apos;est pas sur TrackDéchets</p>
                     </div>
+                    <div className="space-y-2 mr-4">
+                        <LabelInput 
+                            label="Infos supp."
+                            value={otherInfos.container?.description?.type}
+                            onChange={(_, value) => {
+                                setOtherInfos((prev: OtherInfos) => ({
+                                    ...prev,
+                                    container: {
+                                        ...prev.container,
+                                        description: {
+                                            ...prev.container.description,
+                                            type: value
+                                        }
+                                    }
+                                }));
+                            }}
+                            path="container.description.type"
+                        />
+                        <LabelInput 
+                            label="Volume"
+                            value={otherInfos.container?.description?.volume}
+                            onChange={(_, value) => {
+                                setOtherInfos((prev: OtherInfos) => ({
+                                    ...prev,
+                                    container: {
+                                        ...prev.container,
+                                        description: {
+                                            ...prev.container.description,
+                                            volume: value
+                                        }
+                                    }
+                                }));
+                            }}
+                            path="container.description.volume"
+                        />
+                        <LabelInput 
+                            label="Unité"
+                            value={otherInfos.container?.description?.volumeUnit}
+                            onChange={(_, value) => {
+                                setOtherInfos((prev: OtherInfos) => ({
+                                    ...prev,
+                                    container: {
+                                        ...prev.container,
+                                        description: {
+                                            ...prev.container.description,
+                                            volumeUnit: value
+                                        }
+                                    }
+                                }));
+                            }}
+                            path="container.description.volumeUnit"
+                        />
+                    </div>
+
+                    </div>
+                </div>
+
+
                 </div>
 
                 <div className="flex justify-end space-x-2 mt-6">

@@ -80,9 +80,7 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                 );
 
                 if (monthIndex >= 0 && monthIndex < monthLabels.length) {
-                    const departTotal = depart.line_body.reduce((sum, operation) => 
-                        sum + (operation.montant_ht || 0), 0);
-                    amountsByFiliere[filiere][monthIndex] += departTotal;
+                    amountsByFiliere[filiere][monthIndex] += facture.infos_json.footer.total_ht;
                 }
             });
         });
@@ -168,7 +166,7 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
         },
         scales: {
             y: {
-                beginAtZero: true,
+                beginAtZero: false,
                 stacked: true,
                 title: {
                     display: true,

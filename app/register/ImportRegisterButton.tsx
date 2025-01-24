@@ -7,9 +7,12 @@ import { supabase } from "../database/supabaseClient";
 import { BSDD_TrackDechets, FormInput } from "./interface/BSD_Interface";
 import { pushOnTableParametrage } from "./RegisterComponents/Modal/FormulaireFull/utils_new";
 import BoxIcon from "../component/BoxIconWrapper";
+import { OtherInfos } from "./RegisterComponents/Modal/FormulaireFull/FormulaireFull";
+import { mapToFactureFormat } from "../import_page/FactureImport/ButtonImportFacture";
+import { FactureJSON } from "../import_page/FactureImport/ButtonImportFacture";
 
-interface Row {
-    [key: string]: string | number | boolean;
+export interface Row {
+    [key: string]: string | number;
 }
 
 function siretFunction(input: string | number): string {
@@ -430,7 +433,13 @@ const mapToNewParametrage = (ligne_BSD: { formAPI: { createFormInput: BSDD_Track
     return ligne_new;
 }
   
-const sendToSupabase = async (ligne_BSD: { formAPI: { createFormInput: BSDD_TrackDechets } }, user_id: string, tableType: string) => {
+const sendToSupabase = async (
+    ligne_BSD: { formAPI: { createFormInput: BSDD_TrackDechets } }, 
+    ligne_autres_infos: OtherInfos | null,
+    ligne_facture: { infos_json: FactureJSON } | null,
+    user_id: string, 
+    tableType: string
+) => {
     //UserId --> EntrepriseId
     const { data: entreprise_infos, error } = await supabase
         .from('profiles')
@@ -442,6 +451,7 @@ const sendToSupabase = async (ligne_BSD: { formAPI: { createFormInput: BSDD_Trac
         toast.error('Erreur lors de l\'import de la table de paramétrage');
     } else {
         const entreprise_id = entreprise_infos.entreprise_id;
+        const facture_treated:boolean = (ligne_facture?.infos_json.footer.total_ht!==0);
         //SI Table Paramétrage : Insertion du registre mappé dans table_parametrage
         if(tableType == "table_parametrage"){
             const ligne_new = {formAPI: {createFormInput: mapToNewParametrage(ligne_BSD)}};
@@ -467,6 +477,9 @@ const sendToSupabase = async (ligne_BSD: { formAPI: { createFormInput: BSDD_Trac
                         user_id: user_id,
                         entreprise_id: entreprise_id,
                         infos_json: ligne_BSD,
+                        ...(ligne_autres_infos && { other_infos: ligne_autres_infos }),
+                        ...(ligne_facture && { facture_infos: ligne_facture.infos_json }),
+                        facture_treated : facture_treated,
                         created_on_fleap: false,
                         status_track_dechets: "IMPORTED",
                         created_at:  new Date('2024-10-01T00:00:00Z').toISOString(), 
@@ -553,21 +566,19 @@ const ImportRegisterButton = () => {
             }
 
             // Traiter les données
-            jsonData.forEach((row: Row|BSDD_TrackDechets) => {
+            jsonData.forEach((row: Row) => {
                 if(tableType == "table_parametrage"){
-                    if(!userId){
-                        const ligne_BSD = mapToBsdFormat(row as Row);
-                        if(session?.user_id) sendToSupabase(ligne_BSD, session.user_id, tableType);
-                    } else {
-                        const ligne_BSD = mapToBsdFormat(row as Row);
-                        sendToSupabase(ligne_BSD, userId, tableType);
-                    }
+                    const ligne_BSD = mapToBsdFormat(row);
+                    const ligne_autres_infos = mapToAutresInfosFormat(row);
+                    if(session?.user_id) sendToSupabase(ligne_BSD, ligne_autres_infos, null, session.user_id, tableType);
                 } else if (tableType == "registre_historique"){
-                    const ligne_BSD = mapToBsdFormat(row as Row);
+                    const ligne_BSD = mapToBsdFormat(row);
+                    const ligne_autres_infos = mapToAutresInfosFormat(row);
+                    const ligne_facture = mapToFactureFormat(row);
                     if(!userId){
-                        if(session.user_id)sendToSupabase(ligne_BSD, session.user_id, tableType);
+                        if(session.user_id) sendToSupabase(ligne_BSD, ligne_autres_infos, ligne_facture, session.user_id, tableType);
                     } else {
-                        sendToSupabase(ligne_BSD, userId, tableType);
+                        sendToSupabase(ligne_BSD, ligne_autres_infos, ligne_facture, userId, tableType);
                     }
                 }
             });
@@ -686,3 +697,19 @@ const ImportRegisterButton = () => {
 };
 
 export default ImportRegisterButton;
+
+
+
+const mapToAutresInfosFormat = (row: Row) => {
+    const other_infos:OtherInfos = {
+        container: {
+            description: {
+                type: row["descContenant"]?.toString() || "",
+                volume: row["volumeUnitaire"]?.toString() || "",
+                volumeUnit: row["uniteMesureVolume"]?.toString() || ""
+            }
+        }
+    }
+    return other_infos;
+}
+

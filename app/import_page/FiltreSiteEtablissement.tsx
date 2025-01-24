@@ -20,6 +20,12 @@ interface Etablissement {
     activated: boolean;
 }
 
+interface SiteGroup {
+    name: string;
+    sirets: string[];
+    checked: boolean;
+}
+
 const FiltreSiteEtablissement = () => {
     const [etablissementsWithStatus, setEtablissementsWithStatus] = useState<Etablissement[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -32,6 +38,9 @@ const FiltreSiteEtablissement = () => {
     const session = useSession();
     const [additionnalSites, setAdditionnalSites] = useState<AdditionalSite[]>([]);
     const [isLoadingTrack, setIsLoadingTrack] = useState(false);
+    const [siteGroups, setSiteGroups] = useState<SiteGroup[]>([]);
+    const [mappingSite, setMappingSite] = useState<Record<string, string[]>>({});
+    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         if (session?.entreprise_id) {
@@ -177,12 +186,180 @@ const FiltreSiteEtablissement = () => {
             const trackDechetsSirets = new Set(vrai_sites.map(site => site.orgId));
             const uniqueDbSites = sites_from_db.filter(site => !trackDechetsSirets.has(site.orgId));
 
-            setSites([...mergedSites, ...uniqueDbSites, sites_autre]);
+            const allSites = [...mergedSites, ...uniqueDbSites, sites_autre];
+
+            if (Object.keys(mappingSite).length > 0) {
+                // Créer les groupes selon le mapping
+                const groups = Object.entries(mappingSite).map(([groupName, sirets]) => ({
+                    name: groupName,
+                    sirets: sirets,
+                    checked: allSites.some(site => sirets.includes(site.orgId) && site.checked)
+                }));
+
+                setSiteGroups(groups);
+
+                // Mettre à jour les sites avec leur groupe
+                const sitesWithGroups = allSites.map(site => ({
+                    ...site,
+                    group: Object.entries(mappingSite).find(([_, sirets]) => sirets.includes(site.orgId))?.[0]
+                }));
+
+                setSites(sitesWithGroups);
+            } else {
+                setSites(allSites);
+            }
         } else {
             // Si pas de connexion TrackDechets, utiliser uniquement les sites de la BDD
             setSites([...sites_from_db, sites_autre]);
         }
-    }, [etablissementsWithStatus, additionnalSites, setSites]);
+    }, [etablissementsWithStatus, additionnalSites, setSites, mappingSite]);
+
+    // Ajout d'un useEffect pour récupérer le mapping_site
+    useEffect(() => {
+        const fetchMappingSite = async () => {
+            if (session?.entreprise_id) {
+                const { data, error } = await supabase
+                    .from('entreprise')
+                    .select('mapping_site')
+                    .eq('id', session.entreprise_id)
+                    .single();
+
+                if (error) {
+                    console.error('Erreur lors de la récupération du mapping_site:', error);
+                    return;
+                }
+
+                if (data?.mapping_site) {
+                    setMappingSite(data.mapping_site);
+                }
+            }
+        };
+
+        fetchMappingSite();
+    }, [session?.entreprise_id]);
+
+    // Fonction pour vérifier si tous les sites d'un groupe sont cochés
+    const isGroupChecked = (groupName: string) => {
+        const groupSirets = mappingSite[groupName] || [];
+        return sites.filter(site => groupSirets.includes(site.orgId))
+                   .every(site => site.checked);
+    };
+
+    // Fonction pour gérer le clic sur la checkbox d'un groupe
+    const handleGroupToggle = (groupName: string, event: React.MouseEvent | React.ChangeEvent) => {
+        event.stopPropagation(); // Empêcher le toggle de l'expansion
+        const isCurrentlyChecked = isGroupChecked(groupName);
+        const groupSirets = mappingSite[groupName] || [];
+        
+        // Forcer tous les sites du groupe au nouvel état
+        groupSirets.forEach(siret => {
+            const site = sites.find(s => s.orgId === siret);
+            if (site && site.checked !== !isCurrentlyChecked) {
+                toggleSite(siret);
+            }
+        });
+
+        setFilterPendingBSDs(false);
+    };
+
+    // Fonction pour gérer l'expansion/réduction d'un groupe
+    const toggleGroupExpansion = (groupName: string) => {
+        setExpandedGroups(prev => ({
+            ...prev,
+            [groupName]: !prev[groupName]
+        }));
+    };
+
+    // Organiser les sites par groupe
+    const renderSites = () => {
+        if (!mappingSite || Object.keys(mappingSite).length === 0) {
+            return sites.map(site => renderSite(site));
+        }
+
+        const groupedContent = Object.entries(mappingSite).map(([groupName, groupSirets]) => {
+            const sitesInGroup = sites.filter(site => groupSirets.includes(site.orgId));
+            
+            if (sitesInGroup.length === 0) return null;
+
+            const isExpanded = expandedGroups[groupName];
+
+            return (
+                <div key={groupName} className="mb-4">
+                    {/* En-tête du groupe avec flèche d'expansion */}
+                    <div 
+                        className="flex items-center justify-between p-2 bg-gray-50 rounded-md cursor-pointer hover:bg-gray-100"
+                        onClick={() => toggleGroupExpansion(groupName)}
+                    >
+                        <div className="flex items-center gap-2">
+                            <span className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
+                                ▶
+                            </span>
+                            <span className="font-semibold text-sm">{groupName}</span>
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={isGroupChecked(groupName)}
+                            onChange={(e) => handleGroupToggle(groupName, e)}
+                            className="form-checkbox h-4 w-4 text-blue-600"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                    {/* Sites du groupe (conditionnellement affichés) */}
+                    {isExpanded && (
+                        <div className="ml-4">
+                            {sitesInGroup.map(site => renderSite(site))}
+                        </div>
+                    )}
+                </div>
+            );
+        });
+
+        // Récupérer les sites qui ne sont pas dans des groupes
+        const ungroupedSites = sites.filter(site => 
+            !Object.values(mappingSite).flat().includes(site.orgId)
+        );
+
+        return (
+            <>
+                {groupedContent}
+                {ungroupedSites.map(site => renderSite(site))}
+            </>
+        );
+    };
+
+    // Fonction pour rendre un site individuel
+    const renderSite = (site: ContextSite) => (
+        <div key={site.orgId}>
+            <div className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md mb-0">
+                <div className="flex items-center">
+                    <div className="flex items-center mr-2">
+                        {site.isTrackDechets && (
+                            <span className={`w-2 h-2 rounded-full mr-1 ${site.activated ? 'bg-[var(--green-medium)]' : 'bg-red-500'}`}></span>
+                        )}
+                        {site.isInDb && (
+                            <span className="mr-1">
+                                <BoxIcon name='data' size="16px" color="#666666" />
+                            </span>
+                        )}
+                    </div>
+                    <span className="text-sm text-gray-700 truncate">{site.name}</span>
+                </div>
+                <input
+                    type="checkbox"
+                    checked={site.checked}
+                    onChange={() => {
+                        setFilterPendingBSDs(false);
+                        toggleSite(site.orgId);
+                    }}
+                    className="form-checkbox h-4 w-4 text-blue-600"
+                />
+            </div>
+            {site.givenName && (
+                <div className="text-xs text-gray-500 relative top-[-6px] ml-6">{site.givenName}</div>
+            )}
+            <div className="text-xs text-gray-500 relative top-[-5px] ml-8">{site.orgId}</div>
+        </div>
+    );
 
     if (isLoading && additionnalSites.length === 0) return <div className="text-sm text-gray-500 ml-2">Chargement...</div>;
     if (error) return <div className="text-sm text-gray-500 ml-2">Erreur: {error}</div>;
@@ -227,50 +404,7 @@ const FiltreSiteEtablissement = () => {
                             )}
                         </div>
                         <div className="overflow-y-auto p-2">
-                            {sites.length > 0 ? (
-                                sites.map((site: ContextSite): JSX.Element => (
-                                    <div key={site.orgId}>
-                                        <div className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md mb-0">
-                                            <div className="flex items-center">
-                                                <div className="flex items-center mr-2">
-                                                    {site.isTrackDechets && (
-                                                        <span className={`w-2 h-2 rounded-full mr-1 ${site.activated ? 'bg-[var(--green-medium)]' : 'bg-red-500'}`}></span>
-                                                    )}
-                                                    {site.isInDb && (
-                                                        <span className="mr-1">
-                                                            <BoxIcon name='data' size="16px" color="#666666" />
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <span className="text-sm text-gray-700 truncate">{site.name}</span>
-                                            </div>
-                                            <input
-                                                type="checkbox"
-                                                checked={site.checked}
-                                                onChange={() => {
-                                                    setFilterPendingBSDs(false);
-                                                    toggleSite(site.orgId);
-                                                }}
-                                                //disabled={!site.activated}
-                                                className="form-checkbox h-4 w-4 text-blue-600 transition duration-150 ease-in-out"
-                                            />
-                                        </div>
-                                        {site.givenName && (
-                                            <div className="text-xs text-gray-500 relative top-[-6px] ml-6">{site.givenName}</div>
-                                        )}
-                                        <div className="text-xs text-gray-500 relative top-[-5px] ml-8">{site.orgId}</div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-sm text-gray-500 p-2 text-center">
-                                    {additionnalSites.length === 0 
-                                        ? "Aucun site disponible" 
-                                        : isLoadingTrack 
-                                            ? "Sites BDD chargés, chargement TrackDéchets en cours..." 
-                                            : "Sites chargés"
-                                    }
-                                </div>
-                            )}
+                            {renderSites()}
                         </div>
                     </div>
                 </>

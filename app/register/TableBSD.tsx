@@ -12,6 +12,7 @@ import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/F
 import { RecurrenceEntry } from "./RegisterComponents/Modal/Recurrence/RecurrenceFunctionnal";
 import BoxIcon from "../component/BoxIconWrapper";
 import { getPendingBSDs } from "./RegisterComponents/BordereauxRegister";
+import { FactureJSON } from "../import_page/FactureImport/ButtonImportFacture";
 
 const cleanCED = (ced: string): string => {
     const ced_clean = ced.replaceAll(' ', '').replace('*', '').trim();
@@ -27,15 +28,7 @@ type BSD = {
     readable_id_track_dechets: string;
     infos_json: {formAPI: {createFormInput: BSDD_TrackDechets}};
     facture_treated: boolean;
-    facture_infos: {
-        montant_ht: number;
-        /*ligne_compta_traitement: {montant_ht: number}, 
-        ligne_compta_tgap: {montant_ht: number}, 
-        ligne_compta_contenant: {montant_ht: number},
-        ligne_compta_transport: {montant_ht: number},
-        ligne_compta_preparation: {montant_ht: number},
-        ligne_compta_rachat_matiere: {montant_ht: number}*/
-    };
+    facture_infos: FactureJSON;
     status_track_dechets: string;
     id_track_dechets: string;
 };
@@ -101,9 +94,8 @@ const getWasteIcon = (filiere: string): { name: string, type?: 'solid' | 'regula
     return { name: 'question-mark' }; // Icône par défaut
 };
 
-const getSommeBSD = (facture_infos: {montant_ht: number}) => {
-    //return facture_infos.ligne_compta_traitement.montant_ht + facture_infos.ligne_compta_tgap.montant_ht + facture_infos.ligne_compta_contenant.montant_ht + facture_infos.ligne_compta_transport.montant_ht + facture_infos.ligne_compta_preparation.montant_ht + facture_infos.ligne_compta_rachat_matiere.montant_ht;
-    return facture_infos.montant_ht;
+const getSommeBSD = (facture_infos: FactureJSON) => {
+    return facture_infos.footer.total_ht;
 }
 
 //Renvoie les CEDs cleaned des filières sélectionnées dans la table de mapping (en filtrant "Autres")
@@ -814,7 +806,7 @@ const TableBSD = () => {
                                                     </div>
                                                 :
                                                     <div className="text-xs mt-0">
-                                                        {bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity} T
+                                                        {bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity.toFixed(2)} T
                                                     </div>
                                                 }
 
@@ -881,7 +873,7 @@ const TableBSD = () => {
                                 {
                                 bsd.facture_treated ? 
                                     <div className="text-md font-550 text-right mr-5">
-                                        {getSommeBSD(bsd.facture_infos)} € HT
+                                        {getSommeBSD(bsd.facture_infos).toFixed(2)} € HT
                                     </div> 
                                 : 
                                     <div className="text-md font-550 text-right mr-5">-€ HT</div>

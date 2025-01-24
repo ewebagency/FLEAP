@@ -7,17 +7,15 @@ interface Props {
 
 const NewBordereauxFinancial = ({ factures }: Props) => {
     const stats = useMemo(() => {
-        // Calculate total cost from all departs and operations
-        const totalCost = factures.reduce((sum, facture) => {
-            const factureTotal = facture.infos_json.departs.reduce((departSum, depart) => {
-                return departSum + depart.line_body.reduce((operationSum, operation) => 
-                    operationSum + (operation.montant_ht || 0), 0);
-            }, 0);
-            return sum + factureTotal;
-        }, 0);
+        // Calculate total cost from all factures
+        const totalCost = factures.reduce((sum, facture) => 
+            sum + facture.infos_json.footer.total_ht, 0);
 
         // Group costs by month
         const costsByMonth = factures.reduce((acc: { [key: string]: number }, facture) => {
+            const departsCount = facture.infos_json.departs.length;
+            const montantParDepart = facture.infos_json.footer.total_ht / departsCount;
+
             facture.infos_json.departs.forEach(depart => {
                 const date = new Date(depart.line_header.date_depart);
                 const monthYear = `${date.getMonth()}-${date.getFullYear()}`;
@@ -26,9 +24,7 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
                     acc[monthYear] = 0;
                 }
                 
-                const departTotal = depart.line_body.reduce((sum, operation) => 
-                    sum + (operation.montant_ht || 0), 0);
-                acc[monthYear] += departTotal;
+                acc[monthYear] += montantParDepart;
             });
             return acc;
         }, {});
@@ -61,7 +57,9 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
             <div className="block">
                 <div className="text-sm text-gray-600 font-thin">Coût total</div>
                 <div className="flex items-center mt-2">
-                    <div className="font-bold text-xl">{stats.totalCost.toFixed(2)} €</div>
+                    <div className="font-bold text-xl">
+                        {stats.totalCost.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                    </div>
                     <div className={`ml-4 px-2 py-1 rounded-full text-xs ${
                         stats.monthlyEvolution >= 0 
                             ? 'bg-green-100 text-green-800' 

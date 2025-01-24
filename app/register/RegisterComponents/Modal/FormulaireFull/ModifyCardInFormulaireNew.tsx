@@ -10,6 +10,7 @@ import Cookies from 'js-cookie';
 import { supabase } from "@/app/database/supabaseClient";
 import Recurrence from "../Recurrence/Recurrence";
 import RecurrenceFunctions, { RecurrencePattern } from "../Recurrence/RecurrenceFunctionnal";
+import { OtherInfos } from "./FormulaireFull";
 
 // Ajout des types nécessaires en haut du fichier
 type NestedKeyOf<ObjectType extends object> = {
@@ -135,6 +136,16 @@ export const SectionForm = ({
     </div>
 );
 
+interface Props {
+    onClose: () => void;
+    dataText: FormInput;
+    setDataText: React.Dispatch<React.SetStateAction<FormInput>>;
+    pastBrouillon?: boolean;
+    displayModifyCardInFormulaireNew?: boolean;
+    modalType?: string;
+    otherInfos: OtherInfos;
+}
+
 const ModifyCardInFormulaireNew = ({ 
     onClose, 
     dataText, 
@@ -142,14 +153,8 @@ const ModifyCardInFormulaireNew = ({
     pastBrouillon=false,
     displayModifyCardInFormulaireNew=true,
     modalType='',
-}: { 
-    onClose: () => void, 
-    dataText: FormInput, 
-    setDataText: React.Dispatch<React.SetStateAction<FormInput>>,
-    pastBrouillon?:boolean,
-    displayModifyCardInFormulaireNew?:boolean,
-    modalType?:string,
-}) => {
+    otherInfos,
+}: Props) => {
   
   const {dataToogle } = useModalContextNew();
 
@@ -340,7 +345,14 @@ const ModifyCardInFormulaireNew = ({
             
             const isDraft=false;
             const nonDangereux=false;
-            const result = await sendData_to_Cloud(dataToSend, session?.user_id, session?.entreprise_id, isDraft, nonDangereux);
+            const result = await sendData_to_Cloud(
+                dataToSend, 
+                session?.user_id, 
+                session?.entreprise_id, 
+                isDraft, 
+                nonDangereux,
+                otherInfos
+            );
             if(result.success) {
                 toast.success(result.message);
 
@@ -471,7 +483,7 @@ const ModifyCardInFormulaireNew = ({
           
           const isDraft=true;
           console.log("Save en brouillon")
-          const result = await sendData_to_Cloud(dataToSend, session?.user_id, session?.entreprise_id, isDraft);
+          const result = await sendData_to_Cloud(dataToSend, session?.user_id, session?.entreprise_id, isDraft, false, otherInfos);
           if(result.success) {
               toast.success("Brouillon sauvegardé", result.message);
               setDisplayFormulaire(false);
@@ -523,7 +535,7 @@ const ModifyCardInFormulaireNew = ({
     if(session && session?.entreprise_id && session?.user_id && success) {
       const isDraft=false; //isDraft=true => Pas de track dechet en gros
       const nonDangereux = true;
-      const result = await sendData_to_Cloud(newData, session?.user_id, session?.entreprise_id, isDraft, nonDangereux);
+      const result = await sendData_to_Cloud(newData, session?.user_id, session?.entreprise_id, isDraft, nonDangereux, otherInfos);
       
       if(result.success) {
           toast.success("Déchet non dangereux sauvegardé", result.message);
@@ -636,6 +648,7 @@ const ModifyCardInFormulaireNew = ({
             infos_json: {
                 formAPI: {createFormInput: newData},
             },
+            other_infos: otherInfos,
             on_track_dechets: false,
             status_track_dechets: 'Ligne créée',
             id_track_dechets: 'Ligne créée',

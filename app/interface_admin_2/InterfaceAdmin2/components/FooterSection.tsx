@@ -29,9 +29,15 @@ export const FooterSection = ({ total, onSkip, onReset, loading }: FooterSection
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <div className="text-sm font-semibold">
-                        Total HT: {total.toFixed(2)} €
+                    <div>
+                        <div className="text-sm font-bold">
+                            HT : {total.toFixed(2)} €
+                        </div>
+                        <div className="text-sm font-bold">
+                            TTC : {(1.2*total).toFixed(2)} €
+                        </div>
                     </div>
+
                     <button
                         type="submit"
                         className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"

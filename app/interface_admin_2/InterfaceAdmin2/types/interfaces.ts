@@ -9,6 +9,7 @@ export interface SelectInputProps {
     onChange: (value: string) => void;
     options: Option[];
     className?: string;
+    enableAutoComplete?: boolean;
 }
 
 export interface FactureLineHeader {

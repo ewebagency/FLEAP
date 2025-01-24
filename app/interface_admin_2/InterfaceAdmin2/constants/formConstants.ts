@@ -1,16 +1,21 @@
 export const MAIN_OPERATIONS = [
+    'Gestion globale',
     'Préparation',
     'Transport',
     'Traitement',
-    'Gestion global',
     'TGAP',
-    'Déclassement'
+    'Déclassement',
+    'Pénalités'
 ];
 
 export const EXPANDED_OPERATIONS = [
     'Rachat',
-    'Contenant',
-    'Non expliqués'
+    'Location', //->contenant
+    'Maintenance', //->contenant
+    'Mise à disposition', //->contenant
+    'Non expliqués', 
+    'Autres : Contenant', //->contenant
+    'Autres'
 ];
 
 export const ALL_OPERATIONS = [...MAIN_OPERATIONS, ...EXPANDED_OPERATIONS];

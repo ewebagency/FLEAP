@@ -27,6 +27,9 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
 
     // Group amounts by filière
     const operationData = factures.reduce((acc: { [key: string]: number }, facture) => {
+        const departsCount = facture.infos_json.departs.length;
+        const montantParDepart = facture.infos_json.footer.total_ht / departsCount;
+
         facture.infos_json.departs.forEach(depart => {
             const cleanedCed = depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
             const filiere = mappingTable.find(m => m.ced.replace(' ', '').replace('*', '') === cleanedCed)?.filiere || 'Autres';
@@ -35,9 +38,7 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
                 acc[filiere] = 0;
             }
             
-            const departTotal = depart.line_body.reduce((sum, operation) => 
-                sum + (operation.montant_ht || 0), 0);
-            acc[filiere] += departTotal;
+            acc[filiere] += montantParDepart;
         });
         
         return acc;

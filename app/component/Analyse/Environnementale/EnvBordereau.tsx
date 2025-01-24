@@ -114,7 +114,7 @@ const EnvBordereau = () => {
                 <div className="text-sm text-gray-600 font-thin">Émissions CO₂ totales</div>
                 <div className="flex items-center mt-2">
                     <div className="group relative font-bold text-xl ml-4">
-                        {stats.total.toFixed(2)} T CO₂
+                        {stats.total.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} T CO₂
                         <div className="invisible group-hover:visible absolute z-50 w-64 p-4 mt-2 bg-white rounded-lg shadow-lg border border-gray-200">
                             <div className="text-2xl mb-2">{comparison.emoji}</div>
                             <div className="text-sm text-gray-600">{comparison.text}</div>

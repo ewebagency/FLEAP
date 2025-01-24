@@ -405,21 +405,21 @@ export const DepartSection = ({
                             placeholder="N° dossier"
                             value={depart.line_header.num_dossier || ''}
                             onChange={(e) => handleDepartHeaderChange(departIndex, 'num_dossier', e.target.value)}
-                            className="w-full p-1 text-xs border rounded"
+                            className="w-full p-1 text-xs border rounded hidden"
                         />
                         <input
                             type="text"
                             placeholder="Bon d'intention"
                             value={depart.line_header.bon_intention || ''}
                             onChange={(e) => handleDepartHeaderChange(departIndex, 'bon_intention', e.target.value)}
-                            className="w-full p-1 text-xs border rounded"
+                            className="w-full p-1 text-xs border rounded hidden"
                         />
                         <input
                             type="text"
                             placeholder="Bon de pesée"
                             value={depart.line_header.bon_pesee || ''}
                             onChange={(e) => handleDepartHeaderChange(departIndex, 'bon_pesee', e.target.value)}
-                            className="w-full p-1 text-xs border rounded"
+                            className="w-full p-1 text-xs border rounded hidden"
                         />
                     </div>
 
@@ -432,14 +432,15 @@ export const DepartSection = ({
                                     value={body.type_operation}
                                     onChange={(value) => handleOperationChange(departIndex, bodyIndex, 'type_operation', value)}
                                     options={ALL_OPERATIONS.map(op => ({ value: op }))}
+                                    enableAutoComplete={false}
                                 />
 
                                 {/* Champs supplémentaires pour le type "Contenant" */}
-                                {body.type_operation === 'Contenant' && (
+                                {['Location', 'Maintenance', 'Mise à disposition', 'Autres : Contenant'].includes(body.type_operation) && (
                                     <>
                                         <div className="col-span-1">
                                             <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Description
+                                                Description contenant
                                             </label>
                                             <input
                                                 type="text"
@@ -451,10 +452,11 @@ export const DepartSection = ({
                                         </div>
                                         <div className="col-span-1">
                                             <SelectInput
-                                                label="Type"
+                                                label="Type contenant"
                                                 value={body.type_contenant || ''}
                                                 onChange={(value) => handleOperationChange(departIndex, bodyIndex, 'type_contenant', value)}
                                                 options={TYPES_CONTENANTS.map(type => ({ value: type, isSuggested: true }))}
+                                                enableAutoComplete={false}
                                             />
                                         </div>
                                     </>
@@ -465,6 +467,7 @@ export const DepartSection = ({
                                     value={body.unite}
                                     onChange={(value) => handleOperationChange(departIndex, bodyIndex, 'unite', value)}
                                     options={UNITES.map(u => ({ value: u }))}
+                                    enableAutoComplete={false}
                                 />
                                 <div className="col-span-1">
                                     <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -474,7 +477,7 @@ export const DepartSection = ({
                                         type="number"
                                         value={body.quantite}
                                         onChange={(e) => {
-                                            const quantite = parseInt(e.target.value) || 0;
+                                            const quantite = parseFloat(e.target.value) || 0;
                                             handleOperationChange(departIndex, bodyIndex, 'quantite', quantite);
                                             const montant = quantite * (body.prix_unitaire || 0);
                                             handleOperationChange(departIndex, bodyIndex, 'montant_ht', montant);
@@ -491,7 +494,7 @@ export const DepartSection = ({
                                         type="number"
                                         value={body.prix_unitaire}
                                         onChange={(e) => {
-                                            const pu = parseInt(e.target.value) || 0;
+                                            const pu = parseFloat(e.target.value) || 0;
                                             handleOperationChange(departIndex, bodyIndex, 'prix_unitaire', pu);
                                             const montant = pu * (body.quantite || 0);
                                             handleOperationChange(departIndex, bodyIndex, 'montant_ht', montant);
@@ -507,7 +510,7 @@ export const DepartSection = ({
                                     <input
                                         type="number"
                                         value={body.montant_ht}
-                                        onChange={(e) => handleOperationChange(departIndex, bodyIndex, 'montant_ht', parseInt(e.target.value) || 0)}
+                                        onChange={(e) => handleOperationChange(departIndex, bodyIndex, 'montant_ht', parseFloat(e.target.value) || 0)}
                                         className="w-full p-1 text-xs border rounded"
                                         step="1"
                                     />

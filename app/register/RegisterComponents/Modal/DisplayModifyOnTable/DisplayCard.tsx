@@ -4,10 +4,12 @@ import { Anything, BSDD_TrackDechets, DataTotalInterface, Form_API_Interface_Sho
 import { supabase } from "@/app/database/supabaseClient";
 import { useSession } from "@/app/component/SessionProvider";
 import { getMappingTableFiliere, getFiliere } from "../FormulaireFull/utils_new";
+import { OtherInfos } from "../FormulaireFull/FormulaireFull";
 
 const DisplayCard = () => {
     const { modalId, modalType, setModalType, modalReload } = useModalContextNew();
     const [bsd, setBSD] = useState<BSDD_TrackDechets | null>(null);
+    const [otherInfos, setOtherInfos] = useState<OtherInfos | null>(null);
     const session = useSession();
     const [filiere, setFiliere] = useState<string>("");
 
@@ -22,6 +24,7 @@ const DisplayCard = () => {
         if (result.data) {
             console.log("BSD trouvé:", result.data);
             setBSD(result.data.infos_json.formAPI.createFormInput);
+            setOtherInfos(result.data.other_infos);
         } else {
             console.error("Pas de BSD trouvé pour l'ID:", modalId);
         }
@@ -70,7 +73,7 @@ const DisplayCard = () => {
     <div>
         {modalType === "display" && bsd && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-lg shadow-lg p-4 max-w-2xl mx-auto max-h-[90vh] overflow-y-auto">
+                <div className="bg-white rounded-lg shadow-lg p-4 max-w-4xl mx-auto max-h-[90vh] overflow-y-auto">
                     <div className="space-y-4">
                         {/* En-tête */}
                         <div className="border-b pb-2 flex justify-between items-center">
@@ -123,6 +126,25 @@ const DisplayCard = () => {
                                     <LabelValue label="Téléphone" value={bsd.transporter?.company?.phone || ""} />
                                     <LabelValue label="Email" value={bsd.transporter?.company?.mail || ""} />
                                 </div>
+
+                                {/* Ajout d'une nouvelle section pour other_infos si elle existe */}
+                                {otherInfos?.container?.description && (
+                                    <div className="bg-indigo-50 p-3 rounded border border-indigo-100 mt-4">
+                                        <div className="flex justify-start items-center space-x-2">
+                                            <h3 className="font-semibold text-indigo-800 mb-2">Informations contenant</h3>
+                                            <p className="text-sm text-gray-600 mb-2">- N&apos;est pas sur TrackDéchets</p>
+                                        </div>
+                                        <LabelValue 
+                                            label="Infos supp." 
+                                            value={otherInfos.container.description.type} 
+                                        />
+                                        <LabelValue 
+                                            label="Volume" 
+                                            value={`${otherInfos.container.description.volume} ${otherInfos.container.description.volumeUnit}`} 
+                                        />
+                                    </div>
+                                )}
+
                             </div>
 
                             {/* Colonne droite */}
@@ -183,6 +205,8 @@ const DisplayCard = () => {
                                 </div>
                             </div>
                         </div>
+
+
                     </div>    
                 </div>
             </div>

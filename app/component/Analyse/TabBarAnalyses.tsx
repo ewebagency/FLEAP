@@ -56,7 +56,7 @@ const TabBarAnalyses = () => {
                 .from('facture')
                 .select('*')
                 .eq('entreprise_id', entreprise_id)
-                .not('other_infos', 'is', null);
+                //.not('other_infos', 'is', null);
 
             console.log("facture data", data);
 
@@ -64,8 +64,7 @@ const TabBarAnalyses = () => {
                 console.error(error);
                 return false;
             }
-            //return data.length > 0;
-            return true; //ATTENTIOOOON
+            return data.length > 0;
         }
         return false;
     }

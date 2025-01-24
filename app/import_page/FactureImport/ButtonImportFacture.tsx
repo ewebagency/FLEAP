@@ -7,9 +7,7 @@ import toast from "react-hot-toast";
 import { supabase } from "../../database/supabaseClient";
 import BoxIcon from "../../component/BoxIconWrapper";
 
-interface Row {
-    [key: string]: string | number;
-}
+import { Row } from "../../register/ImportRegisterButton";
 
 function siretFunction(input: string | number): string {
     const inputStr = String(input).replace(/\s+/g, '').trim(); // Suppression des espaces
@@ -81,6 +79,7 @@ interface FactureData {
         date_collecte: string;
     };*/
     infos_json: FactureJSON; // Vous remplirez cette partie plus tard
+    status:string;
 }
 
 // Fonction utilitaire pour convertir une chaîne en nombre
@@ -123,7 +122,7 @@ interface Depart {
     linked_to_bsd: boolean;
 }
 
-interface FactureJSON {
+export interface FactureJSON {
     departs: Depart[];
     footer: {
         total_ht: number;
@@ -139,40 +138,40 @@ interface FactureJSON {
 }
 
 // Fonction pour mapper les données Excel vers le format souhaité
-const mapToFactureFormat = (row: Row): FactureData => {
+export const mapToFactureFormat = (row: Row): FactureData => {
     const factureJSON: FactureJSON = {
         departs: [{
             line_body: [
                 {
-                    unite: "",
+                    unite: row["unitePreparation"]?.toString() || "",
                     quantite: parseNumber(row["quantitePreparation"]) || 0,
                     montant_ht: parseNumber(row["coutsPreparationHT"]) || 0,
                     prix_unitaire: parseNumber(row["PuHTPreparation"]) || 0,
                     type_operation: "Préparation"
                 },
                 {
-                    unite: "",
+                    unite: row["uniteTransport"]?.toString() || "",
                     quantite: parseNumber(row["quantiteTransport"]) || 0,
                     montant_ht: parseNumber(row["coutsTransportHT"]) || 0,
                     prix_unitaire: parseNumber(row["PuHTTransport"]) || 0,
                     type_operation: "Transport"
                 },
                 {
-                    unite: "",
+                    unite: row["uniteTraitement"]?.toString() || "",
                     quantite: parseNumber(row["quantiteTraitement"]) || 0,
                     montant_ht: parseNumber(row["coutsTraitementHT"]) || 0,
                     prix_unitaire: parseNumber(row["PuHTTraitement"]) || 0,
                     type_operation: "Traitement"
                 },
                 {
-                    unite: "",
-                    quantite: 0,
-                    montant_ht: parseNumber(row["autresCoutsHT"]) || 0,
-                    prix_unitaire: 0,
+                    unite: row["uniteGlobale"]?.toString() || "",
+                    quantite: parseNumber(row["quantiteGlobale"]) || 0,
+                    montant_ht: parseNumber(row["coutGlobal"]) || 0,
+                    prix_unitaire: parseNumber(row["puGlobal"]) || 0,
                     type_operation: "Gestion global"
                 },
                 {
-                    unite: "",
+                    unite: row["uniteRachat"]?.toString() || "",
                     quantite: parseNumber(row["quantiteRachat"]) || 0,
                     montant_ht: parseNumber(row["rachatTotalHT"]) || 0,
                     prix_unitaire: parseNumber(row["PuHTRachat"]) || 0,
@@ -180,10 +179,66 @@ const mapToFactureFormat = (row: Row): FactureData => {
                 },
                 {
                     unite: "",
-                    quantite: 0,
+                    quantite: parseNumber(row["quantiteContenantLocation"]) || 0,
                     montant_ht: parseNumber(row["equivalentCoutsContenantsHT"]) || 0,
+                    prix_unitaire: parseNumber(row["puContenant"]) || 0,
+                    type_operation: "Location"
+                },
+                {
+                    unite: "",
+                    quantite: parseNumber(row["quantiteContenantMiseDispo"]) || 0,
+                    montant_ht: parseNumber(row["coutsMiseDispo"]) || 0,
+                    prix_unitaire: parseNumber(row["puMiseDispo"]) || 0,
+                    type_operation: "Mise à disposition"
+                },
+                {
+                    unite: "",
+                    quantite: parseNumber(row["quantiteContenantMaintenance"]) || 0,
+                    montant_ht: parseNumber(row["coutsMaintenance"]) || 0,
+                    prix_unitaire: parseNumber(row["puMaintenance"]) || 0,
+                    type_operation: "Maintenance"
+                },
+                {
+                    unite: "",
+                    quantite: 0,
+                    montant_ht: parseNumber(row["coutsContenantAutres"]) || 0,
                     prix_unitaire: 0,
-                    type_operation: "Contenant"
+                    type_operation: "Autres : Contenant"
+                },
+                {
+                    unite: "",
+                    quantite: 0,
+                    montant_ht: parseNumber(row["autresCoutsHT"]) || 0,
+                    prix_unitaire: 0,
+                    type_operation: "Autres"
+                },
+                {
+                    unite: "",
+                    quantite: 0,
+                    montant_ht: parseNumber(row["coutsNonExpliques"]) || 0,
+                    prix_unitaire: 0,
+                    type_operation: "Non expliqués"
+                },
+                {
+                    unite: "",
+                    quantite: 0,
+                    montant_ht: parseNumber(row["coutsPenalites"]) || 0,
+                    prix_unitaire: 0,
+                    type_operation: "Pénalités"
+                },
+                {
+                    unite: "",
+                    quantite: 0,
+                    montant_ht: parseNumber(row["coutsDeclassement"]) || 0,
+                    prix_unitaire: 0,
+                    type_operation: "Déclassement"
+                },
+                {
+                    unite: "",
+                    quantite: 0,
+                    montant_ht: parseNumber(row["coutsTGAP"]) || 0,
+                    prix_unitaire: 0,
+                    type_operation: "TGAP"
                 }
             ],
             line_header: {
@@ -196,14 +251,14 @@ const mapToFactureFormat = (row: Row): FactureData => {
                 num_dossier: "",
                 type_dechet: row["descDechet"]?.toString() || "Inconnu",
                 bon_intention: "",
-                site_description: "",
+                site_description: row["nomSiteEmetteur"]?.toString() || "",
                 site_num_affaire: "",
                 dechet_description: ""
             },
             linked_to_bsd: false
         }],
         footer: {
-            total_ht: parseNumber(row["coutsTotauxHT"]) || 0
+            total_ht: parseNumber(row["montantTotalHT"]) || 0
         },
         header: {
             num_facture: "",
@@ -218,14 +273,8 @@ const mapToFactureFormat = (row: Row): FactureData => {
     return {
         user_id: "", // Sera rempli plus tard
         entreprise_id: "", // Sera rempli plus tard
-        /*other_infos: {
-            code_ced: row["codeCed"]?.toString() || "",
-            siret_emetteur: siretFunction(row["siretEmetteur"]?.toString()) || "",
-            siret_transporteur: siretFunction(row["siretTransporteur"]?.toString()) || "",
-            siret_destinataire: siretFunction(row["siretInstallationDestination"]?.toString()) || "",
-            date_collecte: convertToISO(row["dateCollecteTransporteur"]),
-        },*/
-        infos_json: factureJSON
+        infos_json: factureJSON,
+        status:"IMPORTED"
     };
 };
 

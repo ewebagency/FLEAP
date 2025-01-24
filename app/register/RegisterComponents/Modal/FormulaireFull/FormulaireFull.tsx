@@ -68,6 +68,26 @@ const initialToogleData: FormInput = {
     //intermediaries: [],
   };
 
+// Ajouter après la définition de initialToogleData
+export interface OtherInfos {
+  container: {
+    description: {
+      type: string;
+      volume: string;
+      volumeUnit: string;
+    }
+  }
+}
+
+const initialOtherInfos: OtherInfos = {
+  container: {
+    description: {
+      type: "",
+      volume: "",
+      volumeUnit: ""
+    }
+  }
+};
 
 // Définition de la structure des dépendances
 interface InputDependency {
@@ -202,6 +222,7 @@ const FormulaireFull = () => {
     const [dataFilter, setDataFilter] = useState<{name: string, value: string}[]>([]);
     const [allOptions, setAllOptions] = useState<FormInput[]>([]);
     const [changedField, setChangedField] = useState<string>("");
+    const [other_infos, setOtherInfos] = useState<OtherInfos>(initialOtherInfos);
 
 //Initialisation des options
 useEffect(() => {
@@ -303,10 +324,10 @@ const ResetData = () => {
     setDataFilter([]);
     setCurrentFiliere("");
     setChangedField("");
-    if(session?.entreprise_id) { //Reset les options
+    setOtherInfos(initialOtherInfos);
+    if(session?.entreprise_id) {
         getDataAutocompletion(session.entreprise_id).then(data => setOptions(data as FormInput[]));
     }
-    
 }
 
 const toogleFunction = () => {
@@ -317,6 +338,23 @@ const toogleFunction = () => {
         setDisplayAll(!displayAll); 
     }
 }
+
+// Ajouter cette nouvelle fonction de mise à jour
+const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => {
+    const { name, value } = e.target;
+    setOtherInfos(prev => {
+        const newData = JSON.parse(JSON.stringify(prev));
+        const path = name.split('.');
+        let current: Record<string, unknown> = newData;
+        
+        for (let i = 0; i < path.length - 1; i++) {
+            current = current[path[i]] as Record<string, unknown>;
+        }
+        current[path[path.length - 1]] = value;
+        
+        return newData;
+    });
+};
 
 //Render
     return (
@@ -535,10 +573,53 @@ const toogleFunction = () => {
                                     }}
                                     width={1}
                                     name="wasteDetails.packagingInfos[0].type"
-                                    value={`${dataToogle.wasteDetails.packagingInfos[0].type}`}
+                                    value={dataToogle.wasteDetails.packagingInfos[0].type}
                                     onChange={handleChange}
                                     enableText={false}
                                     stylePrimary={true}
+                                />
+                                {/* Nouveaux champs pour other_infos */}
+                                <InputFull
+                                    titre="Type de contenant"
+                                    placeholder="Type de contenant"
+                                    options={{
+                                        filteredOptions: [],
+                                        allOptions: ['Fût métallique', 'GRV plastique', 'Citerne', 'Benne', 'Pipeline', 'Autre']
+                                    }}
+                                    width={1}
+                                    name="container.description.type"
+                                    value={other_infos.container.description.type}
+                                    onChange={handleOtherInfosChange}
+                                    enableText={true}
+                                    display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)}
+                                />
+                                <InputFull
+                                    titre="Volume"
+                                    placeholder="Volume"
+                                    options={{
+                                        filteredOptions: [],
+                                        allOptions: ['100', '200', '500', '1000']
+                                    }}
+                                    width={1}
+                                    name="container.description.volume"
+                                    value={other_infos.container.description.volume}
+                                    onChange={handleOtherInfosChange}
+                                    enableText={true}
+                                    display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)}
+                                />
+                                <InputFull
+                                    titre="Unité de volume"
+                                    placeholder="Unité de volume"
+                                    options={{
+                                        filteredOptions: [],
+                                        allOptions: ['L', 'm³']
+                                    }}
+                                    width={1}
+                                    name="container.description.volumeUnit"
+                                    value={other_infos.container.description.volumeUnit}
+                                    onChange={handleOtherInfosChange}
+                                    enableText={true}
+                                    display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)}
                                 />
                                 <InputFull
                                     titre="Description"
@@ -881,6 +962,7 @@ const toogleFunction = () => {
                             setDataText={setDataToogle}
                             displayModifyCardInFormulaireNew={false}
                             modalType={modalType}
+                            otherInfos={other_infos}
                         />
                     </div>
                     {/*<button type="button" className="text-md h-[25px] text-gray-500 bg-gray-200 px-2 rounded-md font-thin hover:text-gray-700 active:font-bold" onClick={() => setDisplayFormulaire(false)}>Fermer</button>*/}

@@ -3,6 +3,7 @@ import axios from 'axios';
 import { supabase } from '@/app/database/supabaseClient';
 import { BSDD_TrackDechets, DataOnSupabase_infos_json, FormInput } from '@/app/register/interface/BSD_Interface';
 import { cookies } from 'next/headers';
+import { OtherInfos } from '@/app/register/RegisterComponents/Modal/FormulaireFull/FormulaireFull';
 
 const updateTrackdechets = async (data: {formAPI:{createFormInput:FormInput}}, bsdId: string, token: string, url: string) => {
     try {
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
     }
 
     try {
-        const { user_id, bsd_id, data } = await request.json();
+        const { user_id, bsd_id, data, other_infos } = await request.json();
 
         if (!user_id || !bsd_id || !data) {
             return NextResponse.json({ 
@@ -113,11 +114,17 @@ export async function POST(request: Request) {
                 }, { status: 400 });
             }
             // 3. Mise à jour dans Supabase
+            const updateData: {infos_json: DataOnSupabase_infos_json, other_infos?: OtherInfos} = {
+                infos_json: data,
+            };
+
+            if (other_infos !== undefined) {
+                updateData.other_infos = other_infos;
+            }
+
             const { error: supabaseError } = await supabase
                 .from('bsd')
-                .update({ 
-                    infos_json: data,
-                })
+                .update(updateData)
                 .eq('id', bsd_id)
                 .eq('user_id', user_id);
 
@@ -131,11 +138,17 @@ export async function POST(request: Request) {
                 trackdechetsData: trackdechetsResponse.data
             });
         } else {
+            const updateData: {infos_json: DataOnSupabase_infos_json, other_infos?: OtherInfos} = {
+                infos_json: data,
+            };
+
+            if (other_infos !== undefined) {
+                updateData.other_infos = other_infos;
+            }
+
             const { error: supabaseError } = await supabase
                 .from('bsd')
-                .update({ 
-                    infos_json: data,
-                })
+                .update(updateData)
                 .eq('id', bsd_id)
                 .eq('user_id', user_id);
 
