@@ -806,7 +806,10 @@ const TableBSD = () => {
                                                     </div>
                                                 :
                                                     <div className="text-xs mt-0">
-                                                        {bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity.toFixed(2)} T
+                                                        {bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity !== null && 
+                                                         bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity !== undefined ? 
+                                                            `${bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity.toFixed(2)} T` : 
+                                                            "-"}
                                                     </div>
                                                 }
 
