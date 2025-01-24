@@ -126,7 +126,8 @@ const SendDraftModal = ({
                         setDataText={setFormData}
                         onClose={()=>onClose()}
                         pastBrouillon={true}
-                        />
+                        otherInfos={{container:{description:{type:"",volume:"",volumeUnit:""}}}}
+                    />
                 </div>
             </div>
             </MailProvider>
