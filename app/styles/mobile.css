@@ -1,0 +1,13 @@
+/* Prevent zoom on mobile */
+input, select, textarea {
+  -webkit-text-size-adjust: none;
+  -webkit-tap-highlight-color: transparent;
+  transform: scale(1);
+  transform-origin: left;
+}
+
+/* Force disable zoom */
+* {
+  touch-action: pan-x pan-y;
+  -ms-touch-action: pan-x pan-y;
+} 

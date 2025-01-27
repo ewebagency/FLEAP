@@ -223,6 +223,7 @@ const FormulaireMobile = () => {
     const [allOptions, setAllOptions] = useState<FormInput[]>([]);
     const [changedField, setChangedField] = useState<string>("");
     const [other_infos, setOtherInfos] = useState<OtherInfos>(initialOtherInfos);
+    const [doToggle, setDoToggle] = useState(false);
 
 //Initialisation des options
 useEffect(() => {
@@ -247,16 +248,12 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: 
     const { name, value } = e.target;
     let valueToUse = value;
 
-    // Mettre à jour le champ qui a changé
+    // Mettre à jour le champ qui a changé - seul l'affichage des champs dépendants est contrôlé par doToggle
     if(Object.keys(inputDependencies).includes(name)) {
+        if (doToggle) {
         setChangedField(name);
+        }
     }
-    /*setTimeout(() => {
-        setChangedField("");
-    }, 1000);*/
-
-    
-    console.log("handleChange", name, typeof value, value);
 
     // Mise à jour de dataFilter
     const newDataFilter = dataFilterUpdate(setCurrentFiliere, ced_table, name, value, dataFilter, setDataFilter, inputDependencies);
@@ -291,22 +288,17 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: 
                     const uniqueChildValues = new Set(
                         filteredOptions
                             .map(opt => getNestedValue(opt, childField))
-                            .filter(value => value !== '') // Filtrer les valeurs vides
+                            .filter(value => value !== '')
                     );
-                    //On prend le childField"site.address" par exemple sur toutes les options filtrées
-                    //console.log("uniqueChildValues", uniqueChildValues);
 
-                    //Si il n'y a qu'une seule option possible sur ce child (site.address), on la met dans dataToogle
                     if (uniqueChildValues.size === 1) {
                         const uniqueValue = Array.from(uniqueChildValues)[0];
-                        if (uniqueValue) { // Vérifier que la valeur n'est pas vide
+                        if (uniqueValue) {
                         setDataToogle(prev => {
                             const newData = JSON.parse(JSON.stringify(prev));
                             updateNestedValue(newData as unknown as NestedObject, childField, uniqueValue);
                             return newData;
                         });
-                            // Ajouter également au dataFilter -> surtout paaas
-                            //newDataFilter.push({ name: childField, value: uniqueValue });
                         }
                     }
                 }
@@ -398,7 +390,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                         {/* Site */}
                         <InputMobile
                             titre="Site"
-                            placeholder="Sélectionner un site"
+                            placeholder="Site"
                             options={getUniqueOptions(options, allOptions, opt => opt.emitter.company.name)}
                             width={1}
                             name="emitter.company.name"
@@ -423,8 +415,8 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                         
                         {/* Point de Collecte */}
                         <InputMobile
-                            titre="Point de collecte"
-                            placeholder="Sélectionner un point de collecte"
+                            titre="Collecte"
+                            placeholder="Point de collecte"
                             options={getUniqueOptions(options, allOptions, opt => opt.emitter.workSite.name)}
                             width={1}
                             name="emitter.workSite.name"
@@ -435,8 +427,8 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onMobile={true}
                         />
                         <InputMobile
-                            titre="Adresse d'enlèvement"
-                            placeholder="Adresse"
+                            titre="Adresse"
+                            placeholder="d'enlèvement"
                             options={getUniqueOptions(options, allOptions, opt => `${formatText(opt.emitter.workSite.fullAddress ?? "")}`)}
                             width={1}
                             name="emitter.workSite.fullAddress"
@@ -494,7 +486,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                         {/* Filière */}
                         <InputMobile
                             titre="Filière"
-                            placeholder="Sélectionner une filière"
+                            placeholder="Filière"
                             options={getUniqueOptions(options, allOptions, opt => getFiliere(opt.wasteDetails.code, ced_table))}
                             width={1}
                             name="filiere"
@@ -508,7 +500,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                         {/* Continuer avec les autres champs de la section Déchet */}
                         <InputMobile
                             titre="Déchet"
-                            placeholder="Sélectionner un déchet"
+                            placeholder="Déchet"
                             options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.name} - ${opt.wasteDetails.code}`)}
                             width={1}
                             name="wasteDetails.code"
@@ -519,8 +511,8 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onMobile={true}
                         />                            
                         <InputMobile
-                            titre="Description du déchet"
-                            placeholder="Description - Appelation destinataire"
+                            titre="Description"
+                            placeholder="Description"
                             options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.name}`)}
                             width={1}
                             name="wasteDetails.name"
@@ -531,7 +523,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onMobile={true}
                         />
                         <InputMobile
-                            titre="Sujet à l'ADR"
+                            titre="ADR"
                             placeholder="Sujet à l'ADR"
                             options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.isSubjectToADR}`)}
                             width={1}
@@ -563,7 +555,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                         <div className="space-y-3 pr-2">
                         <InputMobile
                             titre="Contenant"
-                            placeholder="Sélectionner un contenant"
+                            placeholder="Contenant"
                             options={{
                                 filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.packagingInfos[0].type}`).filteredOptions,
                                 allOptions: ['FUT', 'GRV', 'CITERNE', 'BENNE', 'PIPELINE', 'AUTRE']
@@ -624,7 +616,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                         />
                         <InputMobile
                             titre="Description"
-                            placeholder="Description - Volume L/m3"
+                            placeholder="Description - ? L/m3"
                             options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.packagingInfos[0].other}`)}
                             width={1}
                             name="wasteDetails.packagingInfos[0].other"
@@ -730,8 +722,8 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                         <div className="space-y-3 pr-2">
                         {/* Transporteur */}
                         <InputMobile
-                            titre="Transporteur"
-                            placeholder="Sélectionner un transporteur"
+                            titre="Transport"
+                            placeholder="Transporteur"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.name)}
                             width={1}
                             name="transporter.company.name"
@@ -802,8 +794,8 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onMobile={true}
                         />
                         <InputMobile
-                            titre="Exemption de récépissé"
-                            placeholder="Est exempté de récépissé"
+                            titre="Récépissé"
+                            placeholder="Exemption ?"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.isExemptedOfReceipt===true ? 'true' : 'false')}
                             width={1}
                             name="transporter.isExemptedOfReceipt"
@@ -814,7 +806,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onMobile={true}
                         />
                         <InputMobile
-                            titre="Numéro de plaque"
+                            titre="Plaque"
                             placeholder="Numéro de plaque"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.numberPlate || '')}
                             width={1}
@@ -826,8 +818,8 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onMobile={true}
                         />
                         <InputMobile
-                            titre="Informations complémentaires"
-                            placeholder="Informations complémentaires"
+                            titre="Informations"
+                            placeholder="complémentaires"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.customInfo || '')}
                             width={1}
                             name="transporter.customInfo"
@@ -845,8 +837,8 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                         <div className="text-sm font-semibold mb-3 text-gray-700">Destinataire</div>
                         <div className="space-y-3 pr-2">
                         <InputMobile
-                            titre="Destinataire"
-                            placeholder="Sélectionner un destinataire"
+                            titre="Destination"
+                            placeholder="Destinataire"
                             options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.name)}
                             width={1}
                             name="recipient.company.name"
@@ -929,8 +921,8 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onMobile={true}
                         />
                         <InputMobile
-                            titre="Opération d'élimination"
-                            placeholder="Opération d'élimination"
+                            titre="Opération"
+                            placeholder="d'élimination"
                             options={getUniqueOptions(options, allOptions, opt => opt.recipient.processingOperation || '')}
                             width={1}
                             name="recipient.processingOperation"
@@ -941,8 +933,8 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onMobile={true}
                         />
                         <InputMobile
-                            titre="Stockage provisoire"
-                            placeholder="Est un stockage provisoire"
+                            titre="Stockage"
+                            placeholder="provisoire"
                             options={{
                                 filteredOptions: ['false'],
                                 allOptions: ['true']

@@ -129,12 +129,12 @@ const InputFull: React.FC<InputFullProps> = ({
     return (
         <div>
             <div className={`${onMobile ? 'w-full' : 'w-[400px]'} overflow-x-auto my-0.5 ${display ? "block" : "hidden"}`}>
-                <div className="flex justify-start items-center space-x-2">
-                    <div className={`${onMobile ? 'w-[80px]' : 'w-[120px]'} text-right text-xs text-gray-500 ${stylePrimary ? 'font-medium' : 'font-thin'}`}>{titre}</div>
+                <div className="flex justify-start items-center space-x-4">
+                    <div className={`${onMobile ? 'w-[70px]' : 'w-[120px]'} text-right text-base text-gray-500 ${stylePrimary ? 'font-medium' : 'font-thin'}`}>{titre}</div>
                     {changeLoad ? (
                         <div className="w-[20px] text-center animate-spin">♻</div>
                     ) : (
-                        <div className={`${onMobile ? 'w-[200px]' : 'w-[260px]'}`}>
+                        <div className={`${onMobile ? 'w-[240px]' : 'w-[260px]'}`}>
                             {enabled ? (
                                 <CreatableSelect
                                     isClearable
@@ -154,10 +154,11 @@ const InputFull: React.FC<InputFullProps> = ({
                                         control: (base) => ({
                                             ...base,
                                             minHeight: '16px',
-                                            backgroundColor: getBackgroundColor(), //stylePrimary ? '#EBF5FF' : getBackgroundColor(),
+                                            backgroundColor: getBackgroundColor(),
                                             borderColor: stylePrimary ? '#43A047' : base.borderColor,
-                                            borderWidth: '1px',//stylePrimary ? '2px' : '1px',
-                                            fontSize: '0.65rem'
+                                            borderWidth: '1px',
+                                            fontSize: '16px',
+                                            marginLeft: '2px'
                                         }),
                                         valueContainer: (base) => ({
                                             ...base,
@@ -166,7 +167,8 @@ const InputFull: React.FC<InputFullProps> = ({
                                         input: (base) => ({
                                             ...base,
                                             margin: '0px',
-                                            fontSize: '0.65rem'
+                                            fontSize: '16px',
+                                            '-webkit-tap-highlight-color': 'transparent'
                                         }),
                                         menu: (base) => ({
                                             ...base,
@@ -175,7 +177,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                             width: '100%',
                                             backgroundColor: 'white',
                                             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                            fontSize: '0.65rem'
+                                            fontSize: '16px'
                                         }),
                                         menuPortal: (base) => ({
                                             ...base,
@@ -187,7 +189,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                                 (state.isSelected ? '#2684FF' : '#E8F0FE') : 
                                                 (state.isSelected ? '#2684FF' : 'white'),
                                             color: state.isSelected ? 'white' : 'black',
-                                            fontSize: '0.65rem',
+                                            fontSize: '16px',
                                             padding: '4px 8px'
                                         }),
                                         group: (base) => ({
@@ -197,7 +199,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                         }),
                                         groupHeading: (base) => ({
                                             ...base,
-                                            fontSize: '0.65rem',
+                                            fontSize: '16px',
                                             color: '#666',
                                             fontWeight: 600,
                                             marginBottom: 2,
