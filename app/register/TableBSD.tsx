@@ -751,9 +751,9 @@ const TableBSD = () => {
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '23px' }}
                             className="text-sm font-normal text-gray-500 mb-0">Statut</th>
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '25px' }}
-                            className="text-sm font-normal text-gray-500 mb-0">Prestataires</th>
+                            className="text-sm font-normal text-gray-500 mb-0 hidden md:table-cell">Prestataires</th>
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'right', paddingRight: '1.25rem' }}
-                            className="text-sm font-normal text-gray-500 mb-0">Montant</th>
+                            className="text-sm font-normal text-gray-500 mb-0 hidden md:table-cell">Montant</th>
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'right', paddingRight: '3.5rem' }}
                             className="text-sm font-normal text-gray-500 mb-0">Actions</th>
                     </tr>
@@ -848,7 +848,7 @@ const TableBSD = () => {
                                     )}
                                 </div>
                             </td>
-                            <td style={{ padding: '6px', width: '20%', height: '80px' }} className="overflow-hidden">
+                            <td style={{ padding: '6px', width: '20%', height: '80px' }} className="hidden md:table-cell overflow-hidden">
                                 <div className="text-xs ml-4 overflow-hidden space-y-0">
                                     {/* Site Etablissement */}
                                     <div className="overflow-hidden">
@@ -872,7 +872,7 @@ const TableBSD = () => {
                                     </div>
                                 </div>
                             </td>
-                            <td style={{ padding: '6px', width: '15%', height: '80px' }}>
+                            <td style={{ padding: '6px', width: '15%', height: '80px' }} className="hidden md:table-cell">
                                 {
                                 bsd.facture_treated ? 
                                     <div className="text-md font-550 text-right mr-5">

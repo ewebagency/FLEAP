@@ -60,8 +60,8 @@ const NewFinancialSource = () => {
             const hasValidCed = !!header.code_dechet && header.code_dechet.length > 0;
             
             
-            console.log("hasValidSiret", hasValidSiret)
-            console.log('siret', header.site_siret)
+            //console.log("hasValidSiret", hasValidSiret)
+            //console.log('siret', header.site_siret)
             return isValidDate && hasValidSiret && hasValidCed;
         });
     });

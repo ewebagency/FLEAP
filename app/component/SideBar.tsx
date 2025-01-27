@@ -111,7 +111,7 @@ const SideBar = (props:SideBarProps) => {
     return (
         <div>
             {connected && 
-                <div className={`menu h-screen bg-gray-100 ${isCollapsed ? 'w-16' : 'w-47'} p-4 flex flex-col transition-all duration-300 ${props.className_props}`}>
+                <div className={`menu h-screen bg-gray-100 ${isCollapsed ? 'w-16' : 'w-47'} p-4 flex flex-col transition-all duration-300 hidden md:flex ${props.className_props}`}>
                     <div className="flex-grow">
                         <div className="flex justify-between items-center mb-4">
                             {!isCollapsed && <h1 className="font-bold text-xl ml-4">{entreprise_name}</h1>}

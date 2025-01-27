@@ -9,7 +9,6 @@ import { Filiere, useFilterContext } from '@/app/FilterContext';
 const BordereauxRegister = () => {
     const session = useSession();
     const { filterPendingBSDs, setFilterPendingBSDs } = useModalContextNew();
-    //const {filieres, setFilieres} = useFilterContext();
     const [stats, setStats] = useState({
         collected: 0,
         pending: 0,
@@ -41,28 +40,36 @@ const BordereauxRegister = () => {
     }, [session?.entreprise_id]);
 
     return (
-        <div className="bg-gray-100 p-2 rounded-lg shadow-sm mb-2">
-            <div className="flex items-center justify-between">
-                <BoutonOpenModal/>
-                <div className="flex space-x-8">
-                    {/*<div className="text-center">
-                        <div className="text-2xl font-bold text-gray-800">{stats.collected}</div>
-                        <div className="text-sm text-gray-600">BSD collectés</div>
-                    </div>*/}
-                    <div>
-                        <button className={`text-center ${filterPendingBSDs ? 'text-[var(--green-medium)] font-bold' : 'text-gray-600'}`} onClick={() => setFilterPendingBSDs(!filterPendingBSDs)}>
-                            <div className="text-2xl font-bold">{stats.pending}</div>
-                            <div className={`text-sm ${filterPendingBSDs ? 'font-bold' : 'text-medium'}`}>En attente de collecte</div>
-                        </button>
+        <>
+            {/* Version Mobile */}
+            <div className="md:hidden">
+                <div className={`w-full bg-white rounded-lg shadow-sm p-3 mb-2 flex items-center justify-between
+                    ${filterPendingBSDs ? 'border-2 border-[var(--green-medium)]' : 'border border-gray-200'}`}
+                >
+                    <div className="flex-grow">
+                        <BoutonOpenModal />
                     </div>
+                </div>
+                </div>
 
-                    <div className="text-center hidden">
-                        <div className="text-2xl font-bold text-gray-800">{stats.anomalies}</div>
-                        <div className="text-sm text-gray-600">Anomalies</div>
+            {/* Version Desktop */}
+            <div className="hidden md:block bg-gray-100 p-2 rounded-lg shadow-sm mb-2">
+                <div className="flex items-center justify-between">
+                    <BoutonOpenModal/>
+                    <div className="flex space-x-8">
+                        <div>
+                            <button className={`text-center ${filterPendingBSDs ? 'text-[var(--green-medium)] font-bold' : 'text-gray-600'}`} 
+                                    onClick={() => setFilterPendingBSDs(!filterPendingBSDs)}>
+                                <div className="text-2xl font-bold">{stats.pending}</div>
+                                <div className={`text-sm ${filterPendingBSDs ? 'font-bold' : 'text-medium'}`}>
+                                    En attente de collecte
+                                </div>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 };
 

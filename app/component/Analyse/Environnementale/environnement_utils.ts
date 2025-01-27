@@ -57,7 +57,7 @@ const DEFAULT_EMISSIONS = {
     'D8': 300,   // Traitement biologique
     'D9': 350,   // Traitement physico-chimique
     'D15': 300,  // Stockage
-    'default': 300 // Valeur par défaut si code inconnu
+    'default': 0 // Valeur par défaut si code inconnu
 };
 
 export function estimerCarbone(ced: string, valorisationCode: string, poids: number) {

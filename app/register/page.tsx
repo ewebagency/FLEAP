@@ -20,12 +20,12 @@ const RegisterPage = () => {
             <Toaster position="top-right"/>
             <div className="mb-0">
                 <div className="text-xl font-bold mb-2 hidden">Registre</div>
-                <div className="flex justify-between items-center mb-0">
+                <div className="hidden md:flex justify-between items-center mb-0">
                     <FiltreFilieres/>
                     <ConnectedToTrack/>
                 </div>
                 <BordereauxRegister />
-                <div className="flex justify-between items-center mb-0">
+                <div className="hidden md:flex justify-between items-center mb-0">
                     <h3 className="text-md text-gray-500 mb-0">Registre des déchets</h3>
                     <div className="flex gap-2 mr-[-8px] justify-end">
                         <CreateBSDLine/>
@@ -33,6 +33,9 @@ const RegisterPage = () => {
                         <ExportRegisterButton/>
                         <EnrichImportedDataButton/>
                     </div>
+                </div>
+                <div className="flex md:hidden justify-end items-center mb-0">
+                    <CreateBSDLine/>
                 </div>
             </div>
             <div className="mt-2">

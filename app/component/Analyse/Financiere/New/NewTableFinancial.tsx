@@ -46,6 +46,9 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
     }, [entreprise_id]);
 
     const filiereData = factures.reduce((acc: FiliereData, facture) => {
+        // Vérification du total pour chaque facture
+        let totalPrestations = 0;
+
         facture.infos_json.departs.forEach(depart => {
             const cleanedCed = depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
             const filiere = mappingTable.find(m => m.ced.replace(' ', '').replace('*', '') === cleanedCed)?.filiere || 'Autres';
@@ -72,6 +75,8 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
 
             depart.line_body.forEach(operation => {
                 const montant = operation.montant_ht || 0;
+                totalPrestations += montant;
+
                 switch (operation.type_operation) {
                     case 'Préparation':
                         acc[filiere].preparation += montant;
@@ -83,6 +88,7 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                         acc[filiere].traitement += montant;
                         break;
                     case 'Gestion globale':
+                    case 'Gestion global':
                         acc[filiere].gestion_globale += montant;
                         break;
                     case 'TGAP':
@@ -116,11 +122,24 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                         acc[filiere].autres += montant;
                         break;
                     default:
+                        console.warn(`Type d'opération non reconnu: ${operation.type_operation}`);
                         acc[filiere].non_expliques += montant;
                 }
                 acc[filiere].total += montant;
             });
         });
+
+        // Vérification du total
+        const difference = Math.abs(totalPrestations - facture.infos_json.footer.total_ht);
+        if (difference > 0.01) { // Tolérance de 0.01€ pour les erreurs d'arrondi
+            console.error(
+                `Différence détectée dans la facture ${facture.infos_json.header.num_facture}:`,
+                `\n- Total des prestations: ${totalPrestations.toFixed(2)}€`,
+                `\n- Total HT facture: ${facture.infos_json.footer.total_ht.toFixed(2)}€`,
+                `\n- Différence: ${difference.toFixed(2)}€`,
+                `\n- Prestations: ${JSON.stringify(facture)}`
+            );
+        }
 
         return acc;
     }, {});
