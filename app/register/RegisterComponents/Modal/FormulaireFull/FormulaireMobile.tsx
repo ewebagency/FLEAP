@@ -943,6 +943,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             displayModifyCardInFormulaireNew={false}
                             modalType={modalType}
                             otherInfos={other_infos}
+                            onMobile={true}
                         />
                         </div>
                     </div>

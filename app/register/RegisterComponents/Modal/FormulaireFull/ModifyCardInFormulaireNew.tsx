@@ -144,6 +144,7 @@ interface Props {
     displayModifyCardInFormulaireNew?: boolean;
     modalType?: string;
     otherInfos: OtherInfos;
+    onMobile?: boolean;
 }
 
 const ModifyCardInFormulaireNew = ({ 
@@ -154,6 +155,7 @@ const ModifyCardInFormulaireNew = ({
     displayModifyCardInFormulaireNew=true,
     modalType='',
     otherInfos,
+    onMobile=false,
 }: Props) => {
   
   const {dataToogle } = useModalContextNew();
@@ -956,28 +958,33 @@ const ModifyCardInFormulaireNew = ({
         </div>
       )}
 
-      {/* Boutons */}
-      <div className="fixed bottom-8 mb-14 right-[180px] flex justify-center space-x-2">
+      {/* Boutons avec classes conditionnelles pour le mobile */}
+      <div className={`fixed bottom-8 mb-14 ${onMobile ? 'right-4 left-4' : 'right-[180px]'} flex ${onMobile ? 'flex-col' : 'flex-row'} justify-center ${onMobile ? 'space-y-2' : 'space-x-2'}`}>
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 text-gray-600 border rounded bg-gray-100 hover:bg-gray-200"
+          className={`px-4 py-2 text-gray-600 border rounded bg-gray-100 hover:bg-gray-200 ${onMobile ? 'w-full' : ''}`}
         >
           Fermer
         </button>
-        {(!pastBrouillon && modalType !== 'create_line') && <button
-          type="button"
-          onClick={() => handleSubmitBrouillon()}
-          disabled={isSubmittingBrouillon}
-          className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
-        >
-          {isSubmittingBrouillon ? "En cours..." : "Brouillon"}
-        </button>}
+
+        {(!pastBrouillon && modalType !== 'create_line') && (
+          <button
+            type="button"
+            onClick={() => handleSubmitBrouillon()}
+            disabled={isSubmittingBrouillon}
+            className={`px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 ${onMobile ? 'w-full' : ''}`}
+          >
+            {isSubmittingBrouillon ? "En cours..." : "Brouillon"}
+          </button>
+        )}
+
         {(!cookie_token && dataText.wasteDetails.isDangerous && modalType !== 'create_line') && 
-          <div className="bg-red-400 text-white text-sm text-center item-center p-2 w-2/4 rounded-md">
+          <div className={`bg-red-400 text-white text-sm text-center item-center p-2 rounded-md ${onMobile ? 'w-full' : 'w-2/4'}`}>
             Vous devez être connecté pour envoyer à TrackDéchets
           </div>
         }
+
         <div className="relative group">
           {(dataText.wasteDetails.isDangerous && cookie_token && modalType !== 'create_line') && 
             <button
@@ -985,7 +992,7 @@ const ModifyCardInFormulaireNew = ({
               onClick={() => handleSubmitHere()}
               disabled={isSubmitting}
               onMouseEnter={() => setIsHoveringTrackDechet(true)}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              className={`w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 ${onMobile ? 'w-full' : ''}`}
             >
               {isSubmitting ? "Envoie à TrackDéchet et par mail en cours..." : "Envoyer à TrackDéchets & par Mail"}
             </button>
@@ -1001,7 +1008,7 @@ const ModifyCardInFormulaireNew = ({
                 type="button"
                 onClick={handleMailSubmit}
                 disabled={isSubmittingMail}
-                className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                className={`w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 ${onMobile ? 'w-full' : ''}`}
               >
                 {isSubmittingMail ? "Envoie du mail en cours..." : "Envoyer uniquement par mail"}
               </button>
@@ -1014,7 +1021,7 @@ const ModifyCardInFormulaireNew = ({
             type="button"
             onClick={handleMailSubmit}
             disabled={isSubmittingMail}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+            className={`px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 ${onMobile ? 'w-full' : ''}`}
           >
             {isSubmittingMail ? "Envoie du mail en cours..." : "Envoyer le mail"}
           </button>
@@ -1024,14 +1031,13 @@ const ModifyCardInFormulaireNew = ({
           <button
             type="button"
             onClick={handleCreateLine}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            className={`px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 ${onMobile ? 'w-full' : ''}`}
           >
             Créer la ligne
           </button>
         )}
       </div>
 
-      {/* Ajouter un div avec du padding en bas pour éviter que le contenu ne soit caché par les boutons fixes */}
       <div className="pb-20"></div>
     </div>
   );

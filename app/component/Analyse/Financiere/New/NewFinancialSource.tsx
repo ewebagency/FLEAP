@@ -92,10 +92,6 @@ const NewFinancialSource = () => {
     return (
         <div>
             {entreprise_id && <div className="space-y-4 p-2">
-                <div className="flex gap-4 text-sm text-gray-600">
-                    <div>Nombre total de factures : {factures.length}</div>
-                    <div>Nombre de factures valides : {validFactures.length}</div>
-                </div>
                 <NewBordereauxFinancial factures={validFactures} />
                 <div className="bg-white rounded-lg shadow">
                     <NewMainFinancialChart factures={validFactures} entreprise_id={entreprise_id} />
