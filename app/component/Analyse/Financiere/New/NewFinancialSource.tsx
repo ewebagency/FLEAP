@@ -22,17 +22,32 @@ const NewFinancialSource = () => {
             try {
                 setEntreprise_id(session.entreprise_id);
                 
-                const { data, error } = await supabase
-                    .from('facture')
-                    .select('*')
-                    .eq('entreprise_id', session.entreprise_id);
-                
-                if (error) {
-                    console.error('Error fetching factures:', error);
-                    return;
+                let allFactures: Facture[] = [];
+                let page = 0;
+                const pageSize = 1000;
+                let hasMore = true;
+
+                while (hasMore) {
+                    const { data, error } = await supabase
+                        .from('facture')
+                        .select('*')
+                        .eq('entreprise_id', session.entreprise_id)
+                        .range(page * pageSize, (page + 1) * pageSize - 1);
+                    
+                    if (error) {
+                        console.error('Error fetching factures:', error);
+                        break;
+                    }
+
+                    if (data && data.length > 0) {
+                        allFactures = [...allFactures, ...data];
+                        page++;
+                    } else {
+                        hasMore = false;
+                    }
                 }
                 
-                setFactures(data || []);
+                setFactures(allFactures);
             } catch (error) {
                 console.error('Error in fetchData:', error);
             } finally {
@@ -62,7 +77,9 @@ const NewFinancialSource = () => {
             
             //console.log("hasValidSiret", hasValidSiret)
             //console.log('siret', header.site_siret)
-            return isValidDate && hasValidSiret && hasValidCed;
+            //return isValidDate && hasValidSiret && hasValidCed;
+            //if(!hasValidSiret) console.log(header.site_siret, hasValidSiret);
+            return true; //on ne filtre plus sur les sirets valides
         });
     });
 
@@ -75,17 +92,27 @@ const NewFinancialSource = () => {
     return (
         <div>
             {entreprise_id && <div className="space-y-4 p-2">
+                <div className="flex gap-4 text-sm text-gray-600">
+                    <div>Nombre total de factures : {factures.length}</div>
+                    <div>Nombre de factures valides : {validFactures.length}</div>
+                </div>
                 <NewBordereauxFinancial factures={validFactures} />
                 <div className="bg-white rounded-lg shadow">
                     <NewMainFinancialChart factures={validFactures} entreprise_id={entreprise_id} />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                     <div className="bg-white rounded-lg shadow">
-                        <h2 className="text-sm text-gray-600 font-thin p-2">Détail des factures</h2>
+                        <div className="p-2">
+                            <h2 className="text-sm text-gray-600 font-thin">Détail des factures</h2>
+                            <div className="text-xs text-gray-500">({validFactures.length} factures)</div>
+                        </div>
                         <NewTableFinancial factures={validFactures} entreprise_id={entreprise_id} />
                     </div>
                     <div className="bg-white rounded-lg shadow">
-                        <h2 className="text-sm text-gray-600 font-thin p-2">Répartition par filière</h2>
+                        <div className="p-2">
+                            <h2 className="text-sm text-gray-600 font-thin">Répartition par filière</h2>
+                            <div className="text-xs text-gray-500">({validFactures.length} factures)</div>
+                        </div>
                         <NewPieFinancialChart factures={validFactures} entreprise_id={entreprise_id} />
                     </div>
                 </div>
