@@ -319,6 +319,7 @@ const SelectDocumentType: React.FC<{ pdf_id: number; initialType?: string }> = (
     const documentTypes: DocumentType[] = [
         { id: 'bsd', name: 'BSD' },
         { id: 'facture', name: 'Facture' },
+        { id: 'contrat', name: 'Contrat' },
         { id: 'autre', name: 'Autre' }
     ];
 

@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { useAnalysis } from "@/app/analysis/AnalysisProvider";
+import TauxTri from "./TauxTri";
 
 const AnalOpBordereau = () => {
     const { bsds, loading } = useAnalysis();
@@ -52,6 +53,9 @@ const AnalOpBordereau = () => {
             <div className="block mx-10 hidden">
                 <div className="text-sm text-gray-600 font-thin">Moyenne mensuelle</div>
                 <div className="font-bold text-xl mt-2">{stats.averageWeight.toFixed(2)} T</div>
+            </div>
+            <div className="block">
+                <TauxTri/>
             </div>
             <div className="block mr-10 hidden">
                 <div className="text-sm text-gray-600 font-thin">Nombre de BSDs</div>

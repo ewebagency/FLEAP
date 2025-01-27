@@ -130,7 +130,7 @@ const SideBar = (props:SideBarProps) => {
                             <>
                                 <FiltreSiteEtablissement/>
                                 <FiltrePointCollecte/>
-                                <FiltreDate/>
+                                <FiltreDate/>  
                             </>
                         )}
                         <ul className="space-y-1">

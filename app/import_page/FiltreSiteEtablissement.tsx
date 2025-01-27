@@ -45,22 +45,43 @@ const FiltreSiteEtablissement = () => {
     useEffect(() => {
         if (session?.entreprise_id) {
             const getAdditionnalSites = async () => {
-                const {data, error} = await supabase
-                .from('bsd')
-                .select(`
-                    infos_json->formAPI->createFormInput->emitter->company->>siret,
-                    infos_json->formAPI->createFormInput->emitter->company->>name
-                `)
-                .order('created_at', { ascending: false })
-                .eq('entreprise_id', session?.entreprise_id)
-                .limit(10000);
-                if (error) {
-                    console.error(error);
-                    return;
+                const pageSize = 1000;
+                let allData: {siret:string, name:string}[] = [];
+                let hasMore = true;
+                let currentPage = 0;
+
+                while (hasMore) {
+                    const { data, error, count } = await supabase
+                        .from('bsd')
+                        .select(`
+                            infos_json->formAPI->createFormInput->emitter->company->>siret,
+                            infos_json->formAPI->createFormInput->emitter->company->>name
+                        `, { count: 'exact' })
+                        .order('created_at', { ascending: false })
+                        .eq('entreprise_id', session?.entreprise_id)
+                        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
+
+                    if (error) {
+                        console.error('Erreur lors de la récupération des BSDs:', error);
+                        break;
+                    }
+
+                    if (!data || data.length === 0) {
+                        hasMore = false;
+                        break;
+                    }
+
+                    allData = [...allData, ...data];
+                    
+                    // Vérifier s'il reste des données à charger
+                    hasMore = count ? allData.length < count : false;
+                    currentPage++;
                 }
 
+                console.log(`Nombre total de BSDs collectés pour les sites: ${allData.length}`);
+
                 const siteMap = new Map();
-                data.forEach(item => {
+                allData.forEach(item => {
                     const siret = item.siret;
                     const name = item.name;
                     if (!siret) return;

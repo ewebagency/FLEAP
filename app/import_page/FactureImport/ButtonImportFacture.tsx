@@ -168,7 +168,7 @@ export const mapToFactureFormat = (row: Row): FactureData => {
                     quantite: parseNumber(row["quantiteGlobale"]) || 0,
                     montant_ht: parseNumber(row["coutGlobal"]) || 0,
                     prix_unitaire: parseNumber(row["puGlobal"]) || 0,
-                    type_operation: "Gestion global"
+                    type_operation: "Gestion globale"
                 },
                 {
                     unite: row["uniteRachat"]?.toString() || "",

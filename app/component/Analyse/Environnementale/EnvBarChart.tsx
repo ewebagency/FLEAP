@@ -64,7 +64,7 @@ const treatmentLabels = {
   "R11": "R11 - Utilisation après R1-R10", // R11 : Utilisation de déchets obtenus à partir de l'une des opérations numérotées R1 à R10
   "R12": "R12 - Échange avant R1-R11", // R12 : Échange de déchets en vue de les soumettre à l'une des opérations numérotées R1 à R11
   "R13": "R13 - Stockage avant R1-R12", // R13 : Stockage de déchets en attente de l'une des opérations numérotées R1 à R12
-  "default": "Autre" // Autre traitement
+  "default": "Méthode de traitement inconnue" // Autre traitement
 };
 
   

@@ -18,7 +18,7 @@ export const jsonDefaultData = {
                     { type_operation: "préparation", montant_ht: 0 },
                     { type_operation: "transport", montant_ht: 0 },
                     { type_operation: "traitement", montant_ht: 0 },
-                    { type_operation: "gestion global", montant_ht: 0 },
+                    { type_operation: "gestion globale", montant_ht: 0 },
                     { type_operation: "TGAP", montant_ht: 0 },
                     { type_operation: "déclassement", montant_ht: 0 },
                     { type_operation: "rachat", montant_ht: 0, is_expanded: true },

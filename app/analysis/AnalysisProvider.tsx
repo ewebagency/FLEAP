@@ -67,9 +67,15 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
             return;
         }
 
-        let query = supabase
+        const pageSize = 1000;
+        let allData: BSD[] = [];
+        let hasMore = true;
+        let currentPage = 0;
+
+        // Construction de la requête de base
+        let baseQuery = supabase
             .from('bsd')
-            .select('*')
+            .select('*', { count: 'exact' })
             .eq('entreprise_id', session.entreprise_id)
             .order('created_at', { ascending: false });
 
@@ -140,25 +146,36 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
 
         // Appliquer les conditions avec AND entre sites et filières
         if (filiere_conditions.length > 0) {
-            query = query.or(filiere_conditions.join(','));
+            baseQuery = baseQuery.or(filiere_conditions.join(','));
         }
 
         if (site_conditions.length > 0) {
-            query = query.or(site_conditions.join(','));
+            baseQuery = baseQuery.or(site_conditions.join(','));
         }
 
-        console.log('filiere_conditions', filiere_conditions);
-        console.log('site_conditions', site_conditions);
+        while (hasMore) {
+            const query = baseQuery.range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
+            const { data, error, count } = await query;
 
-        const { data, error } = await query;
+            if (error) {
+                console.error("Error fetching BSDs:", error);
+                break;
+            }
 
-        if (error) {
-            console.error("Error fetching BSDs:", error);
-            return;
+            if (!data || data.length === 0) {
+                hasMore = false;
+                break;
+            }
+
+            allData = [...allData, ...data];
+            
+            // Vérifier s'il reste des données à charger
+            hasMore = count ? allData.length < count : false;
+            currentPage++;
         }
 
-        console.log('Nombre de BSDs récupérés dans analyse', data.length);
-        setBsds(data || []);
+        console.log('Nombre total de BSDs récupérés dans analyse:', allData.length);
+        setBsds(allData);
     };
 
     useEffect(() => {

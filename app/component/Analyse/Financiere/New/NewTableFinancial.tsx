@@ -11,15 +11,21 @@ interface Props {
 }
 
 interface OperationSums {
+    [key: string]: number;
     preparation: number;
     transport: number;
     traitement: number;
-    gestion_global: number;
+    gestion_globale: number;
     tgap: number;
     declassement: number;
+    penalites: number;
     rachat: number;
-    contenant: number;
-    non_explique: number;
+    location: number;
+    maintenance: number;
+    mise_a_disposition: number;
+    autres_contenant: number;
+    non_expliques: number;
+    autres: number;
     total: number;
 }
 
@@ -49,12 +55,17 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                     preparation: 0,
                     transport: 0,
                     traitement: 0,
-                    gestion_global: 0,
+                    gestion_globale: 0,
                     tgap: 0,
                     declassement: 0,
+                    penalites: 0,
                     rachat: 0,
-                    contenant: 0,
-                    non_explique: 0,
+                    location: 0,
+                    maintenance: 0,
+                    mise_a_disposition: 0,
+                    autres_contenant: 0,
+                    non_expliques: 0,
+                    autres: 0,
                     total: 0
                 };
             }
@@ -71,8 +82,8 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                     case 'Traitement':
                         acc[filiere].traitement += montant;
                         break;
-                    case 'Gestion global':
-                        acc[filiere].gestion_global += montant;
+                    case 'Gestion globale':
+                        acc[filiere].gestion_globale += montant;
                         break;
                     case 'TGAP':
                         acc[filiere].tgap += montant;
@@ -80,14 +91,32 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                     case 'Déclassement':
                         acc[filiere].declassement += montant;
                         break;
+                    case 'Pénalités':
+                        acc[filiere].penalites += montant;
+                        break;
                     case 'Rachat':
                         acc[filiere].rachat += montant;
                         break;
-                    case 'Contenant':
-                        acc[filiere].contenant += montant;
+                    case 'Location':
+                        acc[filiere].location += montant;
+                        break;
+                    case 'Maintenance':
+                        acc[filiere].maintenance += montant;
+                        break;
+                    case 'Mise à disposition':
+                        acc[filiere].mise_a_disposition += montant;
+                        break;
+                    case 'Autres : Contenant':
+                        acc[filiere].autres_contenant += montant;
+                        break;
+                    case 'Non expliqués':
+                        acc[filiere].non_expliques += montant;
+                        break;
+                    case 'Autres':
+                        acc[filiere].autres += montant;
                         break;
                     default:
-                        acc[filiere].non_explique += montant;
+                        acc[filiere].non_expliques += montant;
                 }
                 acc[filiere].total += montant;
             });
@@ -102,18 +131,35 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
             preparation: acc.preparation + data.preparation,
             transport: acc.transport + data.transport,
             traitement: acc.traitement + data.traitement,
-            gestion_global: acc.gestion_global + data.gestion_global,
+            gestion_globale: acc.gestion_globale + data.gestion_globale,
             tgap: acc.tgap + data.tgap,
             declassement: acc.declassement + data.declassement,
+            penalites: acc.penalites + data.penalites,
             rachat: acc.rachat + data.rachat,
-            contenant: acc.contenant + data.contenant,
-            non_explique: acc.non_explique + data.non_explique,
+            location: acc.location + data.location,
+            maintenance: acc.maintenance + data.maintenance,
+            mise_a_disposition: acc.mise_a_disposition + data.mise_a_disposition,
+            autres_contenant: acc.autres_contenant + data.autres_contenant,
+            non_expliques: acc.non_expliques + data.non_expliques,
+            autres: acc.autres + data.autres,
             total: acc.total + data.total
         };
     }, {
-        preparation: 0, transport: 0, traitement: 0, gestion_global: 0,
-        tgap: 0, declassement: 0, rachat: 0, contenant: 0, non_explique: 0, total: 0
+        preparation: 0, transport: 0, traitement: 0, gestion_globale: 0,
+        tgap: 0, declassement: 0, penalites: 0, rachat: 0, location: 0,
+        maintenance: 0, mise_a_disposition: 0, autres_contenant: 0,
+        non_expliques: 0, autres: 0, total: 0
     });
+
+    // Fonction pour déterminer si une colonne doit être affichée
+    const shouldShowColumn = (operationKey: string) => {
+        return Object.values(filiereData).some(data => data[operationKey] !== 0);
+    };
+
+    // Liste des opérations à afficher
+    const operationsToShow = [...MAIN_OPERATIONS, ...EXPANDED_OPERATIONS]
+        .map(op => op.toLowerCase().replace(/ /g, '_'))
+        .filter(op => shouldShowColumn(op));
 
     return (
         <div className="flex-1 p-4 bg-white rounded-lg shadow">
@@ -128,12 +174,16 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                             {Object.values(filiereData).some(data => data.preparation > 0) && <th className="px-2 py-1 text-right">Préparation</th>}
                             {Object.values(filiereData).some(data => data.transport > 0) && <th className="px-2 py-1 text-right">Transport</th>}
                             {Object.values(filiereData).some(data => data.traitement > 0) && <th className="px-2 py-1 text-right">Traitement</th>}
-                            {Object.values(filiereData).some(data => data.gestion_global > 0) && <th className="px-2 py-1 text-right">Gestion Global</th>}
+                            {Object.values(filiereData).some(data => data.gestion_globale > 0) && <th className="px-2 py-1 text-right">Gestion Globale</th>}
                             {Object.values(filiereData).some(data => data.tgap > 0) && <th className="px-2 py-1 text-right">TGAP</th>}
                             {Object.values(filiereData).some(data => data.declassement > 0) && <th className="px-2 py-1 text-right">Déclassement</th>}
+                            {Object.values(filiereData).some(data => data.penalites > 0) && <th className="px-2 py-1 text-right">Pénalités</th>}
                             {Object.values(filiereData).some(data => data.rachat > 0) && <th className="px-2 py-1 text-right">Rachat</th>}
-                            {Object.values(filiereData).some(data => data.contenant > 0) && <th className="px-2 py-1 text-right">Contenant</th>}
-                            {Object.values(filiereData).some(data => data.non_explique > 0) && <th className="px-2 py-1 text-right">Non expliqué</th>}
+                            {Object.values(filiereData).some(data => data.location > 0) && <th className="px-2 py-1 text-right">Location</th>}
+                            {Object.values(filiereData).some(data => data.maintenance > 0) && <th className="px-2 py-1 text-right">Maintenance</th>}
+                            {Object.values(filiereData).some(data => data.mise_a_disposition > 0) && <th className="px-2 py-1 text-right">Mise à disposition</th>}
+                            {Object.values(filiereData).some(data => data.autres_contenant > 0) && <th className="px-2 py-1 text-right">Autres Contenant</th>}
+                            {(Object.values(filiereData).some(data => data.non_expliques > 0 || data.autres > 0)) && <th className="px-2 py-1 text-right">Autres</th>}
                             <th className="px-2 py-1 text-right">Total</th>
                         </tr>
                     </thead>
@@ -150,12 +200,17 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                                     {Object.values(filiereData).some(data => data.preparation > 0) && <td className="px-2 py-1 text-right">{data.preparation.toFixed(2)}€</td>}
                                     {Object.values(filiereData).some(data => data.transport > 0) && <td className="px-2 py-1 text-right">{data.transport.toFixed(2)}€</td>}
                                     {Object.values(filiereData).some(data => data.traitement > 0) && <td className="px-2 py-1 text-right">{data.traitement.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.gestion_global > 0) && <td className="px-2 py-1 text-right">{data.gestion_global.toFixed(2)}€</td>}
+                                    {Object.values(filiereData).some(data => data.gestion_globale > 0) && <td className="px-2 py-1 text-right">{data.gestion_globale.toFixed(2)}€</td>}
                                     {Object.values(filiereData).some(data => data.tgap > 0) && <td className="px-2 py-1 text-right">{data.tgap.toFixed(2)}€</td>}
                                     {Object.values(filiereData).some(data => data.declassement > 0) && <td className="px-2 py-1 text-right">{data.declassement.toFixed(2)}€</td>}
+                                    {Object.values(filiereData).some(data => data.penalites > 0) && <td className="px-2 py-1 text-right">{data.penalites.toFixed(2)}€</td>}
                                     {Object.values(filiereData).some(data => data.rachat > 0) && <td className="px-2 py-1 text-right">{data.rachat.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.contenant > 0) && <td className="px-2 py-1 text-right">{data.contenant.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.non_explique > 0) && <td className="px-2 py-1 text-right">{data.non_explique.toFixed(2)}€</td>}
+                                    {Object.values(filiereData).some(data => data.location > 0) && <td className="px-2 py-1 text-right">{data.location.toFixed(2)}€</td>}
+                                    {Object.values(filiereData).some(data => data.maintenance > 0) && <td className="px-2 py-1 text-right">{data.maintenance.toFixed(2)}€</td>}
+                                    {Object.values(filiereData).some(data => data.mise_a_disposition > 0) && <td className="px-2 py-1 text-right">{data.mise_a_disposition.toFixed(2)}€</td>}
+                                    {Object.values(filiereData).some(data => data.autres_contenant > 0) && <td className="px-2 py-1 text-right">{data.autres_contenant.toFixed(2)}€</td>}
+                                    {(Object.values(filiereData).some(data => data.non_expliques > 0 || data.autres > 0)) && 
+                                        <td className="px-2 py-1 text-right">{(data.non_expliques + data.autres).toFixed(2)}€</td>}
                                     <td className="px-2 py-1 text-right">{data.total.toFixed(2)}€</td>
                                 </tr>
                             ))}
@@ -166,12 +221,17 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                             {Object.values(filiereData).some(data => data.preparation > 0) && <td className="px-2 py-1 text-right">{totals.preparation.toFixed(2)}€</td>}
                             {Object.values(filiereData).some(data => data.transport > 0) && <td className="px-2 py-1 text-right">{totals.transport.toFixed(2)}€</td>}
                             {Object.values(filiereData).some(data => data.traitement > 0) && <td className="px-2 py-1 text-right">{totals.traitement.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.gestion_global > 0) && <td className="px-2 py-1 text-right">{totals.gestion_global.toFixed(2)}€</td>}
+                            {Object.values(filiereData).some(data => data.gestion_globale > 0) && <td className="px-2 py-1 text-right">{totals.gestion_globale.toFixed(2)}€</td>}
                             {Object.values(filiereData).some(data => data.tgap > 0) && <td className="px-2 py-1 text-right">{totals.tgap.toFixed(2)}€</td>}
                             {Object.values(filiereData).some(data => data.declassement > 0) && <td className="px-2 py-1 text-right">{totals.declassement.toFixed(2)}€</td>}
+                            {Object.values(filiereData).some(data => data.penalites > 0) && <td className="px-2 py-1 text-right">{totals.penalites.toFixed(2)}€</td>}
                             {Object.values(filiereData).some(data => data.rachat > 0) && <td className="px-2 py-1 text-right">{totals.rachat.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.contenant > 0) && <td className="px-2 py-1 text-right">{totals.contenant.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.non_explique > 0) && <td className="px-2 py-1 text-right">{totals.non_explique.toFixed(2)}€</td>}
+                            {Object.values(filiereData).some(data => data.location > 0) && <td className="px-2 py-1 text-right">{totals.location.toFixed(2)}€</td>}
+                            {Object.values(filiereData).some(data => data.maintenance > 0) && <td className="px-2 py-1 text-right">{totals.maintenance.toFixed(2)}€</td>}
+                            {Object.values(filiereData).some(data => data.mise_a_disposition > 0) && <td className="px-2 py-1 text-right">{totals.mise_a_disposition.toFixed(2)}€</td>}
+                            {Object.values(filiereData).some(data => data.autres_contenant > 0) && <td className="px-2 py-1 text-right">{totals.autres_contenant.toFixed(2)}€</td>}
+                            {(Object.values(filiereData).some(data => data.non_expliques > 0 || data.autres > 0)) && 
+                                <td className="px-2 py-1 text-right">{(totals.non_expliques + totals.autres).toFixed(2)}€</td>}
                             <td className="px-2 py-1 text-right">{totals.total.toFixed(2)}€</td>
                         </tr>
                     </tfoot>

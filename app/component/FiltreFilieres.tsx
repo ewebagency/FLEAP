@@ -13,28 +13,42 @@ const FiltreFilieres = () => {
     const {modalReload, setFilterPendingBSDs} = useModalContextNew();
 
     const getFilieresFromEntreprise = async () => {
-        
-        const { data:codes_all, error:error_codes } = await supabase
-        .from('bsd')
-        .select('infos_json->formAPI->createFormInput->wasteDetails->>code')
-        .order('created_at', { ascending: false })
-        .eq('entreprise_id', session?.entreprise_id);
-        
-        if (error_codes) {
-            console.error('Error fetching codes:', error_codes);
-            return;
+        const pageSize = 1000;
+        let allCodes: { code: string }[] = [];
+        let hasMore = true;
+        let currentPage = 0;
+
+        while (hasMore) {
+            const { data: codes_page, error: error_codes, count } = await supabase
+                .from('bsd')
+                .select('infos_json->formAPI->createFormInput->wasteDetails->>code', { count: 'exact' })
+                .order('created_at', { ascending: false })
+                .eq('entreprise_id', session?.entreprise_id)
+                .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
+            
+            if (error_codes) {
+                console.error('Error fetching codes:', error_codes);
+                return;
+            }
+
+            if (!codes_page || codes_page.length === 0) {
+                hasMore = false;
+                break;
+            }
+
+            allCodes = [...allCodes, ...codes_page];
+            
+            // Vérifier s'il reste des données à charger
+            hasMore = count ? allCodes.length < count : false;
+            currentPage++;
         }
 
-        
-        if (!codes_all || codes_all.length === 0) {
+        if (!allCodes || allCodes.length === 0) {
             console.log("Pas de BSDs trouvés");
             return;
         }
 
-        /*const codes = data
-            .map(bsd => bsd?.infos_json?.formAPI?.createFormInput?.wasteDetails?.code)
-            .filter(code => code != null);*/
-        const codes = codes_all.map(code => code.code).filter(code => code != null); //tous les codes CED
+        const codes = allCodes.map(code => code.code).filter(code => code != null);
         
         const array_codes_propres = codes.map(code => code.replaceAll(' ', '').replace('*', '').trim());
         

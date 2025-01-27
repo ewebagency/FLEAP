@@ -55,6 +55,27 @@ const FacturesAnalyse = ({ active }: { active: boolean }) => {
 
     if (!active) return null;
     if (loading) return <p>Chargement des documents...</p>;
+    
+    if (pdfInfos.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] p-5">
+                <BoxIcon 
+                    name='file-pdf' 
+                    color='gray' 
+                    type='regular' 
+                    size="lg"
+                    className="mb-4 w-16 h-16"
+                />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Aucune facture à analyser
+                </h3>
+                <p className="text-sm text-gray-500 text-center max-w-md">
+                    Importez des factures pour commencer l&apos;analyse. 
+                    Les documents apparaîtront ici une fois téléchargés.
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="overflow-x-auto p-5">

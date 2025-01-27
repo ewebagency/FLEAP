@@ -96,17 +96,17 @@ export default function RootLayout({
           <FilterProvider>
             <AccessOtherAccountProvider>
               <ModalProviderNew>
-                <MailProvider>
-                  <NotificationPoller />
-                  <RecurrenceInitializer />
-                  {/*<SSEHandler />*/}
-                  <div className="flex h-screen">
-                    {showSidebar && <SideBar className_props="min-h-full" />}
-                    <main className={`flex-1 overflow-y-auto ${!showSidebar ? 'w-full' : ''}`}>
-                      {children}
-                    </main>
-                  </div>
-                </MailProvider>
+              <MailProvider>
+                <NotificationPoller />
+                <RecurrenceInitializer />
+                {/*<SSEHandler />*/}
+                <div className="flex h-screen">
+                  {showSidebar && <SideBar className_props="min-h-full" />}
+                  <main className={`flex-1 overflow-y-auto ${!showSidebar ? 'w-full' : ''}`}>
+                    {children}
+                  </main>
+                </div>
+              </MailProvider>
               </ModalProviderNew>
             </AccessOtherAccountProvider>
           </FilterProvider>

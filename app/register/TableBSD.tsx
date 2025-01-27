@@ -46,7 +46,7 @@ const getWasteIcon = (filiere: string): { name: string, type?: 'solid' | 'regula
     
     const iconMapping: { keywords: string[], icon: { name: string, type?: 'solid' | 'regular' | 'logo' } }[] = [
         {
-            keywords: ['bois', 'palette', 'meuble'],
+            keywords: ['bois', 'palette', 'palettes', 'meuble'],
             icon: { name: 'tree' }
         },
         {
