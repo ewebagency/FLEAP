@@ -1,6 +1,6 @@
 import { FormInput } from "@/app/register/interface/BSD_Interface";
 import { useModalContextNew } from "../ContextModal";
-import InputFull from "./InputFull";
+import InputMobile from "./InputMobile";
 import { formatText, getDataAutocompletion, getMappingTableFiliere, getFiliere } from "./utils_new";
 import { useEffect, useState } from "react";
 import { useSession } from "@/app/component/SessionProvider";
@@ -358,10 +358,11 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
 
 //Render
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center overflow-y-auto py-2 z-50">
-            <div className="bg-white p-3 rounded-lg shadow-lg w-full max-w-[95%] min-h-screen" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center z-50">
+            <div className="bg-white w-full min-h-screen flex flex-col">
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                <div className="sticky top-0 bg-white p-3 border-b border-gray-200 z-10">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <h3 className="font-bold text-base flex items-center gap-2">
                         <BoxIcon className="mb-1 w-4 h-4" name='truck' type='solid' />
                         <span className="text-green-medium mt-1">
@@ -383,16 +384,19 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                         >
                             Réinitialiser
                         </button>
+                        </div>
                     </div>
                 </div>
                 
-                <form className="space-y-6">
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-3">
+                    <form className="space-y-6 pb-32">
                     {/* Section Point de départ */}
                     <div className="border-b border-gray-200">
                         <div className="text-sm font-semibold mb-3 text-gray-700">Point de départ</div>
                         <div className="space-y-3 pr-2">
                         {/* Site */}
-                        <InputFull
+                        <InputMobile
                             titre="Site"
                             placeholder="Sélectionner un site"
                             options={getUniqueOptions(options, allOptions, opt => opt.emitter.company.name)}
@@ -402,8 +406,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             stylePrimary={true}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Siret"
                             placeholder="Siret"
                             options={getUniqueOptions(options, allOptions, opt => opt.emitter.company.siret)}
@@ -413,10 +418,11 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("emitter.company.siret", changedField)}
+                            onMobile={true}
                         />
                         
                         {/* Point de Collecte */}
-                        <InputFull
+                        <InputMobile
                             titre="Point de collecte"
                             placeholder="Sélectionner un point de collecte"
                             options={getUniqueOptions(options, allOptions, opt => opt.emitter.workSite.name)}
@@ -426,8 +432,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             stylePrimary={true}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Adresse d'enlèvement"
                             placeholder="Adresse"
                             options={getUniqueOptions(options, allOptions, opt => `${formatText(opt.emitter.workSite.fullAddress ?? "")}`)}
@@ -437,10 +444,11 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("emitter.workSite.fullAddress", changedField)}
+                            onMobile={true}
                         />
                         
                         {/* Personne */}
-                        <InputFull
+                        <InputMobile
                             titre="Personne"
                             placeholder="Contact"
                             options={getUniqueOptions(options, allOptions, opt => opt.emitter.company.contact)}
@@ -450,8 +458,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             stylePrimary={true}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Téléphone"
                             placeholder="Téléphone"
                             options={getUniqueOptions(options, allOptions, opt => opt.emitter.company.phone)}
@@ -461,8 +470,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("emitter.company.phone", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Mail"
                             placeholder="Mail"
                             options={getUniqueOptions(options, allOptions, opt => opt.emitter.company.mail)}
@@ -472,6 +482,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("emitter.company.mail", changedField)}
+                            onMobile={true}
                         />
                         </div>
                     </div>
@@ -481,7 +492,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                         <div className="text-sm font-semibold mb-3 text-gray-700">Déchet</div>
                         <div className="space-y-3 pr-2">
                         {/* Filière */}
-                        <InputFull
+                        <InputMobile
                             titre="Filière"
                             placeholder="Sélectionner une filière"
                             options={getUniqueOptions(options, allOptions, opt => getFiliere(opt.wasteDetails.code, ced_table))}
@@ -491,10 +502,11 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             stylePrimary={true}
+                            onMobile={true}
                         />
                         
                         {/* Continuer avec les autres champs de la section Déchet */}
-                        <InputFull
+                        <InputMobile
                             titre="Déchet"
                             placeholder="Sélectionner un déchet"
                             options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.name} - ${opt.wasteDetails.code}`)}
@@ -504,8 +516,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             stylePrimary={true}
+                            onMobile={true}
                         />                            
-                        <InputFull
+                        <InputMobile
                             titre="Description du déchet"
                             placeholder="Description - Appelation destinataire"
                             options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.name}`)}
@@ -515,8 +528,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("wasteDetails.name", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Sujet à l'ADR"
                             placeholder="Sujet à l'ADR"
                             options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.isSubjectToADR}`)}
@@ -526,8 +540,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("wasteDetails.isSubjectToADR", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Code ONU"
                             placeholder="Code ONU"
                             options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.onuCode}`)}
@@ -537,6 +552,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("wasteDetails.onuCode", changedField)}
+                            onMobile={true}
                         />
                         </div>
                     </div>
@@ -545,7 +561,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                     <div className="border-b border-gray-200">
                         <div className="text-sm font-semibold mb-3 text-gray-700">Contenant</div>
                         <div className="space-y-3 pr-2">
-                        <InputFull
+                        <InputMobile
                             titre="Contenant"
                             placeholder="Sélectionner un contenant"
                             options={{
@@ -558,9 +574,10 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             stylePrimary={true}
+                            onMobile={true}
                         />
                         {/* Nouveaux champs pour other_infos */}
-                        <InputFull
+                        <InputMobile
                             titre="Type de contenant"
                             placeholder="Type de contenant"
                             options={{
@@ -573,8 +590,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleOtherInfosChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Volume"
                             placeholder="Volume"
                             options={{
@@ -587,8 +605,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleOtherInfosChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Unité de volume"
                             placeholder="Unité de volume"
                             options={{
@@ -601,8 +620,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleOtherInfosChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Description"
                             placeholder="Description - Volume L/m3"
                             options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.packagingInfos[0].other}`)}
@@ -612,8 +632,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].other", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Nombre"
                             placeholder="Nombre"
                             options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.packagingInfos[0].quantity}`)}
@@ -623,8 +644,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].quantity", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Poids"
                             placeholder="Poids en tonnes"
                             options={{
@@ -637,8 +659,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("wasteDetails.quantity", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Type de quantité "
                             placeholder="Type de quantité"
                             options={{
@@ -651,8 +674,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("wasteDetails.quantityType", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Consistance"
                             placeholder="Consistance"
                             options={{
@@ -665,8 +689,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("wasteDetails.consistence", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Pop"
                             placeholder="Pop"
                             options={{
@@ -679,8 +704,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("wasteDetails.pop", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Dangereux"
                             placeholder="Est dangereux"
                             options={{
@@ -693,6 +719,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={true}
                             display={displayAll || shouldDisplayField("wasteDetails.isDangerous", changedField)}
+                            onMobile={true}
                         />
                         </div>
                     </div>
@@ -702,7 +729,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                         <div className="text-sm font-semibold mb-3 text-gray-700">Prestataires</div>
                         <div className="space-y-3 pr-2">
                         {/* Transporteur */}
-                        <InputFull
+                        <InputMobile
                             titre="Transporteur"
                             placeholder="Sélectionner un transporteur"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.name)}
@@ -712,8 +739,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             stylePrimary={true}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Siret"
                             placeholder="Siret"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.siret)}
@@ -723,8 +751,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("transporter.company.siret", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Contact"
                             placeholder="Contact"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.contact)}
@@ -734,8 +763,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("transporter.company.contact", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Adresse"
                             placeholder="Adresse"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.address)}
@@ -745,8 +775,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("transporter.company.address", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Téléphone"
                             placeholder="Téléphone"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.phone)}
@@ -756,8 +787,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("transporter.company.phone", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Mail"
                             placeholder="Mail"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.mail)}
@@ -767,8 +799,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("transporter.company.mail", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Exemption de récépissé"
                             placeholder="Est exempté de récépissé"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.isExemptedOfReceipt===true ? 'true' : 'false')}
@@ -778,8 +811,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("transporter.isExemptedOfReceipt", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Numéro de plaque"
                             placeholder="Numéro de plaque"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.numberPlate || '')}
@@ -789,8 +823,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("transporter.numberPlate", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Informations complémentaires"
                             placeholder="Informations complémentaires"
                             options={getUniqueOptions(options, allOptions, opt => opt.transporter.customInfo || '')}
@@ -800,6 +835,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("transporter.customInfo", changedField)}
+                            onMobile={true}
                         />
                         </div>
                     </div>
@@ -808,7 +844,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                     <div className="border-b border-gray-200">
                         <div className="text-sm font-semibold mb-3 text-gray-700">Destinataire</div>
                         <div className="space-y-3 pr-2">
-                        <InputFull
+                        <InputMobile
                             titre="Destinataire"
                             placeholder="Sélectionner un destinataire"
                             options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.name)}
@@ -818,8 +854,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             stylePrimary={true}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Siret"
                             placeholder="Siret"
                             options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.siret)}
@@ -829,8 +866,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("recipient.company.siret", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Adresse"
                             placeholder="Adresse"
                             options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.address)}
@@ -840,8 +878,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("recipient.company.address", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Contact"
                             placeholder="Contact"
                             options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.contact)}
@@ -851,8 +890,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("recipient.company.contact", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Téléphone"
                             placeholder="Téléphone"
                             options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.phone)}
@@ -862,8 +902,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("recipient.company.phone", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Mail"
                             placeholder="Mail"
                             options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.mail)}
@@ -873,8 +914,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("recipient.company.mail", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="CAP"
                             placeholder="CAP"
                             options={getUniqueOptions(options, allOptions, opt => opt.recipient.cap || '')}
@@ -884,8 +926,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("recipient.cap", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Opération d'élimination"
                             placeholder="Opération d'élimination"
                             options={getUniqueOptions(options, allOptions, opt => opt.recipient.processingOperation || '')}
@@ -895,8 +938,9 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("recipient.processingOperation", changedField)}
+                            onMobile={true}
                         />
-                        <InputFull
+                        <InputMobile
                             titre="Stockage provisoire"
                             placeholder="Est un stockage provisoire"
                             options={{
@@ -909,6 +953,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             onChange={handleChange}
                             enableText={false}
                             display={displayAll || shouldDisplayField("recipient.isTempStorage", changedField)}
+                            onMobile={true}
                         />
                         </div>
                     </div>
@@ -932,7 +977,8 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                                 wasteDescription: dataToogle.wasteDetails.name,
                                 containerCount: dataToogle.wasteDetails.packagingInfos[0].quantity,
                             }}
-                                />
+                                onMobile={true}
+                            />
                     </div>
                         )}
                         <div className="border-t border-gray-200 pt-4">
@@ -948,6 +994,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                         </div>
                     </div>
                 </form>
+                </div>
             </div>
         </div>
     );

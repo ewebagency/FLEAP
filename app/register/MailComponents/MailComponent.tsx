@@ -29,6 +29,7 @@ interface EmailParams {
 interface MailComponentProps {
     params: EmailParams;
     pastBrouillon?: boolean;
+    onMobile?: boolean;
 }
 
 const emailTemplates: EmailTemplate[] = [
@@ -91,7 +92,7 @@ E-mail envoyé depuis FLEAP.
     }
 ];
 
-const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=false }) => {
+const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=false, onMobile=false }) => {
     const [selectedTemplate, setSelectedTemplate] = useState<number>(0);
     const [to, setTo] = useState<string>(params.destinataire || '');
     const [cc, setCc] = useState<string>('');
@@ -177,11 +178,11 @@ const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=fal
     };
 
     return (
-        <div className="mt-7 w-[95%] ml-8 mb-0">
+        <div className={`mt-7 ${onMobile ? 'w-full px-3' : 'w-[95%] ml-8'} mb-0`}>
             {pastBrouillon && false && <div className="text-center text-xl text-black font-bold">Brouillon</div>}
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                <div className="grid grid-cols-12 divide-x divide-gray-200">
-                    <div className="col-span-4 p-3 space-y-2.5">
+                <div className={`${onMobile ? 'flex flex-col' : 'grid grid-cols-12 divide-x divide-gray-200'}`}>
+                    <div className={`${onMobile ? 'order-1' : 'col-span-4'} p-3 space-y-2.5`}>
                         <div>
                             <label className="block text-xs text-gray-600 mb-1">Modèle</label>
                             <select 
@@ -266,7 +267,7 @@ const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=fal
                         </div>
                     </div>
 
-                    <div className="col-span-8 flex flex-col">
+                    <div className={`${onMobile ? 'order-2' : 'col-span-8'} flex flex-col`}>
                         <textarea
                             required
                             className="flex-1 w-full p-3 text-xs leading-tight text-black font-sans bg-gray-50 border-0 focus:ring-0 resize-none min-h-[250px]"

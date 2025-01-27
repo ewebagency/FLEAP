@@ -767,7 +767,12 @@ const TableBSD = () => {
                             <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px'}}>
                                 <div className="absolute top-1 left-2 w-full">
                                     <div className="font-medium text-[10px] text-gray-600">
-                                        {bsd.readable_id_track_dechets || "ID non disponible"}
+                                        {bsd.readable_id_track_dechets ? 
+                                            (bsd.readable_id_track_dechets.startsWith('BSD-') ? 
+                                                `${bsd.readable_id_track_dechets.substring(0, 15)}...` : 
+                                                bsd.readable_id_track_dechets) : 
+                                            "ID non disponible"
+                                        }
                                     </div>
                                 </div>
                                 <div className="h-full flex items-center mt-2">
@@ -834,11 +839,11 @@ const TableBSD = () => {
                                 <div className="h-full flex flex-col justify-center ml-4 mt-0">
                                     {bsd.status_track_dechets !== null ? (
                                         <>
-                                            <div className={`text-md font-semibold ${getStatusStyle(bsd.status_track_dechets).color}`}>
+                                            <div className={`text-md md:text-md font-semibold ${getStatusStyle(bsd.status_track_dechets).color} text-[13px] md:text-base`}>
                                                 {getStatusStyle(bsd.status_track_dechets).mainText}
                                             </div>
                                             {getStatusStyle(bsd.status_track_dechets).subText && (
-                                                <div className={`text-xs ${getStatusStyle(bsd.status_track_dechets).color} mt-[-4px]`}>
+                                                <div className={`text-xs ${getStatusStyle(bsd.status_track_dechets).color} mt-[-4px] hidden md:block`}>
                                                     {getStatusStyle(bsd.status_track_dechets).subText}
                                                 </div>
                                             )}
@@ -939,7 +944,8 @@ const TableBSD = () => {
                                                 hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
                                                 onClick={() => handleValidateLine(bsd)}
                                             >
-                                                Ajouter au registre
+                                                <span className="hidden md:inline">Ajouter au registre</span>
+                                                <span className="md:hidden">Ajouter</span>
                                             </button>
                                         )}
                                         {/*bsd.status_track_dechets === "Ligne validée" && (
