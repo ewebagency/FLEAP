@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { useFilterContext } from '@/app/FilterContext';
 import { MAIN_OPERATIONS, EXPANDED_OPERATIONS } from '@/app/interface_admin_2/InterfaceAdmin2/constants/formConstants';
+import { formatNumber } from '@/app/utils/formatNumber';
 
 interface Props {
     factures: Facture[];
@@ -216,42 +217,66 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                             .map(([filiere, data], index) => (
                                 <tr key={index} className="border-b hover:bg-gray-50">
                                     <td className="px-2 py-1">{filiere}</td>
-                                    {Object.values(filiereData).some(data => data.preparation > 0) && <td className="px-2 py-1 text-right">{data.preparation.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.transport > 0) && <td className="px-2 py-1 text-right">{data.transport.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.traitement > 0) && <td className="px-2 py-1 text-right">{data.traitement.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.gestion_globale > 0) && <td className="px-2 py-1 text-right">{data.gestion_globale.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.tgap > 0) && <td className="px-2 py-1 text-right">{data.tgap.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.declassement > 0) && <td className="px-2 py-1 text-right">{data.declassement.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.penalites > 0) && <td className="px-2 py-1 text-right">{data.penalites.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.rachat > 0) && <td className="px-2 py-1 text-right">{data.rachat.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.location > 0) && <td className="px-2 py-1 text-right">{data.location.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.maintenance > 0) && <td className="px-2 py-1 text-right">{data.maintenance.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.mise_a_disposition > 0) && <td className="px-2 py-1 text-right">{data.mise_a_disposition.toFixed(2)}€</td>}
-                                    {Object.values(filiereData).some(data => data.autres_contenant > 0) && <td className="px-2 py-1 text-right">{data.autres_contenant.toFixed(2)}€</td>}
+                                    {Object.values(filiereData).some(data => data.preparation > 0) && 
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.preparation)}€</td>}
+                                    {Object.values(filiereData).some(data => data.transport > 0) && 
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.transport)}€</td>}
+                                    {Object.values(filiereData).some(data => data.traitement > 0) && 
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.traitement)}€</td>}
+                                    {Object.values(filiereData).some(data => data.gestion_globale > 0) && 
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.gestion_globale)}€</td>}
+                                    {Object.values(filiereData).some(data => data.tgap > 0) && 
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.tgap)}€</td>}
+                                    {Object.values(filiereData).some(data => data.declassement > 0) && 
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.declassement)}€</td>}
+                                    {Object.values(filiereData).some(data => data.penalites > 0) && 
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.penalites)}€</td>}
+                                    {Object.values(filiereData).some(data => data.rachat > 0) && 
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.rachat)}€</td>}
+                                    {Object.values(filiereData).some(data => data.location > 0) && 
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.location)}€</td>}
+                                    {Object.values(filiereData).some(data => data.maintenance > 0) && 
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.maintenance)}€</td>}
+                                    {Object.values(filiereData).some(data => data.mise_a_disposition > 0) && 
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.mise_a_disposition)}€</td>}
+                                    {Object.values(filiereData).some(data => data.autres_contenant > 0) && 
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.autres_contenant)}€</td>}
                                     {(Object.values(filiereData).some(data => data.non_expliques > 0 || data.autres > 0)) && 
-                                        <td className="px-2 py-1 text-right">{(data.non_expliques + data.autres).toFixed(2)}€</td>}
-                                    <td className="px-2 py-1 text-right">{data.total.toFixed(2)}€</td>
+                                        <td className="px-2 py-1 text-right">{formatNumber(data.non_expliques + data.autres)}€</td>}
+                                    <td className="px-2 py-1 text-right">{formatNumber(data.total)}€</td>
                                 </tr>
                             ))}
                     </tbody>
                     <tfoot className="sticky bottom-0 bg-white">
                         <tr className="bg-gray-50">
                             <td className="px-2 py-1">Total</td>
-                            {Object.values(filiereData).some(data => data.preparation > 0) && <td className="px-2 py-1 text-right">{totals.preparation.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.transport > 0) && <td className="px-2 py-1 text-right">{totals.transport.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.traitement > 0) && <td className="px-2 py-1 text-right">{totals.traitement.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.gestion_globale > 0) && <td className="px-2 py-1 text-right">{totals.gestion_globale.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.tgap > 0) && <td className="px-2 py-1 text-right">{totals.tgap.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.declassement > 0) && <td className="px-2 py-1 text-right">{totals.declassement.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.penalites > 0) && <td className="px-2 py-1 text-right">{totals.penalites.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.rachat > 0) && <td className="px-2 py-1 text-right">{totals.rachat.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.location > 0) && <td className="px-2 py-1 text-right">{totals.location.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.maintenance > 0) && <td className="px-2 py-1 text-right">{totals.maintenance.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.mise_a_disposition > 0) && <td className="px-2 py-1 text-right">{totals.mise_a_disposition.toFixed(2)}€</td>}
-                            {Object.values(filiereData).some(data => data.autres_contenant > 0) && <td className="px-2 py-1 text-right">{totals.autres_contenant.toFixed(2)}€</td>}
+                            {Object.values(filiereData).some(data => data.preparation > 0) && 
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.preparation)}€</td>}
+                            {Object.values(filiereData).some(data => data.transport > 0) && 
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.transport)}€</td>}
+                            {Object.values(filiereData).some(data => data.traitement > 0) && 
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.traitement)}€</td>}
+                            {Object.values(filiereData).some(data => data.gestion_globale > 0) && 
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.gestion_globale)}€</td>}
+                            {Object.values(filiereData).some(data => data.tgap > 0) && 
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.tgap)}€</td>}
+                            {Object.values(filiereData).some(data => data.declassement > 0) && 
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.declassement)}€</td>}
+                            {Object.values(filiereData).some(data => data.penalites > 0) && 
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.penalites)}€</td>}
+                            {Object.values(filiereData).some(data => data.rachat > 0) && 
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.rachat)}€</td>}
+                            {Object.values(filiereData).some(data => data.location > 0) && 
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.location)}€</td>}
+                            {Object.values(filiereData).some(data => data.maintenance > 0) && 
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.maintenance)}€</td>}
+                            {Object.values(filiereData).some(data => data.mise_a_disposition > 0) && 
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.mise_a_disposition)}€</td>}
+                            {Object.values(filiereData).some(data => data.autres_contenant > 0) && 
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.autres_contenant)}€</td>}
                             {(Object.values(filiereData).some(data => data.non_expliques > 0 || data.autres > 0)) && 
-                                <td className="px-2 py-1 text-right">{(totals.non_expliques + totals.autres).toFixed(2)}€</td>}
-                            <td className="px-2 py-1 text-right">{totals.total.toFixed(2)}€</td>
+                                <td className="px-2 py-1 text-right">{formatNumber(totals.non_expliques + totals.autres)}€</td>}
+                            <td className="px-2 py-1 text-right">{formatNumber(totals.total)}€</td>
                         </tr>
                     </tfoot>
                 </table>

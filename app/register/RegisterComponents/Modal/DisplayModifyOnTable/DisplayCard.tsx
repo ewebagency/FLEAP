@@ -128,20 +128,22 @@ const DisplayCard = () => {
                                 </div>
 
                                 {/* Ajout d'une nouvelle section pour other_infos si elle existe */}
-                                {otherInfos?.container?.description && (
+                                {otherInfos?.volume && (
                                     <div className="bg-indigo-50 p-3 rounded border border-indigo-100 mt-4">
                                         <div className="flex justify-start items-center space-x-2">
+
                                             <h3 className="font-semibold text-indigo-800 mb-2">Informations contenant</h3>
                                             <p className="text-sm text-gray-600 mb-2">- N&apos;est pas sur TrackDéchets</p>
                                         </div>
                                         <LabelValue 
                                             label="Infos supp." 
-                                            value={otherInfos.container.description.type} 
+                                            value={otherInfos.containerDescription} 
                                         />
                                         <LabelValue 
                                             label="Volume" 
-                                            value={`${otherInfos.container.description.volume} ${otherInfos.container.description.volumeUnit}`} 
+                                            value={`${otherInfos.volume} ${otherInfos.volumeUnit}`} 
                                         />
+
                                     </div>
                                 )}
 

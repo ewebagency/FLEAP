@@ -69,8 +69,10 @@ const convertToISO = (dateInput: string | number | boolean | undefined): string 
 
 // Nouvelle interface pour les données financières
 interface FactureData {
+    created_at: string;
     user_id: string;
     entreprise_id: string;
+
     /*other_infos: {
         code_ced: string;
         siret_emetteur: string;
@@ -247,7 +249,7 @@ export const mapToFactureFormat = (row: Row): FactureData => {
                 bon_pesee: "",
                 site_siret: siretFunction(row["siretEmetteur"]?.toString()) || "",
                 code_dechet: row["codeCed"]?.toString() || "Inconnu",
-                date_depart: convertToISO(row["dateCollecteTransporteur"]) || "2023-11-30",
+                date_depart: convertToISO(row["dateCollecteTransporteur"]) || new Date().toISOString(),
                 num_dossier: "",
                 type_dechet: row["descDechet"]?.toString() || "Inconnu",
                 bon_intention: "",
@@ -271,6 +273,7 @@ export const mapToFactureFormat = (row: Row): FactureData => {
     };
 
     return {
+        created_at: "",
         user_id: "", // Sera rempli plus tard
         entreprise_id: "", // Sera rempli plus tard
         infos_json: factureJSON,
@@ -365,6 +368,7 @@ const ButtonImportFacture = () => {
                     throw new Error("User ID non trouvé");
                 }
                 factureData.entreprise_id = entreprise_infos.entreprise_id;
+                factureData.created_at = factureData.infos_json.header.date_facture;
                 await sendToSupabase(factureData);
             }
             

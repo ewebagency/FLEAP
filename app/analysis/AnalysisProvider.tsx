@@ -27,7 +27,7 @@ export const AnalysisContext = createContext<AnalysisContextType | null>(null);
 
 export const AnalysisProvider = ({ children }: { children: React.ReactNode }) => {
     const session = useSession();
-    const { filieres, points_collecte, sites, filieres_ou_prestataires } = useFilterContext();
+    const { filieres, points_collecte, sites, filieres_ou_prestataires, segmentDates } = useFilterContext();
     const [loading, setLoading] = useState(true);
     const [bsds, setBsds] = useState<BSD[]>([]);
     const [mappingTable, setMappingTable] = useState<Array<{ ced: string; filiere: string }>>([]);
@@ -101,13 +101,18 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
                     checkedFilieres.filter(f => f !== 'Autres').includes(mapping.filiere))
                 .map((mapping: {ced: string}) => cleanCED(mapping.ced));
 
-            const formatCEDs = (ceds: string[]) => {
-                return ceds.flatMap(ced => [
-                    ced,
-                    ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim(),
-                    ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim() + '*'
-                ]);
-            };
+                const formatCEDs = (ceds: string[]) => {
+                    return ceds.flatMap(ced => {
+                        const base = ced.replace('*', ''); // Retire l'éventuel `*`
+                        const spaced = base.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+                        return [
+                            base,          // Version sans `*`
+                            base + '*',    // Version avec `*`
+                            spaced,        // Version avec espaces
+                            spaced + '*'   // Version avec espaces + `*`
+                        ];
+                    });
+                };
 
             // Si "Autres" est sélectionné
             if (checkedFilieres.includes('Autres')) {
@@ -174,6 +179,24 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
             currentPage++;
         }
 
+        // Après avoir récupéré les données, filtrer par date
+        if (segmentDates.debut || segmentDates.fin) {
+            const startDate = segmentDates.debut ? new Date(segmentDates.debut).getTime() : null;
+            const endDate = segmentDates.fin ? new Date(segmentDates.fin).setHours(23, 59, 59, 999) : null;
+
+            allData = allData.filter(bsd => {
+                const dateToCheck = new Date(bsd.created_at.replace(' ', 'T')).getTime();
+
+                if (startDate && dateToCheck < startDate) {
+                    return false;
+                }
+                if (endDate && dateToCheck > endDate) {
+                    return false;
+                }
+                return true;
+            });
+        }
+
         console.log('Nombre total de BSDs récupérés dans analyse:', allData.length);
         setBsds(allData);
     };
@@ -181,7 +204,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
     useEffect(() => {
         setLoading(true);
         fetchBSDs().finally(() => setLoading(false));
-    }, [session, filieres, points_collecte, sites]);
+    }, [session, filieres, points_collecte, sites, segmentDates]);
 
     return (
         <AnalysisContext.Provider value={{ 

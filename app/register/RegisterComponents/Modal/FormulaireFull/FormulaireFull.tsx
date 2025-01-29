@@ -8,6 +8,8 @@ import MailComponent from "@/app/register/MailComponents/MailComponent";
 import ModifyCardInFormulaireNew from "./ModifyCardInFormulaireNew";
 import { supabase } from "@/app/database/supabaseClient";
 import BoxIcon from "@/app/component/BoxIconWrapper";
+//import PopUp from "./PopUp";
+import { useFilterContext } from "@/app/FilterContext";
 
 const initialToogleData: FormInput = {
     emitter: {
@@ -70,23 +72,17 @@ const initialToogleData: FormInput = {
 
 // Ajouter après la définition de initialToogleData
 export interface OtherInfos {
-  container: {
-    description: {
-      type: string;
-      volume: string;
-      volumeUnit: string;
-    }
-  }
+    containerDescription: string;
+    volume: string;
+    volumeUnit: string;
+    fillRate: string;
 }
 
 const initialOtherInfos: OtherInfos = {
-  container: {
-    description: {
-      type: "",
-      volume: "",
-      volumeUnit: ""
-    }
-  }
+  containerDescription: "",
+  volume: "",
+  volumeUnit: "",
+  fillRate: ""
 };
 
 // Définition de la structure des dépendances
@@ -113,7 +109,19 @@ const inputDependencies: InputDependencies = {
         children: ['wasteDetails.name', 'wasteDetails.isSubjectToADR', 'wasteDetails.onuCode']
     },
     'wasteDetails.packagingInfos[0].type': {
-        children: ['wasteDetails.packagingInfos[0].other', 'wasteDetails.packagingInfos[0].quantity', 'wasteDetails.quantity', 'wasteDetails.quantityType', 'wasteDetails.consistence', 'wasteDetails.pop', 'wasteDetails.isDangerous']
+        children: [
+            'wasteDetails.packagingInfos[0].other',
+            'wasteDetails.packagingInfos[0].quantity',
+            'wasteDetails.quantity',
+            'wasteDetails.quantityType',
+            'wasteDetails.consistence',
+            'wasteDetails.pop',
+            'wasteDetails.isDangerous',
+            'volume',
+            'volumeUnit',
+            'containerDescription',
+            'fillRate'
+        ]
     },
     'emitter.company.contact': {
         children: ['emitter.company.mail', 'emitter.company.phone']
@@ -223,6 +231,7 @@ const FormulaireFull = () => {
     const [allOptions, setAllOptions] = useState<FormInput[]>([]);
     const [changedField, setChangedField] = useState<string>("");
     const [other_infos, setOtherInfos] = useState<OtherInfos>(initialOtherInfos);
+    const { sites } = useFilterContext();
 
 //Initialisation des options
 useEffect(() => {
@@ -241,6 +250,25 @@ useEffect(() => {
         getMappingTableFiliere(session.entreprise_id).then(data => setCedTable(data));
     }
 }, [session]);
+
+// Ajouter un useEffect pour initialiser les données avec le site sélectionné
+useEffect(() => {
+    // Trouver le premier site coché
+    const checkedSite = sites.find(site => site.checked);
+    if (checkedSite) {
+        setDataToogle(prev => ({
+            ...prev,
+            emitter: {
+                ...prev.emitter,
+                company: {
+                    ...prev.emitter.company,
+                    name: checkedSite.name,
+                    siret: checkedSite.orgId
+                }
+            }
+        }));
+    }
+}, [sites]); // Se déclenche quand les sites changent
 
 //HandleChange
 const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => {
@@ -340,20 +368,16 @@ const toogleFunction = () => {
 }
 
 // Ajouter cette nouvelle fonction de mise à jour
-const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => {
-    const { name, value } = e.target;
-    setOtherInfos(prev => {
-        const newData = JSON.parse(JSON.stringify(prev));
-        const path = name.split('.');
-        let current: Record<string, unknown> = newData;
-        
-        for (let i = 0; i < path.length - 1; i++) {
-            current = current[path[i]] as Record<string, unknown>;
-        }
-        current[path[path.length - 1]] = value;
-        
-        return newData;
-    });
+const handleOtherInfosChange = (updates: Partial<{
+    containerDescription: string;
+    volume: string;
+    volumeUnit: string;
+    fillRate: string;
+}>) => {
+    setOtherInfos(prev => ({
+        ...prev,
+        ...updates
+    }));
 };
 
 //Render
@@ -580,57 +604,68 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                                 />
                                 {/* Nouveaux champs pour other_infos */}
                                 <InputFull
-                                    titre="Type de contenant"
-                                    placeholder="Type de contenant"
-                                    options={{
-                                        filteredOptions: [],
-                                        allOptions: ['Fût métallique', 'GRV plastique', 'Citerne', 'Benne', 'Pipeline', 'Autre']
-                                    }}
-                                    width={1}
-                                    name="container.description.type"
-                                    value={other_infos.container.description.type}
-                                    onChange={handleOtherInfosChange}
-                                    enableText={true}
-                                    display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)}
-                                />
-                                <InputFull
                                     titre="Volume"
                                     placeholder="Volume"
+                                    name="volume"
+                                    value={other_infos.volume || ''}
+                                    onChange={(e: string | { target: { name: string; value: string } }) => {
+                                        const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                        handleOtherInfosChange({ volume: String(newValue) })
+                                    }}
                                     options={{
                                         filteredOptions: [],
-                                        allOptions: ['100', '200', '500', '1000']
+                                        allOptions: ['20', '30', '100', '200', '500', '1000']
                                     }}
-                                    width={1}
-                                    name="container.description.volume"
-                                    value={other_infos.container.description.volume}
-                                    onChange={handleOtherInfosChange}
-                                    enableText={true}
-                                    display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)}
+                                    enabled={true}
+                                    display={displayAll || shouldDisplayField("volume", changedField)}
                                 />
                                 <InputFull
                                     titre="Unité de volume"
                                     placeholder="Unité de volume"
+                                    name="volumeUnit"
+                                    value={other_infos.volumeUnit || ''}
+                                    onChange={(e: string | { target: { name: string; value: string } }) => {
+                                        const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                        handleOtherInfosChange({ volumeUnit: String(newValue) })
+                                    }}
                                     options={{
                                         filteredOptions: [],
-                                        allOptions: ['L', 'm³']
+                                        allOptions: ['m3', 'L']
                                     }}
-                                    width={1}
-                                    name="container.description.volumeUnit"
-                                    value={other_infos.container.description.volumeUnit}
-                                    onChange={handleOtherInfosChange}
-                                    enableText={true}
-                                    display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)}
+                                    enabled={true}
+                                    display={displayAll || shouldDisplayField("volumeUnit", changedField)}
                                 />
                                 <InputFull
                                     titre="Description"
-                                    placeholder="Description - Volume L/m3"
-                                    options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.packagingInfos[0].other}`)}
-                                    width={1}
-                                    name="wasteDetails.packagingInfos[0].other"
-                                    value={`${dataToogle.wasteDetails.packagingInfos[0].other}`}
-                                    onChange={handleChange}
-                                    enableText={false}
-                                    display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].other", changedField)}
+                                    placeholder="Description du conteneur"
+                                    name="containerDescription"
+                                    value={other_infos.containerDescription || ''}
+                                    onChange={(e: string | { target: { name: string; value: string } }) => {
+                                        const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                        handleOtherInfosChange({ containerDescription: String(newValue) })
+                                    }}
+                                    options={{
+                                        filteredOptions: [],
+                                        allOptions: ['Benne', 'Citerne', 'Pipeline', 'Autre']
+                                    }}
+                                    enabled={true}
+                                    display={displayAll || shouldDisplayField("containerDescription", changedField)}
+                                />
+                                <InputFull
+                                    titre="Remplissage"
+                                    placeholder="Taux de remplissage"
+                                    name="fillRate"
+                                    value={other_infos.fillRate || ''}
+                                    onChange={(e: string | { target: { name: string; value: string } }) => {
+                                        const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                        handleOtherInfosChange({ fillRate: String(newValue) })
+                                    }}
+                                    options={{
+                                        filteredOptions: [],
+                                        allOptions: ['50', '75', '95']
+                                    }}
+                                    enabled={true}
+                                    display={displayAll || shouldDisplayField("fillRate", changedField)}
                                 />
                                 <InputFull
                                     titre="Nombre"
@@ -703,7 +738,7 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                                     titre="Dangereux"
                                     placeholder="Est dangereux"
                                     options={{
-                                        filteredOptions: [dataToogle.wasteDetails.code.includes('*') ? 'true' : 'false'],
+                                        filteredOptions: [dataToogle.wasteDetails.code?.includes('*') ? 'true' : 'false'],
                                         allOptions: ['true', 'false']
                                     }}
                                     width={1}
@@ -964,6 +999,17 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             modalType={modalType}
                             otherInfos={other_infos}
                         />
+                        {/*<PopUp 
+                            dataToogle={dataToogle} 
+                            setDataToogle={setDataToogle} 
+                            modalType={modalType} 
+                            onMobile={true} 
+                            otherInfos={other_infos} 
+                            setOtherInfos={setOtherInfos}
+                            getUniqueOptions={getUniqueOptions}
+                            options={options}
+                            allOptions={allOptions}
+                        />*/}
                     </div>
                     {/*<button type="button" className="text-md h-[25px] text-gray-500 bg-gray-200 px-2 rounded-md font-thin hover:text-gray-700 active:font-bold" onClick={() => setDisplayFormulaire(false)}>Fermer</button>*/}
                 </form>
@@ -1016,7 +1062,7 @@ function replaceLastOccurrence(str: string, search: string, replacement: string)
     return str.substring(0, lastIndex) + replacement + str.substring(lastIndex + search.length);
 }
 
-const getUniqueOptions = (filteredOptions: FormInput[], allOptions: FormInput[], selector: (opt: FormInput) => string) => {
+export const getUniqueOptions = (filteredOptions: FormInput[], allOptions: FormInput[], selector: (opt: FormInput) => string) => {
     const filteredValues = Array.from(new Set(filteredOptions.map(selector))).filter(Boolean) as string[];
     const allValues = Array.from(new Set(allOptions.map(selector))).filter(Boolean) as string[];
     

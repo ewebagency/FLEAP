@@ -18,14 +18,16 @@ interface Props {
 
 const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
-    const { filieres } = useFilterContext();
+    const { filieres, segmentDates, setSegmentDates } = useFilterContext();
     
-    const [startDate, setStartDate] = useState<Date>(() => {
-        const date = new Date();
-        date.setMonth(date.getMonth() - 11);
-        return date;
-    });
-    const [endDate, setEndDate] = useState<Date>(new Date());
+    const handleDateChange = (date: Date | null, type: 'debut' | 'fin') => {
+        if (date) {
+            setSegmentDates({
+                ...segmentDates,
+                [type]: date
+            });
+        }
+    };
 
     useEffect(() => {
         const fetchMappingTable = async () => {
@@ -40,7 +42,9 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
         if (!mappingTable.length) return null;
 
         const monthLabels: string[] = [];
-        const currentDate = new Date(startDate);
+        const currentDate = new Date(segmentDates.debut || new Date());
+        const endDate = segmentDates.fin || new Date();
+        
         while (currentDate <= endDate) {
             const label = currentDate.toLocaleString('fr-FR', { 
                 month: 'short',
@@ -59,7 +63,7 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                 }
 
                 const date = new Date(depart.line_header.date_depart);
-                if (date < startDate || date > endDate) {
+                if (date < (segmentDates.debut || new Date(0)) || date > (segmentDates.fin || new Date())) {
                     return;
                 }
 
@@ -76,7 +80,7 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                 }
 
                 const monthIndex = Math.floor(
-                    (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+                    (date.getTime() - (segmentDates.debut || new Date(0)).getTime()) / (1000 * 60 * 60 * 24 * 30.44)
                 );
 
                 if (monthIndex >= 0 && monthIndex < monthLabels.length) {
@@ -113,7 +117,7 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             labels: monthLabels,
             datasets: sortedDatasets
         };
-    }, [factures, mappingTable, filieres, startDate, endDate]);
+    }, [factures, mappingTable, filieres, segmentDates]);
 
     if (!mappingTable.length) {
         return <div className="text-center text-gray-500">Chargement des données...</div>;
@@ -195,12 +199,6 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
         }
     };
 
-    const handleDateChange = (date: Date | null, setter: (date: Date) => void) => {
-        if (date) {
-            setter(date);
-        }
-    };
-
     return (
         <div className="mt-4">
             <div className="bg-white rounded-lg shadow relative">
@@ -208,9 +206,9 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                     <div className="flex items-center space-x-2">
                         <button
                             onClick={() => {
-                                const newDate = new Date(startDate);
-                                newDate.setMonth(startDate.getMonth() - 1);
-                                setStartDate(newDate);
+                                const newDate = new Date(segmentDates.debut || new Date());
+                                newDate.setMonth(newDate.getMonth() - 1);
+                                handleDateChange(newDate, 'debut');
                             }}
                             className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
                         >
@@ -221,11 +219,11 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                         <div className="flex items-center space-x-0">
                             <span className="text-xs text-gray-600">Début:</span>
                             <DatePicker
-                                selected={startDate}
-                                onChange={(date) => handleDateChange(date, setStartDate)}
+                                selected={segmentDates.debut}
+                                onChange={(date) => handleDateChange(date, 'debut')}
                                 selectsStart
-                                startDate={startDate}
-                                endDate={endDate}
+                                startDate={segmentDates.debut}
+                                endDate={segmentDates.fin}
                                 dateFormat="MMM yy"
                                 showMonthYearPicker
                                 className="w-12 mb-[5px] pl-[4px] px-0 py-0 text-xs rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -233,10 +231,10 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                         </div>
                         <button
                             onClick={() => {
-                                const newDate = new Date(startDate);
-                                newDate.setMonth(startDate.getMonth() + 1);
-                                if (newDate < endDate) {
-                                    setStartDate(newDate);
+                                const newDate = new Date(segmentDates.debut || new Date());
+                                newDate.setMonth(newDate.getMonth() + 1);
+                                if (newDate < (segmentDates.fin || new Date())) {
+                                    handleDateChange(newDate, 'debut');
                                 }
                             }}
                             className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
@@ -252,10 +250,10 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                     <div className="flex items-center space-x-2">
                         <button
                             onClick={() => {
-                                const newDate = new Date(endDate);
-                                newDate.setMonth(endDate.getMonth() - 1);
-                                if (newDate > startDate) {
-                                    setEndDate(newDate);
+                                const newDate = new Date(segmentDates.fin || new Date());
+                                newDate.setMonth(newDate.getMonth() - 1);
+                                if (newDate > (segmentDates.debut || new Date())) {
+                                    handleDateChange(newDate, 'fin');
                                 }
                             }}
                             className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
@@ -267,11 +265,11 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                         <div className="flex items-center space-x-0">
                             <span className="text-xs text-gray-600">Fin :</span>
                             <DatePicker
-                                selected={endDate}
-                                onChange={(date) => handleDateChange(date, setEndDate)}
+                                selected={segmentDates.fin}
+                                onChange={(date) => handleDateChange(date, 'fin')}
                                 selectsEnd
-                                startDate={startDate}
-                                endDate={endDate}
+                                startDate={segmentDates.debut}
+                                endDate={segmentDates.fin}
                                 dateFormat="MMM yy"
                                 showMonthYearPicker
                                 className="w-12 mb-[5px] pl-[4px] px-0 py-0 text-xs rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -279,9 +277,9 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                         </div>
                         <button
                             onClick={() => {
-                                const newDate = new Date(endDate);
-                                newDate.setMonth(endDate.getMonth() + 1);
-                                setEndDate(newDate);
+                                const newDate = new Date(segmentDates.fin || new Date());
+                                newDate.setMonth(newDate.getMonth() + 1);
+                                handleDateChange(newDate, 'fin');
                             }}
                             className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
                         >

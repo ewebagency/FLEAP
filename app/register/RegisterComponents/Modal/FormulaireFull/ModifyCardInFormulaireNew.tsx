@@ -980,7 +980,7 @@ const ModifyCardInFormulaireNew = ({
         )}
 
         {(!cookie_token && dataText.wasteDetails.isDangerous && modalType !== 'create_line') && 
-          <div className={`bg-red-400 text-white text-sm text-center item-center p-2 rounded-md flex-1`}>
+          <div className={`bg-red-400 text-white text-sm text-center item-center p-2 rounded-md flex-2`}>
             {onMobile ? 'Connexion requise' : 'Vous devez être connecté pour envoyer à TrackDéchets'}
           </div>
         }
@@ -1031,7 +1031,7 @@ const ModifyCardInFormulaireNew = ({
           <button
             type="button"
             onClick={handleCreateLine}
-            className={`px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex-1`}
+            className={`px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex-2`}
           >
             {onMobile ? "Créer" : "Créer la ligne"}
           </button>

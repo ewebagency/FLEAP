@@ -133,6 +133,7 @@ const SideBar = (props:SideBarProps) => {
                                 <FiltreDate/>  
                             </>
                         )}
+                        <div className="h-[20px]"></div>
                         <ul className="space-y-1">
                             {(cofounderPermission || true) && (
                                 <li>

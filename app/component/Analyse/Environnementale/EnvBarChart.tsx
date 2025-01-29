@@ -109,7 +109,7 @@ const treatmentColors = {
 
 const EnvBarChart = () => {
     const { bsds, mappingTable, filieres_ou_prestataires, siretToName } = useAnalysis();
-    const { filieres } = useFilterContext();
+    const { filieres, segmentDates, setSegmentDates } = useFilterContext();
     const [monthlyData, setMonthlyData] = useState<LocalChartData>({
         labels: [],
         datasets: []
@@ -118,12 +118,6 @@ const EnvBarChart = () => {
         labels: [],
         datasets: []
     });
-    const [startDate, setStartDate] = useState<Date>(() => {
-        const date = new Date();
-        date.setMonth(date.getMonth() - 11);
-        return date;
-    });
-    const [endDate, setEndDate] = useState<Date>(new Date());
     const [sortedTreatments, setSortedTreatments] = useState<[string, TreatmentStats][]>([]);
     const [totals, setTotals] = useState<{
         tonnage: number;
@@ -151,6 +145,15 @@ const EnvBarChart = () => {
             'rgb(173, 216, 230)',    // Bleu poudré
     ];
 
+    const handleDateChange = (date: Date | null, type: 'debut' | 'fin') => {
+        if (date) {
+            setSegmentDates({
+                ...segmentDates,
+                [type]: date
+            });
+        }
+    };
+
     useEffect(() => {
         if (!bsds || bsds.length === 0) return;
 
@@ -160,7 +163,9 @@ const EnvBarChart = () => {
         
         // Créer les labels de mois dynamiquement basés sur la plage de dates
         const monthLabels: string[] = [];
-        const currentDate = new Date(startDate);
+        const currentDate = new Date(segmentDates.debut || new Date());
+        const endDate = segmentDates.fin || new Date();
+        
         while (currentDate <= endDate) {
             monthLabels.push(currentDate.toLocaleString('fr-FR', { 
                 month: 'short',
@@ -173,33 +178,16 @@ const EnvBarChart = () => {
         const numberOfMonths = monthLabels.length;
         
         bsds.forEach((bsd: {created_at:string, infos_json:{formAPI:{createFormInput:FormInput}}}) => {
+            const date = new Date(bsd.created_at);
+            const startDate = new Date(segmentDates.debut || new Date());
+            
+            // Vérifier si la date est dans la plage
+            if (date < startDate || date > endDate) return;
+
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
             const cedCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
             const processingOperation = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || 'default';
             
-            // Nouvelle logique de date
-            let bsdDate;
-            if (bsd.infos_json?.formAPI?.createFormInput?.takenOverAt) {
-                const takenOverDate = new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt);
-                if (!isNaN(takenOverDate.getTime()) && 
-                    takenOverDate.getFullYear() >= 2020 && 
-                    takenOverDate.getFullYear() <= 2030) {
-                    bsdDate = takenOverDate;
-                } else {
-                    bsdDate = new Date(bsd.created_at);
-                }
-            } else {
-                bsdDate = new Date(bsd.created_at);
-            }
-            
-            // Vérifier si la date est dans la plage sélectionnée
-            if (bsdDate >= startDate && bsdDate <= endDate) {
-                // Calculer l'index du mois relatif au début de la période
-                const monthIndex = Math.floor(
-                    (bsdDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-                );
-                
-                if (monthIndex >= 0 && monthIndex < numberOfMonths) {
             // Déterminer la clé (filière ou prestataire)
             let key;
             if (filieres_ou_prestataires.nom === 'filiere') {
@@ -213,10 +201,17 @@ const EnvBarChart = () => {
                 const carbonEmission = parseFloat(estimerCarbone(cedCode, processingOperation, quantity));
                 
                 if (!monthlyEmissions.has(key)) {
-                            monthlyEmissions.set(key, Array(numberOfMonths).fill(0));
+                    monthlyEmissions.set(key, Array(numberOfMonths).fill(0));
                 }
                 const monthlyValues = monthlyEmissions.get(key)!;
-                        monthlyValues[monthIndex] += carbonEmission;
+                
+                // Calculer l'index du mois relatif à la période
+                const monthIndex = Math.floor(
+                    (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+                );
+                if (monthIndex >= 0 && monthIndex < monthLabels.length) {
+                    monthlyValues[monthIndex] += carbonEmission;
+                }
 
                 if (!treatmentEmissions.has(processingOperation)) {
                     treatmentEmissions.set(processingOperation, new Map<string, number>());
@@ -225,8 +220,6 @@ const EnvBarChart = () => {
                 treatmentMap.set(key, (treatmentMap.get(key) || 0) + carbonEmission);
             } catch (error) {
                 // Ignorer les erreurs de calcul
-                    }
-                }
             }
         });
 
@@ -267,6 +260,9 @@ const EnvBarChart = () => {
 
         // Calculer les totaux par méthode de traitement
         bsds.forEach((bsd) => {
+            const date = new Date(bsd.created_at);
+            if (segmentDates.debut && segmentDates.fin && (date < segmentDates.debut || date > segmentDates.fin)) return;
+
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
             const processingOperation = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || 'default';
             const cedCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
@@ -276,8 +272,12 @@ const EnvBarChart = () => {
             }
 
             const stats = treatmentStats.get(processingOperation)!;
-            stats.tonnage += quantity;
-            stats.carbon += parseFloat(estimerCarbone(cedCode, processingOperation, quantity));
+            try {
+                stats.tonnage += Number(quantity) || 0;
+                stats.carbon += parseFloat(estimerCarbone(cedCode, processingOperation, quantity));
+            } catch (error) {
+                console.warn('Erreur de calcul pour le BSD:', error);
+            }
         });
 
         // Calculer les totaux pour les pourcentages
@@ -301,22 +301,27 @@ const EnvBarChart = () => {
 
         setSortedTreatments(sorted);
 
-        // Créer les datasets
+        // Modifier la création des datasets pour le graphique des traitements
         setTreatmentData({
             labels: ['Tonnage', 'Équivalent CO₂'],
-            datasets: sorted.map(([code, stats]) => ({
-                label: treatmentLabels[code.replaceAll(' ', '') as keyof typeof treatmentLabels] || code,
-                data: [
-                    totalTonnage > 0 ? (Number(stats.tonnage) || 0) / totalTonnage * 100 : 0,
-                    totalCarbon > 0 ? (Number(stats.carbon) || 0) / totalCarbon * 100 : 0
-                ],
-                backgroundColor: treatmentColors[code.replaceAll(' ', '') as keyof typeof treatmentColors] || treatmentColors.default,
-                borderColor: treatmentColors[code.replaceAll(' ', '') as keyof typeof treatmentColors] || treatmentColors.default,
-                borderWidth: 1
-            }))
+            datasets: sorted
+                .filter(([code, stats]) => stats.tonnage > 0 || stats.carbon > 0) // Filtrer les traitements vides
+                .map(([code, stats]) => {
+                    const cleanCode = code.replaceAll(' ', '');
+                    return {
+                        label: treatmentLabels[cleanCode as keyof typeof treatmentLabels] || code,
+                        data: [
+                            totalTonnage > 0 ? (stats.tonnage / totalTonnage * 100) : 0,
+                            totalCarbon > 0 ? (stats.carbon / totalCarbon * 100) : 0
+                        ],
+                        backgroundColor: treatmentColors[cleanCode as keyof typeof treatmentColors] || treatmentColors.default,
+                        borderColor: treatmentColors[cleanCode as keyof typeof treatmentColors] || treatmentColors.default,
+                        borderWidth: 1
+                    };
+                })
         });
 
-    }, [bsds, mappingTable, filieres_ou_prestataires, filieres, siretToName, startDate, endDate]);
+    }, [bsds, mappingTable, filieres_ou_prestataires, filieres, siretToName, segmentDates]);
 
     const monthlyOptions: ChartOptions<'bar'> = {
         responsive: true,
@@ -419,14 +424,12 @@ const EnvBarChart = () => {
                         )?.[1];
                         
                         if (stats) {
-                            if (Number(tooltipItem.raw) === 0) return tooltipItem.dataset.label;
-                            
-                            const barLabel = treatmentData.labels[tooltipItem.dataIndex];
-                            if (barLabel === 'Tonnage') {
-                                return `${tooltipItem.dataset.label}: ${stats.tonnage.toFixed(2)} T`;
-                            }
-                                return `${tooltipItem.dataset.label}: ${stats.carbon.toFixed(2)} T CO₂`;
-                            }
+                            const value = Number(tooltipItem.raw).toFixed(1);
+                            const absolute = tooltipItem.dataIndex === 0 
+                                ? `${stats.tonnage.toFixed(2)} T` 
+                                : `${stats.carbon.toFixed(2)} T CO₂`;
+                            return `${tooltipItem.dataset.label}: ${value}% (${absolute})`;
+                        }
                         return tooltipItem.dataset.label;
                     }
                 }
@@ -476,12 +479,6 @@ const EnvBarChart = () => {
         }
     };
 
-    const handleDateChange = (date: Date | null, setter: (date: Date) => void) => {
-        if (date) {
-            setter(date);
-        }
-    };
-
     return (
         <div className="space-y-4">
             <div className="w-full h-[300px] bg-white rounded-lg shadow p-2 relative">
@@ -489,9 +486,9 @@ const EnvBarChart = () => {
                 <div className="flex items-center space-x-2">
                     <button
                         onClick={() => {
-                            const newDate = new Date(startDate);
-                            newDate.setMonth(startDate.getMonth() - 1);
-                            setStartDate(newDate);
+                            const newDate = new Date(segmentDates.debut || new Date());
+                            newDate.setMonth(newDate.getMonth() - 1);
+                            handleDateChange(newDate, 'debut');
                         }}
                         className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
                     >
@@ -502,11 +499,11 @@ const EnvBarChart = () => {
                         <div className="flex items-center space-x-0">
                             <span className="text-xs text-gray-600">Début:</span>
                         <DatePicker
-                            selected={startDate}
-                            onChange={(date) => handleDateChange(date, setStartDate)}
+                            selected={segmentDates.debut}
+                            onChange={(date) => handleDateChange(date, 'debut')}
                             selectsStart
-                            startDate={startDate}
-                            endDate={endDate}
+                            startDate={segmentDates.debut}
+                            endDate={segmentDates.fin}
                             dateFormat="MMM yy"
                             showMonthYearPicker
                                 className="w-12 mb-[5px] pl-[4px] px-0 py-0 text-xs rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -514,10 +511,10 @@ const EnvBarChart = () => {
                         </div>
                     <button
                         onClick={() => {
-                            const newDate = new Date(startDate);
-                            newDate.setMonth(startDate.getMonth() + 1);
-                            if (newDate < endDate) {
-                                setStartDate(newDate);
+                            const newDate = new Date(segmentDates.debut || new Date());
+                            newDate.setMonth(newDate.getMonth() + 1);
+                            if (newDate < (segmentDates.fin || new Date())) {
+                                handleDateChange(newDate, 'debut');
                             }
                         }}
                         className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
@@ -533,10 +530,10 @@ const EnvBarChart = () => {
                 <div className="flex items-center space-x-2">
                     <button
                         onClick={() => {
-                            const newDate = new Date(endDate);
-                            newDate.setMonth(endDate.getMonth() - 1);
-                            if (newDate > startDate) {
-                                setEndDate(newDate);
+                            const newDate = new Date(segmentDates.fin || new Date());
+                            newDate.setMonth(newDate.getMonth() - 1);
+                            if (newDate > (segmentDates.debut || new Date())) {
+                                handleDateChange(newDate, 'fin');
                             }
                         }}
                         className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
@@ -548,11 +545,11 @@ const EnvBarChart = () => {
                         <div className="flex items-center space-x-0">
                             <span className="text-xs text-gray-600">Fin :</span>
                         <DatePicker
-                            selected={endDate}
-                            onChange={(date) => handleDateChange(date, setEndDate)}
+                            selected={segmentDates.fin}
+                            onChange={(date) => handleDateChange(date, 'fin')}
                             selectsEnd
-                            startDate={startDate}
-                            endDate={endDate}
+                            startDate={segmentDates.debut}
+                            endDate={segmentDates.fin}
                             dateFormat="MMM yy"
                             showMonthYearPicker
                                 className="w-12 mb-[5px] pl-[4px] px-0 py-0 text-xs rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -560,9 +557,9 @@ const EnvBarChart = () => {
                         </div>
                     <button
                         onClick={() => {
-                            const newDate = new Date(endDate);
-                            newDate.setMonth(endDate.getMonth() + 1);
-                            setEndDate(newDate);
+                            const newDate = new Date(segmentDates.fin || new Date());
+                            newDate.setMonth(newDate.getMonth() + 1);
+                            handleDateChange(newDate, 'fin');
                         }}
                         className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
                     >

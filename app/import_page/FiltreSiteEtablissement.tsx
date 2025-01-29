@@ -268,18 +268,33 @@ const FiltreSiteEtablissement = () => {
 
     // Fonction pour gérer le clic sur la checkbox d'un groupe
     const handleGroupToggle = (groupName: string, event: React.MouseEvent | React.ChangeEvent) => {
-        event.stopPropagation(); // Empêcher le toggle de l'expansion
+        event.stopPropagation();
         const isCurrentlyChecked = isGroupChecked(groupName);
         const groupSirets = mappingSite[groupName] || [];
         
-        // Forcer tous les sites du groupe au nouvel état
-        groupSirets.forEach(siret => {
-            const site = sites.find(s => s.orgId === siret);
-            if (site && site.checked !== !isCurrentlyChecked) {
-                toggleSite(siret);
+        // En mobile, on ne coche qu'un seul site
+        if (window.innerWidth <= 768) {
+            // Décocher tous les sites d'abord
+            sites.forEach(site => {
+                if (site.checked) {
+                    toggleSite(site.orgId);
+                }
+            });
+            
+            // Cocher le premier site du groupe
+            const firstSite = sites.find(s => groupSirets.includes(s.orgId));
+            if (firstSite) {
+                toggleSite(firstSite.orgId);
             }
-        });
-
+        } else {
+            // Logique desktop existante
+            groupSirets.forEach(siret => {
+                const site = sites.find(s => s.orgId === siret);
+                if (site && site.checked !== !isCurrentlyChecked) {
+                    toggleSite(siret);
+                }
+            });
+        }
         setFilterPendingBSDs(false);
     };
 
@@ -367,12 +382,25 @@ const FiltreSiteEtablissement = () => {
                 </div>
                 <input
                     type="checkbox"
+                    name="site-selection"
                     checked={site.checked}
                     onChange={() => {
+                        // En mobile, décocher tous les autres sites avant de cocher celui-ci
+                        if (window.innerWidth <= 768) {
+                            sites.forEach(s => {
+                                if (s.orgId !== site.orgId && s.checked) {
+                                    toggleSite(s.orgId);
+                                }
+                            });
+                            if (!site.checked) {
+                                toggleSite(site.orgId);
+                            }
+                        } else {
+                            toggleSite(site.orgId);
+                        }
                         setFilterPendingBSDs(false);
-                        toggleSite(site.orgId);
                     }}
-                    className="form-checkbox h-4 w-4 text-blue-600"
+                    className="md:form-checkbox form-radio h-4 w-4 text-blue-600"
                 />
             </div>
             {site.givenName && (

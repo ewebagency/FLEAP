@@ -13,6 +13,7 @@ import ConnectedToTrack from "../component/ConnectedToTrack";
 import ExportRegisterButton from "./ExportRegisterButton";
 import BordereauxRegister from "./RegisterComponents/BordereauxRegister";
 import CreateBSDLine from "./RegisterComponents/CreateBSDLineButton";
+import FiltreSiteEtablissement from "../import_page/FiltreSiteEtablissement";
 
 const RegisterPage = () => {
     return (
@@ -23,6 +24,9 @@ const RegisterPage = () => {
                 <div className="hidden md:flex justify-between items-center mb-0">
                     <FiltreFilieres/>
                     <ConnectedToTrack/>
+                </div>
+                <div className="md:hidden mb-2">
+                    <FiltreSiteEtablissement />
                 </div>
                 <BordereauxRegister />
                 <div className="hidden md:flex justify-between items-center mb-0">

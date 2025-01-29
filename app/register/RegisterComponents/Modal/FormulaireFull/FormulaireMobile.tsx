@@ -8,6 +8,9 @@ import MailComponent from "@/app/register/MailComponents/MailComponent";
 import ModifyCardInFormulaireNew from "./ModifyCardInFormulaireNew";
 import { supabase } from "@/app/database/supabaseClient";
 import BoxIcon from "@/app/component/BoxIconWrapper";
+import { useFilterContext } from "@/app/FilterContext";
+//import PopUp from "./PopUp";
+
 
 const initialToogleData: FormInput = {
     emitter: {
@@ -68,25 +71,19 @@ const initialToogleData: FormInput = {
     //intermediaries: [],
   };
 
-// Ajouter après la définition de initialToogleData
+// Mettre à jour l'interface OtherInfos pour correspondre à FormulaireFull
 export interface OtherInfos {
-  container: {
-    description: {
-      type: string;
-      volume: string;
-      volumeUnit: string;
-    }
-  }
+    containerDescription: string;
+    volume: string;
+    volumeUnit: string;
+    fillRate: string;
 }
 
 const initialOtherInfos: OtherInfos = {
-  container: {
-    description: {
-      type: "",
-      volume: "",
-      volumeUnit: ""
-    }
-  }
+    containerDescription: "",
+    volume: "",
+    volumeUnit: "",
+    fillRate: ""
 };
 
 // Définition de la structure des dépendances
@@ -224,6 +221,7 @@ const FormulaireMobile = () => {
     const [changedField, setChangedField] = useState<string>("");
     const [other_infos, setOtherInfos] = useState<OtherInfos>(initialOtherInfos);
     const [doToggle, setDoToggle] = useState(false);
+    const { sites } = useFilterContext();
 
 //Initialisation des options
 useEffect(() => {
@@ -242,6 +240,25 @@ useEffect(() => {
         getMappingTableFiliere(session.entreprise_id).then(data => setCedTable(data));
     }
 }, [session]);
+
+// Ajouter après les autres useEffect
+useEffect(() => {
+    // Trouver le premier site coché
+    const checkedSite = sites.find(site => site.checked);
+    if (checkedSite) {
+        setDataToogle(prev => ({
+            ...prev,
+            emitter: {
+                ...prev.emitter,
+                company: {
+                    ...prev.emitter.company,
+                    name: checkedSite.name,
+                    siret: checkedSite.orgId
+                }
+            }
+        }));
+    }
+}, [sites]); // Se déclenche quand les sites changent
 
 //HandleChange
 const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => {
@@ -331,21 +348,15 @@ const toogleFunction = () => {
     }
 }
 
-// Ajouter cette nouvelle fonction de mise à jour
+// Mettre à jour la fonction handleOtherInfosChange
 const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => {
     const { name, value } = e.target;
-    setOtherInfos(prev => {
-        const newData = JSON.parse(JSON.stringify(prev));
-        const path = name.split('.');
-        let current: Record<string, unknown> = newData;
-        
-        for (let i = 0; i < path.length - 1; i++) {
-            current = current[path[i]] as Record<string, unknown>;
-        }
-        current[path[path.length - 1]] = value;
-        
-        return newData;
-    });
+    // Extraire le dernier segment du nom (après le dernier point)
+    const field = name.split('.').pop() as keyof OtherInfos;
+    setOtherInfos(prev => ({
+        ...prev,
+        [field]: value
+    }));
 };
 
 //Render
@@ -577,11 +588,11 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                                 allOptions: ['Fût métallique', 'GRV plastique', 'Citerne', 'Benne', 'Pipeline', 'Autre']
                             }}
                             width={1}
-                            name="container.description.type"
-                            value={other_infos.container.description.type}
+                            name="containerDescription"
+                            value={other_infos.containerDescription}
                             onChange={handleOtherInfosChange}
                             enableText={true}
-                            display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)}
+                            display={displayAll || shouldDisplayField("containerDescription", changedField)}
                             onMobile={true}
                         />
                         <InputMobile
@@ -589,14 +600,14 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             placeholder="Volume"
                             options={{
                                 filteredOptions: [],
-                                allOptions: ['100', '200', '500', '1000']
+                                allOptions: ['20', '30', '100', '200', '500', '1000']
                             }}
                             width={1}
-                            name="container.description.volume"
-                            value={other_infos.container.description.volume}
+                            name="volume"
+                            value={other_infos.volume}
                             onChange={handleOtherInfosChange}
                             enableText={true}
-                            display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)}
+                            display={displayAll || shouldDisplayField("volume", changedField)}
                             onMobile={true}
                         />
                         <InputMobile
@@ -604,14 +615,29 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             placeholder="Unité de volume"
                             options={{
                                 filteredOptions: [],
-                                allOptions: ['L', 'm³']
+                                allOptions: ['m3', 'L']
                             }}
                             width={1}
-                            name="container.description.volumeUnit"
-                            value={other_infos.container.description.volumeUnit}
+                            name="volumeUnit"
+                            value={other_infos.volumeUnit}
                             onChange={handleOtherInfosChange}
                             enableText={true}
-                            display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)}
+                            display={displayAll || shouldDisplayField("volumeUnit", changedField)}
+                            onMobile={true}
+                        />
+                        <InputMobile
+                            titre="Remplissage"
+                            placeholder="Taux de remplissage"
+                            options={{
+                                filteredOptions: [],
+                                allOptions: ['50', '75', '95']
+                            }}
+                            width={1}
+                            name="fillRate"
+                            value={other_infos.fillRate}
+                            onChange={handleOtherInfosChange}
+                            enableText={true}
+                            display={displayAll || shouldDisplayField("fillRate", changedField)}
                             onMobile={true}
                         />
                         <InputMobile
@@ -983,6 +1009,17 @@ const handleOtherInfosChange = (e: React.ChangeEvent<HTMLSelectElement> | { targ
                             otherInfos={other_infos}
                             onMobile={true}
                         />
+                        {/*<PopUp 
+                            dataToogle={dataToogle} 
+                            setDataToogle={setDataToogle} 
+                            modalType={modalType} 
+                            onMobile={true} 
+                            otherInfos={other_infos} 
+                            setOtherInfos={setOtherInfos}
+                            getUniqueOptions={getUniqueOptions}
+                            options={options}
+                            allOptions={allOptions}
+                        />*/}
                         </div>
                     </div>
                 </form>

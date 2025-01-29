@@ -132,7 +132,7 @@ const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres
     return [];
 }
 
-const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filiere[], points_collecte: PointCollecte[], entreprise_id: string | null, page: number = 1, filterPendingBSDs: boolean = false) => {
+const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filiere[], points_collecte: PointCollecte[], entreprise_id: string | null, page: number = 1, filterPendingBSDs: boolean = false, segmentDates: { debut: Date | null, fin: Date | null }) => {
     if (!entreprise_id) return [];
 
     console.log("filterPendingBSDs dans fetchBSDs:", filterPendingBSDs);
@@ -160,8 +160,20 @@ const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filier
         .select('*')
         .eq('entreprise_id', entreprise_id);
 
-    //const { data: datafalse, error: errorfalse } = await query; //---------------!!!!!!!!!!!
-    //return datafalse || [];
+    // Ajouter les conditions de date
+    if (segmentDates.debut || segmentDates.fin) {
+        const startDate = segmentDates.debut ? new Date(segmentDates.debut) : null;
+        const endDate = segmentDates.fin ? new Date(segmentDates.fin) : null;
+
+        if (startDate) {
+            startDate.setHours(0, 0, 0, 0);
+            query = query.gte('created_at', startDate.toISOString());
+        }
+        if (endDate) {
+            endDate.setHours(23, 59, 59, 999);
+            query = query.lte('created_at', endDate.toISOString());
+        }
+    }
 
     // Récupérer tous les CEDs de toutes les filières
     const { data: mappingData } = await supabase
@@ -185,13 +197,18 @@ const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filier
                 checkedFilieres.filter(f => f !== 'Autres').includes(mapping.filiere))
             .map((mapping: {ced: string}) => cleanCED(mapping.ced));
 
-        const formatCEDs = (ceds: string[]) => {
-            return ceds.flatMap(ced => [
-                ced,
-                ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim(),
-                ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim() + '*'
-            ]);
-        };
+            const formatCEDs = (ceds: string[]) => {
+                return ceds.flatMap(ced => {
+                    const base = ced.replace('*', ''); // Retire l'éventuel `*`
+                    const spaced = base.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+                    return [
+                        base,          // Version sans `*`
+                        base + '*',    // Version avec `*`
+                        spaced,        // Version avec espaces
+                        spaced + '*'   // Version avec espaces + `*`
+                    ];
+                });
+            };
 
         // Si "Autres" est sélectionné
         if (checkedFilieres.includes('Autres')) {
@@ -214,6 +231,7 @@ const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filier
 
     // Appliquer les conditions de filière
     if (filiere_conditions.length > 0) {
+        console.log("filiere_conditions", filiere_conditions);
         query = query.or(filiere_conditions.join(','));
     }
 
@@ -271,7 +289,7 @@ const TableBSD = () => {
     //const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
     //A faire passer sur useModalContextNew
     const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType, filterPendingBSDs, setFilterPendingBSDs } = useModalContextNew();
-    const { sites, filieres, points_collecte } = useFilterContext();
+    const { sites, filieres, points_collecte, segmentDates } = useFilterContext();
 
     const [webhooksInitialized, setWebhooksInitialized] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -363,7 +381,8 @@ const TableBSD = () => {
                     points_collecte, 
                     session.entreprise_id, 
                     currentPage,
-                    filterPendingBSDs
+                    filterPendingBSDs,
+                    segmentDates
                 );
                 
                 if (newData && newData.length > 0) {
@@ -394,7 +413,7 @@ const TableBSD = () => {
         };
 
         loadBSDs();
-    }, [session?.user_id, session?.entreprise_id, sites, filieres, points_collecte, modalReload, currentPage, filterPendingBSDs]);
+    }, [session?.user_id, session?.entreprise_id, sites, filieres, points_collecte, modalReload, currentPage, filterPendingBSDs, segmentDates]);
 
     useEffect(() => {
         // Exécution immédiate
@@ -827,6 +846,7 @@ const TableBSD = () => {
                                 <div className="absolute top-1 left-2 w-full">
                                     <div className="text-[10px] text-gray-600 ml-4 flex justify-start gap-2">
                                         {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p>Collecté le {new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>Créé le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}
+                                        {/*<p>CREE le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>*/}
                                         {/* {bsd.infos_json.formAPI.createFormInput.emittedAt} */}
                                         {/* {bsd.infos_json.formAPI.createFormInput.createdAt} */}
                                         {/* {bsd.infos_json.formAPI.createFormInput.processedAt} */}
@@ -889,6 +909,8 @@ const TableBSD = () => {
                             </td>
                             <td style={{ padding: '6px', width: '15%', height: '80px' }}>
                                 <div className="flex items-center justify-end gap-2 w-full">
+
+
                                     {/* Actions principales */}
                                     <div className="flex items-center gap-0">
                                         {bsd.status_track_dechets === "DRAFT" && (
@@ -1126,7 +1148,7 @@ const frenchTranslation = (statut: string): string => {
 
 const OrderBSDs = (bsds: BSD[]) => {
     const getDate = (bsd: BSD) => {
-        if(bsd.infos_json.formAPI.createFormInput.takenOverAt) return new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt);
+        //if(bsd.infos_json.formAPI.createFormInput.takenOverAt) return new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt);
         return new Date(bsd.created_at);
     }
     return bsds.sort((a, b) => getDate(b).getTime() - getDate(a).getTime());

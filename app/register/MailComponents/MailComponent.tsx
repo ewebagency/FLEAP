@@ -200,7 +200,7 @@ const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=fal
                             <label className="text-xs text-gray-600 w-24">À:</label>
                             <input
                                 type="email"
-                                required
+                                //required
                                 className="block w-full text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={to}
                                 onChange={(e) => setTo(e.target.value)}
@@ -248,7 +248,7 @@ const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=fal
                             <label className="text-xs text-gray-600 w-24">Répondre à:</label>
                             <input
                                 type="email"
-                                required
+                                //required
                                 className="block w-full text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={replyTo}
                                 onChange={(e) => setReplyTo(e.target.value)}
@@ -259,7 +259,7 @@ const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=fal
                             <label className="text-xs text-gray-600 w-24">Objet:</label>
                             <input
                                 type="text"
-                                required
+                                //required
                                 className="block w-full text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={subject}
                                 onChange={handleSubjectChange}
@@ -269,7 +269,7 @@ const MailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=fal
 
                     <div className={`${onMobile ? 'order-2' : 'col-span-8'} flex flex-col`}>
                         <textarea
-                            required
+                            //required
                             className="flex-1 w-full p-3 text-xs leading-tight text-black font-sans bg-gray-50 border-0 focus:ring-0 resize-none min-h-[250px]"
                             value={emailBody}
                             onChange={handleEmailBodyChange}

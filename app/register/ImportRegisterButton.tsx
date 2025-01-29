@@ -482,7 +482,7 @@ const sendToSupabase = async (
                         facture_treated : facture_treated,
                         created_on_fleap: false,
                         status_track_dechets: "IMPORTED",
-                        created_at:  new Date('2024-10-01T00:00:00Z').toISOString(), 
+                        created_at: ligne_BSD.formAPI.createFormInput.takenOverAt || new Date().toISOString(),
                     }
                 )
             if (error) {
@@ -702,13 +702,10 @@ export default ImportRegisterButton;
 
 const mapToAutresInfosFormat = (row: Row) => {
     const other_infos:OtherInfos = {
-        container: {
-            description: {
-                type: row["descContenant"]?.toString() || "",
-                volume: row["volumeUnitaire"]?.toString() || "",
-                volumeUnit: row["uniteMesureVolume"]?.toString() || ""
-            }
-        }
+        containerDescription: row["descContenant"]?.toString() || "",
+        volume: row["volumeUnitaire"]?.toString() || "",
+        volumeUnit: row["uniteMesureVolume"]?.toString() || "",
+        fillRate: "",
     }
     return other_infos;
 }

@@ -87,14 +87,12 @@ const ModifyCard = () => {
         //intermediaries: [],
       });
     const [otherInfos, setOtherInfos] = useState<OtherInfos>({
-        container: {
-            description: {
-                type: "",
-                volume: "",
-                volumeUnit: ""
-            }
-        }
+        containerDescription: "",
+        volume: "",
+        volumeUnit: "",
+        fillRate: "",
     });
+
     const session = useSession();
     const [filiere, setFiliere] = useState<string>("");
 
@@ -109,13 +107,10 @@ const ModifyCard = () => {
         if (result.data) {
             setLocalData(result.data.infos_json.formAPI.createFormInput);
             setOtherInfos(result.data.other_infos || {
-                container: {
-                    description: {
-                        type: "",
-                        volume: "",
-                        volumeUnit: ""
-                    }
-                }
+                containerDescription: "",
+                volume: "",
+                volumeUnit: "",
+                fillRate: "",
             });
         }
     }
@@ -522,54 +517,36 @@ const ModifyCard = () => {
                     <div className="space-y-2 mr-4">
                         <LabelInput 
                             label="Infos supp."
-                            value={otherInfos.container?.description?.type}
+                            value={otherInfos.containerDescription}
                             onChange={(_, value) => {
                                 setOtherInfos((prev: OtherInfos) => ({
                                     ...prev,
-                                    container: {
-                                        ...prev.container,
-                                        description: {
-                                            ...prev.container.description,
-                                            type: value
-                                        }
-                                    }
+                                    containerDescription: value
                                 }));
                             }}
-                            path="container.description.type"
+                            path="containerDescription"
                         />
                         <LabelInput 
                             label="Volume"
-                            value={otherInfos.container?.description?.volume}
+                            value={otherInfos.volume}
                             onChange={(_, value) => {
                                 setOtherInfos((prev: OtherInfos) => ({
                                     ...prev,
-                                    container: {
-                                        ...prev.container,
-                                        description: {
-                                            ...prev.container.description,
-                                            volume: value
-                                        }
-                                    }
+                                    volume: value
                                 }));
                             }}
-                            path="container.description.volume"
+                            path="volume"
                         />
                         <LabelInput 
                             label="Unité"
-                            value={otherInfos.container?.description?.volumeUnit}
+                            value={otherInfos.volumeUnit}
                             onChange={(_, value) => {
                                 setOtherInfos((prev: OtherInfos) => ({
                                     ...prev,
-                                    container: {
-                                        ...prev.container,
-                                        description: {
-                                            ...prev.container.description,
-                                            volumeUnit: value
-                                        }
-                                    }
+                                    volumeUnit: value
                                 }));
                             }}
-                            path="container.description.volumeUnit"
+                            path="volumeUnit"
                         />
                     </div>
 

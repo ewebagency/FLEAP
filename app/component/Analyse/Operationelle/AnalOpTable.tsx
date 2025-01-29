@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { useAnalysis } from "@/app/analysis/AnalysisProvider";
 import { getFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
+import { formatNumber } from '@/app/utils/formatNumber';
 
 const AnalOpTable = () => {
     const { bsds, loading, mappingTable, filieres_ou_prestataires, siretToName } = useAnalysis();
@@ -84,13 +85,13 @@ const AnalOpTable = () => {
                                 <tr key={index} className="border-b hover:bg-gray-50">
                                     <td className="px-2 py-1">{segment}</td>
                                     <td className="px-2 py-1 text-right">
-                                        {data.totalWeight.toFixed(2)}
+                                        {formatNumber(data.totalWeight)}
                                     </td>
                                     <td className="px-2 py-1 text-right">
-                                        {(data.totalWeight / 12).toFixed(2)}
+                                        {formatNumber(data.totalWeight / 12)}
                                     </td>
                                     <td className="px-2 py-1 text-right">
-                                        {data.bsdCount}
+                                        {formatNumber(data.bsdCount, false)}
                                     </td>
                                 </tr>
                             ))}
@@ -99,13 +100,13 @@ const AnalOpTable = () => {
                         <tr className="bg-gray-50">
                             <td className="px-2 py-1">Total</td>
                             <td className="px-2 py-1 text-right">
-                                {tableData.totals.totalWeight.toFixed(2)}
+                                {formatNumber(tableData.totals.totalWeight)}
                             </td>
                             <td className="px-2 py-1 text-right">
-                                {(tableData.totals.totalWeight / 12).toFixed(2)}
+                                {formatNumber(tableData.totals.totalWeight / 12)}
                             </td>
                             <td className="px-2 py-1 text-right">
-                                {tableData.totals.bsdCount}
+                                {formatNumber(tableData.totals.bsdCount, false)}
                             </td>
                         </tr>
                     </tfoot>

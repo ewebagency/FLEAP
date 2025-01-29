@@ -4,7 +4,7 @@ import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import { tailwindToRgb } from '../MetaComponent/Colours';
 import { getColors } from "../MetaComponent/Colours";
-import { useFilterContext } from '@/app/FilterContext';
+import { useFilterContext, SegmentDates } from '@/app/FilterContext';
 import { TooltipItem } from 'chart.js';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
@@ -31,19 +31,21 @@ interface ChartData {
 
 const AnalOpMainChart = () => {
   const { bsds, loading, mappingTable, filieres_ou_prestataires, siretToName } = useAnalysis();
-  const { filieres } = useFilterContext();
+  const { filieres, segmentDates, setSegmentDates } = useFilterContext();
 
-  const [startDate, setStartDate] = useState<Date>(() => {
-    const date = new Date();
-    date.setMonth(date.getMonth() - 11);
-    return date;
-  });
-  const [endDate, setEndDate] = useState<Date>(new Date());
+  const handleDateChange = (date: Date | null, type: 'debut' | 'fin') => {
+    if (date) {
+        setSegmentDates({
+            ...segmentDates,
+            [type]: date
+        });
+    }
+  };
 
   const filteredChartData = useMemo(() => {
-    // Utiliser directement les dates du state sans créer de nouvelles instances
     const monthLabels: string[] = [];
-    const currentDate = new Date(startDate);
+    const currentDate = new Date(segmentDates.debut || new Date());
+    const endDate = segmentDates.fin || new Date();
     
     while (currentDate <= endDate) {
       const label = currentDate.toLocaleString('fr-FR', { 
@@ -58,22 +60,13 @@ const AnalOpMainChart = () => {
 
     // Initialiser les données par segment (filière ou prestataire)
     bsds.forEach(bsd => {
-      let bsdDate; //-------------------A voir comment on fait pour les dates
-      if (bsd.infos_json.formAPI.createFormInput.takenOverAt) {
-        const takenOverDate = new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt);
-        // Vérifier si la date est valide et entre 2020 et 2030
-        if (!isNaN(takenOverDate.getTime()) && 
-            takenOverDate.getFullYear() >= 2020 && 
-            takenOverDate.getFullYear() <= 2030) {
-          bsdDate = takenOverDate;
-        } else {
-          bsdDate = new Date(bsd.created_at);
-        }
-      } else {
-        bsdDate = new Date(bsd.created_at);
-      }
-      // Ignorer les BSDs hors de la plage de dates
-      if (bsdDate < startDate || bsdDate > endDate) return;
+      // Convertir la date PostgreSQL en objet Date
+      const date = new Date(bsd.created_at);
+      // Réinitialiser currentDate car il a été modifié dans la boucle while
+      const startDate = new Date(segmentDates.debut || new Date());
+      
+      // Vérifier si la date est dans la plage
+      if (date < startDate || date > endDate) return;
 
       let segmentKey;
       if (filieres_ou_prestataires.nom === 'prestataire') {
@@ -95,7 +88,7 @@ const AnalOpMainChart = () => {
 
       // Calculer l'index du mois relatif à la période
       const monthIndex = Math.floor(
-        (bsdDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+        (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
       );
       if (monthIndex >= 0 && monthIndex < monthLabels.length) {
         const quantity = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
@@ -156,7 +149,7 @@ const AnalOpMainChart = () => {
         labels: monthLabels,
         datasets
     };
-  }, [bsds, mappingTable, filieres_ou_prestataires, siretToName, filieres, startDate, endDate]);
+  }, [bsds, mappingTable, filieres_ou_prestataires, siretToName, filieres, segmentDates]);
 
   const options = {
     responsive: true,
@@ -217,12 +210,6 @@ const AnalOpMainChart = () => {
     }
   };
 
-  const handleDateChange = (date: Date | null, setter: (date: Date) => void) => {
-    if (date) {
-      setter(date);
-    }
-  };
-
   return (
     <div className="mt-4">
       <div className="bg-white rounded-lg shadow relative">
@@ -230,9 +217,9 @@ const AnalOpMainChart = () => {
           <div className="flex items-center space-x-2">
             <button
               onClick={() => {
-                const newDate = new Date(startDate);
-                newDate.setMonth(startDate.getMonth() - 1);
-                setStartDate(newDate);
+                const newDate = new Date(segmentDates.debut || new Date());
+                newDate.setMonth(newDate.getMonth() - 1);
+                handleDateChange(newDate, 'debut');
               }}
               className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
             >
@@ -243,11 +230,11 @@ const AnalOpMainChart = () => {
             <div className="flex items-center space-x-0">
               <span className="text-xs text-gray-600">Début:</span>
               <DatePicker
-                selected={startDate}
-                onChange={(date) => handleDateChange(date, setStartDate)}
+                selected={segmentDates.debut}
+                onChange={(date) => handleDateChange(date, 'debut')}
                 selectsStart
-                startDate={startDate}
-                endDate={endDate}
+                startDate={segmentDates.debut}
+                endDate={segmentDates.fin}
                 dateFormat="MMM yy"
                 showMonthYearPicker
                 className="w-12 mb-[5px] pl-[4px] px-0 py-0 text-xs rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -255,10 +242,10 @@ const AnalOpMainChart = () => {
             </div>
             <button
               onClick={() => {
-                const newDate = new Date(startDate);
-                newDate.setMonth(startDate.getMonth() + 1);
-                if (newDate < endDate) {
-                  setStartDate(newDate);
+                const newDate = new Date(segmentDates.debut || new Date());
+                newDate.setMonth(newDate.getMonth() + 1);
+                if (newDate < (segmentDates.fin || new Date())) {
+                  handleDateChange(newDate, 'debut');
                 }
               }}
               className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
@@ -274,10 +261,10 @@ const AnalOpMainChart = () => {
           <div className="flex items-center space-x-2">
             <button
               onClick={() => {
-                const newDate = new Date(endDate);
-                newDate.setMonth(endDate.getMonth() - 1);
-                if (newDate > startDate) {
-                  setEndDate(newDate);
+                const newDate = new Date(segmentDates.fin || new Date());
+                newDate.setMonth(newDate.getMonth() - 1);
+                if (newDate > (segmentDates.debut || new Date())) {
+                  handleDateChange(newDate, 'fin');
                 }
               }}
               className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
@@ -289,11 +276,11 @@ const AnalOpMainChart = () => {
             <div className="flex items-center space-x-0">
               <span className="text-xs text-gray-600">Fin :</span>
               <DatePicker
-                selected={endDate}
-                onChange={(date) => handleDateChange(date, setEndDate)}
+                selected={segmentDates.fin}
+                onChange={(date) => handleDateChange(date, 'fin')}
                 selectsEnd
-                startDate={startDate}
-                endDate={endDate}
+                startDate={segmentDates.debut}
+                endDate={segmentDates.fin}
                 dateFormat="MMM yy"
                 showMonthYearPicker
                 className="w-12 mb-[5px] pl-[4px] px-0 py-0 text-xs rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -301,9 +288,9 @@ const AnalOpMainChart = () => {
             </div>
             <button
               onClick={() => {
-                const newDate = new Date(endDate);
-                newDate.setMonth(endDate.getMonth() + 1);
-                setEndDate(newDate);
+                const newDate = new Date(segmentDates.fin || new Date());
+                newDate.setMonth(newDate.getMonth() + 1);
+                handleDateChange(newDate, 'fin');
               }}
               className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
             >
