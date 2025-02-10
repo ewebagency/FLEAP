@@ -58,16 +58,20 @@ const BordereauxRegister = () => {
                     <BoutonOpenModal/>
                     <div className="flex space-x-8">
                         <div>
-                            <button className={`text-center ${filterPendingBSDs ? 'text-[var(--green-medium)] font-bold' : 'text-gray-600'}`} 
-                                    onClick={() => setFilterPendingBSDs(!filterPendingBSDs)}>
+                            {/*<button className={`text-center ${filterPendingBSDs ? 'text-[var(--green-medium)] font-bold' : 'text-gray-600'}`} 
+                                    onClick={() => setFilterPendingBSDs(!filterPendingBSDs)}>}*/}
                                 <div className="text-2xl font-bold">{stats.pending}</div>
+
+
+
                                 <div className={`text-sm ${filterPendingBSDs ? 'font-bold' : 'text-medium'}`}>
                                     En attente de collecte
                                 </div>
-                            </button>
+                            {/*</button>*/}
                         </div>
                     </div>
                 </div>
+
             </div>
         </>
     );

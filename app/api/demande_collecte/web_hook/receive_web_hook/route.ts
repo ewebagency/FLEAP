@@ -525,7 +525,7 @@ const createBSD_Supabase = async (readableId: string, data: {data: {form: formAP
             })
             .select();
 
-            console.log(`Résultat de la création du BSD pour user ${user_ids_linked_to_its_siret[i]}: `, result);
+            console.log(`Résultat de la création du BSD pour user ${user_ids_linked_to_its_siret[i]}: `, result.data ? result.data[0].id + ' - ' + result.data[0].readable_id_track_dechets : result.error);
         }
     } catch (error) {
         console.error('Erreur lors de la création du BSD : ', error);

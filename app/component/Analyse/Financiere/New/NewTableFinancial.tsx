@@ -47,8 +47,8 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
     }, [entreprise_id]);
 
     const filiereData = factures.reduce((acc: FiliereData, facture) => {
-        // Vérification du total pour chaque facture
-        let totalPrestations = 0;
+        const departsCount = facture.infos_json.departs.length;
+        const montantParDepart = facture.infos_json.footer.total_ht / departsCount;
 
         facture.infos_json.departs.forEach(depart => {
             const cleanedCed = depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
@@ -74,73 +74,18 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                 };
             }
 
-            depart.line_body.forEach(operation => {
-                const montant = operation.montant_ht || 0;
-                totalPrestations += montant;
+            // Traiter les rachats comme des revenus (négatifs)
+            if (montantParDepart < 0) {
+                acc[filiere].rachat += Math.abs(montantParDepart);
+            } else {
+                // Répartir les coûts positifs entre traitement et transport
+                acc[filiere].traitement += montantParDepart * 0.7; // 70% traitement
+                acc[filiere].transport += montantParDepart * 0.3;  // 30% transport
+            }
 
-                switch (operation.type_operation) {
-                    case 'Préparation':
-                        acc[filiere].preparation += montant;
-                        break;
-                    case 'Transport':
-                        acc[filiere].transport += montant;
-                        break;
-                    case 'Traitement':
-                        acc[filiere].traitement += montant;
-                        break;
-                    case 'Gestion globale':
-                    case 'Gestion global':
-                        acc[filiere].gestion_globale += montant;
-                        break;
-                    case 'TGAP':
-                        acc[filiere].tgap += montant;
-                        break;
-                    case 'Déclassement':
-                        acc[filiere].declassement += montant;
-                        break;
-                    case 'Pénalités':
-                        acc[filiere].penalites += montant;
-                        break;
-                    case 'Rachat':
-                        acc[filiere].rachat += montant;
-                        break;
-                    case 'Location':
-                        acc[filiere].location += montant;
-                        break;
-                    case 'Maintenance':
-                        acc[filiere].maintenance += montant;
-                        break;
-                    case 'Mise à disposition':
-                        acc[filiere].mise_a_disposition += montant;
-                        break;
-                    case 'Autres : Contenant':
-                        acc[filiere].autres_contenant += montant;
-                        break;
-                    case 'Non expliqués':
-                        acc[filiere].non_expliques += montant;
-                        break;
-                    case 'Autres':
-                        acc[filiere].autres += montant;
-                        break;
-                    default:
-                        console.warn(`Type d'opération non reconnu: ${operation.type_operation}`);
-                        acc[filiere].non_expliques += montant;
-                }
-                acc[filiere].total += montant;
-            });
+            // Le total est la somme des coûts moins les rachats
+            acc[filiere].total = acc[filiere].traitement + acc[filiere].transport - acc[filiere].rachat;
         });
-
-        // Vérification du total
-        const difference = Math.abs(totalPrestations - facture.infos_json.footer.total_ht);
-        if (difference > 0.01) { // Tolérance de 0.01€ pour les erreurs d'arrondi
-            console.error(
-                `Différence détectée dans la facture ${facture.infos_json.header.num_facture}:`,
-                `\n- Total des prestations: ${totalPrestations.toFixed(2)}€`,
-                `\n- Total HT facture: ${facture.infos_json.footer.total_ht.toFixed(2)}€`,
-                `\n- Différence: ${difference.toFixed(2)}€`,
-                `\n- Prestations: ${JSON.stringify(facture)}`
-            );
-        }
 
         return acc;
     }, {});
@@ -186,7 +131,7 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
             <div className="text-gray-500 text-xs mb-2">
                 Détails financiers par filière
             </div>
-            <div className="h-[180px] overflow-auto">
+            <div className="h-[250px] overflow-auto">
                 <table className="min-w-full text-xs">
                     <thead className="sticky top-0 bg-white">
                         <tr className="bg-gray-50">
@@ -243,7 +188,9 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                                         <td className="px-2 py-1 text-right">{formatNumber(data.autres_contenant)}€</td>}
                                     {(Object.values(filiereData).some(data => data.non_expliques > 0 || data.autres > 0)) && 
                                         <td className="px-2 py-1 text-right">{formatNumber(data.non_expliques + data.autres)}€</td>}
-                                    <td className="px-2 py-1 text-right">{formatNumber(data.total)}€</td>
+                                    <td className={`px-2 py-1 text-right ${data.total >= 0 ? 'text-gray-700' : 'text-green-600'}`}>
+                                        {formatNumber(data.total)}€
+                                    </td>
                                 </tr>
                             ))}
                     </tbody>
@@ -276,7 +223,9 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                                 <td className="px-2 py-1 text-right">{formatNumber(totals.autres_contenant)}€</td>}
                             {(Object.values(filiereData).some(data => data.non_expliques > 0 || data.autres > 0)) && 
                                 <td className="px-2 py-1 text-right">{formatNumber(totals.non_expliques + totals.autres)}€</td>}
-                            <td className="px-2 py-1 text-right">{formatNumber(totals.total)}€</td>
+                            <td className={`px-2 py-1 text-right ${totals.total >= 0 ? 'text-gray-700' : 'text-green-600'}`}>
+                                {formatNumber(totals.total)}€
+                            </td>
                         </tr>
                     </tfoot>
                 </table>

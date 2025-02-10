@@ -7,7 +7,7 @@ import { supabase } from "../database/supabaseClient";
 import { BSDD_TrackDechets, FormInput } from "./interface/BSD_Interface";
 import { pushOnTableParametrage } from "./RegisterComponents/Modal/FormulaireFull/utils_new";
 import BoxIcon from "../component/BoxIconWrapper";
-import { OtherInfos } from "./RegisterComponents/Modal/FormulaireFull/FormulaireFull";
+import { OtherInfos } from "./interface/BSD_Interface";
 import { mapToFactureFormat } from "../import_page/FactureImport/ButtonImportFacture";
 import { FactureJSON } from "../import_page/FactureImport/ButtonImportFacture";
 
@@ -455,7 +455,16 @@ const sendToSupabase = async (
         //SI Table Paramétrage : Insertion du registre mappé dans table_parametrage
         if(tableType == "table_parametrage"){
             const ligne_new = {formAPI: {createFormInput: mapToNewParametrage(ligne_BSD)}};
-            const pass_on_table_parametrage = await pushOnTableParametrage(user_id, entreprise_id, ligne_new);
+            if(ligne_autres_infos===null){
+                ligne_autres_infos = {
+                    volume: "",
+                    fillRate: "",
+                    volumeUnit: "",
+                    containerDescription: ""
+                } as OtherInfos;
+            }
+            const pass_on_table_parametrage = await pushOnTableParametrage(user_id, entreprise_id, ligne_new, ligne_autres_infos);
+
             if(pass_on_table_parametrage){
                 if(pass_on_table_parametrage.success){
                     if(pass_on_table_parametrage.message.includes('mise à jour')){

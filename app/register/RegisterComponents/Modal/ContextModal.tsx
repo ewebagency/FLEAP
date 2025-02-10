@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { FormInput } from '../../interface/BSD_Interface';
+import { CompleteFormInput, FormInput } from '../../interface/BSD_Interface';
 /*interface this_FormAPI {
   formAPI?: {
       createFormInput?: {
@@ -65,8 +65,8 @@ interface ModalContextType {
     setDisplayFormulaire: (value: boolean) => void;
     dataToogle: FormInput;
     setDataToogle: React.Dispatch<React.SetStateAction<FormInput>>;
-    options: FormInput[];
-    setOptions: (options: FormInput[]) => void;
+    options: CompleteFormInput[];
+    setOptions: (options: CompleteFormInput[]) => void;
 
     modalId: string | null;
     setModalId: (modalId: string | null) => void;
@@ -113,7 +113,7 @@ export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
           name: "",
           isSubjectToADR: false,
           onuCode: "",
-          packagingInfos: [{ type: "AUTRE", quantity: 0 }],
+          packagingInfos: [{ type: "AUTRE", quantity: 1 }],
           quantity: 0,
           quantityType: "ESTIMATED",
           consistence: "",
@@ -146,11 +146,11 @@ export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
         //intermediaries: [],
       };
     const [dataToogle, setDataToogle] = useState<FormInput>(initialToogleData);
-    const [options, setOptions] = useState<FormInput[]>([]);
-
+    const [options, setOptions] = useState<CompleteFormInput[]>([]);
     const [modalId, setModalId] = useState<string | null>("");
     const [modalType, setModalType] = useState("");
     const [modalReload, setModalReload] = useState(false);
+
 
     return (
         <ModalContextNew.Provider value={{

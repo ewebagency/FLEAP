@@ -159,11 +159,22 @@ const FiltreSiteEtablissement = () => {
 
     useEffect(() => {
         // Sites de la BDD
+        console.log("1. Début de l'effet de mise à jour des sites");
+        
+        // Charger les états sauvegardés d'abord
+        const savedSites = localStorage.getItem(`sites-${session?.entreprise_id}`);
+        console.log("2. États sauvegardés:", savedSites);
+        const savedSiteStates = savedSites ? JSON.parse(savedSites) : {};
+        console.log("3. États parsés:", savedSiteStates);
+
+        // Fonction utilitaire pour obtenir l'état sauvegardé
+        const getSavedState = (orgId: string) => savedSiteStates[orgId]?.checked ?? false;
+
         const sites_from_db: ContextSite[] = additionnalSites.map(site => ({
             orgId: site.siret,
             name: site.name,
             givenName: '',
-            checked: true,
+            checked: getSavedState(site.siret),
             activated: true,
             isTrackDechets: false,
             isInDb: true
@@ -173,7 +184,7 @@ const FiltreSiteEtablissement = () => {
             orgId: '----',
             name: 'Autres',
             givenName: '',
-            checked: true,
+            checked: getSavedState('----'),
             activated: true,
             isTrackDechets: false,
             isInDb: false
@@ -184,11 +195,14 @@ const FiltreSiteEtablissement = () => {
                 orgId: etablissement.orgId,
                 name: etablissement.name,
                 givenName: etablissement.givenName,
-                checked: etablissement.activated,
+                checked: getSavedState(etablissement.orgId),
                 activated: etablissement.activated,
                 isTrackDechets: true,
                 isInDb: false
             }));
+
+            // Log avant la fusion
+            console.log("4. Sites avant fusion:", { vrai_sites, sites_from_db, savedSiteStates });
 
             // Fusionner en donnant priorité aux noms de la BDD
             const mergedSites = vrai_sites.map(trackSite => {
@@ -197,7 +211,9 @@ const FiltreSiteEtablissement = () => {
                     return {
                         ...trackSite,
                         name: dbSite.name,
-                        isInDb: true
+                        isInDb: true,
+                        // Conserver l'état checked du site fusionné
+                        checked: savedSiteStates[trackSite.orgId]?.checked ?? trackSite.checked
                     };
                 }
                 return trackSite;
@@ -205,9 +221,21 @@ const FiltreSiteEtablissement = () => {
 
             // Ajouter les sites qui sont uniquement dans la BDD
             const trackDechetsSirets = new Set(vrai_sites.map(site => site.orgId));
-            const uniqueDbSites = sites_from_db.filter(site => !trackDechetsSirets.has(site.orgId));
+            const uniqueDbSites = sites_from_db.filter(site => !trackDechetsSirets.has(site.orgId))
+                .map(site => ({
+                    ...site,
+                    // Utiliser l'état sauvegardé pour les sites uniquement dans la BDD
+                    checked: savedSiteStates[site.orgId]?.checked ?? site.checked
+                }));
 
-            const allSites = [...mergedSites, ...uniqueDbSites, sites_autre];
+            // Ajouter le site "Autres" avec son état sauvegardé
+            const sitesAutre = {
+                ...sites_autre,
+                checked: savedSiteStates['----']?.checked ?? sites_autre.checked
+            };
+
+            const allSites = [...mergedSites, ...uniqueDbSites, sitesAutre];
+            console.log("5. Sites finaux avant setSites:", allSites);
 
             if (Object.keys(mappingSite).length > 0) {
                 // Créer les groupes selon le mapping
@@ -226,14 +254,19 @@ const FiltreSiteEtablissement = () => {
                 }));
 
                 setSites(sitesWithGroups);
+                console.log("6. Sites avec groupes:", sitesWithGroups);
             } else {
                 setSites(allSites);
             }
         } else {
             // Si pas de connexion TrackDechets, utiliser uniquement les sites de la BDD
-            setSites([...sites_from_db, sites_autre]);
+            const sitesWithSavedStates = [...sites_from_db, sites_autre].map(site => ({
+                ...site,
+                checked: savedSiteStates[site.orgId]?.checked ?? site.checked
+            }));
+            setSites(sitesWithSavedStates);
         }
-    }, [etablissementsWithStatus, additionnalSites, setSites, mappingSite]);
+    }, [etablissementsWithStatus, additionnalSites, setSites, mappingSite, session?.entreprise_id]);
 
     // Ajout d'un useEffect pour récupérer le mapping_site
     useEffect(() => {
@@ -266,32 +299,34 @@ const FiltreSiteEtablissement = () => {
                    .every(site => site.checked);
     };
 
+    // Simplifier handleSiteToggle car la persistance est gérée dans le contexte
+    const handleSiteToggle = (siteId: string) => {
+        toggleSite(siteId);
+        setFilterPendingBSDs(false);
+    };
+
     // Fonction pour gérer le clic sur la checkbox d'un groupe
     const handleGroupToggle = (groupName: string, event: React.MouseEvent | React.ChangeEvent) => {
         event.stopPropagation();
         const isCurrentlyChecked = isGroupChecked(groupName);
         const groupSirets = mappingSite[groupName] || [];
         
-        // En mobile, on ne coche qu'un seul site
         if (window.innerWidth <= 768) {
-            // Décocher tous les sites d'abord
             sites.forEach(site => {
                 if (site.checked) {
-                    toggleSite(site.orgId);
+                    handleSiteToggle(site.orgId);
                 }
             });
             
-            // Cocher le premier site du groupe
             const firstSite = sites.find(s => groupSirets.includes(s.orgId));
             if (firstSite) {
-                toggleSite(firstSite.orgId);
+                handleSiteToggle(firstSite.orgId);
             }
         } else {
-            // Logique desktop existante
             groupSirets.forEach(siret => {
                 const site = sites.find(s => s.orgId === siret);
                 if (site && site.checked !== !isCurrentlyChecked) {
-                    toggleSite(siret);
+                    handleSiteToggle(siret);
                 }
             });
         }
@@ -363,7 +398,7 @@ const FiltreSiteEtablissement = () => {
         );
     };
 
-    // Fonction pour rendre un site individuel
+    // Mise à jour du renderSite pour utiliser handleSiteToggle
     const renderSite = (site: ContextSite) => (
         <div key={site.orgId}>
             <div className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md mb-0">
@@ -385,18 +420,17 @@ const FiltreSiteEtablissement = () => {
                     name="site-selection"
                     checked={site.checked}
                     onChange={() => {
-                        // En mobile, décocher tous les autres sites avant de cocher celui-ci
                         if (window.innerWidth <= 768) {
                             sites.forEach(s => {
                                 if (s.orgId !== site.orgId && s.checked) {
-                                    toggleSite(s.orgId);
+                                    handleSiteToggle(s.orgId);
                                 }
                             });
                             if (!site.checked) {
-                                toggleSite(site.orgId);
+                                handleSiteToggle(site.orgId);
                             }
                         } else {
-                            toggleSite(site.orgId);
+                            handleSiteToggle(site.orgId);
                         }
                         setFilterPendingBSDs(false);
                     }}

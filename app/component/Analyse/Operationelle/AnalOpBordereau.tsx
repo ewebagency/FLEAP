@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { useAnalysis } from "@/app/analysis/AnalysisProvider";
 import TauxTri from "./TauxTri";
+import TauxRemplissage from "./TauxRemplissage";
 
 const AnalOpBordereau = () => {
     const { bsds, loading } = useAnalysis();
@@ -15,7 +16,7 @@ const AnalOpBordereau = () => {
         const totalBSDs = bsds.length;
 
         bsds.forEach(bsd => {
-            const quantity = Number(bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity) || 0;
+            const quantity = bsd.infos_json.formAPI.createFormInput.quantityReceived ? Number(bsd.infos_json.formAPI.createFormInput.quantityReceived) : Number(bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity) || 0;
             const bsdMonth = new Date(bsd.created_at).getMonth();
 
             totalWeight += quantity;
@@ -38,28 +39,43 @@ const AnalOpBordereau = () => {
     }, [bsds]);
 
     return (
-        <div className="flex justify-between bg-gray-200 p-2 rounded-lg">
-            <div className="block ml-4">
+        <div className="flex justify-between bg-white p-4 rounded-lg shadow">
+            <div className="block">
                 <div className="text-sm text-gray-600 font-thin">Tonnage total</div>
                 <div className="flex items-center mt-2">
-                    <div className="font-bold text-xl ml-4">
+                    <div className="font-bold text-xl text-gray-700">
                         {stats.totalWeight.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} T
                     </div>
-                    <div className={`badge ${stats.monthlyEvolution >= 0 ? 'bg-green-300' : 'bg-red-300'} ml-8 text-xs`}>
+                    {/*<div className={`ml-4 px-2 py-1 rounded-full text-xs ${
+                        stats.monthlyEvolution >= 0 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                    }`}>
                         {stats.monthlyEvolution >= 0 ? '+' : ''}{stats.monthlyEvolution.toFixed(1)}%
-                    </div>
+                    </div>*/}
                 </div>
             </div>
-            <div className="block mx-10 hidden">
-                <div className="text-sm text-gray-600 font-thin">Moyenne mensuelle</div>
-                <div className="font-bold text-xl mt-2">{stats.averageWeight.toFixed(2)} T</div>
-            </div>
-            <div className="block">
-                <TauxTri/>
-            </div>
-            <div className="block mr-10 hidden">
-                <div className="text-sm text-gray-600 font-thin">Nombre de BSDs</div>
-                <div className="font-bold text-xl mt-2">{stats.totalBSDs}</div>
+            <div className="flex gap-3">
+                <div className="block">
+                    <div className="text-sm text-gray-600 font-thin hidden">Taux de tri</div>
+                    <div className="flex items-center mt-0">
+                        <TauxTri />
+                    </div>
+                </div>
+                <div className="block">
+                    <div className="text-sm text-gray-600 font-thin hidden">Taux de remplissage</div>
+                    <div className="flex items-center mt-0">
+                        <TauxRemplissage />
+                    </div>
+                </div>
+                <div className="block hidden">
+                    <div className="text-sm text-gray-600 font-thin">Nombre de BSDs</div>
+                    <div className="flex items-center mt-2">
+                        <div className="font-bold text-xl text-gray-700">
+                            {stats.totalBSDs}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

@@ -34,7 +34,7 @@ interface DatasetWithLabel extends ChartDataset<'bar'> {
     label: string;
 }
 
-const treatmentLabels = {
+export const treatmentLabels = {
   "D1": "D1 - Mise en décharge", // D1 : Mise en décharge
   "D2": "D2 - Traitement terrestre", // D2 : Traitement en milieu terrestre
   "D3": "D3 - Injection en profondeur", // D3 : Injection en profondeur
@@ -184,7 +184,7 @@ const EnvBarChart = () => {
             // Vérifier si la date est dans la plage
             if (date < startDate || date > endDate) return;
 
-            const quantity = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+            const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? bsd.infos_json?.formAPI?.createFormInput?.quantityReceived : bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
             const cedCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
             const processingOperation = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || 'default';
             
@@ -263,7 +263,7 @@ const EnvBarChart = () => {
             const date = new Date(bsd.created_at);
             if (segmentDates.debut && segmentDates.fin && (date < segmentDates.debut || date > segmentDates.fin)) return;
 
-            const quantity = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+            const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? bsd.infos_json?.formAPI?.createFormInput?.quantityReceived : bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
             const processingOperation = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || 'default';
             const cedCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
 
@@ -328,6 +328,7 @@ const EnvBarChart = () => {
         maintainAspectRatio: false,
         plugins: {
             legend: {
+                display: false,
                 position: 'bottom',
             },
             title: {
@@ -341,7 +342,7 @@ const EnvBarChart = () => {
                 callbacks: {
                     label(tooltipItem: ChartTooltipItem<'bar'>) {
                         const value = Number(tooltipItem.raw);
-                        return `${tooltipItem.dataset.label}: ${value.toFixed(2)} T CO₂`;
+                        return ` ${tooltipItem.dataset.label} : ${value.toFixed(2)} T CO₂`;
                     }
                 }
             },
@@ -382,7 +383,7 @@ const EnvBarChart = () => {
             x: {
                 stacked: true,
                 grid: {
-                    color: 'rgba(0, 0, 0, 0.1)',
+                    color: 'rgba(0, 0, 0, 0)',
                 }
             },
             y: {
@@ -410,7 +411,7 @@ const EnvBarChart = () => {
         maintainAspectRatio: false,
         plugins: {
             legend: {
-                position: 'bottom',
+                display: false,
             },
             title: {
                 display: true,

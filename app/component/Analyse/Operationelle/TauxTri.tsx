@@ -98,9 +98,10 @@ const TauxTri = () => {
                 </div>
             </div>
             <div className="text-xs text-gray-600 text-center mt-1">
-                Taux de tri
+                Tri
             </div>
             
+
             {showTooltip && nonRecycledDetails.length > 0 && (
                 <div className="absolute z-10 bottom-0 right-full mr-2 bg-gray-800 text-white p-2 rounded-lg shadow-lg text-xs w-64">
                     <div className="font-semibold mb-1">Principaux déchets non triés :</div>

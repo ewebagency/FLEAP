@@ -91,7 +91,7 @@ const AnalOpMainChart = () => {
         (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
       );
       if (monthIndex >= 0 && monthIndex < monthLabels.length) {
-        const quantity = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
+        const quantity = bsd.infos_json.formAPI.createFormInput.quantityReceived ? bsd.infos_json.formAPI.createFormInput.quantityReceived : bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
         quantitiesBySegment[segmentKey][monthIndex] += quantity;
       }
     });
@@ -156,6 +156,7 @@ const AnalOpMainChart = () => {
     plugins: {
       legend: {
         position: 'bottom' as const,
+        display: false,
       },
       title: {
         display: true,
@@ -174,7 +175,11 @@ const AnalOpMainChart = () => {
           },
           label: function(tooltipItem: TooltipItem<"line">) {
             const value = tooltipItem.raw as number;
-            return `${value.toLocaleString('fr-FR')} T`;
+            return ` ${tooltipItem.dataset.label} : ${value.toLocaleString('fr-FR')} T`;
+          },
+          footer: function(tooltipItems: TooltipItem<"line">[]) {
+            const total = tooltipItems.reduce((sum, item) => sum + (item.raw as number), 0);
+            return `Total : ${total.toLocaleString('fr-FR')} T`;
           }
         }
       }
@@ -302,7 +307,7 @@ const AnalOpMainChart = () => {
         </div>
         <div className="pt-1">
           {bsds.length > 0 ? (
-            <Line data={filteredChartData} options={options} height={60} />
+            <Line data={filteredChartData} options={options} height={80} />
           ) : (
             <div className="text-center text-gray-500">Aucune donnée disponible</div>
           )}

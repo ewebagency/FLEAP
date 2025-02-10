@@ -14,8 +14,18 @@ import ExportRegisterButton from "./ExportRegisterButton";
 import BordereauxRegister from "./RegisterComponents/BordereauxRegister";
 import CreateBSDLine from "./RegisterComponents/CreateBSDLineButton";
 import FiltreSiteEtablissement from "../import_page/FiltreSiteEtablissement";
+import { useRouter } from 'next/navigation';
+import { supabase } from '../database/supabaseClient';
+import BoxIcon from '../component/BoxIconWrapper';
 
 const RegisterPage = () => {
+    const router = useRouter();
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        router.push('/auth/signin');
+    };
+
     return (
         <div className='m-4'>
             <Toaster position="top-right"/>
@@ -25,8 +35,16 @@ const RegisterPage = () => {
                     <FiltreFilieres/>
                     <ConnectedToTrack/>
                 </div>
-                <div className="md:hidden mb-2">
-                    <FiltreSiteEtablissement />
+                <div className="md:hidden flex items-center gap-2 mb-2">
+                    <div className="flex-[5]">
+                        <FiltreSiteEtablissement />
+                    </div>
+                    <button 
+                        onClick={handleLogout}
+                        className="flex-1 px-1 py-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-all duration-200"
+                    >
+                        <BoxIcon name='log-out' size="24px" color="#666666" />
+                    </button>
                 </div>
                 <BordereauxRegister />
                 <div className="hidden md:flex justify-between items-center mb-0">

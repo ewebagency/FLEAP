@@ -35,7 +35,13 @@ const AnalOpTable = () => {
                 };
             }
 
-            const quantity = Number(bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity) || 0;
+            let quantity = 0;
+            if(bsd.infos_json.formAPI.createFormInput.quantityReceived) {
+                //console.log("bsd.infos_json.formAPI.createFormInput.quantityReceived", bsd.infos_json.formAPI.createFormInput.quantityReceived);
+                quantity = Number(bsd.infos_json.formAPI.createFormInput.quantityReceived) || 0;
+            } else {
+                quantity = Number(bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity) || 0;
+            }
             const month = new Date(bsd.created_at).getMonth();
 
             stats[segmentKey].totalWeight += quantity;
@@ -62,16 +68,16 @@ const AnalOpTable = () => {
             <div className="text-gray-500 text-xs mb-2">
                 Détails par {filieres_ou_prestataires.nom === 'prestataire' ? 'prestataire' : 'filière'}
             </div>
-            <div className="h-[180px] overflow-auto">
+            <div className="h-[250px] overflow-auto">
                 <table className="min-w-full text-xs">
                     <thead className="sticky top-0 bg-white">
                         <tr className="bg-gray-50">
                             <th className="px-2 py-1 text-left">
                                 {filieres_ou_prestataires.nom === 'prestataire' ? 'Prestataire' : 'Filière'}
                             </th>
-                            <th className="px-2 py-1 text-right">Total (T)</th>
+                            <th className="px-2 py-1 text-right">Total</th>
                             <th className="px-2 py-1 text-right">Moy. mensuelle</th>
-                            <th className="px-2 py-1 text-right">Nb BSDs</th>
+                            <th className="px-2 py-1 text-right">Nb Rotations</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -85,10 +91,10 @@ const AnalOpTable = () => {
                                 <tr key={index} className="border-b hover:bg-gray-50">
                                     <td className="px-2 py-1">{segment}</td>
                                     <td className="px-2 py-1 text-right">
-                                        {formatNumber(data.totalWeight)}
+                                        {formatNumber(data.totalWeight)} T
                                     </td>
                                     <td className="px-2 py-1 text-right">
-                                        {formatNumber(data.totalWeight / 12)}
+                                        {formatNumber(data.totalWeight / 12)} T
                                     </td>
                                     <td className="px-2 py-1 text-right">
                                         {formatNumber(data.bsdCount, false)}
@@ -100,10 +106,10 @@ const AnalOpTable = () => {
                         <tr className="bg-gray-50">
                             <td className="px-2 py-1">Total</td>
                             <td className="px-2 py-1 text-right">
-                                {formatNumber(tableData.totals.totalWeight)}
+                                {formatNumber(tableData.totals.totalWeight)} T
                             </td>
                             <td className="px-2 py-1 text-right">
-                                {formatNumber(tableData.totals.totalWeight / 12)}
+                                {formatNumber(tableData.totals.totalWeight / 12)} T
                             </td>
                             <td className="px-2 py-1 text-right">
                                 {formatNumber(tableData.totals.bsdCount, false)}

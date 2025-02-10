@@ -1,6 +1,7 @@
 'use client'
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 import { useModalContextNew } from './register/RegisterComponents/Modal/ContextModal';
+import { useSession } from './component/SessionProvider';
 
 export interface Filiere {
     name: string;
@@ -81,6 +82,7 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   const [segmentDates, setSegmentDates] = useState<SegmentDates>({ debut: null, fin: null });
   const [filieres_ou_prestataires, setFilieresOuPrestataires] = useState<FiliereOuPrestataireInterface>({ nom: 'filiere' });
   const [isInitialized, setIsInitialized] = useState(false);
+  const session = useSession();
 
   const toggleFiliere = (name: string) => {
     setFilieres(prev => prev.map(filiere => 
@@ -90,13 +92,29 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
     ));
   };
 
-  const toggleSite = (orgId: string) => {
-    setSites(prev => prev.map(site => 
-      site.orgId === orgId 
-        ? { ...site, checked: !site.checked }
-        : site
-    ));
-  };
+  const toggleSite = useCallback((siteId: string) => {
+    setSites(prevSites => {
+        const newSites = prevSites.map(site =>
+            site.orgId === siteId ? { ...site, checked: !site.checked } : site
+        );
+
+        if (session?.entreprise_id) {
+            const siteStates = newSites.reduce((acc, site) => ({
+                ...acc,
+                [site.orgId]: {
+                    checked: site.checked
+                }
+            }), {});
+            
+            localStorage.setItem(
+                `sites-${session.entreprise_id}`,
+                JSON.stringify(siteStates)
+            );
+        }
+
+        return newSites;
+    });
+  }, [session?.entreprise_id]);
 
   const togglePointsCollecte = (name: string) => {
     setPointsCollecte(prev => prev.map(point_collecte => 
@@ -123,33 +141,31 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
-    if (!isInitialized) {
-      const savedFilieres = localStorage.getItem('filieres');
+    if (!isInitialized && session?.entreprise_id) {
+      const savedFilieres = localStorage.getItem(`filieres-${session.entreprise_id}`);
       if (savedFilieres) {
         setFilieres(JSON.parse(savedFilieres));
       }
 
-      const savedSites = localStorage.getItem('sites');
+      const savedSites = localStorage.getItem(`sites-${session.entreprise_id}`);
       if (savedSites) {
-        setSites(JSON.parse(savedSites));
+        const savedSiteStates = JSON.parse(savedSites);
+        setSites(prevSites => 
+          prevSites.map(site => ({
+            ...site,
+            checked: savedSiteStates[site.orgId]?.checked ?? false
+          }))
+        );
       }
 
-      const savedPointsCollecte = localStorage.getItem('points_collecte');
+      const savedPointsCollecte = localStorage.getItem(`points_collecte-${session.entreprise_id}`);
       if (savedPointsCollecte) {
         setPointsCollecte(JSON.parse(savedPointsCollecte));
       }
 
       setIsInitialized(true);
     }
-  }, [isInitialized]);
-
-  useEffect(() => {
-    if (isInitialized) {
-      localStorage.setItem('filieres', JSON.stringify(filieres));
-      localStorage.setItem('sites', JSON.stringify(sites));
-      localStorage.setItem('points_collecte', JSON.stringify(points_collecte));
-    }
-  }, [filieres, sites, points_collecte, isInitialized]);
+  }, [isInitialized, session?.entreprise_id]);
 
   const value = {
     filieres,

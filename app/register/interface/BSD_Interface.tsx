@@ -908,6 +908,7 @@ export interface FormInput {
     //customId?: string;
     //status?: string;
     //isImportedFromPaper?: boolean;
+    quantityReceived?: number;
     filiere?:string;
     emittedAt?: string;
     createdAt?: string;
@@ -979,4 +980,22 @@ export interface FormInput {
       }
     intermediaries?: Company[];
   }
+
+export interface OtherInfos {
+    volume: string;
+    melange?: {
+        name: string;
+        percent: string;
+    }[];
+    fillRate: string;
+    inputMode?: 'volume' | 'tonnage';
+    volumeUnit: string;
+    automaticMode?: boolean;
+    containerDescription: string;      
+  }
+
+export interface CompleteFormInput{
+    other_infos?: OtherInfos;
+    json_row: FormInput;
+}
 

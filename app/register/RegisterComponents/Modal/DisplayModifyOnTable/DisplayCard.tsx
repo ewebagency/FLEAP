@@ -4,7 +4,7 @@ import { Anything, BSDD_TrackDechets, DataTotalInterface, Form_API_Interface_Sho
 import { supabase } from "@/app/database/supabaseClient";
 import { useSession } from "@/app/component/SessionProvider";
 import { getMappingTableFiliere, getFiliere } from "../FormulaireFull/utils_new";
-import { OtherInfos } from "../FormulaireFull/FormulaireFull";
+import { OtherInfos } from "../../../interface/BSD_Interface";
 
 const DisplayCard = () => {
     const { modalId, modalType, setModalType, modalReload } = useModalContextNew();
@@ -73,12 +73,12 @@ const DisplayCard = () => {
     <div>
         {modalType === "display" && bsd && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-lg shadow-lg p-4 max-w-4xl mx-auto max-h-[90vh] overflow-y-auto">
+                <div className="bg-white rounded-lg shadow-lg p-4 mx-4 w-full md:max-w-4xl md:mx-auto max-h-[90vh] overflow-y-auto">
                     <div className="space-y-4">
                         {/* En-tête */}
-                        <div className="border-b pb-2 flex justify-between items-center">
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-800">Bordereau de Suivi des Déchets</h2>
+                        <div className="border-b pb-2 flex justify-between items-start">
+                            <div className="pr-8">
+                                <h2 className="text-lg md:text-xl font-bold text-gray-800">Bordereau de Suivi des Déchets</h2>
                                 <div className="mt-2 space-y-1">
                                     <LabelValue label="Site" value={bsd.emitter?.workSite?.name || ""} />
                                     <LabelValue label="Filière" value={filiere || ""} />
@@ -88,12 +88,12 @@ const DisplayCard = () => {
                             </div>
                             <button 
                                 onClick={() => setModalType("")} 
-                                className="text-gray-500 hover:text-gray-700"
+                                className="text-gray-500 hover:text-gray-700 p-2"
                             >
                                 ✕
                             </button>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Colonne gauche */}
                             <div className="space-y-4">
                                 {/* Émetteur */}

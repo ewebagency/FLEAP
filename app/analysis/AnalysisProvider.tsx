@@ -3,10 +3,11 @@ import { useSession } from '../component/SessionProvider';
 import { useFilterContext, FiliereOuPrestataireInterface } from '../FilterContext';
 import { supabase } from '../database/supabaseClient';
 import { getMappingTableFiliere } from '../register/RegisterComponents/Modal/FormulaireFull/utils_new';
-import { FormInput, BSDD_TrackDechets } from '../register/interface/BSD_Interface';
+import { FormInput, BSDD_TrackDechets, OtherInfos } from '../register/interface/BSD_Interface';
 
 export interface BSD {
   created_at: string;
+  other_infos: OtherInfos;
   infos_json: {
     formAPI: {
       createFormInput: FormInput;

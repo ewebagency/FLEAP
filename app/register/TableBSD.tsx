@@ -280,8 +280,17 @@ const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filier
         return [];
     }
 
+    /*console.log("find error", data.map(bsd => {
+        try {
+            return bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity.toFixed(2);
+        } catch (error) {
+            return bsd.id;
+        }
+    }));*/
+
     return data || [];
 };
+
 
 const TableBSD = () => {
     const session = useSession();
@@ -830,12 +839,23 @@ const TableBSD = () => {
                                                     </div>
                                                 :
                                                     <div className="text-xs mt-0">
-                                                        {bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity !== null && 
-                                                         bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity !== undefined ? 
-                                                            `${bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity.toFixed(2)} T` : 
-                                                            "-"}
+                                                        {bsd.infos_json.formAPI.createFormInput.quantityReceived 
+                                                        ? 
+                                                            `${parseFloat(String(bsd.infos_json.formAPI.createFormInput.quantityReceived)).toFixed(2)} T` 
+                                                        :
+                                                            bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity !== null && 
+                                                            bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity !== undefined 
+                                                                ? 
+                                                                    `${parseFloat(String(bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity)).toFixed(2)} T` 
+                                                                : 
+                                                                    "-"}
                                                     </div>
+
+
                                                 }
+
+
+
 
                                             </div>
                                         </div>

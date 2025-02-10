@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { parseAddress, extractSiret, getRaisonSocial, sendData_to_Cloud } from "./utils_new";
-import { Company, FormInput } from "../../../interface/BSD_Interface";
+import { Company, FormInput, CompleteFormInput, OtherInfos } from "../../../interface/BSD_Interface";
 import { toast } from "react-hot-toast";
 import { useSession } from "@/app/component/SessionProvider";
 import { useModalContextNew } from "../ContextModal";
@@ -10,7 +10,10 @@ import Cookies from 'js-cookie';
 import { supabase } from "@/app/database/supabaseClient";
 import Recurrence from "../Recurrence/Recurrence";
 import RecurrenceFunctions, { RecurrencePattern } from "../Recurrence/RecurrenceFunctionnal";
-import { OtherInfos } from "./FormulaireFull";
+import { getUniqueOptions } from "./FormulaireFull";
+import { createRoot } from "react-dom/client";
+import PopUp from "./PopUp";
+import PopUpMobile from "./PopUpMobile";
 
 // Ajout des types nécessaires en haut du fichier
 type NestedKeyOf<ObjectType extends object> = {
@@ -144,7 +147,12 @@ interface Props {
     displayModifyCardInFormulaireNew?: boolean;
     modalType?: string;
     otherInfos: OtherInfos;
+    setOtherInfos: (data: OtherInfos) => void;
     onMobile?: boolean;
+    options?: CompleteFormInput[];
+    allOptions?: CompleteFormInput[];
+    handleChange: (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => Promise<void>;
+    ced_table: { ced: string, filiere: string }[];
 }
 
 const ModifyCardInFormulaireNew = ({ 
@@ -155,13 +163,15 @@ const ModifyCardInFormulaireNew = ({
     displayModifyCardInFormulaireNew=true,
     modalType='',
     otherInfos,
+    setOtherInfos,
     onMobile=false,
+    options=[],
+    allOptions=[],
+    handleChange,
+    ced_table
 }: Props) => {
   
   const {dataToogle } = useModalContextNew();
-
-
-
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingMail, setIsSubmittingMail] = useState(false);
@@ -175,7 +185,21 @@ const ModifyCardInFormulaireNew = ({
   const [isHoveringTrackDechet, setIsHoveringTrackDechet] = useState(false);
   const [recurrenceData, setRecurrenceData] = useState(null);
   const [recurrencePattern, setRecurrencePattern] = useState<RecurrencePattern | null>(null);
+  const [showPopup, setShowPopup] = useState(false);
+  const [currentFiliere, setCurrentFiliere] = useState('');
+  const [dataFilter, setDataFilter] = useState<{name: string, value: string}[]>([]);
   
+  // Ajouter les dépendances d'input comme dans FormulaireFull
+  const inputDependencies = {
+    'emitter.company.name': {
+      children: ['emitter.company.siret', 'emitter.company.address']
+    },
+    'wasteDetails.code': {
+      children: ['wasteDetails.name', 'wasteDetails.onuCode']
+    },
+    // ... autres dépendances
+  };
+
   useEffect(() => {
     const cookie_track = Cookies.get('trackdechets_token');
     console.log('cookie_track', cookie_token);
@@ -337,7 +361,7 @@ const ModifyCardInFormulaireNew = ({
         delete newData.wasteDetails.analysisReferences;
     }
 
-      const conditions_pour_submit = conditionsPourSubmit(newData);
+      const conditions_pour_submit = conditionsPourSubmit(newData, true);
       if(conditions_pour_submit){
         if(session && session?.entreprise_id && session?.user_id) {
             console.log('Form send Data to Cloud:', newData);  
@@ -510,55 +534,90 @@ const ModifyCardInFormulaireNew = ({
 
   //DND + Mail
   const handleMailSubmit = async () => {
-    if (!isValidMail) {
-        toast.error('Tous les champs du mail sont obligatoires');
-        return;
-      } else {
-        toast.success('Mail prêt à être envoyé');
-      }
+    setShowPopup(true);
+  };
 
-    const willSendMail = await Swal.fire({
-        title: 'Envoyer le mail ?',
-        text: "Un mail sera envoyé aux destinataires",
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'Envoyer',
-        cancelButtonText: 'Annuler'
-    });
-
-    const conditions_pour_submit = conditionsPourSubmit(dataText);
-
-    if (!willSendMail.isConfirmed || !sendMail || !conditions_pour_submit) return;
-
-    const {data:newData, success} = await prepareDataToCloud(dataText, showTrader, showBroker, showEcoOrganisme, showParcelFields);
+  const handlePopupConfirm = async () => {
+    setShowPopup(false);
     
-    if(session && session?.entreprise_id && session?.user_id && success) {
-      const isDraft=false; //isDraft=true => Pas de track dechet en gros
-      const nonDangereux = true;
-      const result = await sendData_to_Cloud(newData, session?.user_id, session?.entreprise_id, isDraft, nonDangereux, otherInfos);
-      
-      if(result.success) {
-          toast.success("Déchet non dangereux sauvegardé", result.message);
-          setIsSubmittingMail(true);
-          await sendMail();
-          setDisplayFormulaire(false);
-          setModalReload(!modalReload);
-      } else {
-          toast.error("Erreur avec la sauvegarde du BSD non dangereux, mail non envoyé",result.message);
-      }
+    if (modalType === 'create_line') {
+        handleCreateLine();
     } else {
-      toast.error("Erreur lors de la préparation des données pour le BSD non dangereux");
-    }
+        // 1. Vérifier d'abord la validité du mail
+        if (!isValidMail) {
+            toast.error('Tous les champs du mail sont obligatoires');
+            return;
+        }
 
-    setIsSubmittingMail(false);
-    setDisplayFormulaire(false);
-    setModalReload(!modalReload);
-    if(pastBrouillon){
-      onClose();
-      toastInfos();
+        // 2. Afficher le Swal de confirmation d'envoi de mail
+        const willSendMail = await Swal.fire({
+            title: 'Envoyer le mail ?',
+            text: "Un mail sera envoyé aux destinataires",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Envoyer',
+            cancelButtonText: 'Annuler'
+        });
+
+        if (!willSendMail.isConfirmed) {
+            return;
+        }
+
+        try {
+            setIsSubmittingMail(true);
+            
+            // 4. Préparer et envoyer les données
+            const {data:newData, success} = await prepareDataToCloud(dataText, showTrader, showBroker, showEcoOrganisme, showParcelFields);
+            if (!success) {
+                toast.error("Erreur lors de la préparation des données");
+                return;
+            }
+
+            // 5. Vérifier les conditions pour submit
+            const conditions_pour_submit = conditionsPourSubmit(newData, false);
+            if (!conditions_pour_submit) {
+                return;
+            }
+
+            if (session?.user_id && session?.entreprise_id) {
+                const result = await sendData_to_Cloud(
+                    newData, 
+                    session.user_id, 
+                    session.entreprise_id, 
+                    false, // isDraft
+                    true,  // nonDangereux
+                    otherInfos
+                );
+
+                if (result.success) {
+                    if (sendMail) {
+                        await sendMail();
+                        toast.success("Mail envoyé avec succès");
+                    }
+                    setDisplayFormulaire(false);
+                    setModalReload(!modalReload);
+                    if (pastBrouillon) {
+                        onClose();
+                        toastInfos();
+                    }
+                } else {
+                    toast.error("Erreur lors de la sauvegarde");
+                }
+            }
+        } catch (error) {
+            console.error('Error in handlePopupConfirm:', error);
+            toast.error("Une erreur est survenue");
+            setShowPopup(true); // Réafficher le popup en cas d'erreur
+        } finally {
+            setIsSubmittingMail(false);
+        }
     }
+  };
+
+  const handlePopupCancel = () => {
+    setShowPopup(false);
   };
 
   /*useEffect(() => {
@@ -671,6 +730,11 @@ const ModifyCardInFormulaireNew = ({
     setDisplayFormulaire(false);
     setModalReload(!modalReload);
     onClose();
+  };
+
+  // Ajouter une nouvelle fonction pour gérer le clic sur le bouton Créer
+  const handleCreateLineWithPopup = () => {
+    setShowPopup(true);
   };
 
   return (
@@ -1030,7 +1094,7 @@ const ModifyCardInFormulaireNew = ({
         {modalType === 'create_line' && (
           <button
             type="button"
-            onClick={handleCreateLine}
+            onClick={handleCreateLineWithPopup}
             className={`px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex-2`}
           >
             {onMobile ? "Créer" : "Créer la ligne"}
@@ -1038,6 +1102,40 @@ const ModifyCardInFormulaireNew = ({
         )}
       </div>
 
+      {showPopup && (
+        onMobile ?
+        <PopUpMobile
+            dataToogle={dataText} 
+            setDataToogle={setDataText} 
+            modalType={modalType} 
+            onMobile={onMobile} 
+            otherInfos={otherInfos}
+            setOtherInfos={setOtherInfos}
+            getUniqueOptions={getUniqueOptions}
+            options={options}
+            allOptions={allOptions}
+            onConfirm={handlePopupConfirm}
+            onCancel={handlePopupCancel}
+            handleChange={handleChange}
+            ced_table={ced_table}
+        />
+        :
+        <PopUp
+            dataToogle={dataText} 
+            setDataToogle={setDataText} 
+            modalType={modalType} 
+            onMobile={onMobile} 
+            otherInfos={otherInfos}
+            setOtherInfos={setOtherInfos}
+            getUniqueOptions={getUniqueOptions}
+            options={options}
+            allOptions={allOptions}
+            onConfirm={handlePopupConfirm}
+            onCancel={handlePopupCancel}
+            handleChange={handleChange}
+            ced_table={ced_table}
+        />
+      )}
       <div className="pb-16"></div>
     </div>
   );
@@ -1045,16 +1143,20 @@ const ModifyCardInFormulaireNew = ({
 
 export default ModifyCardInFormulaireNew;
 
-const conditionsPourSubmit = (newData: FormInput) => {
+const conditionsPourSubmit = (newData: FormInput, dangerous: boolean) => {
     if(newData.emitter.company.siret === ''){
         toast.error('Le SIRET de l\'émetteur est requis');
         return false;
     }
-    if(newData.recipient.company.siret === ''){
+    if(newData.emitter.workSite.address === ''){
+      toast.error('L\'adresse d\'enlèvement est requise');
+      return false;
+  }
+    if(newData.recipient.company.siret === '' && dangerous){
         toast.error('Le SIRET du destinataire est requis');
         return false;
     }
-    if(newData.transporter.company.siret === ''){
+    if(newData.transporter.company.siret === '' && dangerous){
         toast.error('Le SIRET du transporteur est requis');
         return false;
     }
@@ -1062,11 +1164,11 @@ const conditionsPourSubmit = (newData: FormInput) => {
         toast.error('Le code CED est requis');
         return false;
     }
-    if(newData.emitter.workSite.name === ''){
+    if(newData.emitter.workSite.name === '' && dangerous){
         toast.error('Le nom du point de collecte est requis');
         return false;
     }
-    if(newData.wasteDetails.consistence === ''){
+    if(newData.wasteDetails.consistence === '' && dangerous){
       toast.error('La consistance du déchet est requise');
       return false;
     }

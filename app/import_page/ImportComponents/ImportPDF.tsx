@@ -5,6 +5,12 @@ import { SessionMore, useSession } from '../../component/SessionProvider';
 import { useImport } from './ImportContext';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 
+const sanitizeFileName = (fileName: string): string => {
+    return fileName
+        .replace(/[^a-zA-Z0-9.-]/g, '_') // Remplace les caractères spéciaux par des underscores
+        .replace(/_+/g, '_'); // Évite les underscores multiples
+};
+
 const ImportPDF = () => {
     const [loading, setLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
@@ -57,13 +63,32 @@ const ImportPDF = () => {
         setLoading(true);
         const uploadPromises = files.map(async (file) => {
             try {
+                if (file.size > 50 * 1024 * 1024) { // 50MB limite
+                    return { 
+                        success: false, 
+                        file: file.name, 
+                        error: 'Le fichier dépasse la taille maximale autorisée (50MB)' 
+                    };
+                }
+
                 setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
-                const filePath = `${file.name}_${Date.now()}_${user_id}`;
+                const sanitizedName = sanitizeFileName(file.name);
+                const filePath = `${sanitizedName}_${Date.now()}_${user_id}`;
+
+                const fileType = await getFileType(file);
+                if (!fileType.isPDF) {
+                    return { 
+                        success: false, 
+                        file: file.name, 
+                        error: 'Le fichier n\'est pas un PDF valide' 
+                    };
+                }
 
                 const { data, error: uploadError } = await supabase.storage
                     .from('pdfs_bucket')
                     .upload(filePath, file, {
-                        upsert: false
+                        upsert: false,
+                        contentType: 'application/pdf'
                     });
 
                 if (uploadError) {
@@ -92,8 +117,14 @@ const ImportPDF = () => {
                 }
 
                 return { success: true, file: file.name };
-            } catch (error) {
-                return { success: false, file: file.name, error: 'Une erreur est survenue' };
+            } catch (error: unknown) {
+                console.error(`Erreur détaillée pour ${file.name}:`, error);
+                const errorMessage = error instanceof Error ? error.message : 'Une erreur inconnue est survenue';
+                return { 
+                    success: false, 
+                    file: file.name, 
+                    error: errorMessage 
+                };
             }
         });
 
@@ -157,6 +188,23 @@ const ImportPDF = () => {
             )}
         </div>
     );
+};
+
+// Fonction utilitaire pour vérifier le type de fichier
+const getFileType = (file: File): Promise<{ isPDF: boolean }> => {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = (e) => {
+            const arr = new Uint8Array(e.target?.result as ArrayBuffer).subarray(0, 4);
+            let header = '';
+            for (let i = 0; i < arr.length; i++) {
+                header += arr[i].toString(16);
+            }
+            // Vérifie la signature du fichier PDF (%PDF)
+            resolve({ isPDF: header.startsWith('25504446') });
+        };
+        reader.readAsArrayBuffer(file.slice(0, 4));
+    });
 };
 
 export default ImportPDF;

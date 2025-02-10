@@ -3,10 +3,9 @@ import { FormInput } from "../../interface/BSD_Interface";
 import { MailProvider } from "../../MailComponents/MailContext";
 import MailComponent from "../../MailComponents/MailComponent";
 import { toast } from "react-hot-toast";
-import Swal from 'sweetalert2';
 import { sendData_to_Cloud } from "./FormulaireFull/utils_new";
 import { useState } from "react";
-import ModifyCardInFormulaireNew, { SectionForm } from "./FormulaireFull/ModifyCardInFormulaireNew";
+import ModifyCardInFormulaireNew from "./FormulaireFull/ModifyCardInFormulaireNew";
 
 interface SendDraftModalProps {
     isOpen: boolean;
@@ -35,14 +34,15 @@ const SendDraftModal = ({
 
     if (!isOpen) return null;
 
-    const handleLocalChange = (path: string, value: string) => {
+    const handleLocalChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => {
+        const { name, value } = e.target;
         setFormData(prevData => {
             const newData = { ...prevData };
-            const keys = path.split('.');
+            const keys = name.split('.');
 
             // Cas spécial pour packagingInfos
-            if (path.includes('packagingInfos[0]')) {
-                const [, property] = path.split('packagingInfos[0].');
+            if (name.includes('packagingInfos[0]')) {
+                const [, property] = name.split('packagingInfos[0].');
                 if (property === 'type') {
                     newData.wasteDetails.packagingInfos[0].type = value as "FUT" | "GRV" | "CITERNE" | "BENNE" | "PIPELINE" | "AUTRE";
                 } else if (property === 'quantity') {
@@ -127,6 +127,9 @@ const SendDraftModal = ({
                         onClose={()=>onClose()}
                         pastBrouillon={true}
                         otherInfos={{containerDescription:"",volume:"",volumeUnit:"",fillRate:""}}
+                        setOtherInfos={() => {}}
+                        handleChange={handleLocalChange}
+                        ced_table={[]}
                     />
                 </div>
             </div>

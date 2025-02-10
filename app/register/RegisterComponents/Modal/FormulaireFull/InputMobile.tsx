@@ -35,6 +35,7 @@ interface InputFullProps {
     display?: boolean;
     stylePrimary?: boolean;
     onMobile?: boolean;
+    popup?: boolean;
 }
 
 const InputFull: React.FC<InputFullProps> = ({
@@ -52,6 +53,7 @@ const InputFull: React.FC<InputFullProps> = ({
     display=true,
     stylePrimary=false,
     onMobile = false,
+    popup = false,
 }: InputFullProps) => {
     const [isTextMode, setIsTextMode] = useState(false);
 
@@ -127,14 +129,18 @@ const InputFull: React.FC<InputFullProps> = ({
     };
 
     return (
-        <div>
-            <div className={`${onMobile ? 'w-full' : 'w-[400px]'} overflow-x-auto my-0.5 ${display ? "block" : "hidden"}`}>
-                <div className="flex justify-start items-center space-x-4">
-                    <div className={`${onMobile ? 'w-[70px]' : 'w-[120px]'} text-right text-base text-gray-500 ${stylePrimary ? 'font-medium' : 'font-thin'}`}>{titre}</div>
+        <div className="relative w-full mr-2">
+            <div className={`${display ? "block" : "hidden"} w-full`}>
+                <div className="relative flex items-center w-full">
+                    {titre && (
+                        <div className={`${onMobile ? 'w-[70px]' : 'w-[120px]'} text-right text-base text-gray-500 mr-2 ${stylePrimary ? 'font-medium' : 'font-thin'}`}>
+                            {titre}
+                        </div>
+                    )}
                     {changeLoad ? (
                         <div className="w-[20px] text-center animate-spin">♻</div>
                     ) : (
-                        <div className={`${onMobile ? 'w-[240px]' : 'w-[260px]'}`}>
+                        <div className="flex-1">
                             {enabled ? (
                                 <CreatableSelect
                                     isClearable
@@ -147,28 +153,74 @@ const InputFull: React.FC<InputFullProps> = ({
                                     formatCreateLabel={(inputValue: string) => `Créer "${inputValue}"`}
                                     noOptionsMessage={() => "Aucune option"}
                                     filterOption={filterOption}
-                                    menuPortalTarget={document.body}
-                                    menuPosition="fixed"
+                                    menuPosition="absolute"
                                     createOptionPosition="first"
                                     styles={{
+                                        container: (base) => ({
+                                            ...base,
+                                            width: '100%',
+                                            position: 'relative',
+                                            height: '42px',
+                                        }),
                                         control: (base) => ({
                                             ...base,
-                                            minHeight: '16px',
+                                            minHeight: '42px !important',
+                                            height: '42px !important',
                                             backgroundColor: getBackgroundColor(),
                                             borderColor: stylePrimary ? '#43A047' : base.borderColor,
                                             borderWidth: '1px',
                                             fontSize: '16px',
-                                            marginLeft: '2px'
+                                            width: '100%',
+                                            borderRadius: '4px',
+                                            ...(popup && {
+                                                padding: '0 8px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            })
+                                        }),
+                                        clearIndicator: (base) => ({
+                                            ...base,
+                                            display: popup ? 'none' : 'flex'
+                                        }),
+                                        indicatorSeparator: (base) => ({
+                                            ...base,
+                                            display: popup ? 'none' : 'flex'
                                         }),
                                         valueContainer: (base) => ({
                                             ...base,
-                                            padding: '0 3px'
+                                            padding: popup ? '0 8px' : '0 3px',
+                                            height: '100%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            ...(popup && {
+                                                justifyContent: 'center',
+                                            })
                                         }),
                                         input: (base) => ({
                                             ...base,
                                             margin: '0px',
+                                            padding: '0px',
                                             fontSize: '16px',
-                                            '-webkit-tap-highlight-color': 'transparent'
+                                            '-webkit-tap-highlight-color': 'transparent',
+                                            ...(popup && {
+                                                textAlign: 'center'
+                                            })
+                                        }),
+                                        singleValue: (base) => ({
+                                            ...base,
+                                            position: 'absolute',
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
+                                            maxWidth: 'calc(100% - 20px)',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                            ...(popup && {
+                                                textAlign: 'center',
+                                                left: '50%',
+                                                transform: 'translate(-50%, -50%)'
+                                            })
                                         }),
                                         menu: (base) => ({
                                             ...base,
@@ -176,12 +228,11 @@ const InputFull: React.FC<InputFullProps> = ({
                                             position: 'absolute',
                                             width: '100%',
                                             backgroundColor: 'white',
-                                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                            fontSize: '16px'
-                                        }),
-                                        menuPortal: (base) => ({
-                                            ...base,
-                                            zIndex: 9999
+                                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                                            fontSize: '16px',
+                                            maxHeight: '200px',
+                                            overflowY: 'auto',
+                                            marginTop: '4px'
                                         }),
                                         option: (base, state) => ({
                                             ...base,
@@ -190,7 +241,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                                 (state.isSelected ? '#2684FF' : 'white'),
                                             color: state.isSelected ? 'white' : 'black',
                                             fontSize: '16px',
-                                            padding: '4px 8px'
+                                            padding: '12px 8px'
                                         }),
                                         group: (base) => ({
                                             ...base,
@@ -208,14 +259,6 @@ const InputFull: React.FC<InputFullProps> = ({
                                         dropdownIndicator: (base) => ({
                                             ...base,
                                             padding: 2
-                                        }),
-                                        clearIndicator: (base) => ({
-                                            ...base,
-                                            padding: 2
-                                        }),
-                                        indicatorSeparator: (base) => ({
-                                            ...base,
-                                            margin: 2
                                         })
                                     }}
                                     isValidNewOption={(inputValue) => {

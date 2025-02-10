@@ -127,9 +127,12 @@ const getWebHooks = async (token:string, id_company:string, url_track: string) =
                             node: {
                                 id: string;
                                 endpointUri: string;
+                                orgId: string;
+                                activated: boolean;
                             };
                         }>;
                     };
+
                 };
             };
         }
@@ -151,9 +154,15 @@ const getWebHooks = async (token:string, id_company:string, url_track: string) =
             //throw new Error('Erreur lors de la récupération des webhooks');
         }
         if (response?.data?.data?.webhooksettings?.edges?.length > 0) {
-            console.log('WebHook trouvé ! : ', response?.data?.data?.webhooksettings?.edges[0]?.node);
+            console.log('Endpoint : ', response?.data?.data?.webhooksettings?.edges[0].node.endpointUri);
+            for (const webhook of response?.data?.data?.webhooksettings?.edges) {
+                console.log('WebHook trouvé : ', webhook.node.orgId, webhook.node.activated);
+            }
+
             return {status: 200, webhooks: response?.data?.data?.webhooksettings?.edges[0]?.node};
+
         } else {
+
             console.log('Aucun webhook trouvé');
             return {status: 200, webhooks: {endpointUri: 'null', id: 'null'}};
         }
@@ -221,7 +230,7 @@ const createWebHook = async (token:string, id_company:string, uri:string, url_tr
             activated: true
         }
     };
-    console.log('----- Variables', variables);
+    console.log('----- Variables token/activated :', variables.input.token,'/', variables.input.activated);
 
     try {
         const response = await axios.post(

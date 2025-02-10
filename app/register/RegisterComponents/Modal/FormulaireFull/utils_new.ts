@@ -1,7 +1,7 @@
 import { toast } from "react-hot-toast";
 import { Gouv, Anything, FormInput } from "../../../interface/BSD_Interface";
 import { supabase } from "@/app/database/supabaseClient";
-import { OtherInfos } from "./FormulaireFull";
+import { OtherInfos } from "@/app/register/interface/BSD_Interface";
 
 
 export const extractSiret = (number: string | number | boolean | null): string | null => {
@@ -329,13 +329,14 @@ export const getMappingTableFiliere = async (entreprise_id: string) => {
 }
 
 export const getFiliere = (code: string, mapping_table: { ced: string, filiere: string }[]) => {
+  if(!code || code === '') return '';
   const code_clean = code.replaceAll(" ", "").replace('*', '');
   const result = mapping_table.find((item:{ced: string, filiere: string}) => item.ced === code_clean)?.filiere;
   return result ? result : '';
 }
 
 
-export const pushOnTableParametrage = async (user_id: string, entreprise_id: string, data: {formAPI: {createFormInput: FormInput}}) => {
+export const pushOnTableParametrage = async (user_id: string, entreprise_id: string, data: {formAPI: {createFormInput: FormInput}}, otherInfos?: OtherInfos) => {
 
   const formData = data.formAPI.createFormInput;
 
@@ -416,7 +417,7 @@ export const pushOnTableParametrage = async (user_id: string, entreprise_id: str
     if (!existingForm && condition_completude) {
       const { error: insertError } = await supabase
         .from('table_parametrage')
-        .insert({user_id: user_id, entreprise_id: entreprise_id, json_row: formData});
+        .insert({user_id: user_id, entreprise_id: entreprise_id, json_row: formData, other_infos: otherInfos});
 
       if (insertError) {
         console.error('Erreur lors de l\'insertion:', insertError);
@@ -438,5 +439,118 @@ export const pushOnTableParametrage = async (user_id: string, entreprise_id: str
   } catch (error) {
     console.error('Erreur générale:', error);
     return {success: false, message: 'Erreur inconnue'};
+  }
+}
+
+//pas  utiliser pour l'instant
+const preciseFilter = (
+  allOptions: {json_row: FormInput, other_infos?: OtherInfos}[], 
+  alreadyChosenData: FormInput, 
+  fieldsForFilter: string[], 
+  interestField: string
+): string => {
+  try {
+      // 1. Filtrer les options qui correspondent aux champs déjà remplis
+      const filteredOptions = allOptions.filter(option => {
+          return fieldsForFilter.every(field => {
+              const value = field.split('.').reduce<unknown>((obj, key) => 
+                  typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                  option.json_row as unknown as Record<string, unknown>
+              );
+              const chosenValue = field.split('.').reduce<unknown>((obj, key) => 
+                  typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                  alreadyChosenData as unknown as Record<string, unknown>
+              );
+              
+              if (!chosenValue) return true;
+              return value === chosenValue;
+          });
+      });
+
+      // 2. Si aucune option ne correspond, retourner une chaîne vide
+      if (filteredOptions.length === 0) return '';
+
+      // 3. Extraire les valeurs du champ d'intérêt avec gestion spéciale pour fullAddress
+      const interestValues = filteredOptions.map(option => {
+          if (interestField === 'emitter.workSite.fullAddress') {
+              const workSite = option.json_row.emitter.workSite;
+              return workSite.fullAddress || 
+                  `${workSite.address || ''} ${workSite.postalCode || ''} ${workSite.city || ''}`.trim();
+          }
+          return interestField.split('.').reduce<unknown>((obj, key) => 
+              typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+              option.json_row as unknown as Record<string, unknown>
+          );
+      }).filter(Boolean);
+
+      // 4. Compter les occurrences de chaque valeur
+      const valueCounts = interestValues.reduce((acc: {[key: string]: number}, value) => {
+          const key = String(value);
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+      }, {});
+
+      // 5. Trouver la valeur la plus fréquente
+      let mostFrequentValue = '';
+      let maxCount = 0;
+
+      Object.entries(valueCounts).forEach(([value, count]) => {
+          if (count > maxCount) {
+              maxCount = count;
+              mostFrequentValue = value;
+          }
+      });
+
+      return mostFrequentValue;
+  } catch (error) {
+      console.warn('Error in preciseFilter:', error);
+      return '';
+  }
+};
+
+export const filter_dependencies = {
+  'site': {
+    parent: ['emitter.company.name'],
+    children: ['emitter.company.siret']
+  },
+  'point_collecte': {
+    parent: ['emitter.workSite.name'],
+    children: ['emitter.workSite.fullAddress', 'emitter.workSite.infos']
+  },
+  'contact': {
+    parent: ['emitter.company.siret', 'emitter.workSite.name'],
+    children: ['emitter.company.contact', 'emitter.company.mail', 'emitter.company.phone']
+  },
+  'contact_direct': {
+    parent: ['emitter.company.contact'],
+    children: ['emitter.company.mail', 'emitter.company.phone']
+  },
+  'dechet': {
+    parent: ['wasteDetails.name'],
+    children: ['wasteDetails.code', 'wasteDetails.isSubjectToADR', 'wasteDetails.onuCode']
+  },
+  /*'dechet_code_attentioooon': {
+    parent: ['wasteDetails.code'],
+    children: ['wasteDetails.name', 'wasteDetails.isSubjectToADR', 'wasteDetails.onuCode']
+  },*/
+  'transport': {
+    parent: ['transporter.company.name'],
+    children: ['transporter.company.siret', 'transporter.company.address']
+  },
+  'transport_contact': {
+    parent: ['transporter.company.siret', 'emitter.company.siret'],
+    children: ['transporter.company.contact', 'transporter.company.mail', 'transporter.company.phone']
+  },
+  'traitement': {
+    parent: ['recipient.company.name'],
+    children: ['recipient.company.siret', 'recipient.company.address']
+  },
+  'traitement_contact': {
+    parent: ['recipient.company.siret', 'emitter.company.siret'],
+    children: ['recipient.company.contact', 'recipient.company.mail', 'recipient.company.phone']
+  },
+  'code_traitement': {
+    parent: ['emitter.company.siret', 'recipient.company.siret', 'wasteDetails.code'],
+    children: ['recipient.processingOperation'] //Ajouter CAP, ONU ??
   }
 }

@@ -1,15 +1,17 @@
 import { FormInput } from "@/app/register/interface/BSD_Interface";
 import { useModalContextNew } from "../ContextModal";
 import InputFull from "./InputFull";
-import { formatText, getDataAutocompletion, getMappingTableFiliere, getFiliere } from "./utils_new";
-import { useEffect, useState } from "react";
+import { formatText, getDataAutocompletion, getMappingTableFiliere, getFiliere, filter_dependencies } from "./utils_new";
+import { useEffect, useState, useRef } from "react";
 import { useSession } from "@/app/component/SessionProvider";
 import MailComponent from "@/app/register/MailComponents/MailComponent";
 import ModifyCardInFormulaireNew from "./ModifyCardInFormulaireNew";
 import { supabase } from "@/app/database/supabaseClient";
 import BoxIcon from "@/app/component/BoxIconWrapper";
-//import PopUp from "./PopUp";
 import { useFilterContext } from "@/app/FilterContext";
+import { OtherInfos, CompleteFormInput } from "@/app/register/interface/BSD_Interface";
+import { toast } from "react-hot-toast";
+import { createRoot } from "react-dom/client";
 
 const initialToogleData: FormInput = {
     emitter: {
@@ -37,9 +39,9 @@ const initialToogleData: FormInput = {
       name: "",
       isSubjectToADR: false,
       onuCode: "",
-      packagingInfos: [{ type: "FUT" as "FUT" | "GRV" | "CITERNE" | "BENNE" | "PIPELINE" | "AUTRE", quantity: 0, other: "" }],
+      packagingInfos: [{ type: "AUTRE" as "FUT" | "GRV" | "CITERNE" | "BENNE" | "PIPELINE" | "AUTRE", quantity: 1, other: "" }],
       quantity: 0,
-      quantityType: "REAL" as "REAL" | "ESTIMATED",
+      quantityType: "ESTIMATED" as "REAL" | "ESTIMATED",
       consistence: "",
       pop: false,
       isDangerous: false,
@@ -70,19 +72,14 @@ const initialToogleData: FormInput = {
     //intermediaries: [],
   };
 
-// Ajouter après la définition de initialToogleData
-export interface OtherInfos {
-    containerDescription: string;
-    volume: string;
-    volumeUnit: string;
-    fillRate: string;
-}
 
 const initialOtherInfos: OtherInfos = {
   containerDescription: "",
   volume: "",
   volumeUnit: "",
-  fillRate: ""
+  fillRate: "",
+  inputMode: "volume",
+  automaticMode: true
 };
 
 // Définition de la structure des dépendances
@@ -105,8 +102,8 @@ const inputDependencies: InputDependencies = {
     'emitter.workSite.name': {
         children: ['emitter.workSite.fullAddress', 'emitter.workSite.infos']
     },
-    'wasteDetails.code': {
-        children: ['wasteDetails.name', 'wasteDetails.isSubjectToADR', 'wasteDetails.onuCode']
+    'wasteDetails.name': {
+        children: ['wasteDetails.code', 'wasteDetails.isSubjectToADR', 'wasteDetails.onuCode']
     },
     'wasteDetails.packagingInfos[0].type': {
         children: [
@@ -194,15 +191,10 @@ type NestedValue = string | number | boolean | NestedObject | NestedArray | unde
 
 const getNestedValue = (obj: FormInput | NestedObject, path: string): string => {
     try {
-        const value = path.split('.').reduce((acc: Record<string, NestedValue>, part) => {
-            if (part.includes('[')) {
-                const [arrayName, indexStr] = part.split(/[\[\]]/);
-                const index = parseInt(indexStr);
-                const array = acc[arrayName] as NestedArray;
-                return array?.[index] as Record<string, NestedValue>;
-            }
-            return acc[part] as Record<string, NestedValue>;
-        }, obj as Record<string, NestedValue>);
+        const value = path.split('.').reduce<unknown>((obj, key) => 
+            typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+            obj as unknown as Record<string, unknown>
+        );
         
         if (typeof value === 'boolean' || typeof value === 'number') {
             return String(value);
@@ -213,6 +205,17 @@ const getNestedValue = (obj: FormInput | NestedObject, path: string): string => 
         return '';
     }
 };
+
+// Définir une interface pour le type d'option
+interface OptionType {
+    json_row: FormInput;
+    other_infos?: OtherInfos;
+}
+
+interface FormulaireFullProps {
+    options: CompleteFormInput[];
+    allOptions: CompleteFormInput[];
+}
 
 const FormulaireFull = () => {
 
@@ -228,17 +231,23 @@ const FormulaireFull = () => {
     const [ced_table, setCedTable] = useState<{ ced: string, filiere: string }[]>([]);
     const [displayAll, setDisplayAll] = useState(false);
     const [dataFilter, setDataFilter] = useState<{name: string, value: string}[]>([]);
-    const [allOptions, setAllOptions] = useState<FormInput[]>([]);
+    const [allOptions, setAllOptions] = useState<{json_row: FormInput, other_infos?: OtherInfos}[]>([]);
     const [changedField, setChangedField] = useState<string>("");
     const [other_infos, setOtherInfos] = useState<OtherInfos>(initialOtherInfos);
     const { sites } = useFilterContext();
 
+    // Ajouter une ref pour tracker la dernière modification
+    const lastChangedField = useRef<string>('');
+
+    // Ajouter un état pour tracker si l'autocomplétion est désactivée
+    const [disableAutocompletion, setDisableAutocompletion] = useState(false);
+
 //Initialisation des options
 useEffect(() => {
     if(session?.entreprise_id) {
-        getDataAutocompletion(session.entreprise_id).then(data => {
-            setAllOptions(data || []);
-            setOptions(data || []);
+        getDataAutocompletionFull([], session.entreprise_id, []).then(data => {
+            setAllOptions(data);
+            setOptions(data);
         });
     }
 }, [session]);
@@ -270,78 +279,64 @@ useEffect(() => {
     }
 }, [sites]); // Se déclenche quand les sites changent
 
-//HandleChange
+//HandleChange -> AUTOCOMPLETION
 const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => {
     const { name, value } = e.target;
-    let valueToUse = value;
-
     // Mettre à jour le champ qui a changé
     if(Object.keys(inputDependencies).includes(name)) {
         setChangedField(name);
     }
-    /*setTimeout(() => {
-        setChangedField("");
-    }, 1000);*/
 
-    
-    console.log("handleChange", name, typeof value, value);
+    // Liste des champs qui désactivent l'autocomplétion
+    const disablingFields = [
+        'wasteDetails.quantity',
+        'wasteDetails.packagingInfos[0].quantity',
+        'other_infos.volume',
+        'other_infos.volumeUnit',
+        'other_infos.fillRate'
+    ];
 
-    // Mise à jour de dataFilter
-    const newDataFilter = dataFilterUpdate(setCurrentFiliere, ced_table, name, value, dataFilter, setDataFilter, inputDependencies);
-    
-    // Mise à jour de la valeur choisie dans dataToogle
+    // Activer/désactiver l'autocomplétion selon le champ modifié
+    if (disablingFields.includes(name)) {
+        setDisableAutocompletion(true);
+    } else {
+        setDisableAutocompletion(false);
+    }
+
+    // Création de newData avant son utilisation
     const newData = JSON.parse(JSON.stringify(dataToogle)) as FormInput;
-        if(name==="wasteDetails.code") {
-            valueToUse = value.split(" - ")[1];
-        }
-        updateNestedValue(newData as unknown as NestedObject, name, valueToUse);
+    
+    // Mettre à jour la valeur dans newData
+    updateNestedValue(newData as unknown as NestedObject, name, value);
+    
+    // Mettre à jour dataToogle avec les nouvelles valeurs
     setDataToogle(newData);
 
-    // Mettre à jour les options avec les nouveaux filtres
+    // Mise à jour de dataFilter seulement si ce n'est pas un champ désactivant l'autocomplétion
+    if (!disablingFields.includes(name)) {
+        const newDataFilter = dataFilterUpdate(
+            setCurrentFiliere, 
+            ced_table, 
+            name, 
+            value, 
+            dataFilter, 
+            setDataFilter, 
+            inputDependencies
+        );
+
+        // Mise à jour des options si nécessaire
     if (session?.entreprise_id) {
         try {
-            // Récupérer les enfants du champ modifié
-            const childFields = inputDependencies[name]?.children || [];
-            
-            // Aller chercher les options en filtrant sur newDataFilter, et prendre tout aussi les options sans filtre
-            const [filteredOptions, allOptions] = await Promise.all([
-                getDataAutocompletionFull(
-                    newDataFilter,
-                    session.entreprise_id,
-                    ced_table
-                ),
+                const [filteredOptions, allOptionsData] = await Promise.all([
+                    getDataAutocompletionFull(newDataFilter, session.entreprise_id, ced_table),
                 getDataAutocompletionFull([], session.entreprise_id, ced_table)
             ]);
-
-            // Pour chaque enfant, vérifier s'il n'y a qu'une seule option possible
-            if (filteredOptions && filteredOptions.length > 0) {
-                for (const childField of childFields) {
-                    const uniqueChildValues = new Set(
-                        filteredOptions
-                            .map(opt => getNestedValue(opt, childField))
-                            .filter(value => value !== '') // Filtrer les valeurs vides
-                    );
-                    //On prend le childField"site.address" par exemple sur toutes les options filtrées
-                    //console.log("uniqueChildValues", uniqueChildValues);
-
-                    //Si il n'y a qu'une seule option possible sur ce child (site.address), on la met dans dataToogle
-                    if (uniqueChildValues.size === 1) {
-                        const uniqueValue = Array.from(uniqueChildValues)[0];
-                        if (uniqueValue) { // Vérifier que la valeur n'est pas vide
-                        setDataToogle(prev => {
-                            const newData = JSON.parse(JSON.stringify(prev));
-                            updateNestedValue(newData as unknown as NestedObject, childField, uniqueValue);
-                            return newData;
-                        });
-                            // Ajouter également au dataFilter -> surtout paaas
-                            //newDataFilter.push({ name: childField, value: uniqueValue });
-                        }
-                    }
-                }
-            }            
-            setOptions([...filteredOptions]);
+            
+                setOptions(filteredOptions);
+                setAllOptions(allOptionsData);
         } catch (error) {
             console.error("Erreur lors de la mise à jour des options:", error);
+            }
         }
     }
 };
@@ -354,7 +349,7 @@ const ResetData = () => {
     setChangedField("");
     setOtherInfos(initialOtherInfos);
     if(session?.entreprise_id) {
-        getDataAutocompletion(session.entreprise_id).then(data => setOptions(data as FormInput[]));
+        getDataAutocompletionFull([], session.entreprise_id, []).then(data => setOptions(data));
     }
 }
 
@@ -379,6 +374,53 @@ const handleOtherInfosChange = (updates: Partial<{
         ...updates
     }));
 };
+
+// Modifier le useEffect pour prendre en compte l'état de désactivation
+useEffect(() => {
+    // Ne pas exécuter l'autocomplétion si elle est désactivée
+    if (disableAutocompletion) {
+        return;
+    }
+
+    Object.entries(filter_dependencies).forEach(([key, config]) => {
+        const allParentsHaveValues = config.parent.every(parentField => {
+            const parentValue = parentField.split('.').reduce<unknown>((obj, key) => 
+                typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                dataToogle as unknown as Record<string, unknown>
+            );
+            return parentValue && parentValue !== '';
+        });
+
+        if (allParentsHaveValues) {
+            const newData = { ...dataToogle };
+            let hasUpdates = false;
+
+            config.children.forEach(childField => {
+                const currentValue = childField.split('.').reduce<unknown>((obj, key) => 
+                    typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                    dataToogle as unknown as Record<string, unknown>
+                );
+                if (!currentValue || currentValue === '') {
+                    const suggestedValue = preciseFilter(
+                        allOptions,
+                        newData,
+                        config.parent,
+                        childField
+                    );
+                    
+                    if (suggestedValue) {
+                        updateNestedValue(newData as unknown as NestedObject, childField, suggestedValue);
+                        hasUpdates = true;
+                    }
+                }
+            });
+
+            if (hasUpdates) {
+                setDataToogle(newData);
+            }
+        }
+    });
+}, [dataToogle, allOptions, disableAutocompletion]);
 
 //Render
     return (
@@ -407,8 +449,8 @@ const handleOtherInfosChange = (updates: Partial<{
                             <InputFull
                                 titre="Site"
                                 placeholder="Sélectionner un site"
-                                options={getUniqueOptions(options, allOptions, opt => opt.emitter.company.name)}
-                                width={2}
+                                options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.name)}
+                                width={40}
                                 name="emitter.company.name"
                                 value={dataToogle.emitter.company.name}
                                 onChange={handleChange}
@@ -418,8 +460,8 @@ const handleOtherInfosChange = (updates: Partial<{
                             <InputFull
                                 titre="Siret"
                                 placeholder="Siret"
-                                options={getUniqueOptions(options, allOptions, opt => opt.emitter.company.siret)}
-                                width={2}
+                                options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.siret)}
+                                width={40}
                                 name="emitter.company.siret"
                                 value={dataToogle.emitter.company.siret}
                                 onChange={handleChange}
@@ -438,17 +480,13 @@ const handleOtherInfosChange = (updates: Partial<{
                                 display={displayAll || shouldDisplayField("emitter.company.address", changedField)}
                             />*/}
                         </div>
-
-                        </div>
-                        {/*2ème ligne*/}
-                        <div className="mt-0 flex justify-between gap-4 w-1/2 ml-8">
                             {/*Point de Collecte*/}
                             <div>
                                 <InputFull
                                     titre="Point de collecte"
                                     placeholder="Sélectionner un point de collecte"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.emitter.workSite.name)}
-                                    width={2}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.workSite.name)}
+                                    width={40}
                                     name="emitter.workSite.name"
                                     value={dataToogle.emitter.workSite.name}
                                     onChange={handleChange}
@@ -458,8 +496,8 @@ const handleOtherInfosChange = (updates: Partial<{
                                 <InputFull
                                     titre="Adresse d'enlèvement"
                                     placeholder="Adresse"
-                                    options={getUniqueOptions(options, allOptions, opt => `${formatText(opt.emitter.workSite.fullAddress ?? "")}`)}
-                                    width={2}
+                                    options={getUniqueOptions(options, allOptions, opt => `${formatText(opt.json_row.emitter.workSite.fullAddress ?? "")}`)}
+                                    width={40}
                                     name="emitter.workSite.fullAddress"
                                     value={`${formatText(dataToogle.emitter.workSite.fullAddress ?? "")}`}
                                     onChange={handleChange}
@@ -469,51 +507,54 @@ const handleOtherInfosChange = (updates: Partial<{
                                 <InputFull
                                     titre="Infos"
                                     placeholder="Infos"
-                                    options={getUniqueOptions(options, allOptions, opt => `${formatText(opt.emitter.workSite.infos ?? "")}`)}
-                                    width={2}
+                                    options={getUniqueOptions(options, allOptions, opt => `${formatText(opt.json_row.emitter.workSite.infos ?? "")}`)}
+                                    width={40}
                                     name="emitter.workSite.infos"
                                     value={`${formatText(dataToogle.emitter.workSite.infos ?? "")}`}
                                     onChange={handleChange}
                                     enableText={true}
-                                    display={displayAll || shouldDisplayField("emitter.workSite.infos", changedField)}
+                                    display={displayAll || (shouldDisplayField("emitter.workSite.infos", changedField) && false)}
                                 />
                             </div>
+                        </div>
+                        {/*2ème ligne*/}
+                        <div className="mt-0 flex justify-between gap-4 w-1/2 ml-8">
                             {/*Personne */}
                             <div>
                                 <InputFull
                                     titre="Personne"
                                     placeholder="Contact"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.emitter.company.contact)}
-                                    width={2}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.contact)}
+                                    width={40}
                                     name="emitter.company.contact"
                                     value={dataToogle.emitter.company.contact}
                                     onChange={handleChange}
                                     enableText={true}
                                     stylePrimary={true}
+                                    display={displayAll || (shouldDisplayField("emitter.company.workSite.fullAddress", changedField) && false)}
                                 />
                                 <InputFull
                                     titre="Téléphone"
                                     placeholder="Téléphone"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.emitter.company.phone)}
-                                    width={2}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.phone)}
+                                    width={40}
                                     name="emitter.company.phone"
                                     value={dataToogle.emitter.company.phone}
                                     onChange={handleChange}
                                     enableText={true}
-                                    display={displayAll || shouldDisplayField("emitter.company.phone", changedField)}
+                                    display={displayAll || (shouldDisplayField("emitter.company.phone", changedField) && false)}
                                 />
                                 <InputFull
                                     titre="Mail"
                                     placeholder="Mail"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.emitter.company.mail)}
-                                    width={2}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.mail)}
+                                    width={40}
                                     name="emitter.company.mail"
                                     value={dataToogle.emitter.company.mail}
                                     onChange={handleChange}
                                     enableText={true}
                                     display={displayAll || shouldDisplayField("emitter.company.mail", changedField)}
                                 />
-
                             </div>
                         </div>
                     </div>
@@ -527,8 +568,8 @@ const handleOtherInfosChange = (updates: Partial<{
                                 <InputFull
                                     titre="Filière"
                                     placeholder="Sélectionner une filière"
-                                    options={getUniqueOptions(options, allOptions, opt => getFiliere(opt.wasteDetails.code, ced_table))}
-                                    width={2}
+                                    options={getUniqueOptions(options, allOptions, opt => getFiliere(opt.json_row.wasteDetails.code, ced_table))}
+                                    width={40}
                                     name="filiere"
                                     value={currentFiliere}
                                     onChange={handleChange}
@@ -536,147 +577,154 @@ const handleOtherInfosChange = (updates: Partial<{
                                     stylePrimary={true}
                                 />
                             </div>
-                        </div>
-                        {/*4ème ligne*/}
-                        <div className="mt-0 flex justify-between gap-4 w-1/2 ml-8">
                             {/*Déchet*/}
                             <div>
                                 <InputFull
                                     titre="Déchet"
-                                    placeholder="Sélectionner un déchet"
-                                    options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.name} - ${opt.wasteDetails.code}`)}
-                                    width={2}
-                                    name="wasteDetails.code"
-                                    value={dataToogle.wasteDetails.code}
-                                    onChange={handleChange}
-                                    enableText={false}
-                                    stylePrimary={true}
-                                />                            
-                                <InputFull
-                                    titre="Description du déchet"
-                                    placeholder="Description - Appelation destinataire"
-                                    options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.name}`)}
-                                    width={2}
+                                    placeholder="Nom du déchet"
+                                    options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.name}`)}
+                                    width={40}
                                     name="wasteDetails.name"
                                     value={dataToogle.wasteDetails.name}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("wasteDetails.name", changedField)}
+                                    stylePrimary={true}
                                 />
+                                <InputFull
+                                    titre="Code CED"
+                                    placeholder="Sélectionner un code"
+                                    options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.code}`)}
+                                    width={40}
+                                    name="wasteDetails.code"
+                                    value={dataToogle.wasteDetails.code}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                    display={displayAll || shouldDisplayField("wasteDetails.code", changedField)}
+                                />      
                                 <InputFull
                                     titre="Sujet à l'ADR"
                                     placeholder="Sujet à l'ADR"
-                                    options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.isSubjectToADR}`)}
-                                    width={2}
+                                    options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.isSubjectToADR}`)}
+                                    width={40}
                                     name="wasteDetails.isSubjectToADR"
                                     value={dataToogle.wasteDetails.isSubjectToADR}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("wasteDetails.isSubjectToADR", changedField)}
+                                    display={displayAll || (shouldDisplayField("wasteDetails.isSubjectToADR", changedField) && false)}
                                 />
                                 <InputFull
                                     titre="Code ONU"
                                     placeholder="Code ONU"
-                                    options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.onuCode}`)}
-                                    width={2}
+                                    options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.onuCode}`)}
+                                    width={40}
                                     name="wasteDetails.onuCode"
                                     value={dataToogle.wasteDetails.onuCode}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("wasteDetails.onuCode", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("wasteDetails.onuCode", changedField)   )}
                                 />
+                            </div>
+                        </div>
+                        {/*4ème ligne*/}
+                        <div className="mt-0 flex justify-between gap-4 w-1/2 ml-8">
+                            <div>
+                                <InputFull
+                                        titre="Contenant"
+                                        placeholder="Sélectionner un contenant"
+                                        options={{
+                                            filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.packagingInfos[0].type}`).filteredOptions,
+                                            allOptions: ['FUT', 'GRV', 'CITERNE', 'BENNE', 'PIPELINE', 'AUTRE']
+                                        }}
+                                        width={40}
+                                        name="wasteDetails.packagingInfos[0].type"
+                                        value={dataToogle.wasteDetails.packagingInfos[0].type}
+                                        onChange={handleChange}
+                                        enableText={false}
+                                        stylePrimary={true}
+                                        display={displayAll || (false && shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField))}
+                                    />
+                                    {/* Nouveaux champs pour other_infos */}
+                                    <InputFull
+                                        titre="Volume"
+                                        placeholder="Volume"
+                                        name="volume"
+                                        value={other_infos.volume || ''}
+                                        onChange={(e: string | { target: { name: string; value: string } }) => {
+                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                            handleOtherInfosChange({ volume: String(newValue) })
+                                        }}
+                                        options={{
+                                            filteredOptions: [],
+                                            allOptions: ['20', '30', '100', '200', '500', '1000']
+                                        }}
+                                        enabled={true}
+                                        display={displayAll || (false && shouldDisplayField("volume", changedField))}
+                                        width={40}
+                                    />
+                                    <InputFull
+                                        titre="Unité de volume"
+                                        placeholder="Unité de volume"
+                                        name="volumeUnit"
+                                        value={other_infos.volumeUnit || ''}
+                                        onChange={(e: string | { target: { name: string; value: string } }) => {
+                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                            handleOtherInfosChange({ volumeUnit: String(newValue) })
+                                        }}
+                                        options={{
+                                            filteredOptions: [],
+                                            allOptions: ['m3', 'L']
+                                        }}
+                                        enabled={true}
+                                        display={displayAll || (false && shouldDisplayField("volumeUnit", changedField))}
+                                        width={40}
+                                    />
+                                    <InputFull
+                                        titre="Description"
+                                        placeholder="Description du conteneur"
+                                        name="containerDescription"
+                                        value={other_infos.containerDescription || ''}
+                                        onChange={(e: string | { target: { name: string; value: string } }) => {
+                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                            handleOtherInfosChange({ containerDescription: String(newValue) })
+                                        }}
+                                        options={{
+                                            filteredOptions: [],
+                                            allOptions: ['Benne', 'Citerne', 'Pipeline', 'Autre']
+                                        }}
+                                        enabled={true}
+                                        display={displayAll || (false && shouldDisplayField("containerDescription", changedField))}
+                                        width={40}
+                                    />
+                                    <InputFull
+                                        titre="Remplissage"
+                                        placeholder="Taux de remplissage"
+                                        name="fillRate"
+                                        value={other_infos.fillRate || ''}
+                                        onChange={(e: string | { target: { name: string; value: string } }) => {
+                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                            handleOtherInfosChange({ fillRate: String(newValue) })
+                                        }}
+                                        options={{
+                                            filteredOptions: [],
+                                            allOptions: ['50', '75', '95']
+                                        }}
+                                        enabled={true}
+                                        display={displayAll || (false && shouldDisplayField("fillRate", changedField))}
+                                        width={40}
+                                    />
                             </div>
                             {/*Contenant*/}
                             <div>
                                 <InputFull
-                                    titre="Contenant"
-                                    placeholder="Sélectionner un contenant"
-                                    options={{
-                                        filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.packagingInfos[0].type}`).filteredOptions,
-                                        allOptions: ['FUT', 'GRV', 'CITERNE', 'BENNE', 'PIPELINE', 'AUTRE']
-                                    }}
-                                    width={1}
-                                    name="wasteDetails.packagingInfos[0].type"
-                                    value={dataToogle.wasteDetails.packagingInfos[0].type}
-                                    onChange={handleChange}
-                                    enableText={false}
-                                    stylePrimary={true}
-                                />
-                                {/* Nouveaux champs pour other_infos */}
-                                <InputFull
-                                    titre="Volume"
-                                    placeholder="Volume"
-                                    name="volume"
-                                    value={other_infos.volume || ''}
-                                    onChange={(e: string | { target: { name: string; value: string } }) => {
-                                        const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
-                                        handleOtherInfosChange({ volume: String(newValue) })
-                                    }}
-                                    options={{
-                                        filteredOptions: [],
-                                        allOptions: ['20', '30', '100', '200', '500', '1000']
-                                    }}
-                                    enabled={true}
-                                    display={displayAll || shouldDisplayField("volume", changedField)}
-                                />
-                                <InputFull
-                                    titre="Unité de volume"
-                                    placeholder="Unité de volume"
-                                    name="volumeUnit"
-                                    value={other_infos.volumeUnit || ''}
-                                    onChange={(e: string | { target: { name: string; value: string } }) => {
-                                        const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
-                                        handleOtherInfosChange({ volumeUnit: String(newValue) })
-                                    }}
-                                    options={{
-                                        filteredOptions: [],
-                                        allOptions: ['m3', 'L']
-                                    }}
-                                    enabled={true}
-                                    display={displayAll || shouldDisplayField("volumeUnit", changedField)}
-                                />
-                                <InputFull
-                                    titre="Description"
-                                    placeholder="Description du conteneur"
-                                    name="containerDescription"
-                                    value={other_infos.containerDescription || ''}
-                                    onChange={(e: string | { target: { name: string; value: string } }) => {
-                                        const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
-                                        handleOtherInfosChange({ containerDescription: String(newValue) })
-                                    }}
-                                    options={{
-                                        filteredOptions: [],
-                                        allOptions: ['Benne', 'Citerne', 'Pipeline', 'Autre']
-                                    }}
-                                    enabled={true}
-                                    display={displayAll || shouldDisplayField("containerDescription", changedField)}
-                                />
-                                <InputFull
-                                    titre="Remplissage"
-                                    placeholder="Taux de remplissage"
-                                    name="fillRate"
-                                    value={other_infos.fillRate || ''}
-                                    onChange={(e: string | { target: { name: string; value: string } }) => {
-                                        const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
-                                        handleOtherInfosChange({ fillRate: String(newValue) })
-                                    }}
-                                    options={{
-                                        filteredOptions: [],
-                                        allOptions: ['50', '75', '95']
-                                    }}
-                                    enabled={true}
-                                    display={displayAll || shouldDisplayField("fillRate", changedField)}
-                                />
-                                <InputFull
                                     titre="Nombre"
                                     placeholder="Nombre"
-                                    options={getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.packagingInfos[0].quantity}`)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.packagingInfos[0].quantity}`)}
+                                    width={40}
                                     name="wasteDetails.packagingInfos[0].quantity"
                                     value={String(dataToogle.wasteDetails.packagingInfos[0].quantity)}
                                     onChange={handleChange}
                                     enableText={true}
-                                    display={displayAll || shouldDisplayField("wasteDetails.packagingInfos[0].quantity", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("wasteDetails.packagingInfos[0].quantity", changedField))}
                                 />
                                 <InputFull
                                     titre="Poids"
@@ -685,12 +733,12 @@ const handleOtherInfosChange = (updates: Partial<{
                                         filteredOptions: [],
                                         allOptions: ['0.5', '1', '1.5', '2', '2.5', '3']
                                     }}
-                                    width={1}
+                                    width={40}
                                     name="wasteDetails.quantity"
                                     value={String(dataToogle.wasteDetails.quantity)}
                                     onChange={handleChange}
                                     enableText={true}
-                                    display={displayAll || shouldDisplayField("wasteDetails.quantity", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("wasteDetails.quantity", changedField))}
                                 />
                                 <InputFull
                                     titre="Type de quantité "
@@ -699,40 +747,40 @@ const handleOtherInfosChange = (updates: Partial<{
                                         filteredOptions: ['ESTIMATED'],
                                         allOptions: ['REAL']
                                     }}
-                                    width={1}
+                                    width={40}
                                     name="wasteDetails.quantityType"
                                     value={String(dataToogle.wasteDetails.quantityType)}
                                     onChange={handleChange}
                                     enableText={true}
-                                    display={displayAll || shouldDisplayField("wasteDetails.quantityType", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("wasteDetails.quantityType", changedField))}
                                 />
                                 <InputFull
                                     titre="Consistance"
                                     placeholder="Consistance"
                                     options={{
-                                        filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.consistence}`).filteredOptions,
+                                        filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.consistence}`).filteredOptions,
                                         allOptions: ['SOLID', 'LIQUID', 'GASEOUS', 'DOUGHY']
                                     }}
-                                    width={1}
+                                    width={40}
                                     name="wasteDetails.consistence"
                                     value={String(dataToogle.wasteDetails.consistence)}
                                     onChange={handleChange}
                                     enableText={true}
-                                    display={displayAll || shouldDisplayField("wasteDetails.consistence", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("wasteDetails.consistence", changedField))}
                                 />
                                 <InputFull
                                     titre="Pop"
                                     placeholder="Pop"
                                     options={{
-                                        filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.wasteDetails.pop}`).filteredOptions,
+                                        filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.pop}`).filteredOptions,
                                         allOptions: ['true', 'false']
                                     }}
-                                    width={1}
+                                    width={40}
                                     name="wasteDetails.pop"
                                     value={String(dataToogle.wasteDetails.pop)}
                                     onChange={handleChange}
                                     enableText={true}
-                                    display={displayAll || shouldDisplayField("wasteDetails.pop", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("wasteDetails.pop", changedField))}
                                 />
                                 <InputFull
                                     titre="Dangereux"
@@ -741,12 +789,12 @@ const handleOtherInfosChange = (updates: Partial<{
                                         filteredOptions: [dataToogle.wasteDetails.code?.includes('*') ? 'true' : 'false'],
                                         allOptions: ['true', 'false']
                                     }}
-                                    width={1}
+                                    width={40}
                                     name="wasteDetails.isDangerous"
                                     value={String(dataToogle.wasteDetails.isDangerous)}
                                     onChange={handleChange}
                                     enableText={true}
-                                    display={displayAll || shouldDisplayField("wasteDetails.isDangerous", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("wasteDetails.isDangerous", changedField))}
                                 />
                             </div>
                         </div>
@@ -766,8 +814,8 @@ const handleOtherInfosChange = (updates: Partial<{
                                 <InputFull
                                     titre="Transporteur"
                                     placeholder="Sélectionner un transporteur"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.name)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.name)}
+                                    width={40}
                                     name="transporter.company.name"
                                     value={dataToogle.transporter.company.name}
                                     onChange={handleChange}
@@ -777,8 +825,8 @@ const handleOtherInfosChange = (updates: Partial<{
                                 <InputFull
                                     titre="Siret"
                                     placeholder="Siret"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.siret)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.siret)}
+                                    width={40}
                                     name="transporter.company.siret"
                                     value={dataToogle.transporter.company.siret}
                                     onChange={handleChange}
@@ -788,41 +836,41 @@ const handleOtherInfosChange = (updates: Partial<{
                                 <InputFull
                                     titre="Contact"
                                     placeholder="Contact"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.contact)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.contact)}
+                                    width={40}
                                     name="transporter.company.contact"
                                     value={dataToogle.transporter.company.contact}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("transporter.company.contact", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("transporter.company.contact", changedField))}
                                 />
                                 <InputFull
                                     titre="Adresse"
                                     placeholder="Adresse"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.address)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.address)}
+                                    width={40}
                                     name="transporter.company.address"
                                     value={dataToogle.transporter.company.address}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("transporter.company.address", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("transporter.company.address", changedField))}
                                 />
                                 <InputFull
                                     titre="Téléphone"
                                     placeholder="Téléphone"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.phone)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.phone)}
+                                    width={40}
                                     name="transporter.company.phone"
                                     value={dataToogle.transporter.company.phone}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("transporter.company.phone", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("transporter.company.phone", changedField))}
                                 />
                                 <InputFull
                                     titre="Mail"
                                     placeholder="Mail"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.transporter.company.mail)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.mail)}
+                                    width={40}
                                     name="transporter.company.mail"
                                     value={dataToogle.transporter.company.mail}
                                     onChange={handleChange}
@@ -830,21 +878,21 @@ const handleOtherInfosChange = (updates: Partial<{
                                     display={displayAll || shouldDisplayField("transporter.company.mail", changedField)}
                                 />
                                 <InputFull
-                                    titre="Exemption de récépissé"
+                                    titre="Exemption"
                                     placeholder="Est exempté de récépissé"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.transporter.isExemptedOfReceipt===true ? 'true' : 'false')}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.isExemptedOfReceipt===true ? 'true' : 'false')}
+                                    width={40}
                                     name="transporter.isExemptedOfReceipt"
                                     value={dataToogle.transporter.isExemptedOfReceipt}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("transporter.isExemptedOfReceipt", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("transporter.isExemptedOfReceipt", changedField))}
                                 />
                                 <InputFull
                                     titre="Numéro de plaque"
                                     placeholder="Numéro de plaque"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.transporter.numberPlate || '')}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.numberPlate || '')}
+                                    width={40}
                                     name="transporter.numberPlate"
                                     value={dataToogle.transporter.numberPlate || ''}
                                     onChange={handleChange}
@@ -854,13 +902,13 @@ const handleOtherInfosChange = (updates: Partial<{
                                 <InputFull
                                     titre="Informations complémentaires"
                                     placeholder="Informations complémentaires"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.transporter.customInfo || '')}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.customInfo || '')}
+                                    width={40}
                                     name="transporter.customInfo"
                                     value={dataToogle.transporter.customInfo || ''}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("transporter.customInfo", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("transporter.customInfo", changedField))}
                                 />
                             </div>
                             {/*Destinataire*/}
@@ -868,8 +916,8 @@ const handleOtherInfosChange = (updates: Partial<{
                                 <InputFull
                                     titre="Destinataire"
                                     placeholder="Sélectionner un destinataire"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.name)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.name)}
+                                    width={40}
                                     name="recipient.company.name"
                                     value={dataToogle.recipient.company.name}
                                     onChange={handleChange}
@@ -879,8 +927,8 @@ const handleOtherInfosChange = (updates: Partial<{
                                 <InputFull
                                     titre="Siret"
                                     placeholder="Siret"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.siret)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.siret)}
+                                    width={40}
                                     name="recipient.company.siret"
                                     value={dataToogle.recipient.company.siret}
                                     onChange={handleChange}
@@ -890,41 +938,41 @@ const handleOtherInfosChange = (updates: Partial<{
                                 <InputFull
                                     titre="Adresse"
                                     placeholder="Adresse"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.address)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.address)}
+                                    width={40}
                                     name="recipient.company.address"
                                     value={dataToogle.recipient.company.address}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("recipient.company.address", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("recipient.company.address", changedField))}
                                 />
                                 <InputFull
                                     titre="Contact"
                                     placeholder="Contact"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.contact)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.contact)}
+                                    width={40}
                                     name="recipient.company.contact"
                                     value={dataToogle.recipient.company.contact}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("recipient.company.contact", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("recipient.company.contact", changedField))}
                                 />
                                 <InputFull
                                     titre="Téléphone"
                                     placeholder="Téléphone"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.phone)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.phone)}
+                                    width={40}
                                     name="recipient.company.phone"
                                     value={dataToogle.recipient.company.phone}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("recipient.company.phone", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("recipient.company.phone", changedField))}
                                 />
                                 <InputFull
                                     titre="Mail"
                                     placeholder="Mail"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.recipient.company.mail)}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.mail)}
+                                    width={40}
                                     name="recipient.company.mail"
                                     value={dataToogle.recipient.company.mail}
                                     onChange={handleChange}
@@ -934,8 +982,8 @@ const handleOtherInfosChange = (updates: Partial<{
                                 <InputFull
                                     titre="CAP"
                                     placeholder="CAP"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.recipient.cap || '')}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.cap || '')}
+                                    width={40}
                                     name="recipient.cap"
                                     value={dataToogle.recipient.cap || ''}
                                     onChange={handleChange}
@@ -945,8 +993,8 @@ const handleOtherInfosChange = (updates: Partial<{
                                 <InputFull
                                     titre="Opération d'élimination"
                                     placeholder="Opération d'élimination"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.recipient.processingOperation || '')}
-                                    width={1}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.processingOperation || '')}
+                                    width={40}
                                     name="recipient.processingOperation"
                                     value={dataToogle.recipient.processingOperation || ''}
                                     onChange={handleChange}
@@ -960,12 +1008,12 @@ const handleOtherInfosChange = (updates: Partial<{
                                         filteredOptions: ['false'],
                                         allOptions: ['true']
                                     }}
-                                    width={1}
+                                    width={40}
                                     name="recipient.isTempStorage"
                                     value={dataToogle.recipient.isTempStorage || ''}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("recipient.isTempStorage", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("recipient.isTempStorage", changedField))}
                                 />
                             </div>
                         </div>
@@ -998,13 +1046,19 @@ const handleOtherInfosChange = (updates: Partial<{
                             displayModifyCardInFormulaireNew={false}
                             modalType={modalType}
                             otherInfos={other_infos}
+                            setOtherInfos={setOtherInfos}
+                            //onMailSubmit={handleMailWithPopup}
+                            options={options}
+                            allOptions={allOptions}
+                            handleChange={handleChange}
+                            ced_table={ced_table}
                         />
                         {/*<PopUp 
                             dataToogle={dataToogle} 
                             setDataToogle={setDataToogle} 
                             modalType={modalType} 
                             onMobile={true} 
-                            otherInfos={other_infos} 
+                            otherInfos={other_infos}
                             setOtherInfos={setOtherInfos}
                             getUniqueOptions={getUniqueOptions}
                             options={options}
@@ -1026,11 +1080,11 @@ interface Ced {
     ced: string;
     filiere: string;
 }
-const getDataAutocompletionFull = async (dataFilter: {name: string, value: string}[], entreprise_id: string, cedTable: Ced[]): Promise<FormInput[]> => { 
+const getDataAutocompletionFull = async (dataFilter: {name: string, value: string}[], entreprise_id: string, cedTable: Ced[]): Promise<CompleteFormInput[]> => { 
     
     let query = supabase
         .from('table_parametrage')
-        .select('json_row')
+        .select('json_row, other_infos')
         .eq('entreprise_id', entreprise_id);
 
     for (const {name, value} of dataFilter) {
@@ -1046,13 +1100,13 @@ const getDataAutocompletionFull = async (dataFilter: {name: string, value: strin
             query = query.filter('json_row->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
         } else if (value && typeof value === 'string') {
             const name_prefilter = name.replaceAll('.', '->');
-            const name_filter = replaceLastOccurrence(name_prefilter, '->', '->>');
+            const name_filter = replaceLastOccurrence(name_prefilter, '->', '->>')
             query = query.eq(`json_row->${name_filter}`, value);
         }
     }
-    //console.log("query", query);
+
     const data = await query;
-    return (data?.data?.map(row => row.json_row) || []) as FormInput[];
+    return data?.data || [];
 }
 
 function replaceLastOccurrence(str: string, search: string, replacement: string) {
@@ -1062,13 +1116,16 @@ function replaceLastOccurrence(str: string, search: string, replacement: string)
     return str.substring(0, lastIndex) + replacement + str.substring(lastIndex + search.length);
 }
 
-export const getUniqueOptions = (filteredOptions: FormInput[], allOptions: FormInput[], selector: (opt: FormInput) => string) => {
-    const filteredValues = Array.from(new Set(filteredOptions.map(selector))).filter(Boolean) as string[];
-    const allValues = Array.from(new Set(allOptions.map(selector))).filter(Boolean) as string[];
-    
+export const getUniqueOptions = (
+    filteredOptions: CompleteFormInput[], 
+    allOptions: CompleteFormInput[],
+    selector: (opt: CompleteFormInput) => string
+) => {
+    const filtered = Array.from(new Set(filteredOptions.map(selector))).filter(Boolean);
+    const all = Array.from(new Set(allOptions.map(selector))).filter(Boolean);
     return {
-        filteredOptions: filteredValues,
-        allOptions: allValues.filter(val => !filteredValues.includes(val))
+        filteredOptions: filtered,
+        allOptions: all.filter(opt => !filtered.includes(opt))
     };
 };
 
@@ -1124,3 +1181,72 @@ const updateOrPush = (newDataFilter: {name: string, value: string}[], name: stri
         newDataFilter.push({ name, value }); // Ajoute un nouvel élément
     }
 };
+
+// Modifier la fonction preciseFilter pour utiliser la nouvelle structure
+const preciseFilter = (
+    allOptions: {json_row: FormInput, other_infos?: OtherInfos}[], 
+    alreadyChosenData: FormInput, 
+    fieldsForFilter: string[], 
+    interestField: string
+): string => {
+    try {
+        // 1. Filtrer les options qui correspondent aux champs déjà remplis
+        const filteredOptions = allOptions.filter(option => {
+            return fieldsForFilter.every(field => {
+                const value = field.split('.').reduce<unknown>((obj, key) => 
+                    typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                    option.json_row as unknown as Record<string, unknown>
+                );
+                const chosenValue = field.split('.').reduce<unknown>((obj, key) => 
+                    typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                    alreadyChosenData as unknown as Record<string, unknown>
+                );
+                
+                if (!chosenValue) return true;
+                return value === chosenValue;
+            });
+        });
+
+        // 2. Si aucune option ne correspond, retourner une chaîne vide
+        if (filteredOptions.length === 0) return '';
+
+        // 3. Extraire les valeurs du champ d'intérêt avec gestion spéciale pour fullAddress
+        const interestValues = filteredOptions.map(option => {
+            if (interestField === 'emitter.workSite.fullAddress') {
+                const workSite = option.json_row.emitter.workSite;
+                return workSite.fullAddress || 
+                    `${workSite.address || ''} ${workSite.postalCode || ''} ${workSite.city || ''}`.trim();
+            }
+            return interestField.split('.').reduce<unknown>((obj, key) => 
+                typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                option.json_row as unknown as Record<string, unknown>
+            );
+        }).filter(Boolean);
+
+        // 4. Compter les occurrences de chaque valeur
+        const valueCounts = interestValues.reduce((acc: {[key: string]: number}, value) => {
+            const key = String(value);
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+
+        // 5. Trouver la valeur la plus fréquente
+        let mostFrequentValue = '';
+        let maxCount = 0;
+
+        Object.entries(valueCounts).forEach(([value, count]) => {
+            if (count > maxCount) {
+                maxCount = count;
+                mostFrequentValue = value;
+            }
+        });
+
+        return mostFrequentValue;
+    } catch (error) {
+        console.warn('Error in preciseFilter:', error);
+        return '';
+    }
+};
+
+
+

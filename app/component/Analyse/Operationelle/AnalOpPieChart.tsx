@@ -8,6 +8,7 @@ import { getFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFu
 import { useFilterContext } from '@/app/FilterContext';
 import { FormInput } from '@/app/register/interface/BSD_Interface';
 import { BSD } from '@/app/analysis/AnalysisProvider';
+import { LegendItem, ChartData } from 'chart.js';
 
 const { Pie } = DynamicCharts;
 
@@ -27,10 +28,14 @@ const AnalOpPieChart = () => {
                         label: string;
                     }) {
                         const dataset = context.dataset;
-                        const total = dataset.data.reduce((acc: number, data: number) => acc + data, 0);
-                        const value = dataset.data[context.dataIndex];
+                        const total = dataset.data.reduce((acc: number, data: number) => {
+                            return acc + (typeof data === 'string' ? parseFloat(data) : data);
+                        }, 0);
+                        const value = parseFloat(String(dataset.data[context.dataIndex]));
+                        
+                        //console.log("Debug - value:", value, "total:", total, "type of value:", typeof value);
                         const percentage = ((value / total) * 100).toFixed(1);
-                        return `${context.label}: ${percentage}% (${value.toLocaleString('fr-FR')} T)`;
+                        return ` ${percentage}% (${value.toLocaleString('fr-FR')} T)`;
                     }
                 },
                 position: 'nearest' as const,
@@ -48,6 +53,12 @@ const AnalOpPieChart = () => {
                 labels: {
                     font: {
                         size: 11
+                    },
+                    filter: (item: LegendItem, data: ChartData) => {
+                        const dataset = data.datasets[0];
+                        const total = (dataset.data as number[]).reduce((a, b) => a + b, 0);
+                        const value = dataset.data[item.index || 0] as number;
+                        return ((value / total) * 100) >= 5;
                     },
                     sort: (a: { text: string }, b: { text: string }) => {
                         if (a.text === 'Autres') return 1;
@@ -76,7 +87,7 @@ const AnalOpPieChart = () => {
                 ) || 'Autres'; // Garder la catégorie "Autres" pour les filières
             }
 
-            const quantity = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
+            const quantity = bsd.infos_json.formAPI.createFormInput.quantityReceived ? bsd.infos_json.formAPI.createFormInput.quantityReceived : bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
             if (!quantities[key]) quantities[key] = 0;
             quantities[key] += quantity;
         });
@@ -127,7 +138,7 @@ const AnalOpPieChart = () => {
             <div className="text-gray-500 text-xs mb-2">
                 Répartition par {filieres_ou_prestataires.nom === 'prestataire' ? 'prestataire' : 'filière'}
             </div>
-            <div className="h-[180px]"> {/* Hauteur réduite */}
+            <div className="h-[250px]"> {/* Hauteur augmentée à 250px */}
                 <Pie data={pieData} options={options} />
             </div>
         </div>

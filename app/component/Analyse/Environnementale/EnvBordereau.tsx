@@ -67,7 +67,7 @@ const EnvBordereau = () => {
         bsds.forEach((bsd) => {
             try {
                 // Vérifier et convertir les valeurs en nombres
-                const quantity = Number(bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity) || 0;
+                const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? Number(bsd.infos_json?.formAPI?.createFormInput?.quantityReceived) : Number(bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity) || 0;
                 const cedCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
                 const processingOperation = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || 'default';
                 
@@ -109,29 +109,27 @@ const EnvBordereau = () => {
     const comparison = getComparison(stats.total);
 
     return (
-        <div className="flex justify-between bg-gray-200 p-2 rounded-lg">
-            <div className="block ml-4">
+        <div className="flex justify-between bg-white p-4 rounded-lg shadow">
+            <div className="block">
                 <div className="text-sm text-gray-600 font-thin">Émissions CO₂ totales</div>
                 <div className="flex items-center mt-2">
-                    <div className="group relative font-bold text-xl ml-4">
+                    <div className="font-bold text-xl text-gray-700">
                         {stats.total.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} T CO₂
-                        <div className="invisible group-hover:visible absolute z-50 w-64 p-4 mt-2 bg-white rounded-lg shadow-lg border border-gray-200">
-                            <div className="text-2xl mb-2">{comparison.emoji}</div>
-                            <div className="text-sm text-gray-600">{comparison.text}</div>
-                        </div>
                     </div>
-                    <div className={`badge ${stats.evolution >= 0 ? 'bg-red-300' : 'bg-green-300'} ml-8 text-xs`}>
+                    {/*<div className={`ml-4 px-2 py-1 rounded-full text-xs ${
+                        stats.evolution >= 0 
+                            ? 'bg-red-100 text-red-800' 
+                            : 'bg-green-100 text-green-800'
+                    }`}>
                         {stats.evolution >= 0 ? '+' : ''}{Math.abs(Math.round(stats.evolution))}%
-                    </div>
+                    </div>*/}
                 </div>
             </div>
-            <div className="block mx-10">
-                <div className="text-sm text-gray-600 font-thin">Moyenne mensuelle</div>
-                <div className="font-bold text-xl mt-2">{stats.average.toFixed(2)} T CO₂</div>
-            </div>
-            <div className="block mr-10">
-                <div className="text-sm text-gray-600 font-thin">Nombre de BSDs</div>
-                <div className="font-bold text-xl mt-2">{stats.totalBSDs}</div>
+            <div className="flex items-center">
+                <div className="flex items-center gap-2 text-gray-600">
+                    <div className="text-2xl">{comparison.emoji}</div>
+                    <div className="text-sm">{comparison.text}</div>
+                </div>
             </div>
         </div>
     );

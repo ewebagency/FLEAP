@@ -3,7 +3,7 @@ import axios from 'axios';
 import { supabase } from '@/app/database/supabaseClient';
 import { BSDD_TrackDechets, DataOnSupabase_infos_json, FormInput } from '@/app/register/interface/BSD_Interface';
 import { cookies } from 'next/headers';
-import { OtherInfos } from '@/app/register/RegisterComponents/Modal/FormulaireFull/FormulaireFull';
+import { OtherInfos } from '@/app/register/interface/BSD_Interface';
 
 const updateTrackdechets = async (data: {formAPI:{createFormInput:FormInput}}, bsdId: string, token: string, url: string) => {
     try {

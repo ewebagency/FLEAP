@@ -8,13 +8,15 @@ import NewPieFinancialChart from "./NewPieFinancialChart";
 import NewTableFinancial from "./NewTableFinancial";
 import NewBordereauxFinancial from "./NewBordereauxFinancial";
 import { useFilterContext } from '@/app/FilterContext';
+import { getFiliere, getMappingTableFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 
 const NewFinancialSource = () => {
     const session = useSession() as SessionMore;
-    const { segmentDates } = useFilterContext();
+    const { segmentDates, filieres } = useFilterContext();
     const [entreprise_id, setEntreprise_id] = useState<string | null>(null);
     const [factures, setFactures] = useState<Facture[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
     
     useEffect(() => {
         if (!session?.entreprise_id) return;
@@ -60,6 +62,15 @@ const NewFinancialSource = () => {
         fetchData();
     }, [session?.entreprise_id]);
 
+    useEffect(() => {
+        const fetchMappingTable = async () => {
+            if (!session?.entreprise_id) return;
+            const mapping = await getMappingTableFiliere(session.entreprise_id);
+            setMappingTable(mapping || []);
+        };
+        fetchMappingTable();
+    }, [session?.entreprise_id]);
+
     // Filtrer les factures valides et par date
     const validFactures = factures.filter(facture => {
         // Vérifier que chaque départ a les informations requises
@@ -74,13 +85,18 @@ const NewFinancialSource = () => {
             if (segmentDates.debut && date < segmentDates.debut) return false;
             if (segmentDates.fin && date > segmentDates.fin) return false;
 
-            // Vérifier le SIRET du site
-            const hasValidSiret = !!header.site_siret && header.site_siret.length > 0;
-
-            // Vérifier le code CED
-            const hasValidCed = !!header.code_dechet && header.code_dechet.length > 0;
+            // Vérifier le code CED et la filière
+            if (!header.code_dechet) return false;
             
-            return true; // on ne filtre plus sur les sirets valides
+            const filiere = getFiliere(header.code_dechet, mappingTable);
+            //console.log("filieres", filieres);
+            const selectedFilieres = filieres.filter(f => f.checked).map(f => f.name);
+            //console.log("selectedFilieres", selectedFilieres);
+            // Si aucune filière n'est sélectionnée, on accepte toutes les factures
+            if (selectedFilieres.length === 0) return true;
+            
+            // Sinon, on vérifie que la filière du code CED est dans les filières sélectionnées
+            return selectedFilieres.includes(filiere);
         });
     });
 

@@ -4,7 +4,7 @@ import axios from 'axios';
 import { supabase } from '@/app/database/supabaseClient';
 import { pushOnTableParametrage } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import { cookies } from 'next/headers';
-import { OtherInfos } from "@/app/register/RegisterComponents/Modal/FormulaireFull/FormulaireFull";
+import { OtherInfos } from "@/app/register/interface/BSD_Interface";
 
 
 interface FormAPI {
@@ -278,7 +278,7 @@ export async function POST(request: Request) {
             const id = isDraft ? 'draft' : 'Déchet non dangereux';
             const readableId = isDraft ? 'BROUILLON LOCAL' : 'Déchet non dangereux';
             
-            const continue_process = await pushOnTableParametrage(response.user_id, response.entreprise_id, response.data);
+            const continue_process = await pushOnTableParametrage(response.user_id, response.entreprise_id, response.data, otherInfos);
             if (!continue_process?.success) {
                 return NextResponse.json({ success: false, message: 'problème lors de l\'envoi des données à la table de paramétrage' }, { status: 200 });
             }
@@ -307,7 +307,7 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
-        const continue_process = await pushOnTableParametrage(response.user_id, response.entreprise_id, response.data);
+        const continue_process = await pushOnTableParametrage(response.user_id, response.entreprise_id, response.data, otherInfos);
         if (!continue_process?.success) {
             return NextResponse.json({ success: false, message: 'problème lors de l\'envoi des données à la table de paramétrage' }, { status: 200 });
         }
