@@ -168,7 +168,13 @@ const FiltreSiteEtablissement = () => {
         console.log("3. États parsés:", savedSiteStates);
 
         // Fonction utilitaire pour obtenir l'état sauvegardé
-        const getSavedState = (orgId: string) => savedSiteStates[orgId]?.checked ?? false;
+        const getSavedState = (orgId: string) => {
+            // En mode mobile, on veut que seul le premier site soit coché
+            if (window.innerWidth <= 768) {
+                return false; // On mettra le premier à true après
+            }
+            return savedSiteStates[orgId]?.checked ?? false;
+        };
 
         const sites_from_db: ContextSite[] = additionnalSites.map(site => ({
             orgId: site.siret,
@@ -237,26 +243,43 @@ const FiltreSiteEtablissement = () => {
             const allSites = [...mergedSites, ...uniqueDbSites, sitesAutre];
             console.log("5. Sites finaux avant setSites:", allSites);
 
-            if (Object.keys(mappingSite).length > 0) {
-                // Créer les groupes selon le mapping
-                const groups = Object.entries(mappingSite).map(([groupName, sirets]) => ({
-                    name: groupName,
-                    sirets: sirets,
-                    checked: allSites.some(site => sirets.includes(site.orgId) && site.checked)
-                }));
-
-                setSiteGroups(groups);
-
-                // Mettre à jour les sites avec leur groupe
-                const sitesWithGroups = allSites.map(site => ({
-                    ...site,
-                    group: Object.entries(mappingSite).find(([_, sirets]) => sirets.includes(site.orgId))?.[0]
-                }));
-
-                setSites(sitesWithGroups);
-                console.log("6. Sites avec groupes:", sitesWithGroups);
-            } else {
+            // Après avoir créé tous les sites, s'assurer qu'en mobile le premier site est coché
+            if (window.innerWidth <= 768) {
+                // Trouver le premier site valide (pas "Autres" et activé)
+                const firstValidSite = allSites.find(site => site.orgId !== '----' && site.activated);
+                if (firstValidSite) {
+                    firstValidSite.checked = true;
+                    // Mettre tous les autres sites à false
+                    allSites.forEach(site => {
+                        if (site.orgId !== firstValidSite.orgId) {
+                            site.checked = false;
+                        }
+                    });
+                }
                 setSites(allSites);
+            } else {
+                // Code existant pour desktop
+                if (Object.keys(mappingSite).length > 0) {
+                    // Créer les groupes selon le mapping
+                    const groups = Object.entries(mappingSite).map(([groupName, sirets]) => ({
+                        name: groupName,
+                        sirets: sirets,
+                        checked: allSites.some(site => sirets.includes(site.orgId) && site.checked)
+                    }));
+
+                    setSiteGroups(groups);
+
+                    // Mettre à jour les sites avec leur groupe
+                    const sitesWithGroups = allSites.map(site => ({
+                        ...site,
+                        group: Object.entries(mappingSite).find(([_, sirets]) => sirets.includes(site.orgId))?.[0]
+                    }));
+
+                    setSites(sitesWithGroups);
+                    console.log("6. Sites avec groupes:", sitesWithGroups);
+                } else {
+                    setSites(allSites);
+                }
             }
         } else {
             // Si pas de connexion TrackDechets, utiliser uniquement les sites de la BDD

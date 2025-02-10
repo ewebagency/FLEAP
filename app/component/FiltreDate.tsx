@@ -50,7 +50,36 @@ const FiltreDate = () => {
 
     const getDatesFromEntreprise = async () => {
         if (session?.entreprise_id) {
-            // Récupérer la date la plus ancienne
+            // Détecter si on est sur mobile (largeur d'écran < 768px)
+            const isMobile = window.innerWidth < 768;
+
+            if (isMobile) {
+                // Pour mobile : 5 ans avant, 1 an après
+                const minDate = new Date();
+                minDate.setFullYear(minDate.getFullYear() - 5);
+                minDate.setDate(1); // Premier jour du mois
+                minDate.setHours(0, 0, 0, 0);
+
+                const maxDate = new Date();
+                maxDate.setFullYear(maxDate.getFullYear() + 1);
+                maxDate.setMonth(maxDate.getMonth() + 1); // Mois suivant
+                maxDate.setDate(0); // Dernier jour du mois
+                maxDate.setHours(23, 59, 59, 999);
+
+                setSegmentDates({ debut: minDate, fin: maxDate });
+                setCustomStartDate(minDate);
+                setCustomEndDate(maxDate);
+                setActiveSegment('custom');
+                
+                localStorage.setItem('selectedDates', JSON.stringify({ 
+                    debut: minDate, 
+                    fin: maxDate 
+                }));
+                localStorage.setItem('activeSegment', 'custom');
+                return;
+            }
+
+            // Version desktop : comportement existant
             const { data: minData, error: minError } = await supabase
                 .from('bsd')
                 .select('created_at')
@@ -59,35 +88,26 @@ const FiltreDate = () => {
                 .limit(1)
                 .single();
             
-            // Récupérer la date la plus récente
-            const { data: maxData, error: maxError } = await supabase
-                .from('bsd')
-                .select('created_at')
-                .eq('entreprise_id', session.entreprise_id)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (minError || maxError) {
-                console.error('Error fetching dates:', minError || maxError);
+            if (minError) {
+                console.error('Error fetching dates:', minError);
                 return;
             }
 
-            if (minData && maxData) {
+            const maxDate = new Date();
+            maxDate.setMonth(maxDate.getMonth() + 2);
+            maxDate.setDate(0);
+            maxDate.setHours(23, 59, 59, 999);
+
+            if (minData) {
                 const minDate = new Date(minData.created_at);
-                const maxDate = new Date(maxData.created_at);
-                
-                // Ajuster au premier et dernier jour du mois
                 minDate.setDate(1);
-                maxDate.setMonth(maxDate.getMonth() + 1);
-                maxDate.setDate(0);
+                minDate.setHours(0, 0, 0, 0);
 
                 setSegmentDates({ debut: minDate, fin: maxDate });
                 setCustomStartDate(minDate);
                 setCustomEndDate(maxDate);
                 setActiveSegment('custom');
                 
-                // Sauvegarder dans le localStorage
                 localStorage.setItem('selectedDates', JSON.stringify({ 
                     debut: minDate, 
                     fin: maxDate 
