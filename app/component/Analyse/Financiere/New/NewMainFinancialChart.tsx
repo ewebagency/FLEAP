@@ -6,10 +6,12 @@ import { useEffect, useState, useMemo } from 'react';
 import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { useFilterContext } from '@/app/FilterContext';
 import { tailwindToRgb } from '../../MetaComponent/Colours';
-import { TooltipItem } from 'chart.js';
+import { ChartDataset, TooltipItem } from 'chart.js';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { Chart } from 'chart.js';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
+import { Context } from 'chartjs-plugin-datalabels';
 
 interface Props {
     factures: Facture[];
@@ -96,24 +98,24 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
         });
 
         const datasets = [
-            ...Object.entries(negativeAmountsByFiliere).map(([filiere, data]) => {
-                const filiereColor = filieres.find(f => f.name === filiere)?.color || '#000000';
-                const color = tailwindToRgb(filiereColor);
-                return {
-                    label: filiere,
-                    data: data.map(val => -val),
-                    backgroundColor: color,
-                    stack: 'negative',
-                    hidden: false,
-                    borderRadius: 4
-                };
-            }),
             ...Object.entries(positiveAmountsByFiliere).map(([filiere, data]) => {
                 const filiereColor = filieres.find(f => f.name === filiere)?.color || '#000000';
                 const color = tailwindToRgb(filiereColor);
                 return {
                     label: filiere,
                     data: data,
+                    backgroundColor: color,
+                    stack: 'negative',
+                    hidden: false,
+                    borderRadius: 4
+                };
+            }),
+            ...Object.entries(negativeAmountsByFiliere).map(([filiere, data]) => {
+                const filiereColor = filieres.find(f => f.name === filiere)?.color || '#000000';
+                const color = tailwindToRgb(filiereColor);
+                return {
+                    label: filiere,
+                    data: data.map(val => -val),
                     backgroundColor: color,
                     stack: 'positive',
                     hidden: false,
@@ -184,7 +186,17 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             },
             title: {
                 display: true,
-                text: 'Évolution des coûts et revenus mensuels'
+                text: 'Évolution des coûts et revenus mensuels',
+                color: 'gray',
+                align: 'center' as const,
+                padding: {
+                    top: 10,
+                    bottom: 10
+                },
+                font: {
+                    size: 14,
+                    weight: 'normal' as const
+                }
             },
             tooltip: {
                 mode: 'index' as const,
@@ -192,7 +204,7 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                 callbacks: {
                     label: function(tooltipItem: TooltipItem<"bar">) {
                         const value = Math.abs(tooltipItem.raw as number);
-                        const isNegative = tooltipItem.dataset.stack === 'negative';
+                        const isNegative = tooltipItem.dataset.stack === 'positive';
                         const symbol = isNegative ? '+' : '-';
                         return `${symbol} ${tooltipItem.dataset.label}: ${value.toLocaleString('fr-FR')} €`;
                     },
@@ -201,19 +213,80 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                     },
                     footer: function(tooltipItems: TooltipItem<"bar">[]) {
                         const positiveTotal = tooltipItems
-                            .filter(item => item.dataset.stack === 'negative')
+                            .filter(item => item.dataset.stack === 'positive')
                             .reduce((sum, item) => sum + Math.abs(item.raw as number), 0);
                         
                         const negativeTotal = tooltipItems
-                            .filter(item => item.dataset.stack === 'positive')
+                            .filter(item => item.dataset.stack === 'negative')
                             .reduce((sum, item) => sum + Math.abs(item.raw as number), 0);
 
                         return [
-                            `Total revenus : +${positiveTotal.toLocaleString('fr-FR')} €`,
                             `Total coûts : -${negativeTotal.toLocaleString('fr-FR')} €`,
+                            `Total revenus : +${positiveTotal.toLocaleString('fr-FR')} €`,
                             `Bilan : ${(positiveTotal - negativeTotal).toLocaleString('fr-FR')} €`
                         ];
                     }
+                }
+            },
+            datalabels: {
+                display(context: Context) {
+                    const datasetIndex = context.datasetIndex;
+                    const datasets = context.chart.data.datasets as ChartDataset<'bar'>[];
+                    const value = Math.abs(Number(context.dataset.data[context.dataIndex]));
+                    
+                    const total = {
+                        positive: 0,
+                        negative: 0
+                    };
+                    
+                    datasets.forEach(dataset => {
+                        const dataValue = Math.abs(Number(dataset.data[context.dataIndex])) || 0;
+                        if (dataset.stack === 'positive') {
+                            total.positive += dataValue;
+                        } else {
+                            total.negative += dataValue;
+                        }
+                    });
+                    
+                    // Cacher les labels s'il y a plus de 14 barres
+                    if (context.chart.data.labels?.length && context.chart.data.labels.length > 7) {
+                        return false;
+                    }
+                    
+                    // Afficher seulement pour le dernier dataset de chaque stack
+                    const isLastPositive = (dataset: ChartDataset<'bar'>) => dataset.stack === 'positive';
+                    const isLastNegative = (dataset: ChartDataset<'bar'>) => dataset.stack === 'negative';
+                    
+                    const lastPositiveIndex = datasets.findLastIndex(isLastPositive);
+                    const lastNegativeIndex = datasets.findLastIndex(isLastNegative);
+                    
+                    return (datasetIndex === lastPositiveIndex || datasetIndex === lastNegativeIndex) && 
+                           ((context.dataset.stack === 'positive' && total.positive > 0) || 
+                            (context.dataset.stack === 'negative' && total.negative > 0));
+                },
+                color: 'black',
+                font: {
+                    weight: 'bold' as const,
+                    size: 11
+                },
+                formatter(value: number, context: Context) {
+                    const datasets = context.chart.data.datasets as ChartDataset<'bar'>[];
+                    let total = 0;
+                    const isPositiveStack = context.dataset.stack === 'positive';
+                    
+                    datasets.forEach(dataset => {
+                        if (dataset.stack === context.dataset.stack) {
+                            const dataValue = Math.abs(Number(dataset.data[context.dataIndex])) || 0;
+                            total += dataValue;
+                        }
+                    });
+                    
+                    return `${isPositiveStack ? '+' : '-'}${total.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`;
+                },
+                anchor: 'end' as const,
+                align: 'top' as const,
+                offset(context: Context) {
+                    return context.dataset.stack === 'positive' ? -20 : 0;
                 }
             }
         },
@@ -239,8 +312,8 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
 
     return (
         <div className="mt-4">
-            <div className="bg-white rounded-lg shadow relative">
-                <div className="absolute top-2 left-14 z-10 flex items-center space-x-2">
+            <div className="bg-white rounded-lg relative">
+                <div className="absolute top-2 right-6 z-10 flex items-center space-x-2">
                     <div className="flex items-center space-x-2">
                         <button
                             onClick={() => {
@@ -329,7 +402,12 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                 </div>
                 <div className="pt-1">
                     {factures.length > 0 ? (
-                        <Bar data={filteredChartData} options={options} height={80} />
+                        <Bar 
+                            data={filteredChartData} 
+                            options={options} 
+                            plugins={[ChartDataLabels]}
+                            height={80} 
+                        />
                     ) : (
                         <div className="text-center text-gray-500">Aucune donnée disponible</div>
                     )}

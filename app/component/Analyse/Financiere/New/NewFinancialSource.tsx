@@ -110,14 +110,14 @@ const NewFinancialSource = () => {
         <div>
             {entreprise_id && <div className="space-y-4 p-2">
                 <NewBordereauxFinancial factures={validFactures} />
-                <div className="bg-white rounded-lg shadow">
+                <div className="bg-white rounded-lg">
                     <NewMainFinancialChart factures={validFactures} entreprise_id={entreprise_id} />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-white rounded-lg shadow">
+                <div className="flex flex-row justify-between gap-2">
+                    <div className="bg-white rounded-lg w-[60%]">
                         <NewTableFinancial factures={validFactures} entreprise_id={entreprise_id} />
                     </div>
-                    <div className="bg-white rounded-lg shadow">
+                    <div className="bg-white rounded-lg w-[40%]">
                         <div className="p-2">
                             <h2 className="text-xs text-gray-500 font-thin">Répartition par filière</h2>
                         </div>

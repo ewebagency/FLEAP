@@ -5,28 +5,29 @@ import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFu
 import { tailwindToRgb } from '../MetaComponent/Colours';
 import { getColors } from "../MetaComponent/Colours";
 import { useFilterContext, SegmentDates } from '@/app/FilterContext';
-import { TooltipItem } from 'chart.js';
+import { TooltipItem, ChartOptions, ChartDataset, ScaleOptionsByType, Scale, ScaleType } from 'chart.js';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
+import ChartDataLabels from 'chartjs-plugin-datalabels';
+import { Context } from 'chartjs-plugin-datalabels';
 
-const { Line } = DynamicCharts;
+const { Bar } = DynamicCharts;
 
-// Ajout des interfaces pour les types
 interface Dataset {
   label: string;
   data: number[];
   borderColor: string;
   backgroundColor: string;
-  fill: boolean;
   borderWidth: number;
-  pointRadius: number;
-  tension: number;
-  cubicInterpolationMode: 'default' | 'monotone';
 }
 
 interface ChartData {
   labels: string[];
   datasets: Dataset[];
+}
+
+interface DatasetWithLabel extends ChartDataset<'bar'> {
+  label: string;
 }
 
 const AnalOpMainChart = () => {
@@ -123,8 +124,6 @@ const AnalOpMainChart = () => {
       'rgb(173, 216, 230)',    // Bleu poudré
     ];
 
-
-
     // Créer les datasets
     const datasets = sortedSegments.map(([segment, data], index) => {
         const color = filieres_ou_prestataires.nom === 'filiere'
@@ -136,14 +135,9 @@ const AnalOpMainChart = () => {
             data: data,
             borderColor: color,
             backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 1)'),
-            fill: true,
-            borderWidth: 1,
-            pointRadius: 0,
-            tension: 0.2,
-            cubicInterpolationMode: 'monotone' as 'default' | 'monotone'
+            borderWidth: 1
         };
     });
-
 
     return {
         labels: monthLabels,
@@ -151,74 +145,117 @@ const AnalOpMainChart = () => {
     };
   }, [bsds, mappingTable, filieres_ou_prestataires, siretToName, filieres, segmentDates]);
 
-  const options = {
+  const options: ChartOptions<'bar'> = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
-        position: 'bottom' as const,
         display: false,
+        position: 'bottom',
       },
       title: {
         display: true,
-        text: 'Évolution des tonnages mensuels'
+        text: 'Évolution des tonnages mensuels',
+        color: 'gray',
+        align: 'center',
+        padding: {
+          top: 10,
+          bottom: 10
+        },
+        font: {
+          size: 14,
+          weight: 'normal'
+        }
       },
       tooltip: {
-        mode: 'index' as const,
+        mode: 'index',
         intersect: false,
-        position: 'nearest' as const,
-        caretPadding: 10,
-        caretSize: 0,
-        yAlign: 'bottom' as const,
+        position: 'nearest',
         callbacks: {
-          title: (tooltipItems: TooltipItem<"line">[]) => {
-            return tooltipItems[0].label;
+          label(tooltipItem: TooltipItem<'bar'>) {
+            const value = Number(tooltipItem.raw);
+            return ` ${tooltipItem.dataset.label} : ${value.toFixed(2)} T`;
           },
-          label: function(tooltipItem: TooltipItem<"line">) {
-            const value = tooltipItem.raw as number;
-            return ` ${tooltipItem.dataset.label} : ${value.toLocaleString('fr-FR')} T`;
-          },
-          footer: function(tooltipItems: TooltipItem<"line">[]) {
-            const total = tooltipItems.reduce((sum, item) => sum + (item.raw as number), 0);
-            return `Total : ${total.toLocaleString('fr-FR')} T`;
+          footer(tooltipItems: TooltipItem<'bar'>[]) {
+            const total = tooltipItems.reduce((sum, item) => sum + (Number(item.raw) || 0), 0);
+            return `Total : ${total.toFixed(2)} T`;
           }
         }
+      },
+      datalabels: {
+        display(context: Context) {
+          const datasetIndex = context.datasetIndex;
+          const datasets = context.chart.data.datasets as DatasetWithLabel[];
+          const value = Number(context.dataset.data[context.dataIndex]);
+          
+          let total = 0;
+          datasets.forEach(dataset => {
+            const dataValue = Number(dataset.data[context.dataIndex]) || 0;
+            total += dataValue;
+          });
+          
+          // Cacher les totaux s'il y a plus de 10 barres
+          if (context.chart.data.labels?.length && context.chart.data.labels.length > 14) {
+            return false;
+          }
+          
+          return datasetIndex === datasets.length - 1 && total > 0;
+        },
+        color: 'black',
+        font: {
+          weight: 'bold',
+          size: 11
+        },
+        formatter(value: number, context: Context) {
+          const datasets = context.chart.data.datasets as DatasetWithLabel[];
+          let total = 0;
+          datasets.forEach(dataset => {
+            const dataValue = Number(dataset.data[context.dataIndex]) || 0;
+            total += dataValue;
+          });
+          return `${total.toFixed(2)} T`;
+        },
+        anchor: 'end',
+        align: 'top',
+        offset: 0
       }
     },
     scales: {
-      y: {
-        beginAtZero: true,
+      x: {
         stacked: true,
+        grid: {
+          color: 'rgba(0, 0, 0, 0)',
+        }
+      },
+      y: {
+        stacked: true,
+        beginAtZero: true,
         title: {
           display: true,
           text: 'Tonnes'
         },
         grid: {
           color: 'rgba(0, 0, 0, 0.1)',
-          drawBorder: false
-        }
-      },
-      x: {
-        stacked: true,
-        grid: {
-          display: false
+        },
+        ticks: {
+          callback: function(value) {
+            return value;
+          },
+          padding: 5
         }
       }
     },
-    interaction: {
-      intersect: false,
-      mode: 'index' as const
-    },
     elements: {
-      line: {
-        tension: 0.2
+      bar: {
+        borderRadius: 4
       }
     }
   };
 
   return (
     <div className="mt-4">
-      <div className="bg-white rounded-lg shadow relative">
-        <div className="absolute top-2 left-14 z-10 flex items-center space-x-2">
+      <div className="bg-white rounded-lg relative">
+        <div className="absolute top-2 right-6 z-10 flex items-center space-x-2">
           <div className="flex items-center space-x-2">
             <button
               onClick={() => {
@@ -307,7 +344,12 @@ const AnalOpMainChart = () => {
         </div>
         <div className="pt-1">
           {bsds.length > 0 ? (
-            <Line data={filteredChartData} options={options} height={80} />
+            <Bar 
+              data={filteredChartData} 
+              options={options} 
+              plugins={[ChartDataLabels]} 
+              height={300} 
+            />
           ) : (
             <div className="text-center text-gray-500">Aucune donnée disponible</div>
           )}

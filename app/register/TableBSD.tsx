@@ -4,7 +4,7 @@ import { useSession } from "../component/SessionProvider";
 import { useModalContextNew } from "./RegisterComponents/Modal/ContextModal";
 import toast from "react-hot-toast";
 import { Filiere, PointCollecte, Site, useFilterContext } from "../FilterContext";
-import { BSDD_TrackDechets, FormInput } from "./interface/BSD_Interface";
+import { BSDD_TrackDechets, Company, FormInput } from "./interface/BSD_Interface";
 import Swal from 'sweetalert2';
 import SendDraftModal from "./RegisterComponents/Modal/SendDraftModal";
 import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/FormulaireFull/utils_new";
@@ -505,33 +505,37 @@ const TableBSD = () => {
     }
 
     const handleSeal = async (id: string) => {
-        const result = await Swal.fire({
-            title: 'Attention !',
-            text: "Une fois le BSD scellé, vous ne pourrez plus le modifier. Voulez-vous continuer ?",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Oui, sceller',
-            cancelButtonText: 'Annuler'
-        });
-
-        if (result.isConfirmed) {
-            const apiResult = await fetch('/api/demande_collecte/seal_bsd', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id })
+        const checkedBSD = checkBSDBeforeSeal(bsds.find(bsd => bsd.id === id))
+        if(checkedBSD){
+            const result = await Swal.fire({
+                title: 'Attention !',
+                text: "Une fois le BSD scellé, vous ne pourrez plus le modifier. Voulez-vous continuer ?",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Oui, sceller',
+                cancelButtonText: 'Annuler'
             });
-            const data = await apiResult.json();
-            if (data.error) {
-                Swal.fire('Erreur !', data.error, 'error');
-                //toast.error('Erreur : ' + data.error);
-            } else {
-                //Swal.fire('Scellé !', 'Le BSD a été scellé avec succès.', 'success');
-                toast.success("BSD scellé avec succès");
-                setModalReload(!modalReload);
+    
+            if (result.isConfirmed) {
+                const apiResult = await fetch('/api/demande_collecte/seal_bsd', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                const data = await apiResult.json();
+                if (data.error) {
+                    Swal.fire('Erreur !', data.error, 'error');
+                    //toast.error('Erreur : ' + data.error);
+                } else {
+                    //Swal.fire('Scellé !', 'Le BSD a été scellé avec succès.', 'success');
+                    toast.success("BSD scellé avec succès");
+                    setModalReload(!modalReload);
+                }
             }
         }
+        
     }
 
     const handleSign = async (id: string) => {
@@ -1173,3 +1177,143 @@ const OrderBSDs = (bsds: BSD[]) => {
     }
     return bsds.sort((a, b) => getDate(b).getTime() - getDate(a).getTime());
 }
+
+
+const checkBSDBeforeSeal = (bsd: BSD|undefined) => {
+    if (!bsd) return false;
+
+    const form = bsd.infos_json.formAPI.createFormInput;
+    const isDangerous = form.wasteDetails.code.endsWith('*');
+
+    // Vérification de l'émetteur
+    if (!form.emitter?.type) {
+        toast.error("Le type d'émetteur est obligatoire");
+        return false;
+    }
+
+    if (!form.emitter?.company) {
+        toast.error("Les informations de l'entreprise émettrice sont obligatoires");
+        return false;
+    }
+
+    const emitterFields = ['siret', 'name', 'address', 'contact', 'phone', 'mail'];
+    for (const field of emitterFields) {
+        if (!form.emitter.company[field as keyof Company]) {
+            toast.error(`Le champ ${field} de l'émetteur est obligatoire`);
+            return false;
+        }
+    }
+
+    // Vérification du destinataire
+    if (!form.recipient?.processingOperation) {
+        toast.error("L'opération de traitement est obligatoire");
+        return false;
+    }
+
+    if (isDangerous && !form.recipient?.cap) {
+        toast.error("Le CAP du destinataire est obligatoire pour les déchets dangereux");
+        return false;
+    }
+
+    if (!form.recipient?.company) {
+        toast.error("Les informations de l'entreprise destinataire sont obligatoires");
+        return false;
+    }
+
+    const recipientFields = ['siret', 'name', 'address', 'contact', 'phone', 'mail'];
+    for (const field of recipientFields) {
+        if (!form.recipient.company[field as keyof Company]) {
+            toast.error(`Le champ ${field} du destinataire est obligatoire`);
+            return false;
+        }
+    }
+
+    // Vérification du transporteur
+    if (!form.transporter?.company) {
+        toast.error("Les informations de l'entreprise de transport sont obligatoires");
+        return false;
+    }
+
+    const transporterFields = ['siret', 'name', 'address', 'contact', 'mail', 'phone'];
+    for (const field of transporterFields) {
+        if (!form.transporter.company[field as keyof Company]) {
+            toast.error(`Le champ ${field} du transporteur est obligatoire`);
+            return false;
+        }
+    }
+
+    if (!form.transporter.isExemptedOfReceipt) {
+        if (!form.transporter.receipt) {
+            toast.error("Le récépissé du transporteur est obligatoire");
+            return false; 
+        }
+        if (!form.transporter.department) {
+            toast.error("Le département du transporteur est obligatoire");
+            return false;
+        }
+        if (!form.transporter.validityLimit) {
+            toast.error("La date limite de validité du transporteur est obligatoire");
+            return false;
+        }
+    }
+
+    // Vérification des détails du déchet
+    if (!form.wasteDetails?.code) {
+        toast.error("Le code déchet est obligatoire");
+        return false;
+    }
+
+    if (isDangerous && !form.wasteDetails?.onuCode) {
+        toast.error("Le code ONU est obligatoire pour les déchets dangereux");
+        return false;
+    }
+
+    if (!form.wasteDetails?.packagingInfos) {
+        toast.error("Les informations d'emballage sont obligatoires");
+        return false;
+    }
+
+    if(form.wasteDetails.packagingInfos.length > 0){
+        if (!form.wasteDetails.packagingInfos[0].type) {
+            toast.error("Le type d'emballage est obligatoire");
+            return false;
+        }
+
+        if (form.wasteDetails.packagingInfos[0].type === "AUTRE" && !form.wasteDetails.packagingInfos[0].other) {
+            toast.error("La description de l'emballage est obligatoire quand le type est 'Autre'");
+            return false;
+        }
+
+        if (!form.wasteDetails.packagingInfos[0].quantity) {
+            toast.error("La quantité d'emballages est obligatoire");
+            return false;
+        }
+    } else {
+        toast.error("Les informations d'emballage sont obligatoires");
+        return false;
+    }
+
+
+    if (!form.wasteDetails.quantity) {
+        toast.error("La quantité de déchet est obligatoire");
+        return false;
+    }
+
+    if (!form.wasteDetails.quantityType) {
+        toast.error("Le type de quantité est obligatoire");
+        return false;
+    }
+
+    if (!form.wasteDetails.consistence) {
+        toast.error("La consistance du déchet est obligatoire");
+        return false;
+    }
+
+    if (form.wasteDetails.pop === undefined || form.wasteDetails.pop === null) {
+        toast.error("L'information POP est obligatoire");
+        return false;
+    }
+
+    return true;
+}
+

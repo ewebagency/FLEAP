@@ -527,7 +527,7 @@ export const filter_dependencies = {
   },
   'dechet': {
     parent: ['wasteDetails.name'],
-    children: ['wasteDetails.code', 'wasteDetails.isSubjectToADR', 'wasteDetails.onuCode']
+    children: ['wasteDetails.code', 'wasteDetails.isSubjectToADR', 'wasteDetails.onuCode', 'wasteDetails.consistence']
   },
   /*'dechet_code_attentioooon': {
     parent: ['wasteDetails.code'],

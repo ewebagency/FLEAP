@@ -39,7 +39,7 @@ const AnalOpBordereau = () => {
     }, [bsds]);
 
     return (
-        <div className="flex justify-between bg-white p-4 rounded-lg shadow">
+        <div className="flex justify-between bg-gray-200 p-4 rounded-lg">
             <div className="block">
                 <div className="text-sm text-gray-600 font-thin">Tonnage total</div>
                 <div className="flex items-center mt-2">
@@ -55,7 +55,7 @@ const AnalOpBordereau = () => {
                     </div>*/}
                 </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-9">
                 <div className="block">
                     <div className="text-sm text-gray-600 font-thin hidden">Taux de tri</div>
                     <div className="flex items-center mt-0">
@@ -71,9 +71,15 @@ const AnalOpBordereau = () => {
                 <div className="block hidden">
                     <div className="text-sm text-gray-600 font-thin">Nombre de BSDs</div>
                     <div className="flex items-center mt-2">
-                        <div className="font-bold text-xl text-gray-700">
+                        <div className="font-medium text-xl text-gray-700">
                             {stats.totalBSDs}
                         </div>
+                    </div>
+                </div>
+                <div className="block">
+                    <div className="text-sm text-gray-600 font-thin">Déclassements</div>
+                    <div className="font-medium text-xl text-gray-700 mt-2 ml-2">
+                        0
                     </div>
                 </div>
             </div>

@@ -127,29 +127,32 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
         .filter(op => shouldShowColumn(op));
 
     return (
-        <div className="flex-1 p-4 bg-white rounded-lg shadow">
+        <div className="flex-1 p-4 bg-white rounded-lg">
             <div className="text-gray-500 text-xs mb-2">
                 Détails financiers par filière
             </div>
             <div className="h-[250px] overflow-auto">
                 <table className="min-w-full text-xs">
                     <thead className="sticky top-0 bg-white">
-                        <tr className="bg-gray-50">
-                            <th className="px-2 py-1 text-left">Filière</th>
-                            {Object.values(filiereData).some(data => data.preparation > 0) && <th className="px-2 py-1 text-right">Préparation</th>}
-                            {Object.values(filiereData).some(data => data.transport > 0) && <th className="px-2 py-1 text-right">Transport</th>}
-                            {Object.values(filiereData).some(data => data.traitement > 0) && <th className="px-2 py-1 text-right">Traitement</th>}
-                            {Object.values(filiereData).some(data => data.gestion_globale > 0) && <th className="px-2 py-1 text-right">Gestion Globale</th>}
-                            {Object.values(filiereData).some(data => data.tgap > 0) && <th className="px-2 py-1 text-right">TGAP</th>}
-                            {Object.values(filiereData).some(data => data.declassement > 0) && <th className="px-2 py-1 text-right">Déclassement</th>}
-                            {Object.values(filiereData).some(data => data.penalites > 0) && <th className="px-2 py-1 text-right">Pénalités</th>}
-                            {Object.values(filiereData).some(data => data.rachat > 0) && <th className="px-2 py-1 text-right">Rachat</th>}
-                            {Object.values(filiereData).some(data => data.location > 0) && <th className="px-2 py-1 text-right">Location</th>}
-                            {Object.values(filiereData).some(data => data.maintenance > 0) && <th className="px-2 py-1 text-right">Maintenance</th>}
-                            {Object.values(filiereData).some(data => data.mise_a_disposition > 0) && <th className="px-2 py-1 text-right">Mise à disposition</th>}
-                            {Object.values(filiereData).some(data => data.autres_contenant > 0) && <th className="px-2 py-1 text-right">Autres Contenant</th>}
-                            {(Object.values(filiereData).some(data => data.non_expliques > 0 || data.autres > 0)) && <th className="px-2 py-1 text-right">Autres</th>}
-                            <th className="px-2 py-1 text-right">Total</th>
+                        <tr className="bg-white border-b border-gray-600">
+                            <th className="px-2 py-1 text-left font-bold">Filière</th>
+                            {Object.values(filiereData).some(data => data.preparation > 0) && 
+                                <th className="px-2 py-1 text-right font-bold">Préparation</th>}
+                            {Object.values(filiereData).some(data => data.transport > 0) && 
+                                <th className="px-2 py-1 text-right font-bold">Transport</th>}
+                            {Object.values(filiereData).some(data => data.traitement > 0) && 
+                                <th className="px-2 py-1 text-right font-bold">Traitement</th>}
+                            {Object.values(filiereData).some(data => data.gestion_globale > 0) && <th className="px-2 py-1 text-right font-bold">Gestion Globale</th>}
+                            {Object.values(filiereData).some(data => data.tgap > 0) && <th className="px-2 py-1 text-right font-bold">TGAP</th>}
+                            {Object.values(filiereData).some(data => data.declassement > 0) && <th className="px-2 py-1 text-right font-bold">Déclassement</th>}
+                            {Object.values(filiereData).some(data => data.penalites > 0) && <th className="px-2 py-1 text-right font-bold">Pénalités</th>}
+                            {Object.values(filiereData).some(data => data.rachat > 0) && <th className="px-2 py-1 text-right font-bold">Rachat</th>}
+                            {Object.values(filiereData).some(data => data.location > 0) && <th className="px-2 py-1 text-right font-bold">Location</th>}
+                            {Object.values(filiereData).some(data => data.maintenance > 0) && <th className="px-2 py-1 text-right font-bold">Maintenance</th>}
+                            {Object.values(filiereData).some(data => data.mise_a_disposition > 0) && <th className="px-2 py-1 text-right font-bold">Mise à disposition</th>}
+                            {Object.values(filiereData).some(data => data.autres_contenant > 0) && <th className="px-2 py-1 text-right font-bold">Autres Contenant</th>}
+                            {(Object.values(filiereData).some(data => data.non_expliques > 0 || data.autres > 0)) && <th className="px-2 py-1 text-right font-bold">Autres</th>}
+                            <th className="px-2 py-1 text-right font-bold">Total</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -195,35 +198,35 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                             ))}
                     </tbody>
                     <tfoot className="sticky bottom-0 bg-white">
-                        <tr className="bg-gray-50">
-                            <td className="px-2 py-1">Total</td>
+                        <tr className="bg-white hover:bg-gray-50">
+                            <td className="px-2 py-1 font-bold">Total</td>    
                             {Object.values(filiereData).some(data => data.preparation > 0) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.preparation)}€</td>}
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.preparation)}€</td>}
                             {Object.values(filiereData).some(data => data.transport > 0) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.transport)}€</td>}
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.transport)}€</td>}
                             {Object.values(filiereData).some(data => data.traitement > 0) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.traitement)}€</td>}
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.traitement)}€</td>}
                             {Object.values(filiereData).some(data => data.gestion_globale > 0) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.gestion_globale)}€</td>}
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.gestion_globale)}€</td>}
                             {Object.values(filiereData).some(data => data.tgap > 0) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.tgap)}€</td>}
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.tgap)}€</td>}
                             {Object.values(filiereData).some(data => data.declassement > 0) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.declassement)}€</td>}
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.declassement)}€</td>}
                             {Object.values(filiereData).some(data => data.penalites > 0) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.penalites)}€</td>}
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.penalites)}€</td>}
                             {Object.values(filiereData).some(data => data.rachat > 0) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.rachat)}€</td>}
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.rachat)}€</td>}
                             {Object.values(filiereData).some(data => data.location > 0) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.location)}€</td>}
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.location)}€</td>}
                             {Object.values(filiereData).some(data => data.maintenance > 0) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.maintenance)}€</td>}
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.maintenance)}€</td>}
                             {Object.values(filiereData).some(data => data.mise_a_disposition > 0) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.mise_a_disposition)}€</td>}
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.mise_a_disposition)}€</td>}
                             {Object.values(filiereData).some(data => data.autres_contenant > 0) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.autres_contenant)}€</td>}
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.autres_contenant)}€</td>}
                             {(Object.values(filiereData).some(data => data.non_expliques > 0 || data.autres > 0)) && 
-                                <td className="px-2 py-1 text-right">{formatNumber(totals.non_expliques + totals.autres)}€</td>}
-                            <td className={`px-2 py-1 text-right ${totals.total >= 0 ? 'text-gray-700' : 'text-green-600'}`}>
+                                <td className="px-2 py-1 text-right font-bold">{formatNumber(totals.non_expliques + totals.autres)}€</td>}
+                            <td className={`px-2 py-1 text-right font-bold ${totals.total >= 0 ? 'text-gray-700' : 'text-green-600'}`}>
                                 {formatNumber(totals.total)}€
                             </td>
                         </tr>

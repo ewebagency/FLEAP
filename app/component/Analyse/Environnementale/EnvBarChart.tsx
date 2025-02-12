@@ -9,7 +9,7 @@ import { FormInput } from '../../../register/interface/BSD_Interface';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import ChartDataLabels from 'chartjs-plugin-datalabels';
-import { TooltipItem as ChartTooltipItem, Chart as ChartJS, ChartData, ChartOptions, ChartDataset } from 'chart.js';
+import { TooltipItem as ChartTooltipItem, Chart as ChartJS, ChartOptions, ChartDataset, ScaleOptionsByType, Scale, ScaleType } from 'chart.js';
 import { Context } from 'chartjs-plugin-datalabels';
 
 const { Bar } = DynamicCharts;
@@ -333,7 +333,17 @@ const EnvBarChart = () => {
             },
             title: {
                 display: true,
-                text: `Émissions CO₂ mensuelles par ${filieres_ou_prestataires.nom === 'filiere' ? 'filière' : 'prestataire'}`
+                text: `Émissions CO₂ mensuelles par ${filieres_ou_prestataires.nom === 'filiere' ? 'filière' : 'prestataire'}`,
+                color: 'gray',
+                align: 'center' as const,
+                padding: {
+                    top: 10,
+                    bottom: 10
+                },
+                font: {
+                    size: 14,
+                    weight: 'normal'
+                }
             },
             tooltip: {
                 mode: 'index',
@@ -343,6 +353,10 @@ const EnvBarChart = () => {
                     label(tooltipItem: ChartTooltipItem<'bar'>) {
                         const value = Number(tooltipItem.raw);
                         return ` ${tooltipItem.dataset.label} : ${value.toFixed(2)} T CO₂`;
+                    },
+                    footer(tooltipItems: ChartTooltipItem<'bar'>[]) {
+                        const total = tooltipItems.reduce((sum, item) => sum + (Number(item.raw) || 0), 0);
+                        return `Total : ${total.toFixed(2)} T CO₂`;
                     }
                 }
             },
@@ -357,6 +371,11 @@ const EnvBarChart = () => {
                         const dataValue = Number(dataset.data[context.dataIndex]) || 0;
                         total += dataValue;
                     });
+                    
+                    // Cacher les totaux s'il y a plus de 10 barres
+                    if (context.chart.data.labels?.length && context.chart.data.labels.length > 14) {
+                        return false;
+                    }
                     
                     return datasetIndex === datasets.length - 1 && total > 0;
                 },
@@ -395,6 +414,12 @@ const EnvBarChart = () => {
                 },
                 grid: {
                     color: 'rgba(0, 0, 0, 0.1)',
+                },
+                ticks: {
+                    callback: function(value) {
+                        return value;
+                    },
+                    padding: 5
                 }
             }
         },
@@ -415,7 +440,13 @@ const EnvBarChart = () => {
             },
             title: {
                 display: true,
-                text: 'Répartition par méthode de traitement'
+                text: 'Répartition par méthode de traitement',
+                color: 'gray',
+                font: {
+                    size: 14,
+                    weight: 'normal'
+                },
+                position: 'top',
             },
             tooltip: {
                 callbacks: {
@@ -445,8 +476,16 @@ const EnvBarChart = () => {
                         weight: 'bold',
                         size: 11
                     },
-                formatter(value: number) {
-                    return `${value.toFixed(1)}%`;
+                formatter: function(value: number, context: Context) {
+                    const dataset = context.dataset as DatasetWithLabel;
+                    const code = Object.entries(treatmentLabels).find(
+                        ([_, label]) => label === dataset.label
+                    )?.[0] || '';
+                    if (code === 'default') {
+                        return `Vide - ${value.toFixed(1)}%`;
+                    } else {
+                        return `${code} - ${value.toFixed(1)}%`;
+                    }
                 },
                 align: 'center',
                 anchor: 'center',
@@ -463,7 +502,7 @@ const EnvBarChart = () => {
                     text: 'Pourcentage (%)'
                 },
                 grid: {
-                    color: 'rgba(0, 0, 0, 0.1)',
+                    color: 'rgba(0, 0, 0, 0)',
                 }
             },
             y: {
@@ -483,7 +522,7 @@ const EnvBarChart = () => {
     return (
         <div className="space-y-4">
             <div className="w-full h-[300px] bg-white rounded-lg shadow p-2 relative">
-                <div className="absolute top-3 left-24 z-10 flex items-center space-x-2">
+                <div className="absolute top-3 right-6 z-10 flex items-center space-x-2">
                 <div className="flex items-center space-x-2">
                     <button
                         onClick={() => {
@@ -510,65 +549,65 @@ const EnvBarChart = () => {
                                 className="w-12 mb-[5px] pl-[4px] px-0 py-0 text-xs rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                         </div>
-                    <button
-                        onClick={() => {
-                            const newDate = new Date(segmentDates.debut || new Date());
-                            newDate.setMonth(newDate.getMonth() + 1);
-                            if (newDate < (segmentDates.fin || new Date())) {
-                                handleDateChange(newDate, 'debut');
-                            }
-                        }}
-                        className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
+                        <button
+                            onClick={() => {
+                                const newDate = new Date(segmentDates.debut || new Date());
+                                newDate.setMonth(newDate.getMonth() + 1);
+                                if (newDate < (segmentDates.fin || new Date())) {
+                                    handleDateChange(newDate, 'debut');
+                                }
+                            }}
+                            className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
 
                     <div className="h-6 w-px bg-gray-300"></div>
 
-                <div className="flex items-center space-x-2">
-                    <button
-                        onClick={() => {
-                            const newDate = new Date(segmentDates.fin || new Date());
-                            newDate.setMonth(newDate.getMonth() - 1);
-                            if (newDate > (segmentDates.debut || new Date())) {
+                    <div className="flex items-center space-x-2">
+                        <button
+                            onClick={() => {
+                                const newDate = new Date(segmentDates.fin || new Date());
+                                newDate.setMonth(newDate.getMonth() - 1);
+                                if (newDate > (segmentDates.debut || new Date())) {
+                                    handleDateChange(newDate, 'fin');
+                                }
+                            }}
+                            className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                            <div className="flex items-center space-x-0">
+                                <span className="text-xs text-gray-600">Fin :</span>
+                            <DatePicker
+                                selected={segmentDates.fin}
+                                onChange={(date) => handleDateChange(date, 'fin')}
+                                selectsEnd
+                                startDate={segmentDates.debut}
+                                endDate={segmentDates.fin}
+                                dateFormat="MMM yy"
+                                showMonthYearPicker
+                                    className="w-12 mb-[5px] pl-[4px] px-0 py-0 text-xs rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            </div>
+                        <button
+                            onClick={() => {
+                                const newDate = new Date(segmentDates.fin || new Date());
+                                newDate.setMonth(newDate.getMonth() + 1);
                                 handleDateChange(newDate, 'fin');
-                            }
-                        }}
-                        className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                    </button>
-                        <div className="flex items-center space-x-0">
-                            <span className="text-xs text-gray-600">Fin :</span>
-                        <DatePicker
-                            selected={segmentDates.fin}
-                            onChange={(date) => handleDateChange(date, 'fin')}
-                            selectsEnd
-                            startDate={segmentDates.debut}
-                            endDate={segmentDates.fin}
-                            dateFormat="MMM yy"
-                            showMonthYearPicker
-                                className="w-12 mb-[5px] pl-[4px] px-0 py-0 text-xs rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                        </div>
-                    <button
-                        onClick={() => {
-                            const newDate = new Date(segmentDates.fin || new Date());
-                            newDate.setMonth(newDate.getMonth() + 1);
-                            handleDateChange(newDate, 'fin');
-                        }}
-                        className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                        </svg>
-                    </button>
-            </div>
+                            }}
+                            className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                </div>
                 </div>
                 <div className="absolute top-5 right-4 z-10 flex items-center space-x-4 hidden">
                     <div className="text-sm">
@@ -594,7 +633,7 @@ const EnvBarChart = () => {
             </div>
             <div className="w-full h-[250px] bg-white rounded-lg shadow p-2 relative">
                 {treatmentData.labels.length > 0 ? (
-                    <Bar data={treatmentData} options={treatmentOptions} plugins={[ChartDataLabels]} />
+                    <Bar data={treatmentData} options={treatmentOptions} plugins={[ChartDataLabels]} height={300}/>
                 ) : (
                     <div className="flex justify-center items-center h-full">
                         <p>Aucune donnée de traitement disponible</p>

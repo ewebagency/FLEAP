@@ -92,10 +92,11 @@ export async function POST(request: Request) {
         }
 
 
-        //On enlève les champs qui ne sont pas modifiable sur Trackdéchets (orgId, other..)
-        const data_augmented = augmentData(data);
-        const data_on_track = cleanData(data_augmented);
         
+        //On enlève les champs qui ne sont pas modifiable sur Trackdéchets (orgId, other..)     
+        const data_augmented = augmentData(data);
+        const data_on_track = cleanData(data_augmented);      
+
         if(bsdData.on_track_dechets){
             // 2. Mise à jour dans Trackdéchets
             if (!token_track || !url_track) {
@@ -264,6 +265,9 @@ const augmentData = (data: {formAPI:{createFormInput:FormInput}}) => {
     }
     if(data.formAPI.createFormInput?.emitter?.workSite){
         vierge_data.emitter.workSite = data.formAPI.createFormInput.emitter.workSite;
+    }
+    if(data.formAPI.createFormInput?.recipient){
+        vierge_data.recipient = data.formAPI.createFormInput.recipient;
     }
     if(data.formAPI.createFormInput?.recipient?.company){
       vierge_data.recipient.company = data.formAPI.createFormInput.recipient.company;

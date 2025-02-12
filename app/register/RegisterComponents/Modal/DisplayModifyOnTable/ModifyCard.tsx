@@ -174,7 +174,7 @@ const ModifyCard = () => {
             toast.error("Utilisateur non connecté ou données manquantes");
             return;
         }
-
+        
         const result = await Swal.fire({
             title: 'Êtes-vous sûr ?',
             text: "Vous êtes sur le point de modifier le BSD.",
@@ -191,15 +191,20 @@ const ModifyCard = () => {
         setIsSubmitting(true);
 
         try {
-            const dataToSend = { ...localData };
+            // Créer une copie profonde de localData
+            const dataToSend = JSON.parse(JSON.stringify(localData));
             
-            // Conversion des quantités en nombres avant envoi
-            if (typeof dataToSend.wasteDetails.quantity === 'string' || typeof dataToSend.wasteDetails.quantity === 'number') {
+            // Conversion des quantités en nombres
+            if (dataToSend.wasteDetails?.quantity) {
                 dataToSend.wasteDetails.quantity = Number(String(dataToSend.wasteDetails.quantity).replace(',', '.'));
             }
-            if (typeof dataToSend.wasteDetails.packagingInfos[0].quantity === 'string' || typeof dataToSend.wasteDetails.packagingInfos[0].quantity === 'number') {
+            
+            if (dataToSend.wasteDetails?.packagingInfos?.[0]?.quantity) {
                 dataToSend.wasteDetails.packagingInfos[0].quantity = Number(String(dataToSend.wasteDetails.packagingInfos[0].quantity).replace(',', '.'));
             }
+
+            console.log("dataToSend.wasteDetails.quantity : ", dataToSend.wasteDetails.quantity);
+            console.log("dataToSend.recipient.company.name before submit", dataToSend.recipient);
 
             const response = await fetch('/api/demande_collecte/modify_bsd', {
                 method: 'POST',

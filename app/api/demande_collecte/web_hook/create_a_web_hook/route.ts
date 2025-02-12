@@ -62,7 +62,7 @@ const createWebHook = async (token_track:string, url_track:string, id_company:st
             activated: true
         }
     };
-    console.log('----- Variables', variables);
+    console.log('----- Variables', variables.input.token, variables.input.activated);
 
     if (!url_track) {
         throw new Error('TRACKDECHETS_URL_SANDBOX environment variable is not defined');
@@ -80,15 +80,16 @@ const createWebHook = async (token_track:string, url_track:string, id_company:st
                     'Content-Type': 'application/json'
                 }
             }
-        );
+        ) as {data: {createWebhookSetting: {orgId: string, activated: boolean}}};
 
         if (response.data) {
-            console.log('WebHook créé avec succès:', response.data);
+            console.log('WebHook créé avec succès:', response.data.createWebhookSetting.orgId, response.data.createWebhookSetting.activated);
             return {status: 200};
         } else  {
             console.error('Erreur création webhook:');
             return {status: 500};
         }
+
         
     } catch (error) {
         console.error("Erreur complète:", error);

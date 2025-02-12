@@ -65,6 +65,8 @@ const getWebHooks = async (token:string, url_track: string) => {
                             node: {
                                 id: string;
                                 endpointUri: string;
+                                orgId: string;
+                                activated: boolean;
                             };
                         }>;
                     };
@@ -90,9 +92,10 @@ const getWebHooks = async (token:string, url_track: string) => {
         }
         
         const webhooks = response?.data?.data?.webhooksettings?.edges.map(edge => edge.node) || [];
-        console.log('Webhooks trouvés : ', webhooks);
+        console.log('Webhooks trouvés : ', webhooks.map(webhook => webhook.orgId + ' - ' + webhook.endpointUri));
         return {status: 200, webhooks};
         
+
     } catch (error) {
         console.log('Erreur getwebhooks:', error);
         return {status: 500, webhooks: []};

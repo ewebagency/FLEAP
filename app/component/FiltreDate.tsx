@@ -151,16 +151,31 @@ const FiltreDate = () => {
         setIsOpen(false);
     };
 
-    const handleCustomDateSubmit = () => {
-        if (customStartDate && customEndDate) {
-            setSegmentDates({ debut: customStartDate, fin: customEndDate });
-            setActiveSegment('custom');
-            localStorage.setItem('selectedDates', JSON.stringify({ 
-                debut: customStartDate, 
-                fin: customEndDate 
-            }));
-            localStorage.setItem('activeSegment', 'custom');
-            setIsOpen(false);
+    const handleDateChange = (date: Date | null, isStart: boolean) => {
+        if (date) {
+            if (isStart) {
+                setCustomStartDate(date);
+                if (customEndDate) {
+                    setSegmentDates({ debut: date, fin: customEndDate });
+                    setActiveSegment('custom');
+                    localStorage.setItem('selectedDates', JSON.stringify({ 
+                        debut: date, 
+                        fin: customEndDate 
+                    }));
+                    localStorage.setItem('activeSegment', 'custom');
+                }
+            } else {
+                setCustomEndDate(date);
+                if (customStartDate) {
+                    setSegmentDates({ debut: customStartDate, fin: date });
+                    setActiveSegment('custom');
+                    localStorage.setItem('selectedDates', JSON.stringify({ 
+                        debut: customStartDate, 
+                        fin: date 
+                    }));
+                    localStorage.setItem('activeSegment', 'custom');
+                }
+            }
         }
     };
 
@@ -195,7 +210,7 @@ const FiltreDate = () => {
                                     <div>
                                         <DatePicker
                                             selected={customStartDate}
-                                            onChange={(date) => date && setCustomStartDate(date)}
+                                            onChange={(date) => handleDateChange(date, true)}
                                             selectsStart
                                             startDate={customStartDate}
                                             endDate={customEndDate}
@@ -208,7 +223,7 @@ const FiltreDate = () => {
                                     <span className="text-xs text-gray-500">à</span>
                                     <DatePicker
                                         selected={customEndDate}
-                                        onChange={(date) => date && setCustomEndDate(date)}
+                                        onChange={(date) => handleDateChange(date, false)}
                                         selectsEnd
                                         startDate={customStartDate}
                                         endDate={customEndDate}
@@ -220,17 +235,11 @@ const FiltreDate = () => {
                                 </div>
                                 <div className="flex space-x-2">
                                     <button
-                                        onClick={handleCustomDateSubmit}
-                                        className="flex-1 p-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                                    >
-                                        Appliquer
-                                    </button>
-                                    <button
                                         onClick={() => {
                                             getDatesFromEntreprise();
                                             setIsOpen(false);
                                         }}
-                                        className="flex-2 p-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
+                                        className="w-full p-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
                                     >
                                         Auto
                                     </button>

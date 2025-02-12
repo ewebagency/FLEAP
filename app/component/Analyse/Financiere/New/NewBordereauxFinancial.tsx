@@ -34,7 +34,7 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
     }, [factures]);
 
     return (
-        <div className="flex justify-between bg-white p-4 rounded-lg shadow">
+        <div className="flex justify-between bg-gray-200 p-4 rounded-lg">
             <div className="block">
                 <div className="text-sm text-gray-600 font-thin">Budget Déchet</div>
                 <div className="flex items-center mt-2">
@@ -54,7 +54,7 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
                 <div className="block">
                     <div className="text-sm text-gray-600 font-thin">Revenus totaux</div>
                     <div className="flex items-center mt-2">
-                        <div className="font-bold text-xl text-green-600">
+                        <div className="font-medium text-xl text-green-600">
                             {stats.totalRevenues.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
                         </div>
                     </div>
@@ -62,7 +62,7 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
                 <div className="block">
                     <div className="text-sm text-gray-600 font-thin">Coûts totaux</div>
                     <div className="flex items-center mt-2">
-                        <div className="font-bold text-xl text-gray-700">
+                        <div className="font-medium text-xl text-gray-700">
                             {stats.totalCosts.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
                         </div>
                     </div>

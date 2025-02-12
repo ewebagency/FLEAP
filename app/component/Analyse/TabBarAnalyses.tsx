@@ -71,11 +71,27 @@ const TabBarAnalyses = () => {
 
     return (
         <div>
-            <div role="tablist" className="tabs tabs-lifted">
-                <a role="tab" className={`tab ${activeTab === 'tab_finance' ? 'tab-active' : ''} ${hasFinanceData ? '' : 'hidden'}`} onClick={() => handleTabClick('tab_finance')}>Analyse financière</a>          
-                <a role="tab" className={`tab ${activeTab === 'tab_ops' ? 'tab-active' : ''}`} onClick={() => handleTabClick('tab_ops')}>Analyse opérationnelle</a>
-                <a role="tab" className={`tab ${activeTab === 'tab_facture' ? 'tab-active' : ''}`} onClick={() => handleTabClick('tab_facture')}>Analyse des factures</a>
-                <a role="tab" className={`tab ${activeTab === 'tab_env' ? 'tab-active' : ''}`} onClick={() => handleTabClick('tab_env')}>Analyse environnementale</a>
+            <div role="tablist" className="tabs border-b border-gray-200">
+                <a role="tab" 
+                   className={`tab border-0 ${activeTab === 'tab_finance' ? 'border-b-4 border-green-500' : ''} ${hasFinanceData ? '' : 'hidden'}`} 
+                   onClick={() => handleTabClick('tab_finance')}>
+                   Analyse financière
+                </a>          
+                <a role="tab" 
+                   className={`tab border-0 ${activeTab === 'tab_ops' ? 'border-b-4 border-green-500' : ''}`} 
+                   onClick={() => handleTabClick('tab_ops')}>
+                   Analyse opérationnelle
+                </a>
+                <a role="tab" 
+                   className={`tab border-0 ${activeTab === 'tab_facture' ? 'border-b-4 border-green-500' : ''}`} 
+                   onClick={() => handleTabClick('tab_facture')}>
+                   Analyse des factures
+                </a>
+                <a role="tab" 
+                   className={`tab border-0 ${activeTab === 'tab_env' ? 'border-b-4 border-green-500' : ''}`} 
+                   onClick={() => handleTabClick('tab_env')}>
+                   Analyse environnementale
+                </a>
             </div>
 
             {hasFinanceData ? <FinancialAnalyse active={activeTab == 'tab_finance'}/> : null}

@@ -9,6 +9,7 @@ import { useFilterContext } from '@/app/FilterContext';
 import { FormInput } from '@/app/register/interface/BSD_Interface';
 import { BSD } from '@/app/analysis/AnalysisProvider';
 import { LegendItem, ChartData } from 'chart.js';
+import { Doughnut } from "react-chartjs-2";
 
 const { Pie } = DynamicCharts;
 
@@ -134,12 +135,12 @@ const AnalOpPieChart = () => {
     }, [bsds, mappingTable, filieres_ou_prestataires, siretToName, filieres]);
 
     return (
-        <div className="flex-1 p-4 bg-white rounded-lg shadow">
+        <div className="flex-1 p-4 bg-white rounded-lg">
             <div className="text-gray-500 text-xs mb-2">
                 Répartition par {filieres_ou_prestataires.nom === 'prestataire' ? 'prestataire' : 'filière'}
             </div>
-            <div className="h-[250px]"> {/* Hauteur augmentée à 250px */}
-                <Pie data={pieData} options={options} />
+            <div className="h-[200px]"> {/* Hauteur augmentée à 250px */}
+                <Doughnut data={pieData} options={options} />
             </div>
         </div>
     );

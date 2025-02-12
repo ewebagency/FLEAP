@@ -7,6 +7,7 @@ interface formAPI_Track {
     id: string,
     status: string,
     createdAt: string,
+    readableId: string,
     emitter: {
           company: {
             mail: string,
@@ -535,7 +536,7 @@ const createBSD_Supabase = async (readableId: string, data: {data: {form: formAP
 
 const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAPI_Track}}, user_id: string, entreprise_id: string) => {
     console.log("BSD mis à jour : ", readableId);
-    console.log("Données reçues par le WebHook : ", data);
+    console.log("Données reçues par le WebHook : quantité : ", data.data.form.wasteDetails.quantity);
     //Si readable_id n'existe pas dans la BDD, on créer un nouveau BSD avec ce readable_id pour ce user (entreprise) : id FLEAP unique mais ids TRACK pas uniques
 
     const json_past = await supabase
@@ -559,7 +560,7 @@ const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAP
         const past_infos_json = json_past.data?.infos_json;
         //console.log("Nouvelles Infos JSON reçus par WebHook : ", new_formAPI);
         //console.log("Infos JSON précédentes : ", past_infos_json?.formAPI.createFormInput);
-        console.log("past_infos_json : ", past_infos_json);
+        //console.log("past_infos_json : ", past_infos_json);
 
         
         past_infos_json.formAPI.createFormInput.emitter = new_formAPI.emitter;

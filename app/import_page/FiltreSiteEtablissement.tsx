@@ -173,7 +173,7 @@ const FiltreSiteEtablissement = () => {
             if (window.innerWidth <= 768) {
                 return false; // On mettra le premier à true après
             }
-            return savedSiteStates[orgId]?.checked ?? false;
+            return savedSiteStates[orgId]?.checked ?? true;
         };
 
         const sites_from_db: ContextSite[] = additionnalSites.map(site => ({

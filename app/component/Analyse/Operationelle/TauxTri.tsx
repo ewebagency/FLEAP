@@ -1,11 +1,8 @@
 'use client'
 import React, { useMemo, useState } from "react";
-import { DynamicCharts } from '../MetaComponent/ChartWrapper';
 import { useAnalysis } from "@/app/analysis/AnalysisProvider";
 import { getFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { BSD } from '@/app/analysis/AnalysisProvider';
-
-const { Doughnut } = DynamicCharts;
 
 interface WasteDetail {
     code: string;
@@ -56,55 +53,25 @@ const TauxTri = () => {
         return { tauxTri, totalWeight, nonRecycledDetails };
     }, [bsds, mappingTable]);
 
-    const options = {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '75%',
-        rotation: -90,
-        circumference: 360,
-        plugins: {
-            legend: {
-                display: false
-            },
-            tooltip: {
-                enabled: false
-            }
-        }
-    };
-
-    const data = {
-        datasets: [{
-            data: [tauxTri, 100 - tauxTri],
-            backgroundColor: [
-                'rgba(34, 197, 94, 0.8)',  // vert pour le taux de tri
-                'rgba(229, 231, 235, 0.5)', // gris clair pour le reste
-            ],
-            borderWidth: 0,
-        }]
-    };
-
     return (
         <div 
-            className="w-[100px] bg-white rounded-lg shadow p-1 relative"
+            className="relative"
             onMouseEnter={() => setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
         >
-            <div className="h-[60px] relative">
-                <Doughnut data={data} options={options} />
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xs font-bold text-gray-700">
-                        {tauxTri.toFixed(1)}%
-                    </span>
+            <div className="flex flex-col space-y-2">
+                <div className="text-sm text-gray-600">
+                    Taux de tri
                 </div>
+                <div className="text-xl font-medium text-gray-700 ml-2">
+                    {tauxTri.toFixed(1)} %
+                </div>
+
             </div>
-            <div className="text-xs text-gray-600 text-center mt-1">
-                Tri
-            </div>
-            
 
             {showTooltip && nonRecycledDetails.length > 0 && (
                 <div className="absolute z-10 bottom-0 right-full mr-2 bg-gray-800 text-white p-2 rounded-lg shadow-lg text-xs w-64">
-                    <div className="font-semibold mb-1">Principaux déchets non triés :</div>
+                    <div className="font-semibold mb-1">Déchets non triés :</div>
                     {nonRecycledDetails.map((waste, index) => (
                         <div key={index} className="mb-1">
                             <div className="flex justify-between">

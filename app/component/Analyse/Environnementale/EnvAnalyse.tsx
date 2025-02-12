@@ -10,7 +10,7 @@ const EnvAnalyse = ({active}: Props) => {
     return (
         <div>
             { active &&
-                <div className="border-b border-r border-l border-gray-200 rounded-br rounded-bl">
+                <div className="rounded-br rounded-bl">
                     <div className="p-5">
                         
                         <div className="space-y-6">

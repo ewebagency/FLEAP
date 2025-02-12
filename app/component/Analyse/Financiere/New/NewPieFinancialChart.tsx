@@ -126,7 +126,7 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
             {/* Revenus (inversé) */}
             <div className="relative h-[250px] flex flex-col items-center">
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <h3 className="text-sm font-semibold text-gray-600 mb-6">Revenus</h3>
+                    <h3 className="text-sm font-semibold text-gray-600 top-6">Revenus</h3>
                 </div>
                 <div className="w-full h-full flex items-center justify-center">
                     <Doughnut 
