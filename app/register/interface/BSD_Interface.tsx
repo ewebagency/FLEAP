@@ -999,3 +999,12 @@ export interface CompleteFormInput{
     json_row: FormInput;
 }
 
+export interface RowBSD {
+    created_at:string;
+    infos_json:{formAPI:{createFormAPI:BSDD_TrackDechets}}
+    other_infos : OtherInfos;
+    status_track_dechets : string;
+    id_track_dechets :string;
+    entreprise_id :string;
+    user_id:string;
+}

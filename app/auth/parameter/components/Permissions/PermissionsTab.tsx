@@ -1,4 +1,4 @@
-"use client";
+/*"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from '@/app/database/supabaseClient';
@@ -181,4 +181,4 @@ export default function PermissionsTab() {
             </div>
         </div>
     );
-} 
+} */

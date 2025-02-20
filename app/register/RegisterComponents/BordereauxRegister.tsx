@@ -6,6 +6,7 @@ import { BoutonOpenModal } from './Modal/BoutonOpenModal';
 import { useModalContextNew } from './Modal/ContextModal';
 import { Filiere, useFilterContext } from '@/app/FilterContext';
 //import NewDemandeMailButon from '../DemandeCollecteNew/NewDemandeMailButon';
+import { RowBSD } from "../interface/BSD_Interface";
 
 const BordereauxRegister = () => {
     const session = useSession();
@@ -25,6 +26,11 @@ const BordereauxRegister = () => {
                 .select('count')
                 .eq('entreprise_id', session.entreprise_id)
                 .in('status_track_dechets', ['Collecté', 'SENT', 'Traité', 'Accepté', 'AWAITING_GROUP', 'GROUPED', 'ACCEPTED', 'PROCESSED']);
+            
+            /*const ListStatusEnAttente = ['Collecté', 'SENT', 'Traité', 'Accepté', 'AWAITING_GROUP', 'GROUPED', 'ACCEPTED', 'PROCESSED'];
+            const response = await fetch(`/api/get_data_bsd?entreprise_id=${session.entreprise_id}&forceReload=${false}`);
+            const { data: BSDs } = await response.json();
+            const collectedData = BSDs.filter(bsd => ListStatusEnAttente.includes(bsd.status_track_dechets));*/
 
             const pendingData = await getPendingBSDs(session.entreprise_id);
 

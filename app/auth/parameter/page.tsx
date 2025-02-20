@@ -9,7 +9,7 @@ import BoxIcon from '@/app/component/BoxIconWrapper';
 import PersonalTab from './components/Personal/PersonalTab';
 import FiliereTab from './components/Filiere/FiliereTab';
 import SiteTab from './components/Site/SiteTab';
-import PermissionsTab from './components/Permissions/PermissionsTab';
+//import PermissionsTab from './components/Permissions/PermissionsTab';
 import ParametrageTab from './components/ParametrageTable/ParametrageTab';
 
 export default function UserSettings() {
@@ -88,7 +88,7 @@ export default function UserSettings() {
                 {activeTab === 'tab_personal' && <PersonalTab email={email} currentProfile={currentProfile} />}
                 {activeTab === 'tab_filiere' && <FiliereTab />}
                 {activeTab === 'tab_site' && <SiteTab />}
-                {activeTab === 'tab_permissions' && <PermissionsTab />}
+                {/*activeTab === 'tab_permissions' && <PermissionsTab />*/}
                 {activeTab === 'tab_parametrage' && <ParametrageTab />}
             </div>
         </div>
