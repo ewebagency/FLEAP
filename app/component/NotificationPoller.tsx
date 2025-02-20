@@ -16,7 +16,7 @@ export default function NotificationPoller() {
             try {
                 const response = await fetch(`/api/notifications/cache?userId=${session.user_id}`);
                 const data = await response.json();
-
+                console.log('------Notifications:', data);
                 if (data.notifications && data.notifications.length > 0) {
                     //data.notifications.forEach(() => {
                         toast.success('Notification TrackDéchets reçue !', {
@@ -32,7 +32,7 @@ export default function NotificationPoller() {
         };
 
         // Démarrer le polling toutes les 5 secondes
-        const intervalId = setInterval(pollNotifications, 5*60*1000); // 5 minutes
+        const intervalId = setInterval(pollNotifications, 1*60*1000); // 1 minute
 
         // Cleanup à la destruction du composant
         return () => clearInterval(intervalId);

@@ -1,19 +1,14 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useSession } from '../component/SessionProvider';
 import { useFilterContext, FiliereOuPrestataireInterface } from '../FilterContext';
 import { supabase } from '../database/supabaseClient';
 import { getMappingTableFiliere } from '../register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import { FormInput, BSDD_TrackDechets, OtherInfos } from '../register/interface/BSD_Interface';
+import { useFiltresPerso } from '../component/FiltresPerso/FiltresPersoProvider';
+import { filterBSDs, CommonBSD } from '../register/FiltreFunctionnal';
 
-export interface BSD {
-  created_at: string;
-  other_infos: OtherInfos;
-  infos_json: {
-    formAPI: {
-      createFormInput: FormInput;
-    };
-  };
-}
+// Utiliser l'interface commune
+export type BSD = CommonBSD;
 
 interface AnalysisContextType {
   bsds: BSD[];
@@ -33,6 +28,8 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
     const [bsds, setBsds] = useState<BSD[]>([]);
     const [mappingTable, setMappingTable] = useState<Array<{ ced: string; filiere: string }>>([]);
     const [siretToName, setSiretToName] = useState<Record<string, string>>({});
+
+    const { filterFunctions } = useFiltresPerso();
 
     // Charger la table de mapping
     useEffect(() => {
@@ -56,162 +53,51 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
         setSiretToName(mapping);
     }, [sites]);
 
-    const fetchBSDs = async () => {
+    const fetchAndFilterBSDs = useCallback(async () => {
         if (!session?.entreprise_id) return;
 
-        const checkedFilieres = filieres.filter(f => f.checked).map(f => f.name);
-        const checkedPointsCollecte = points_collecte.filter(pc => pc.checked).map(pc => pc.name);
-        const checkedSites = sites.filter(site => site.checked).map(site => site.orgId);
+        try {
+            setLoading(true);
+            const response = await fetch(`/api/get_data_bsd?entreprise_id=${session.entreprise_id}`);
+            const { data: fetchedBSDs } = await response.json();
 
-        if (checkedFilieres.length === 0 || checkedPointsCollecte.length === 0) {
+            if (!fetchedBSDs) {
+                setBsds([]);
+                return;
+            }
+
+            // Utiliser la fonction mutualisée de filtrage
+            const filtered = filterBSDs(
+                fetchedBSDs,
+                filieres,
+                sites,
+                points_collecte,
+                segmentDates,
+                mappingTable,
+                [], // pas de filtres personnalisés pour l'analyse
+                false // pas de filtre des BSDs en attente pour l'analyse
+            );
+
+            setBsds(filtered);
+
+        } catch (error) {
+            console.error("Error fetching BSDs:", error);
             setBsds([]);
-            return;
+        } finally {
+            setLoading(false);
         }
-
-        const pageSize = 1000;
-        let allData: BSD[] = [];
-        let hasMore = true;
-        let currentPage = 0;
-
-        // Construction de la requête de base
-        let baseQuery = supabase
-            .from('bsd')
-            .select('*', { count: 'exact' })
-            .eq('entreprise_id', session.entreprise_id)
-            .order('created_at', { ascending: false });
-
-        // Récupérer tous les CEDs de toutes les filières
-        const { data: mappingData } = await supabase
-            .from('entreprise')
-            .select('mapping_ced_filiere')
-            .eq('id', session.entreprise_id)
-            .single();
-
-        const filiere_conditions: string[] = [];
-
-        // Conditions pour les CEDs (filières)
-        if (mappingData) {
-            const mapping_table = mappingData.mapping_ced_filiere;
-            
-            // Liste de tous les CEDs de toutes les filières
-            const ced_from_all_filiere = mapping_table.map((mapping: {ced: string}) => cleanCED(mapping.ced));
-            
-            // Liste des CEDs des filières sélectionnées
-            const ced_from_checked_filiere = mapping_table
-                .filter((mapping: {filiere: string}) => 
-                    checkedFilieres.filter(f => f !== 'Autres').includes(mapping.filiere))
-                .map((mapping: {ced: string}) => cleanCED(mapping.ced));
-
-                const formatCEDs = (ceds: string[]) => {
-                    return ceds.flatMap(ced => {
-                        const base = ced.replace('*', ''); // Retire l'éventuel `*`
-                        const spaced = base.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
-                        return [
-                            base,          // Version sans `*`
-                            base + '*',    // Version avec `*`
-                            spaced,        // Version avec espaces
-                            spaced + '*'   // Version avec espaces + `*`
-                        ];
-                    });
-                };
-
-            // Si "Autres" est sélectionné
-            if (checkedFilieres.includes('Autres')) {
-                const all_formatted_ceds = formatCEDs(ced_from_all_filiere);
-                if (all_formatted_ceds.length > 0) {
-                    filiere_conditions.push(
-                        `infos_json->formAPI->createFormInput->wasteDetails->>code.not.in.(${all_formatted_ceds.join(',')})`
-                    );
-                }
-            }
-
-            // Pour les filières normales
-            const checked_formatted_ceds = formatCEDs(ced_from_checked_filiere);
-            if (checked_formatted_ceds.length > 0) {
-                filiere_conditions.push(
-                    `infos_json->formAPI->createFormInput->wasteDetails->>code.in.(${checked_formatted_ceds.join(',')})`
-                );
-            }
-        }
-
-        // Conditions pour les sites
-        const site_conditions: string[] = [];
-        if (checkedSites.length > 0) {
-            if (checkedSites.includes('----')) {
-                site_conditions.push(`infos_json->formAPI->createFormInput->emitter->company->>siret.eq.""`);
-            }
-            
-            const realSites = checkedSites.filter(site => site !== '----');
-            if (realSites.length > 0) {
-                site_conditions.push(`infos_json->formAPI->createFormInput->emitter->company->>siret.in.(${realSites.join(',')})`);
-            }
-        } else {
-            setBsds([]);
-            return;
-        }
-
-        // Appliquer les conditions avec AND entre sites et filières
-        if (filiere_conditions.length > 0) {
-            baseQuery = baseQuery.or(filiere_conditions.join(','));
-        }
-
-        if (site_conditions.length > 0) {
-            baseQuery = baseQuery.or(site_conditions.join(','));
-        }
-
-        while (hasMore) {
-            const query = baseQuery.range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
-            const { data, error, count } = await query;
-
-            if (error) {
-                console.error("Error fetching BSDs:", error);
-                break;
-            }
-
-            if (!data || data.length === 0) {
-                hasMore = false;
-                break;
-            }
-
-            allData = [...allData, ...data];
-            
-            // Vérifier s'il reste des données à charger
-            hasMore = count ? allData.length < count : false;
-            currentPage++;
-        }
-
-        // Après avoir récupéré les données, filtrer par date
-        if (segmentDates.debut || segmentDates.fin) {
-            const startDate = segmentDates.debut ? new Date(segmentDates.debut).getTime() : null;
-            const endDate = segmentDates.fin ? new Date(segmentDates.fin).setHours(23, 59, 59, 999) : null;
-
-            allData = allData.filter(bsd => {
-                const dateToCheck = new Date(bsd.created_at.replace(' ', 'T')).getTime();
-
-                if (startDate && dateToCheck < startDate) {
-                    return false;
-                }
-                if (endDate && dateToCheck > endDate) {
-                    return false;
-                }
-                return true;
-            });
-        }
-
-        console.log('Nombre total de BSDs récupérés dans analyse:', allData.length);
-        setBsds(allData);
-    };
+    }, [session?.entreprise_id, filieres, sites, points_collecte, segmentDates, mappingTable]);
 
     useEffect(() => {
         setLoading(true);
-        fetchBSDs().finally(() => setLoading(false));
-    }, [session, filieres, points_collecte, sites, segmentDates]);
+        fetchAndFilterBSDs().finally(() => setLoading(false));
+    }, [session, filieres, points_collecte, sites, segmentDates, filterFunctions, mappingTable]);
 
     return (
         <AnalysisContext.Provider value={{ 
             bsds, 
             loading,
-            refetch: fetchBSDs,
+            refetch: fetchAndFilterBSDs,
             mappingTable,
             siretToName,
             filieres_ou_prestataires

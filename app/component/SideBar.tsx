@@ -8,6 +8,8 @@ import FiltrePointCollecte from './FiltrePointCollecte';
 import FiltreSiteEtablissement from '../import_page/FiltreSiteEtablissement';
 import dynamic from 'next/dynamic';
 import FiltreDate from './FiltreDate';
+import CreationFiltrePerso from './FiltresPerso/CreationFiltrePerso';
+import { FiltresPersoProvider } from './FiltresPerso/FiltresPersoProvider';
 
 // Chargement dynamique de boxicons sans SSR
 const BoxIcon = dynamic(
@@ -130,7 +132,8 @@ const SideBar = (props:SideBarProps) => {
                             <>
                                 <FiltreSiteEtablissement/>
                                 <FiltrePointCollecte/>
-                                <FiltreDate/>  
+                                <FiltreDate/> 
+                                <CreationFiltrePerso/>
                             </>
                         )}
                         <div className="h-[20px]"></div>

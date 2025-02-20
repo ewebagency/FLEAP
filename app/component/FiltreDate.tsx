@@ -79,11 +79,13 @@ const FiltreDate = () => {
                 return;
             }
 
+
             // Version desktop : comportement existant
             const { data: minData, error: minError } = await supabase
                 .from('bsd')
                 .select('created_at')
                 .eq('entreprise_id', session.entreprise_id)
+                //.not('status_track_dechets', 'is', 'Ligne demandée')
                 .order('created_at', { ascending: true })
                 .limit(1)
                 .single();
@@ -94,8 +96,8 @@ const FiltreDate = () => {
             }
 
             const maxDate = new Date();
-            maxDate.setMonth(maxDate.getMonth() + 2);
-            maxDate.setDate(0);
+            //maxDate.setMonth(maxDate.getMonth());
+            //maxDate.setDate(0);
             maxDate.setHours(23, 59, 59, 999);
 
             if (minData) {
@@ -203,7 +205,7 @@ const FiltreDate = () => {
             {isOpen && (
                 <>
                     <div className="absolute left-0 w-full h-2 -bottom-2" />
-                    <div className="absolute top-full left-0 w-64 mt-0 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                    <div className="absolute top-full left-0 w-64 mt-0 bg-white rounded-lg border border-gray-200 z-50">
                         <div className="p-2 border-b border-gray-200">
                             <div className="flex flex-col space-y-2">
                                 <div className="flex items-center justify-between space-x-2">

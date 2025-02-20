@@ -5,6 +5,7 @@ import { useSession } from '../../component/SessionProvider';
 import { BoutonOpenModal } from './Modal/BoutonOpenModal';
 import { useModalContextNew } from './Modal/ContextModal';
 import { Filiere, useFilterContext } from '@/app/FilterContext';
+//import NewDemandeMailButon from '../DemandeCollecteNew/NewDemandeMailButon';
 
 const BordereauxRegister = () => {
     const session = useSession();
@@ -56,6 +57,7 @@ const BordereauxRegister = () => {
             <div className="hidden md:block bg-gray-100 p-2 rounded-lg shadow-sm mb-2">
                 <div className="flex items-center justify-between">
                     <BoutonOpenModal/>
+                    {/*<NewDemandeMailButon/>*/}
                     <div className="flex space-x-8">
                         <div>
                             {/*<button className={`text-center ${filterPendingBSDs ? 'text-[var(--green-medium)] font-bold' : 'text-gray-600'}`} 
@@ -71,7 +73,6 @@ const BordereauxRegister = () => {
                         </div>
                     </div>
                 </div>
-
             </div>
         </>
     );

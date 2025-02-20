@@ -5,81 +5,72 @@ import { useSession } from '../../component/SessionProvider';
 import TableImportedFiles, { PdfInfo } from './TableImportedFiles';
 import { SessionMore } from '../../component/SessionProvider';
 import { useImport } from './ImportContext';
+import { toast } from 'react-hot-toast';
 
 
 const TableImportedFilesFunctional: React.FC = () => {
-    const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]); // État pour stocker les informations des PDF
-    const [loading, setLoading] = useState(true); // État pour gérer le chargement
-    const session = useSession(); // Récupérer la session utilisateur
-    const user_id = session?.user_id; // Récupérer l'ID de l'utilisateur
-    const entreprise_id = session?.entreprise_id; // Récupérer l'ID de l'entreprise
-    const { importReload } = useImport(); // Utiliser le contexte
+    const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
+    const [loading, setLoading] = useState(true);
+    const session = useSession();
+    const entreprise_id = session?.entreprise_id;
+    const { importReload } = useImport();
 
-    const fetchPdfInfos = useCallback(async () => { // Wrap in useCallback
-        setLoading(true); // Démarrer le chargement
-        console.log("entreprise_id", entreprise_id, "session", session);
-        const { data, error } = await supabase
-            .from('pdf_infos') // Remplacez par le nom de votre table
-            .select('*')
-            //.eq('user_id', user_id)
-            .eq('entreprise_id', entreprise_id); // Filtrer par user_id et entreprise_id
+    const fetchPdfInfos = useCallback(async () => {
+        if (!entreprise_id) return;
+        
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('pdf_infos')  // Nom correct de la table
+                .select('*')
+                .eq('entreprise_id', entreprise_id);
 
-        if (error) {
+            if (error) throw error;
+
+            if (data) {
+                setPdfInfos(data);
+            }
+        } catch (error) {
             console.error("Erreur lors de la récupération des informations PDF:", error);
-        } else if (data) {
-            // Ajouter l'URL pour chaque PDF
-            const pdfInfosWithUrls = await Promise.all(data.map(async (pdf) => {
-                const { data: urlData } = await supabase
-                    .storage
-                    .from('pdfs_bucket')
-                    .createSignedUrl(pdf.name_pdf_in_bucket, 3600); // URL valide pendant 1 heure
-
-                return {
-                    ...pdf,
-                    url: urlData?.signedUrl || ''
-                };
-            }));
-            setPdfInfos(pdfInfosWithUrls);
+            toast.error("Erreur lors du chargement des fichiers");
+        } finally {
+            setLoading(false);
         }
-        setLoading(false); // Arrêter le chargement
-    }, [user_id, entreprise_id]); // Add user_id as a dependency
+    }, [entreprise_id]);
 
     useEffect(() => {
-        if (session) {
-            fetchPdfInfos(); // Appeler la fonction pour récupérer les informations
+        if (entreprise_id) {
+            fetchPdfInfos();
         }
-    }, [session, fetchPdfInfos, importReload]); // Ajouter importReload comme dépendance
+    }, [entreprise_id, fetchPdfInfos, importReload]);
 
     const handleDelete = async (pdfPath: string, id: number) => {
-        // Supprimer le fichier du stockage
-        const { error: deleteError } = await supabase.storage
-            .from('pdfs_bucket') // Remplacez par le nom de votre bucket
-            .remove([pdfPath]); // Chemin du fichier à supprimer
+        try {
+            const { error: deleteError } = await supabase.storage
+                .from('pdfs_bucket') 
+                .remove([pdfPath]);
 
-        if (deleteError) {
-            alert("Erreur lors de la suppression du fichier: " + deleteError.message);
-            return;
-        }
+            if (deleteError) throw deleteError;
 
-        // Supprimer l'entrée de la table 'pdf_infos'
-        const { error: deleteInfoError } = await supabase
-            .from('pdf_infos') // Remplacez par le nom de votre table
-            .delete()
-            .eq('id', id); // Identifier l'entrée à supprimer
+            const { error: deleteInfoError } = await supabase
+                .from('pdf_infos')  // Nom correct de la table
+                .delete()
+                .eq('id', id);
 
-        if (deleteInfoError) {
-            alert("Erreur lors de la suppression des informations du fichier: " + deleteInfoError.message);
-        } else {
-            console.log("Fichier et informations supprimés avec succès.");
-            // Récupérer à nouveau les informations après la suppression
+            if (deleteInfoError) throw deleteInfoError;
+
+            toast.success("Fichier supprimé avec succès");
             fetchPdfInfos();
+        } catch (error) {
+            console.error("Erreur lors de la suppression:", error);
+            toast.error("Erreur lors de la suppression du fichier");
         }
     };
 
-    //console.log(pdfInfos);
-
     if (loading) {
-        return <p>Chargement des fichiers PDF...</p>; // Message de chargement
+        return <div className="flex justify-center p-4">
+            <div className="loading loading-spinner loading-lg"></div>
+        </div>;
     }
 
     return (

@@ -664,6 +664,7 @@ const tokenAlreadyRegister = async (signature: string | undefined) => {
         .select('*')
         .eq('token', signature)
         .single();
+        console.log("Réponse Supabase pour retrouver la signature:", response);
         if(response.data){
             console.log("Signature trouvée dans notre BDD");
             const entreprise_id = await supabase

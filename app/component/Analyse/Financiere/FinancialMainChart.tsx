@@ -1,6 +1,6 @@
 import React from 'react';
 import { DynamicCharts, type TooltipItem, ChartJS} from '../MetaComponent/ChartWrapper';
-import { useAnalysis } from '@/app/analysis/AnalysisProvider';
+import { BSD, useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import { tailwindToRgb } from '../MetaComponent/Colours';
 import { useFilterContext } from '@/app/FilterContext';
@@ -21,7 +21,7 @@ const FinancialMainChart = () => {
         const costsBySegment: { [key: string]: number[] } = {};
 
         // Traitement initial des données
-        bsds.forEach((bsd: {created_at:string, infos_json:{formAPI:{createFormInput:FormInput}}}) => {
+        bsds.forEach((bsd: BSD) => {
             let segmentKey;
             if (filieres_ou_prestataires.nom === 'prestataire') {
                 const siret = bsd.infos_json.formAPI.createFormInput.recipient.company.siret;

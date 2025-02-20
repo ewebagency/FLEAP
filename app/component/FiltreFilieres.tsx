@@ -42,6 +42,7 @@ const FiltreFilieres = () => {
             hasMore = count ? allCodes.length < count : false;
             currentPage++;
         }
+        console.log("allCodes.length", allCodes.length);
 
         if (!allCodes || allCodes.length === 0) {
             console.log("Pas de BSDs trouvés");

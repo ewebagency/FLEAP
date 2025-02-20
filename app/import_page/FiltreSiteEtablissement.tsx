@@ -114,7 +114,7 @@ const FiltreSiteEtablissement = () => {
                 });
 
                 setAdditionnalSites(uniqueSites);
-                console.log('Sites additionnels après traitement:', uniqueSites);
+                //console.log('Sites additionnels après traitement:', uniqueSites);
             }
             getAdditionnalSites();
         }
@@ -159,13 +159,13 @@ const FiltreSiteEtablissement = () => {
 
     useEffect(() => {
         // Sites de la BDD
-        console.log("1. Début de l'effet de mise à jour des sites");
+        //console.log("1. Début de l'effet de mise à jour des sites");
         
         // Charger les états sauvegardés d'abord
         const savedSites = localStorage.getItem(`sites-${session?.entreprise_id}`);
-        console.log("2. États sauvegardés:", savedSites);
+        //console.log("2. États sauvegardés:", savedSites);
         const savedSiteStates = savedSites ? JSON.parse(savedSites) : {};
-        console.log("3. États parsés:", savedSiteStates);
+        //console.log("3. États parsés:", savedSiteStates);
 
         // Fonction utilitaire pour obtenir l'état sauvegardé
         const getSavedState = (orgId: string) => {
@@ -208,7 +208,7 @@ const FiltreSiteEtablissement = () => {
             }));
 
             // Log avant la fusion
-            console.log("4. Sites avant fusion:", { vrai_sites, sites_from_db, savedSiteStates });
+            //console.log("4. Sites avant fusion:", { vrai_sites, sites_from_db, savedSiteStates });
 
             // Fusionner en donnant priorité aux noms de la BDD
             const mergedSites = vrai_sites.map(trackSite => {
@@ -241,7 +241,7 @@ const FiltreSiteEtablissement = () => {
             };
 
             const allSites = [...mergedSites, ...uniqueDbSites, sitesAutre];
-            console.log("5. Sites finaux avant setSites:", allSites);
+            //console.log("5. Sites finaux avant setSites:", allSites);
 
             // Après avoir créé tous les sites, s'assurer qu'en mobile le premier site est coché
             if (window.innerWidth <= 768) {
@@ -276,7 +276,7 @@ const FiltreSiteEtablissement = () => {
                     }));
 
                     setSites(sitesWithGroups);
-                    console.log("6. Sites avec groupes:", sitesWithGroups);
+                    //console.log("6. Sites avec groupes:", sitesWithGroups);
                 } else {
                     setSites(allSites);
                 }

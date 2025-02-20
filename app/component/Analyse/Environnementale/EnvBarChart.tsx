@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DynamicCharts } from '../MetaComponent/ChartWrapper';
-import { useAnalysis } from '../../../analysis/AnalysisProvider';
+import { BSD, useAnalysis } from '../../../analysis/AnalysisProvider';
 import { useFilterContext } from '../../../FilterContext';
 import { estimerCarbone } from './environnement_utils';
 import { getFiliere } from '../../../register/RegisterComponents/Modal/FormulaireFull/utils_new';
@@ -177,7 +177,7 @@ const EnvBarChart = () => {
         // Initialiser les tableaux avec la bonne longueur
         const numberOfMonths = monthLabels.length;
         
-        bsds.forEach((bsd: {created_at:string, infos_json:{formAPI:{createFormInput:FormInput}}}) => {
+        bsds.forEach((bsd: BSD) => {
             const date = new Date(bsd.created_at);
             const startDate = new Date(segmentDates.debut || new Date());
             
@@ -484,7 +484,7 @@ const EnvBarChart = () => {
                     if (code === 'default') {
                         return `Vide - ${value.toFixed(1)}%`;
                     } else {
-                        return `${code} - ${value.toFixed(1)}%`;
+                        return value > 10 ? `${code} - ${value.toFixed(1)}%` : '';
                     }
                 },
                 align: 'center',

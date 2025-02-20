@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { DynamicCharts } from '../MetaComponent/ChartWrapper';
-import { useAnalysis } from '@/app/analysis/AnalysisProvider';
+import { BSD, useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import { tailwindToRgba } from '../MetaComponent/Colours';
 import { useFilterContext } from '@/app/FilterContext';
@@ -50,7 +50,7 @@ const FinancialPieChart = () => {
         const revenues: { [key: string]: number } = {};
         const prestatairesMap = new Map(); // Pour garder une couleur constante par prestataire
 
-        bsds.forEach((bsd: {created_at: string, infos_json: {formAPI: {createFormInput: FormInput}}}) => {
+        bsds.forEach((bsd: BSD) => {
             let key;
             if (filieres_ou_prestataires.nom === 'prestataire') {
                 const siret = bsd.infos_json.formAPI.createFormInput.recipient.company.siret;

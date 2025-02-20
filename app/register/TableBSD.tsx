@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "../database/supabaseClient";
 import { useSession } from "../component/SessionProvider";
 import { useModalContextNew } from "./RegisterComponents/Modal/ContextModal";
 import toast from "react-hot-toast";
 import { Filiere, PointCollecte, Site, useFilterContext } from "../FilterContext";
-import { BSDD_TrackDechets, Company, FormInput } from "./interface/BSD_Interface";
+import { BSDD_TrackDechets, Company, FormInput, OtherInfos } from "./interface/BSD_Interface";
 import Swal from 'sweetalert2';
 import SendDraftModal from "./RegisterComponents/Modal/SendDraftModal";
 import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/FormulaireFull/utils_new";
@@ -13,6 +13,11 @@ import { RecurrenceEntry } from "./RegisterComponents/Modal/Recurrence/Recurrenc
 import BoxIcon from "../component/BoxIconWrapper";
 import { getPendingBSDs } from "./RegisterComponents/BordereauxRegister";
 import { FactureJSON } from "../import_page/FactureImport/ButtonImportFacture";
+import { useFiltresPerso } from "../component/FiltresPerso/FiltresPersoProvider";
+//import NewFormulaireDemande from "./DemandeCollecteNew/NewFormulaireDemande";
+//import ValidateCollecte from './DemandeCollecteNew/ValidateCollecte';
+import { filterBSDs } from "./FiltreFunctionnal";
+import { CommonBSD } from "./FiltreFunctionnal";
 
 const cleanCED = (ced: string): string => {
     const ced_clean = ced.replaceAll(' ', '').replace('*', '').trim();
@@ -20,18 +25,8 @@ const cleanCED = (ced: string): string => {
     return ced_clean;
 }
 
-// Modifier le type FormDataType pour inclure un id
-type BSD = {
-    id: string;
-    created_at: string;
-    on_track_dechets: boolean;
-    readable_id_track_dechets: string;
-    infos_json: {formAPI: {createFormInput: BSDD_TrackDechets}};
-    facture_treated: boolean;
-    facture_infos: FactureJSON;
-    status_track_dechets: string;
-    id_track_dechets: string;
-};
+// Utiliser l'interface commune
+export type BSD = CommonBSD;
 
 const normalizeString = (str: string): string => {
     return str
@@ -132,166 +127,6 @@ const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres
     return [];
 }
 
-const fetchBSDs = async (user_id: string | null, sites: Site[], filieres: Filiere[], points_collecte: PointCollecte[], entreprise_id: string | null, page: number = 1, filterPendingBSDs: boolean = false, segmentDates: { debut: Date | null, fin: Date | null }) => {
-    if (!entreprise_id) return [];
-
-    console.log("filterPendingBSDs dans fetchBSDs:", filterPendingBSDs);
-
-    if (filterPendingBSDs) {
-        console.log("Récupération des BSDs en attente");
-        const pendingBSDs = await getPendingBSDs(entreprise_id);
-        console.log("BSDs en attente récupérés:", pendingBSDs);
-        return pendingBSDs || [];
-    }
-
-    const limit = 50;
-    const offset = (page - 1) * limit;
-
-    const checkedFilieres = filieres.filter(f => f.checked).map(f => f.name);
-    const checkedPointsCollecte = points_collecte.filter(point_collecte => point_collecte.checked).map(point_collecte => point_collecte.name);
-    const checkedSites = sites.filter(site => site.checked).map(site => site.orgId);
-
-    if (checkedFilieres.length === 0 || checkedPointsCollecte.length === 0) {
-        return [];
-    }
-
-    let query = supabase
-        .from('bsd')
-        .select('*')
-        .eq('entreprise_id', entreprise_id);
-
-    // Ajouter les conditions de date
-    if (segmentDates.debut || segmentDates.fin) {
-        const startDate = segmentDates.debut ? new Date(segmentDates.debut) : null;
-        const endDate = segmentDates.fin ? new Date(segmentDates.fin) : null;
-
-        if (startDate) {
-            startDate.setHours(0, 0, 0, 0);
-            query = query.gte('created_at', startDate.toISOString());
-        }
-        if (endDate) {
-            endDate.setHours(23, 59, 59, 999);
-            query = query.lte('created_at', endDate.toISOString());
-        }
-    }
-
-    // Récupérer tous les CEDs de toutes les filières
-    const { data: mappingData } = await supabase
-        .from('entreprise')
-        .select('mapping_ced_filiere')
-        .eq('id', entreprise_id)
-        .single();
-
-    const filiere_conditions: string[] = [];
-    
-    // Conditions pour les CEDs (filières)
-    if (mappingData) {
-        const mapping_table = mappingData.mapping_ced_filiere;
-        
-        // Liste de tous les CEDs de toutes les filières
-        const ced_from_all_filiere = mapping_table.map((mapping: {ced: string}) => cleanCED(mapping.ced));
-        
-        // Liste des CEDs des filières sélectionnées
-        const ced_from_checked_filiere = mapping_table
-            .filter((mapping: {filiere: string}) => 
-                checkedFilieres.filter(f => f !== 'Autres').includes(mapping.filiere))
-            .map((mapping: {ced: string}) => cleanCED(mapping.ced));
-
-            const formatCEDs = (ceds: string[]) => {
-                return ceds.flatMap(ced => {
-                    const base = ced.replace('*', ''); // Retire l'éventuel `*`
-                    const spaced = base.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
-                    return [
-                        base,          // Version sans `*`
-                        base + '*',    // Version avec `*`
-                        spaced,        // Version avec espaces
-                        spaced + '*'   // Version avec espaces + `*`
-                    ];
-                });
-            };
-
-        // Si "Autres" est sélectionné
-        if (checkedFilieres.includes('Autres')) {
-            const all_formatted_ceds = formatCEDs(ced_from_all_filiere);
-            if (all_formatted_ceds.length > 0) {
-                filiere_conditions.push(
-                    `infos_json->formAPI->createFormInput->wasteDetails->>code.not.in.(${all_formatted_ceds.join(',')})`
-                );
-            }
-        }
-
-        // Pour les filières normales
-        const checked_formatted_ceds = formatCEDs(ced_from_checked_filiere);
-        if (checked_formatted_ceds.length > 0) {
-            filiere_conditions.push(
-                `infos_json->formAPI->createFormInput->wasteDetails->>code.in.(${checked_formatted_ceds.join(',')})`
-            );
-        }
-    }
-
-    // Appliquer les conditions de filière
-    if (filiere_conditions.length > 0) {
-        console.log("filiere_conditions", filiere_conditions);
-        query = query.or(filiere_conditions.join(','));
-    }
-
-    // Conditions pour les sites
-    const site_conditions: string[] = [];
-    if (checkedSites.length > 0) {
-        if (checkedSites.includes('----')) {
-            site_conditions.push(`infos_json->formAPI->createFormInput->emitter->company->>siret.eq.""`);
-        }
-        
-        const realSites = checkedSites.filter(site => site !== '----');
-        if (realSites.length > 0) {
-            site_conditions.push(`infos_json->formAPI->createFormInput->emitter->company->>siret.in.(${realSites.join(',')})`);
-        }
-    } else {
-        return [];
-    }
-
-    // Appliquer les conditions de site
-    if (site_conditions.length > 0) {
-        query = query.or(site_conditions.join(','));
-    }
-
-    // Ajouter le filtre sur les points de collecte --> on ne met jamais  car ça a filtré des trucs qu'on voulait pas filtréé pour lallemand
-    /*if (checkedPointsCollecte.length > 0) {
-        if (!checkedPointsCollecte.includes("Non renseigné")) {
-            query = query.filter('infos_json->formAPI->createFormInput->emitter->workSite->>name', 'in', `(${checkedPointsCollecte.join(',')})`);
-        } else {
-            query = query.or(
-                `infos_json->formAPI->createFormInput->emitter->>workSite.is.null,` +
-                `infos_json->formAPI->createFormInput->emitter->workSite->>name.eq."",` +
-                `infos_json->formAPI->createFormInput->emitter->workSite->>name.in.(${checkedPointsCollecte.filter(point_collecte => point_collecte !== "Non renseigné").join(',')})`
-            );
-        }
-    }*/
-    
-    // Ajouter la pagination
-    query = query
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-    const { data, error } = await query;
-
-    if (error) {
-        console.error("Error fetching BSD:", error);
-        return [];
-    }
-
-    /*console.log("find error", data.map(bsd => {
-        try {
-            return bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity.toFixed(2);
-        } catch (error) {
-            return bsd.id;
-        }
-    }));*/
-
-    return data || [];
-};
-
-
 const TableBSD = () => {
     const session = useSession();
     const [bsds, setBSDs] = useState<BSD[]>([]);
@@ -312,6 +147,16 @@ const TableBSD = () => {
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const [hoveredMenuId, setHoveredMenuId] = useState<string | null>(null);
     const [weightInputs, setWeightInputs] = useState<Record<string, number>>({});
+    const { filterFunctions } = useFiltresPerso();
+    
+    //const [showValidateModal, setShowValidateModal] = useState(false);
+    //const [selectedBsdForValidation, setSelectedBsdForValidation] = useState<BSD | null>(null);
+
+    const prevModalReload = useRef(modalReload);
+    const [allBSDs, setAllBSDs] = useState<BSD[]>([]); // Pour stocker tous les BSDs non filtrés
+    const [allFilteredBSDs, setAllFilteredBSDs] = useState<BSD[]>([]); // Tous les BSDs filtrés
+    const [displayedBSDs, setDisplayedBSDs] = useState<BSD[]>([]); // BSDs actuellement affichés
+    const [displayLimit, setDisplayLimit] = useState(50); // Nombre de BSDs à afficher
 
     // Ajouter un useEffect pour charger la table de mapping au démarrage
     useEffect(() => {
@@ -342,7 +187,7 @@ const TableBSD = () => {
             const response = await fetch(url_with_token);
             const data = await response.json();
             
-            console.log('data_web_hooks', data);
+            //console.log('data_web_hooks', data);
             //console.log('condition 1', !data.webhooks);
             //console.log('condition 3', data.webhooks.activated === false);
             if (data.webhooks && data.webhooks.activated === false) {
@@ -358,7 +203,7 @@ const TableBSD = () => {
 
             if (!data.webhooks) {
                 // Créer le webhook si aucun n'existe
-                console.log('Création du webhook en client side');
+                //console.log('Création du webhook en client side');
                 await fetch('/api/demande_collecte/web_hook/create_a_web_hook', {
                     method: 'POST',
                     body: JSON.stringify({
@@ -373,56 +218,85 @@ const TableBSD = () => {
         }
     };
 
-    // Modifier le useEffect existant pour la récupération des BSDs
-    useEffect(() => {
-        const loadBSDs = async () => {
-            if (!session?.user_id || !session?.entreprise_id) {
-                setLoadingBSDs(false);
+    const loadMore = () => {
+        setDisplayLimit(prev => {
+            const newLimit = prev + 50;
+            // Afficher les prochains 50 BSDs (déjà triés)
+            setDisplayedBSDs(allFilteredBSDs.slice(0, newLimit));
+            return newLimit;
+        });
+    };
+
+    const fetchAndFilterBSDs = async () => {
+        if (!session?.entreprise_id) return;
+
+        try {
+            setLoadingBSDs(true);
+            
+            const response = await fetch(`/api/get_data_bsd?entreprise_id=${session.entreprise_id}&forceReload=${prevModalReload.current !== modalReload}`);
+            const { data: fetchedBSDs } = await response.json();
+
+            //console.log('data received', fetchedBSDs.map((bsd:CommonBSD)=>bsd.status_track_dechets))
+            
+
+            if (!fetchedBSDs) {
+                setAllFilteredBSDs([]);
+                setDisplayedBSDs([]);
                 return;
             }
 
-            try {
-                setLoadingBSDs(true);
-                const newData = await fetchBSDs(
-                    session.user_id, 
-                    sites, 
-                    filieres, 
-                    points_collecte, 
-                    session.entreprise_id, 
-                    currentPage,
-                    filterPendingBSDs,
-                    segmentDates
-                );
-                
-                if (newData && newData.length > 0) {
-                    setBSDs(prevBsds => {
-                        // Si c'est la première page, on remplace complètement
-                        if (currentPage === 1) return newData;
-                        
-                        // Sinon, on concatène en vérifiant les doublons
-                        const existingIds = new Set(prevBsds.map(bsd => bsd.id));
-                        const uniqueNewBsds = newData.filter(bsd => !existingIds.has(bsd.id));
-                        return [...prevBsds, ...uniqueNewBsds];
-                    });
-                    setHasMore(newData.length === itemsPerPage);
-                } else {
-                    if (currentPage === 1) {
-                        setBSDs([]);
-                    }
-                    setHasMore(false);
-                }
-            } catch (error) {
-                console.error("Erreur lors du chargement:", error);
-                if (currentPage === 1) {
-                    setBSDs([]);
-                }
-            } finally {
-                setLoadingBSDs(false);
-            }
-        };
+            // Appliquer les filtres
+            const filtered = filterBSDs(
+                fetchedBSDs,
+                filieres,
+                sites,
+                points_collecte,
+                segmentDates,
+                mappingTable,
+                filterFunctions,
+                filterPendingBSDs
+            );
 
-        loadBSDs();
-    }, [session?.user_id, session?.entreprise_id, sites, filieres, points_collecte, modalReload, currentPage, filterPendingBSDs, segmentDates]);
+            // Trier par created_at
+            /*const sortedBSDs = filtered.sort((a, b) => 
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );*/
+
+            // Stocker tous les BSDs filtrés et triés
+            setAllFilteredBSDs(filtered);
+            
+            // N'afficher que les 50 premiers
+            setDisplayedBSDs(filtered.slice(0, displayLimit));
+
+        } catch (error) {
+            console.error("Error fetching BSDs:", error);
+            setAllFilteredBSDs([]);
+            setDisplayedBSDs([]);
+        } finally {
+            setLoadingBSDs(false);
+        }
+    };
+
+    // Effet pour le modalReload
+    useEffect(() => {
+        if (prevModalReload.current !== modalReload) {
+            fetchAndFilterBSDs();
+            prevModalReload.current = modalReload;
+        }
+    }, [modalReload]);
+
+    // Effet pour les changements de filtres
+    useEffect(() => {
+        fetchAndFilterBSDs();
+    }, [
+        session?.entreprise_id,
+        filieres,
+        sites,
+        points_collecte,
+        segmentDates,
+        filterPendingBSDs,
+        filterFunctions
+    ]);
 
     useEffect(() => {
         // Exécution immédiate
@@ -669,6 +543,7 @@ const TableBSD = () => {
             
             "Ligne créée": { mainText: "Ligne créée", color: "text-gray-600" },
             "Ligne validée": { mainText: "Ligne validée", color: "text-[var(--green-light)]" },
+            "Ligne demandée": { mainText: "Ligne demandée", subText: "en attente de collecte", color: "text-red-600" },
 
         };
 
@@ -773,8 +648,13 @@ const TableBSD = () => {
         }
     };
 
+    /*const handleValidateCollecte = (bsd: BSD) => {
+        setSelectedBsdForValidation(bsd);
+        setShowValidateModal(true);
+    };*/
+
     return (
-        <div>
+        <>
             <table style={{ width: '100%', borderCollapse: 'collapse' }} className="table-fixed">
                 <thead>
                     <tr style={{ backgroundColor: 'white' }}>
@@ -793,9 +673,13 @@ const TableBSD = () => {
                 <tbody>
                     {loadingBSDs ? (
                         <tr><td colSpan={5}>Chargement des BSDs...</td></tr>
-                    ) : bsds.length > 0 ? (
-                        OrderBSDs(bsds).map((bsd) => (
-                        <tr key={bsd.id} style={{ borderBottom: '1px solid #ddd' }} className={`${bsd.status_track_dechets === "Ligne créée automatiquement" ? "bg-[var(--gray-light)]" : ""}`}>
+                    ) : allFilteredBSDs.length > 0 ? (
+                        displayedBSDs.map((bsd) => (
+                        <tr key={bsd.id} style={{ borderBottom: '1px solid #ddd' }} 
+                            className={`${bsd.status_track_dechets === "Ligne créée automatiquement" ? 
+                                "bg-[var(--gray-light)]" : 
+                                bsd.status_track_dechets === "Ligne demandée" ? 
+                                    "bg-[var(--gray-light)]" : ""}`}>
                             <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px'}}>
                                 <div className="absolute top-1 left-2 w-full">
                                     <div className="font-medium text-[10px] text-gray-600">
@@ -869,7 +753,7 @@ const TableBSD = () => {
                             <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px' }}>
                                 <div className="absolute top-1 left-2 w-full">
                                     <div className="text-[10px] text-gray-600 ml-4 flex justify-start gap-2">
-                                        {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p>Collecté le {new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>Créé le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}
+                                        {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p>Collecté le {new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>{bsd.status_track_dechets === "Ligne demandée" ? <p>Attendu pour le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p> : <p>Créé le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}</p>}
                                         {/*<p>CREE le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>*/}
                                         {/* {bsd.infos_json.formAPI.createFormInput.emittedAt} */}
                                         {/* {bsd.infos_json.formAPI.createFormInput.createdAt} */}
@@ -937,6 +821,15 @@ const TableBSD = () => {
 
                                     {/* Actions principales */}
                                     <div className="flex items-center gap-0">
+                                        {/*bsd.status_track_dechets === "Ligne demandée" && (
+                                            <button 
+                                                className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
+                                                hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
+                                                onClick={() => handleValidateCollecte(bsd)}
+                                            >
+                                                Valider la collecte
+                                            </button>
+                                        )*/}
                                         {bsd.status_track_dechets === "DRAFT" && (
                                             <button 
                                                 className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
@@ -1110,13 +1003,14 @@ const TableBSD = () => {
                 />
             )}
             
-            {hasMore && !loadingBSDs && (
+            {allFilteredBSDs.length > displayLimit && !loadingBSDs && (
                 <div className="flex justify-center mt-4">
                     <button
                         className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                        onClick={() => setCurrentPage(prev => prev + 1)}
+                        onClick={loadMore}
                     >
-                        Charger plus de BSDs
+                        Afficher 50 BSDs supplémentaires 
+                        ({displayedBSDs.length} sur {allFilteredBSDs.length})
                     </button>
                 </div>
             )}
@@ -1126,7 +1020,20 @@ const TableBSD = () => {
                     <div className="loading loading-spinner loading-lg"></div>
                 </div>
             )}
-        </div>
+            
+            {/*{showValidateModal && selectedBsdForValidation && (
+                <ValidateCollecte
+                    bsd={selectedBsdForValidation}
+                    onClose={() => {
+                        setShowValidateModal(false);
+                        setSelectedBsdForValidation(null);
+                    }}
+                    onValidate={() => {
+                        setModalReload(!modalReload);
+                    }}
+                />
+            )}*/}
+        </>
     )
 }
 
@@ -1142,7 +1049,7 @@ const canModify = (id_track: string, statut_track: string) => {
         return true;
     }
     return false;
-}
+};
 
 const frenchTranslation = (statut: string): string => {
     const mapping: Record<string, string> = {
@@ -1170,13 +1077,13 @@ const frenchTranslation = (statut: string): string => {
 };
 
 
-const OrderBSDs = (bsds: BSD[]) => {
+/*const OrderBSDs = (bsds: BSD[]) => {
     const getDate = (bsd: BSD) => {
         //if(bsd.infos_json.formAPI.createFormInput.takenOverAt) return new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt);
         return new Date(bsd.created_at);
     }
     return bsds.sort((a, b) => getDate(b).getTime() - getDate(a).getTime());
-}
+}*/
 
 
 const checkBSDBeforeSeal = (bsd: BSD|undefined) => {

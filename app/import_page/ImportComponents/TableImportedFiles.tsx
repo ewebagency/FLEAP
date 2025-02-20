@@ -3,6 +3,7 @@ import BoxIcon from '@/app/component/BoxIconWrapper';
 import { supabase } from '@/app/database/supabaseClient';
 import { useSession } from '@/app/component/SessionProvider';
 import ExtractData from './ExtractData';
+import { toast } from 'react-hot-toast';
 
 export interface PdfInfo {
     status: string;
@@ -11,7 +12,7 @@ export interface PdfInfo {
     name_pdf_in_bucket: string;
     pdf_path: string;
     created_at: string;
-    url: string;
+    url?: string;
     file_size: number;
     document_type?: string;
     site_siret?: string;
@@ -52,6 +53,8 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
     const session = useSession();
     const [entrepriseId, setEntrepriseId] = useState<string | null>(null);
     const [providerType, setProviderType] = useState<'transporter' | 'destination' | ''>('');
+    const [loadingUrls, setLoadingUrls] = useState<Record<number, boolean>>({});
+    const [pdfUrls, setPdfUrls] = useState<Record<number, string>>({});
 
     // Gestionnaire de clic en dehors du menu
     React.useEffect(() => {
@@ -72,6 +75,35 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
             setEntrepriseId(session.entreprise_id);
         }
     }, [session]);
+
+    const handleOpenPdf = async (pdf: PdfInfo) => {
+        if (pdfUrls[pdf.id]) {
+            // Si on a déjà l'URL, ouvrir directement
+            window.open(pdfUrls[pdf.id], '_blank');
+            return;
+        }
+
+        try {
+            setLoadingUrls(prev => ({ ...prev, [pdf.id]: true }));
+            
+            const { data: urlData } = await supabase
+                .storage
+                .from('pdfs_bucket')  // Correction du nom du bucket
+                .createSignedUrl(pdf.name_pdf_in_bucket, 3600);
+
+            if (!urlData?.signedUrl) {
+                throw new Error('URL non générée');
+            }
+
+            setPdfUrls(prev => ({ ...prev, [pdf.id]: urlData.signedUrl }));
+            window.open(urlData.signedUrl, '_blank');
+        } catch (error) {
+            console.error("Erreur lors de la récupération de l'URL:", error);
+            toast.error("Impossible d'ouvrir le fichier");
+        } finally {
+            setLoadingUrls(prev => ({ ...prev, [pdf.id]: false }));
+        }
+    };
 
     return (
         <div>
@@ -151,14 +183,13 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                             </td>*/}
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <div className="flex items-center justify-end gap-2">
-                                    <a 
-                                        href={pdf.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="px-3 py-1.5 border border-[var(--green-medium)] text-[var(--green-medium)] rounded-md text-xs hover:bg-green-50 w-[100px] text-center"
+                                    <button 
+                                        onClick={() => handleOpenPdf(pdf)}
+                                        disabled={loadingUrls[pdf.id]}
+                                        className="px-3 py-1.5 border border-[var(--green-medium)] text-[var(--green-medium)] rounded-md text-xs hover:bg-green-50 w-[100px] text-center disabled:opacity-50"
                                     >
-                                        Ouvrir
-                                    </a>
+                                        {loadingUrls[pdf.id] ? 'Chargement...' : 'Ouvrir'}
+                                    </button>
                                     <div className="relative">
                                         <button 
                                             className="px-1 py-1 text-gray-600 rounded-md hover:bg-gray-100 mt-0.5 h-8"
@@ -187,7 +218,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             </div>
                                         )}
                                     </div>
-                                    {cofounders_permission(session?.user_id) && <ExtractData pdf_id={pdf.id} pdfUrl={pdf.url} />}
+                                    {cofounders_permission(session?.user_id) && <ExtractData pdf_id={pdf.id} pdfUrl={pdf.url || ''} />}
                                 </div>
                             </td>
                         </tr>

@@ -17,6 +17,7 @@ import FiltreSiteEtablissement from "../import_page/FiltreSiteEtablissement";
 import { useRouter } from 'next/navigation';
 import { supabase } from '../database/supabaseClient';
 import BoxIcon from '../component/BoxIconWrapper';
+import { FiltresPersoProvider } from "../component/FiltresPerso/FiltresPersoProvider";
 
 const RegisterPage = () => {
     const router = useRouter();
