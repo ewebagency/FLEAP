@@ -4,6 +4,7 @@ import { supabase } from '@/app/database/supabaseClient';
 import { useSession } from '@/app/component/SessionProvider';
 import ExtractData from './ExtractData';
 import { toast } from 'react-hot-toast';
+import { RowBSD } from '@/app/register/interface/BSD_Interface';
 
 export interface PdfInfo {
     status: string;
@@ -51,10 +52,11 @@ interface ProviderJSON {
 const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDelete }) => {
     const [openMenuId, setOpenMenuId] = useState<number | null>(null);
     const session = useSession();
-    const [entrepriseId, setEntrepriseId] = useState<string | null>(null);
+    //const [entrepriseId, setEntrepriseId] = useState<string | null>(null);
     const [providerType, setProviderType] = useState<'transporter' | 'destination' | ''>('');
     const [loadingUrls, setLoadingUrls] = useState<Record<number, boolean>>({});
     const [pdfUrls, setPdfUrls] = useState<Record<number, string>>({});
+    const [numberPage, setNumberPage] = useState(1);
 
     // Gestionnaire de clic en dehors du menu
     React.useEffect(() => {
@@ -70,11 +72,11 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
         };
     }, [openMenuId]);
 
-    useEffect(() => {
+    /*useEffect(() => {
         if (session && session?.entreprise_id) {
             setEntrepriseId(session.entreprise_id);
         }
-    }, [session]);
+    }, [session]);*/
 
     const handleOpenPdf = async (pdf: PdfInfo) => {
         if (pdfUrls[pdf.id]) {
@@ -120,10 +122,10 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                             className="text-xs font-normal text-gray-500 mb-0">Date</th>                            
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '14%', textAlign: 'left' }}
                             className="text-xs font-normal text-gray-500 mb-0">Document</th>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '14%', textAlign: 'left' }}
-                            className="text-xs font-normal text-gray-500 mb-0">Site</th>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '25%', textAlign: 'left' }}
-                            className="text-xs font-normal text-gray-500 mb-0">Prestataire</th>
+                        {/*<th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '14%', textAlign: 'left' }}
+                            className="text-xs font-normal text-gray-500 mb-0">Site</th>*/}
+                        {/*<th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '25%', textAlign: 'left' }}
+                            className="text-xs font-normal text-gray-500 mb-0">Prestataire</th>*/}
                         {/*<th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '8%', textAlign: 'left' }}
                             className="text-xs font-normal text-gray-500 mb-0">Taille</th>*/}
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '12%', textAlign: 'right', paddingRight: '3.5rem' }}
@@ -131,7 +133,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                     </tr>
                 </thead>
                 <tbody>
-                    {[...pdfInfos].reverse().map((pdf) => (
+                    {[...pdfInfos].reverse().slice(0, 10*numberPage).map((pdf) => (
                         <tr key={pdf.id} style={{ borderBottom: '1px solid #ddd' }}>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle mt-1">
                                 <BoxIcon name='file-pdf' color='red' type='solid' />
@@ -164,20 +166,20 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                     initialType={pdf.document_type} 
                                 />
                             </td>
-                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                            {/*<td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <SelectSite 
-                                    entreprise_id={entrepriseId} 
+                                    entreprise_id={session?.entreprise_id} 
                                     pdf_id={pdf.id}
                                     initialSite={pdf.site_siret}
                                 />
-                            </td>
-                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                            </td>*/}
+                            {/*<td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <SelectProvider 
-                                    entreprise_id={entrepriseId} 
+                                    entreprise_id={session?.entreprise_id} 
                                     pdf_id={pdf.id}
                                     initialProvider={pdf.provider}
                                 />
-                            </td>
+                            </td>*/}
                             {/*<td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <div className="text-xs">{pdf.file_size ? `${pdf.file_size} MB` : 'Inconnu'}</div>
                             </td>*/}
@@ -218,13 +220,30 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             </div>
                                         )}
                                     </div>
-                                    {cofounders_permission(session?.user_id) && <ExtractData pdf_id={pdf.id} pdfUrl={pdf.url || ''} />}
+                                    {cofounders_permission(session?.user_id) && 
+                                        <ExtractData 
+                                            pdf_id={pdf.id} 
+                                            pdf_path={pdf.name_pdf_in_bucket} 
+                                        />
+                                    }
                                 </div>
                             </td>
                         </tr>
                     ))}
                 </tbody>
             </table>
+            <div className="flex justify-center mt-4"> 
+                {pdfInfos.length > 10*numberPage ? (
+                    <button 
+                        className="px-4 py-2 text-xs text-gray-700 hover:bg-gray-100 rounded-md"
+                        onClick={() => setNumberPage(numberPage + 1)}
+                    >
+                        Charger plus
+                    </button>
+                ) : (
+                    <div className="text-xs">Les {pdfInfos.length} fichiers ont été chargés</div>
+                )}
+            </div>
         </div>
     );
 };
@@ -237,7 +256,8 @@ const cofounders_permission = (user_id:string|null) => {
     }
     return false;
 }
-const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initialSite?: string }> = ({ 
+
+/*const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initialSite?: string }> = ({ 
     entreprise_id, 
     pdf_id, 
     initialSite 
@@ -293,9 +313,9 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
             ))}
         </select>
     );
-};
+};*/
 
-const getSites = async (entreprise_id: string): Promise<Site[]> => {
+/*const getSites = async (entreprise_id: string): Promise<Site[]> => {
     const { data, error } = await supabase
         .from('bsd')
         .select(`
@@ -303,6 +323,10 @@ const getSites = async (entreprise_id: string): Promise<Site[]> => {
             entreprise_id
         `)
         .eq('entreprise_id', entreprise_id);
+
+    
+    //const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
+    //const data:RowBSD[] = await response.json();
 
     if (error) {
         console.error('Erreur lors de la récupération des sites:', error);
@@ -342,7 +366,7 @@ const getSites = async (entreprise_id: string): Promise<Site[]> => {
             name: mostFrequentName
         };
     });
-};
+};*/
 
 const SelectDocumentType: React.FC<{ pdf_id: number; initialType?: string }> = ({ pdf_id, initialType }) => {
     const [selectedType, setSelectedType] = useState<string>(initialType || '');
@@ -382,7 +406,7 @@ const SelectDocumentType: React.FC<{ pdf_id: number; initialType?: string }> = (
     );
 };
 
-const SelectProvider: React.FC<{ 
+/*const SelectProvider: React.FC<{ 
     entreprise_id: string | null; 
     pdf_id: number;
     initialProvider?: ProviderJSON;
@@ -494,9 +518,9 @@ const SelectProvider: React.FC<{
             )}
         </div>
     );
-};
+};*/
 
-const getProviders = async (entreprise_id: string): Promise<Provider[]> => {
+/*const getProviders = async (entreprise_id: string): Promise<Provider[]> => {
     const { data, error } = await supabase
         .from('bsd')
         .select(`
@@ -576,6 +600,6 @@ const getProviders = async (entreprise_id: string): Promise<Provider[]> => {
             is_destination
         };
     });
-};
+};*/
 
 export default TableImportedFiles;

@@ -7,6 +7,7 @@ import { useSession } from '../component/SessionProvider';
 import { supabase } from '../database/supabaseClient';
 import Cookies from 'js-cookie';
 import BoxIcon from '@/app/component/BoxIconWrapper';
+import { RowBSD } from '../register/interface/BSD_Interface';
 
 interface AdditionalSite {
     siret: string;
@@ -35,7 +36,7 @@ const FiltreSiteEtablissement = () => {
     const { sites, setSites, toggleSite } = useFilterContext();
 
     const {modalReload, setFilterPendingBSDs} = useModalContextNew();
-    const session = useSession();
+    const {entreprise_id} = useSession();
     const [additionnalSites, setAdditionnalSites] = useState<AdditionalSite[]>([]);
     const [isLoadingTrack, setIsLoadingTrack] = useState(false);
     const [siteGroups, setSiteGroups] = useState<SiteGroup[]>([]);
@@ -43,82 +44,59 @@ const FiltreSiteEtablissement = () => {
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
-        if (session?.entreprise_id) {
+        if (entreprise_id) {
             const getAdditionnalSites = async () => {
-                const pageSize = 1000;
-                let allData: {siret:string, name:string}[] = [];
-                let hasMore = true;
-                let currentPage = 0;
+                try {
+                    // Utiliser l'API get_data_bsd
+                    const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
+                    const { data: bsds } = await response.json();
 
-                while (hasMore) {
-                    const { data, error, count } = await supabase
-                        .from('bsd')
-                        .select(`
-                            infos_json->formAPI->createFormInput->emitter->company->>siret,
-                            infos_json->formAPI->createFormInput->emitter->company->>name
-                        `, { count: 'exact' })
-                        .order('created_at', { ascending: false })
-                        .eq('entreprise_id', session?.entreprise_id)
-                        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
-
-                    if (error) {
-                        console.error('Erreur lors de la récupération des BSDs:', error);
-                        break;
+                    if (!bsds || bsds.length === 0) {
+                        console.log('Pas de BSDs trouvés');
+                        return;
                     }
 
-                    if (!data || data.length === 0) {
-                        hasMore = false;
-                        break;
-                    }
-
-                    allData = [...allData, ...data];
-                    
-                    // Vérifier s'il reste des données à charger
-                    hasMore = count ? allData.length < count : false;
-                    currentPage++;
-                }
-
-                console.log(`Nombre total de BSDs collectés pour les sites: ${allData.length}`);
-
-                const siteMap = new Map();
-                allData.forEach(item => {
-                    const siret = item.siret;
-                    const name = item.name;
-                    if (!siret) return;
-                    
-                    if (!siteMap.has(siret)) {
-                        siteMap.set(siret, new Map());
-                    }
-                    
-                    const nameCount = siteMap.get(siret);
-                    nameCount.set(name, (nameCount.get(name) || 0) + 1);
-                });
-
-                // Convertir le Map en tableau de sites uniques avec le nom le plus fréquent
-                const uniqueSites = Array.from(siteMap.entries()).map(([siret, nameCount]) => {
-                    // Trouver le nom avec le plus d'occurrences
-                    let mostFrequentName = '';
-                    let maxCount = 0;
-                    
-                    nameCount.forEach((count: number, name: string) => {
-                        if (count > maxCount) {
-                            maxCount = count;
-                            mostFrequentName = name;
+                    // Créer un Map pour regrouper les sites par SIRET
+                    const siteMap = new Map();
+                    bsds.forEach((bsd:RowBSD) => {
+                        const siret = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret;
+                        const name = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.name;
+                        if (!siret) return;
+                        
+                        if (!siteMap.has(siret)) {
+                            siteMap.set(siret, new Map());
                         }
+                        
+                        const nameCount = siteMap.get(siret);
+                        nameCount.set(name, (nameCount.get(name) || 0) + 1);
                     });
 
-                    return {
-                        siret: siret,
-                        name: mostFrequentName
-                    };
-                });
+                    // Convertir le Map en tableau de sites uniques avec le nom le plus fréquent
+                    const uniqueSites = Array.from(siteMap.entries()).map(([siret, nameCount]) => {
+                        let mostFrequentName = '';
+                        let maxCount = 0;
+                        
+                        nameCount.forEach((count: number, name: string) => {
+                            if (count > maxCount) {
+                                maxCount = count;
+                                mostFrequentName = name;
+                            }
+                        });
 
-                setAdditionnalSites(uniqueSites);
-                //console.log('Sites additionnels après traitement:', uniqueSites);
+                        return {
+                            siret: siret,
+                            name: mostFrequentName
+                        };
+                    });
+
+                    setAdditionnalSites(uniqueSites);
+                } catch (error) {
+                    console.error('Erreur lors de la récupération des BSDs:', error);
+                }
             }
             getAdditionnalSites();
         }
-    }, [modalReload, session?.entreprise_id]);
+    }, [modalReload, entreprise_id]);
 
     //On va chercher les webhook du compte track
     useEffect(() => {
@@ -162,7 +140,7 @@ const FiltreSiteEtablissement = () => {
         //console.log("1. Début de l'effet de mise à jour des sites");
         
         // Charger les états sauvegardés d'abord
-        const savedSites = localStorage.getItem(`sites-${session?.entreprise_id}`);
+        const savedSites = localStorage.getItem(`sites-${entreprise_id}`);
         //console.log("2. États sauvegardés:", savedSites);
         const savedSiteStates = savedSites ? JSON.parse(savedSites) : {};
         //console.log("3. États parsés:", savedSiteStates);
@@ -289,16 +267,16 @@ const FiltreSiteEtablissement = () => {
             }));
             setSites(sitesWithSavedStates);
         }
-    }, [etablissementsWithStatus, additionnalSites, setSites, mappingSite, session?.entreprise_id]);
+    }, [etablissementsWithStatus, additionnalSites, setSites, mappingSite, entreprise_id]);
 
     // Ajout d'un useEffect pour récupérer le mapping_site
     useEffect(() => {
         const fetchMappingSite = async () => {
-            if (session?.entreprise_id) {
+            if (entreprise_id) {
                 const { data, error } = await supabase
                     .from('entreprise')
                     .select('mapping_site')
-                    .eq('id', session.entreprise_id)
+                    .eq('id', entreprise_id)
                     .single();
 
                 if (error) {
@@ -313,7 +291,7 @@ const FiltreSiteEtablissement = () => {
         };
 
         fetchMappingSite();
-    }, [session?.entreprise_id]);
+    }, [entreprise_id]);
 
     // Fonction pour vérifier si tous les sites d'un groupe sont cochés
     const isGroupChecked = (groupName: string) => {

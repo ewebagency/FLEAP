@@ -11,27 +11,31 @@ import { toast } from 'react-hot-toast';
 const TableImportedFilesFunctional: React.FC = () => {
     const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
     const [loading, setLoading] = useState(true);
-    const session = useSession();
-    const entreprise_id = session?.entreprise_id;
+    const [error, setError] = useState<string | null>(null);
+    const { entreprise_id } = useSession();
     const { importReload } = useImport();
 
     const fetchPdfInfos = useCallback(async () => {
-        if (!entreprise_id) return;
+        if (!entreprise_id) {
+            setLoading(false);
+            return;
+        }
         
         setLoading(true);
+        setError(null);
+        
         try {
             const { data, error } = await supabase
-                .from('pdf_infos')  // Nom correct de la table
+                .from('pdf_infos')
                 .select('*')
                 .eq('entreprise_id', entreprise_id);
 
             if (error) throw error;
 
-            if (data) {
-                setPdfInfos(data);
-            }
+            setPdfInfos(data || []);
         } catch (error) {
             console.error("Erreur lors de la récupération des informations PDF:", error);
+            setError("Erreur lors du chargement des fichiers");
             toast.error("Erreur lors du chargement des fichiers");
         } finally {
             setLoading(false);
@@ -39,9 +43,7 @@ const TableImportedFilesFunctional: React.FC = () => {
     }, [entreprise_id]);
 
     useEffect(() => {
-        if (entreprise_id) {
-            fetchPdfInfos();
-        }
+        fetchPdfInfos();
     }, [entreprise_id, fetchPdfInfos, importReload]);
 
     const handleDelete = async (pdfPath: string, id: number) => {
@@ -66,6 +68,24 @@ const TableImportedFilesFunctional: React.FC = () => {
             toast.error("Erreur lors de la suppression du fichier");
         }
     };
+
+    if (loading && !entreprise_id) {
+        return <div className="flex justify-center p-4">
+            <div className="loading loading-spinner loading-lg"></div>
+        </div>;
+    }
+
+    if (!entreprise_id) {
+        return <div className="text-center p-4">
+            Aucune entreprise sélectionnée
+        </div>;
+    }
+
+    if (error) {
+        return <div className="text-center text-red-500 p-4">
+            {error}
+        </div>;
+    }
 
     if (loading) {
         return <div className="flex justify-center p-4">

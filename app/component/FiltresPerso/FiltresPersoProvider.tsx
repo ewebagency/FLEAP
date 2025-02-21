@@ -3,7 +3,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { FilterContextType, FilterData, FILTER_FIELDS, FilterFunction, FilterValue } from './types';
 import { get } from 'lodash';
-import { supabase } from '@/app/database/supabaseClient';
 import { useSession } from '../SessionProvider';
 import { BSDD_TrackDechets } from '@/app/register/interface/BSD_Interface';
 import { BSD } from '@/app/analysis/AnalysisProvider';
@@ -28,7 +27,7 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
   });
   const [filterFunctions, setFilterFunctions] = useState<FilterFunction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const session = useSession();
+  const {entreprise_id} = useSession();
 
   // Sauvegarder filterData dans localStorage quand il change
   useEffect(() => {
@@ -39,11 +38,9 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Charger les données initiales
   useEffect(() => {
-    // Si session est undefined, on est en cours de chargement
-    if (session === undefined) return;
     
     // Si session est null ou pas d'entreprise_id, on n'est pas connecté
-    if (session === null || !session.entreprise_id) {
+    if (!entreprise_id) {
       setIsLoading(false);
       setData([]);
       return;
@@ -52,17 +49,16 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const loadFilterData = async () => {
       setIsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('bsd')
-          .select('*')
-          .eq('entreprise_id', session.entreprise_id);
+        // Utiliser l'API get_data_bsd au lieu de Supabase
+        const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
+        const { data: bsds } = await response.json();
 
-        if (error) {
-          console.error("Error loading filter data:", error);
+        if (!bsds) {
+          console.error("Pas de données reçues de l'API");
           return;
         }
 
-        setData(data || []);
+        setData(bsds);
       } catch (error) {
         console.error("Error in loadFilterData:", error);
       } finally {
@@ -71,7 +67,7 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     loadFilterData();
-  }, [session]); // Dépendre de session entier plutôt que juste entreprise_id
+  }, [entreprise_id]);
 
   // Mettre à jour filterData quand data change
   useEffect(() => {

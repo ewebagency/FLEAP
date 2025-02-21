@@ -2,72 +2,43 @@
 import React, { useEffect, useState } from "react";
 import { useFilterContext } from "../FilterContext";
 import { useSession } from "./SessionProvider";
-import { supabase } from "../database/supabaseClient";
+//import { supabase } from "../database/supabaseClient";
 import { getColors } from "./Analyse/MetaComponent/Colours";
 import { useModalContextNew } from "../register/RegisterComponents/Modal/ContextModal";
+import { RowBSD } from "../register/interface/BSD_Interface";
 
 const FiltreFilieres = () => {
     const { filieres, setFilieres, toggleFiliere } = useFilterContext();
-    const session = useSession();
+    const {entreprise_id} = useSession();
     const [loadingFilieres, setLoadingFilieres] = useState(true);
     const {modalReload, setFilterPendingBSDs} = useModalContextNew();
 
-    const getFilieresFromEntreprise = async () => {
-        const pageSize = 1000;
-        let allCodes: { code: string }[] = [];
-        let hasMore = true;
-        let currentPage = 0;
+    const getFilieresFromEntreprise = async (forceReload = false) => {
+        // Récupérer tous les BSDs depuis l'API
+        const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
+        const { data: bsds } = await response.json();
 
-        while (hasMore) {
-            const { data: codes_page, error: error_codes, count } = await supabase
-                .from('bsd')
-                .select('infos_json->formAPI->createFormInput->wasteDetails->>code', { count: 'exact' })
-                .order('created_at', { ascending: false })
-                .eq('entreprise_id', session?.entreprise_id)
-                .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
-            
-            if (error_codes) {
-                console.error('Error fetching codes:', error_codes);
-                return;
-            }
-
-            if (!codes_page || codes_page.length === 0) {
-                hasMore = false;
-                break;
-            }
-
-            allCodes = [...allCodes, ...codes_page];
-            
-            // Vérifier s'il reste des données à charger
-            hasMore = count ? allCodes.length < count : false;
-            currentPage++;
-        }
-        console.log("allCodes.length", allCodes.length);
-
-        if (!allCodes || allCodes.length === 0) {
+        if (!bsds || bsds.length === 0) {
             console.log("Pas de BSDs trouvés");
             return;
         }
 
-        const codes = allCodes.map(code => code.code).filter(code => code != null);
+        // Extraire les codes des BSDs
+        const codes = bsds
+            .map((bsd:RowBSD) => bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code)
+            .filter((code:string) => code != null);
         
-        const array_codes_propres = codes.map(code => code.replaceAll(' ', '').replace('*', '').trim());
-        
-        const array_codes_clean = array_codes_propres.map(code => String(code));
-        
+        const array_codes_propres = codes.map((code:string) => code.replaceAll(' ', '').replace('*', '').trim());
+        const array_codes_clean = array_codes_propres.map((code:string) => String(code));
         const set_codes_clean = new Set(array_codes_clean);
-        const codes_uniques = Array.from(set_codes_clean); //tous les codes CED uniques de l'entreprise
-        
-        
-        const mapping = await supabase
-            .from('entreprise')
-            .select('mapping_ced_filiere')
-            .eq('id', session?.entreprise_id)
-            .single();
+        const codes_uniques = Array.from(set_codes_clean) as string[];
 
+        // Récupérer le mapping depuis l'API avec forceReload
+        const mappingData = await fetch(`/api/get_mapping_ced_filiere?entreprise_id=${entreprise_id}&forceReload=${forceReload}`);
+        const { data: mappingCedFiliere } = await mappingData.json();
 
-        if (mapping?.data?.mapping_ced_filiere) {
-            const mappingArray = mapping.data.mapping_ced_filiere;
+        if (mappingCedFiliere) {
+            const mappingArray = mappingCedFiliere;
             let filieres_uniques: string[] = [];
             let others = false;
             
@@ -103,21 +74,14 @@ const FiltreFilieres = () => {
 
     useEffect(() => {
         const loadData = async () => {
-            /*console.log("État initial:", { 
-                session: !!session, 
-                user_id: session?.user_id, 
-                entreprise_id: session?.entreprise_id,
-                filieres_actuelles: filieres
-            });*/
-            
-            if (!session?.user_id || !session?.entreprise_id) {
-                //console.log("Session incomplète, arrêt du chargement");
+            if (!entreprise_id) {
                 setLoadingFilieres(false);
                 return;
             }
 
             try {
                 setLoadingFilieres(true);
+                // Forcer le rechargement si modalReload a changé
                 await getFilieresFromEntreprise();
             } catch (error) {
                 console.error("Erreur lors du chargement des filières:", error);
@@ -127,7 +91,7 @@ const FiltreFilieres = () => {
         };
 
         loadData();
-    }, [session?.user_id, session?.entreprise_id, modalReload]);
+    }, [entreprise_id, modalReload]);
     
     const toggleAll = () => {
         const areAllChecked = filieres.every(f => f.checked);

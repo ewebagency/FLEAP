@@ -8,18 +8,18 @@ import { useModalContextNew } from "../register/RegisterComponents/Modal/Context
 const FiltrePointCollecte = () => {
     const [isOpen, setIsOpen] = useState(false);
     const { points_collecte, setPointsCollecte, togglePointsCollecte } = useFilterContext();
-    const session = useSession();
+    const {entreprise_id} = useSession();
     const containerRef = useRef<HTMLDivElement>(null);
     const { modalReload, setFilterPendingBSDs } = useModalContextNew();
 
     useEffect(() => {
         const getPointsCollecteFromEntreprise = async () => {
-            if (session?.entreprise_id) {
+            if (entreprise_id) {
                 const { data, error } = await supabase
                     .from('bsd')
                     .select('infos_json')
                     .order('created_at', { ascending: false })
-                    .eq('entreprise_id', session.entreprise_id);
+                    .eq('entreprise_id', entreprise_id);
                 
                 if (error) {
                     console.error('Error fetching points collecte:', error);
@@ -47,7 +47,7 @@ const FiltrePointCollecte = () => {
                     const {data: points_collecte_non_renseignes, error: error_points_collecte_non_renseignes} = await supabase
                     .from('bsd')
                     .select('*')
-                    .eq('entreprise_id', session.entreprise_id)
+                    .eq('entreprise_id', entreprise_id)
                     .or('infos_json->formAPI->createFormInput->emitter->>workSite.is.null,'+
                     'infos_json->formAPI->createFormInput->emitter->workSite->>name.eq.""');
                     if(error_points_collecte_non_renseignes) {
@@ -69,7 +69,7 @@ const FiltrePointCollecte = () => {
         
         //console.log('refresh des filtres', modalReload);
         
-        if (session?.entreprise_id) {
+        if (entreprise_id) {
             getPointsCollecteFromEntreprise();
         }
 
@@ -81,7 +81,7 @@ const FiltrePointCollecte = () => {
 
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [session?.entreprise_id, setPointsCollecte, modalReload]);
+    }, [entreprise_id, setPointsCollecte, modalReload]);
 
     return (
         <div 

@@ -1,4 +1,4 @@
-import { BSDD_TrackDechets } from '@/app/register/interface/BSD_Interface';
+//import { BSDD_TrackDechets } from '@/app/register/interface/BSD_Interface';
 import { TYPE_table_bsd } from './FiltresPersoProvider';
 import { CommonBSD } from "@/app/register/FiltreFunctionnal";
 
@@ -56,16 +56,17 @@ export const FILTER_FIELDS: FilterField[] = [
     supabase_column: "infos_json",
     json_path: "formAPI.createFormInput.wasteDetails.name"
   },*/ //=> ne fonctionne pas
-  {
+  /*{
     label: "Quantité réelle/estimée",
     supabase_column: "infos_json",
     json_path: "formAPI.createFormInput.wasteDetails.quantityType"
-  },
-  {
+  },*/
+  /*{
     label: "Contenant",
     supabase_column: "other_infos",
     json_path: "containerDescription"
   },
+  {
   {
     label: "Contact Producteur",
     supabase_column: "infos_json",
@@ -80,7 +81,7 @@ export const FILTER_FIELDS: FilterField[] = [
     label: "Destinataire (nom)",
     supabase_column: "infos_json",
     json_path: "formAPI.createFormInput.recipient.company.name"
-  },
+  },*/
   {
     label: "Transporteur (siret)",
     supabase_column: "infos_json",

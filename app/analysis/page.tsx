@@ -70,7 +70,7 @@ const AnalysisPage = () => {
         points_collecte,
         sites 
     } = useFilterContext();
-    const session = useSession();
+    const {entreprise_id} = useSession();
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
     const [serverData, setServerData] = useState<{ 
         labels: string[]; 
@@ -85,7 +85,7 @@ const AnalysisPage = () => {
         monthlyAverage: 0,
         yearlyTrend: 0
     });
-    const [loading, setLoading] = useState(true);
+    //const [loading, setLoading] = useState(true);
 
     const handleRadioValueChainChange = (event :React.ChangeEvent<HTMLInputElement>) => {
       setFilieresOuPrestataires({ nom: event.target.value as 'filiere' | 'prestataire' }); // Mise à jour du state avec la valeur sélectionnée
@@ -154,8 +154,8 @@ const AnalysisPage = () => {
       };*/
 
 
-      const fetchAnalysisData = async () => {
-        if (!session?.entreprise_id) return;
+    /*const fetchAnalysisData = async () => {
+        if (!entreprise_id) return;
 
         const checkedFilieres = filieres.filter(f => f.checked).map(f => f.name);
         const checkedPointsCollecte = points_collecte.filter(pc => pc.checked).map(pc => pc.name);
@@ -168,7 +168,7 @@ const AnalysisPage = () => {
         let query = supabase
             .from('bsd')
             .select('*')
-            .eq('entreprise_id', session.entreprise_id);
+            .eq('entreprise_id', entreprise_id);
 
         // Appliquer les filtres de sites
         if (checkedSites.length > 0) {
@@ -207,9 +207,9 @@ const AnalysisPage = () => {
         // Traiter les données pour l'analyse
         const processedData = processAnalysisData(bsds);
         setServerData(processedData);
-    };
+    };*/
 
-    const processAnalysisData = (bsds: {created_at:string, infos_json:{formAPI:{createFormInput:FormInput}}}[]) => {
+    /*const processAnalysisData = (bsds: {created_at:string, infos_json:{formAPI:{createFormInput:FormInput}}}[]) => {
         const monthLabels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
         const datasets: Array<{
             id: number;
@@ -274,26 +274,26 @@ const AnalysisPage = () => {
             monthlyAverage: totalWeight / 12,
             yearlyTrend: calculateOverallTrend(datasets)
         };
-    };
+    };*/
 
-    useEffect(() => {
-        if (session?.entreprise_id && mappingTable.length > 0) {
+    /*useEffect(() => {
+        if (entreprise_id && mappingTable.length > 0) {
             setLoading(true);
             fetchAnalysisData().finally(() => setLoading(false));
         }
-    }, [session, filieres, points_collecte, sites, mappingTable]);
+    }, [entreprise_id, filieres, points_collecte, sites, mappingTable]);*/
 
     useEffect(() => {
         const loadMappingTable = async () => {
-            if (session?.entreprise_id) {
-                const mapping = await getMappingTableFiliere(session.entreprise_id);
+            if (entreprise_id) {
+                const mapping = await getMappingTableFiliere(entreprise_id);
                 setMappingTable(mapping || []);
             }
         };
         loadMappingTable();
-    }, [session?.entreprise_id]);
+    }, [entreprise_id]);
 
-    if (!session) return <p>Chargement de vos id de connexion...</p>;
+    if (!entreprise_id) return <p>Chargement de vos id de connexion...</p>;
     return (
         <AnalysisProvider>
             <div className='mx-5 mt-2'>
@@ -321,7 +321,7 @@ const AnalysisPage = () => {
                     </div>
                 </div>
 
-                {loading && <div>Loading</div>}
+                {/*loading && <div>Loading</div>*/}
                 <TabBarAnalyses/>
             </div>
         </AnalysisProvider>

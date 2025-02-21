@@ -115,8 +115,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         sessionValue.user_email = user_email;
     }
 
+    //avant on faisait <SessionContext.Provider value={sessionValue}>
+
     return (
-        <SessionContext.Provider value={sessionValue}>
+        <SessionContext.Provider value={{
+            session: session,
+            user_id: user_id,
+            entreprise_id: entreprise_id,
+            entreprise_name: entreprise_name,
+            user_email: user_email
+        }}>
             {children}
         </SessionContext.Provider>
     );

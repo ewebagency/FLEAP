@@ -128,7 +128,7 @@ const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres
 }
 
 const TableBSD = () => {
-    const session = useSession();
+    const {entreprise_id, user_id} = useSession();
     const [bsds, setBSDs] = useState<BSD[]>([]);
     //const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
     //A faire passer sur useModalContextNew
@@ -161,13 +161,13 @@ const TableBSD = () => {
     // Ajouter un useEffect pour charger la table de mapping au démarrage
     useEffect(() => {
         const loadMappingTable = async () => {
-            if (session?.entreprise_id) {
-                const mapping = await getMappingTableFiliere(session.entreprise_id);
+            if (entreprise_id) {
+                const mapping = await getMappingTableFiliere(entreprise_id);
                 setMappingTable(mapping || []);
             }
         };
         loadMappingTable();
-    }, [session?.entreprise_id]);
+    }, [entreprise_id]);
 
     // Ajouter un useEffect pour réinitialiser la pagination quand les filtres changent
     useEffect(() => {
@@ -228,12 +228,12 @@ const TableBSD = () => {
     };
 
     const fetchAndFilterBSDs = async () => {
-        if (!session?.entreprise_id) return;
+        if (!entreprise_id) return;
 
         try {
             setLoadingBSDs(true);
             
-            const response = await fetch(`/api/get_data_bsd?entreprise_id=${session.entreprise_id}&forceReload=${prevModalReload.current !== modalReload}`);
+            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&forceReload=${prevModalReload.current !== modalReload}`);
             const { data: fetchedBSDs } = await response.json();
 
             //console.log('data received', fetchedBSDs.map((bsd:CommonBSD)=>bsd.status_track_dechets))
@@ -289,7 +289,7 @@ const TableBSD = () => {
     useEffect(() => {
         fetchAndFilterBSDs();
     }, [
-        session?.entreprise_id,
+        entreprise_id,
         filieres,
         sites,
         points_collecte,
@@ -578,7 +578,7 @@ const TableBSD = () => {
             const { data: recurrences, error: recurrenceError } = await supabase
                 .from('recurrence')
                 .select('*')
-                .eq('entreprise_id', session?.entreprise_id);
+                .eq('entreprise_id', entreprise_id);
 
             if (recurrenceError) {
                 throw recurrenceError;
@@ -996,8 +996,8 @@ const TableBSD = () => {
                         setSelectedBsd(null);
                     }}
                     formData={selectedBsd.infos_json.formAPI.createFormInput as FormInput}
-                    userId={session?.user_id || ''}
-                    entrepriseId={session?.entreprise_id || ''}
+                    userId={user_id || ''}
+                    entrepriseId={entreprise_id || ''}
                     bsdId={selectedBsd.id}
                     onDelete={handleDelete}
                 />

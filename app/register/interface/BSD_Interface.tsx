@@ -1001,7 +1001,7 @@ export interface CompleteFormInput{
 
 export interface RowBSD {
     created_at:string;
-    infos_json:{formAPI:{createFormAPI:BSDD_TrackDechets}}
+    infos_json:{formAPI:{createFormInput:BSDD_TrackDechets}}
     other_infos : OtherInfos;
     status_track_dechets : string;
     id_track_dechets :string;

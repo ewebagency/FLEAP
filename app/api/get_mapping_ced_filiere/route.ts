@@ -1,11 +1,14 @@
-import { BSD } from '@/app/analysis/AnalysisProvider';
 import { supabase } from '@/app/database/supabaseClient';
 import { NextResponse } from 'next/server';
 
-// Cache en mémoire simple avec singleton pattern pour le rendre plus persistant
+interface MappingCedFiliere {
+  ced: string;
+  filiere: string;
+}
+// Cache en mémoire simple avec singleton pattern
 class CacheManager {
   private static instance: CacheManager;
-  private cache: Record<string, { data: BSD[]; timestamp: number }> = {};
+  private cache: Record<string, { data: MappingCedFiliere[]; timestamp: number }> = {};
   private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   private constructor() {}
@@ -17,7 +20,7 @@ class CacheManager {
     return CacheManager.instance;
   }
 
-  public get(key: string): BSD[]|null {
+  public get(key: string): MappingCedFiliere[] | null {
     const item = this.cache[key];
     const now = Date.now();
 
@@ -27,14 +30,12 @@ class CacheManager {
     return null;
   }
 
-  public set(key: string, data: BSD[]): void {
-    // Supprimer explicitement l'ancienne entrée si elle existe
+  public set(key: string, data: MappingCedFiliere[]): void {
     if (this.cache[key]) {
         delete this.cache[key];
         console.log('Cache supprimé pour la clé:', key);
     }
     
-    // Créer la nouvelle entrée
     console.log('Cache mis à jour pour la clé:', key);
     this.cache[key] = {
         data,
@@ -49,14 +50,6 @@ class CacheManager {
 
 const cacheManager = CacheManager.getInstance();
 
-interface FilterParams {
-  entreprise_id: string;
-  filieres?: string[];
-  sites?: string[];
-  dateDebut?: string;
-  dateFin?: string;
-}
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const entreprise_id = searchParams.get('entreprise_id');
@@ -67,52 +60,28 @@ export async function GET(request: Request) {
   }
 
   try {
-    const cacheKey = `bsds:${entreprise_id}`;
-    // Ne vérifier le cache que si forceReload est false
+    const cacheKey = `mapping:${entreprise_id}`;
     const cachedData = !forceReload ? cacheManager.get(cacheKey) : null;
 
     console.log('Cache status:', cachedData ? 'found' : 'not found', forceReload ? '(forced reload)' : '');
     
     if (cachedData && !forceReload) {
-      console.log('------Bsd_Data from Server CACHE HIT 🎯');
+      console.log('------Mapping CED Filière 🎯');
       return NextResponse.json({ data: cachedData });
     }
 
-    console.log('------Bsd_Data from Server CACHE MISS 🔴', forceReload ? '(forced reload)' : '');
+    console.log('------Mapping CED Filière 🔴', forceReload ? '(forced reload)' : '');
     
-    // Récupération paginée des BSDs
-    let allData: BSD[] = [];
-    let hasMore = true;
-    let page = 0;
-    const pageSize = 1000;
+    const { data, error } = await supabase
+      .from('entreprise')
+      .select('mapping_ced_filiere')
+      .eq('id', entreprise_id)
+      .single();
 
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from('bsd')
-        .select('*')
-        .eq('entreprise_id', entreprise_id)
-        .order('created_at', { ascending: false })
-        .range(page * pageSize, (page + 1) * pageSize - 1);
+    if (error) throw error;
 
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
-        hasMore = false;
-        break;
-      }
-
-      allData = [...allData, ...data];
-      console.log(`------Fetched page ${page + 1} with ${data.length} BSDs`);
-
-      if (data.length < pageSize) {
-        hasMore = false;
-      }
-      page++;
-    }
-
-    console.log(`------Total BSDs fetched: ${allData.length}`);
-    cacheManager.set(cacheKey, allData);
-    return NextResponse.json({ data: allData });
+    cacheManager.set(cacheKey, data.mapping_ced_filiere);
+    return NextResponse.json({ data: data.mapping_ced_filiere });
     
   } catch (error) {
     console.error('Error:', error);

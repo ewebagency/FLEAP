@@ -22,7 +22,7 @@ interface AnalysisContextType {
 export const AnalysisContext = createContext<AnalysisContextType | null>(null);
 
 export const AnalysisProvider = ({ children }: { children: React.ReactNode }) => {
-    const session = useSession();
+    const {entreprise_id} = useSession();
     const { filieres, points_collecte, sites, filieres_ou_prestataires, segmentDates } = useFilterContext();
     const [loading, setLoading] = useState(true);
     const [bsds, setBsds] = useState<BSD[]>([]);
@@ -34,13 +34,13 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
     // Charger la table de mapping
     useEffect(() => {
         const loadMappingTable = async () => {
-            if (session?.entreprise_id) {
-                const mapping = await getMappingTableFiliere(session.entreprise_id);
+            if (entreprise_id) {
+                const mapping = await getMappingTableFiliere(entreprise_id);
                 setMappingTable(mapping || []);
             }
         };
         loadMappingTable();
-    }, [session?.entreprise_id]);
+    }, [entreprise_id]);
 
     // Créer le mapping SIRET -> Nom
     useEffect(() => {
@@ -54,11 +54,11 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
     }, [sites]);
 
     const fetchAndFilterBSDs = useCallback(async () => {
-        if (!session?.entreprise_id) return;
+        if (!entreprise_id) return;
 
         try {
             setLoading(true);
-            const response = await fetch(`/api/get_data_bsd?entreprise_id=${session.entreprise_id}`);
+            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
             const { data: fetchedBSDs } = await response.json();
 
             if (!fetchedBSDs) {
@@ -86,12 +86,12 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
         } finally {
             setLoading(false);
         }
-    }, [session?.entreprise_id, filieres, sites, points_collecte, segmentDates, mappingTable]);
+    }, [entreprise_id, filieres, sites, points_collecte, segmentDates, mappingTable]);
 
     useEffect(() => {
         setLoading(true);
         fetchAndFilterBSDs().finally(() => setLoading(false));
-    }, [session, filieres, points_collecte, sites, segmentDates, filterFunctions, mappingTable]);
+    }, [entreprise_id, filieres, points_collecte, sites, segmentDates, filterFunctions, mappingTable]);
 
     return (
         <AnalysisContext.Provider value={{ 

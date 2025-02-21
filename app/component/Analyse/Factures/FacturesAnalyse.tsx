@@ -32,21 +32,19 @@ const FacturesAnalyse = ({ active }: { active: boolean }) => {
         if (error) {
             console.error("Erreur lors de la récupération des PDFs:", error);
         } else if (data) {
-            const pdfInfosWithUrls = await Promise.all(data.map(async (pdf) => {
-                const { data: urlData } = await supabase
-                    .storage
-                    .from('pdfs_bucket')
-                    .createSignedUrl(pdf.name_pdf_in_bucket, 3600);
-
-                return {
-                    ...pdf,
-                    url: urlData?.signedUrl || ''
-                };
-            }));
-            setPdfInfos(pdfInfosWithUrls);
+            setPdfInfos(data);
         }
         setLoading(false);
     }, [entreprise_id]);
+
+    const getSignedUrl = async (namePdfInBucket: string) => {
+        const { data } = await supabase
+            .storage
+            .from('pdfs_bucket')
+            .createSignedUrl(namePdfInBucket, 3600);
+        
+        return data?.signedUrl;
+    };
 
     useEffect(() => {
         if (session) {
@@ -133,14 +131,17 @@ const FacturesAnalyse = ({ active }: { active: boolean }) => {
                                 </td>
                                 <td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                     <div className="flex items-center justify-end gap-2">
-                                        <a 
-                                            href={pdf.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        <button 
+                                            onClick={async () => {
+                                                const url = await getSignedUrl(pdf.name_pdf_in_bucket);
+                                                if (url) {
+                                                    window.open(url, '_blank');
+                                                }
+                                            }}
                                             className="px-3 py-1.5 border border-[var(--green-medium)] text-[var(--green-medium)] rounded-md text-xs hover:bg-green-50 w-[100px] text-center"
                                         >
                                             Ouvrir
-                                        </a>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>

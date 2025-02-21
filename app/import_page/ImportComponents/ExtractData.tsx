@@ -1,35 +1,63 @@
 import { useState } from 'react';
+import { supabase } from '@/app/database/supabaseClient';
 import FormulaireMano from '@/app/interface_admin_2/InterfaceAdmin2/FormulaireMano';
 import PdfDisplayer from '@/app/interface_admin_2/InterfaceAdmin2/PdfDisplayer';
 import DisplayInfosPython from '@/app/interface_admin_2/DisplayInfosPython';
+import { toast } from 'react-hot-toast';
 
 interface ExtractDataProps {
     pdf_id: number;
-    pdfUrl: string;
+    pdf_path: string;
 }
 
-const ExtractData = ({ pdf_id, pdfUrl }: ExtractDataProps) => {
+const ExtractData = ({ pdf_id, pdf_path }: ExtractDataProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
+    const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
 
     const handleNextPdf = () => {
         setIsOpen(false);
     };
 
-    // Fonction pour charger le PDF en tant que Blob
-    const loadPdfBlob = async () => {
+    const getPdfUrl = async () => {
         try {
-            const response = await fetch(pdfUrl);
+            setLoading(true);
+            const { data } = await supabase.storage
+                .from('pdfs_bucket')
+                .createSignedUrl(pdf_path, 3600);
+
+            if (data?.signedUrl) {
+                setPdfUrl(data.signedUrl);
+                return data.signedUrl;
+            }
+            throw new Error('URL du PDF non trouvée');
+        } catch (error) {
+            console.error('Erreur lors de la récupération de l\'URL du PDF:', error);
+            toast.error('Erreur lors du chargement du PDF');
+            setIsOpen(false);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loadPdfBlob = async (url: string) => {
+        try {
+            const response = await fetch(url);
             const blob = await response.blob();
             setPdfBlob(blob);
         } catch (error) {
             console.error('Erreur lors du chargement du PDF:', error);
+            toast.error('Erreur lors du chargement du PDF');
         }
     };
 
-    const handleOpen = () => {
+    const handleOpen = async () => {
         setIsOpen(true);
-        loadPdfBlob();
+        const url = await getPdfUrl();
+        if (url) {
+            await loadPdfBlob(url);
+        }
     };
 
     return (
@@ -37,11 +65,12 @@ const ExtractData = ({ pdf_id, pdfUrl }: ExtractDataProps) => {
             <button
                 onClick={handleOpen}
                 className="px-3 py-1.5 bg-blue-500 text-white rounded-md text-xs hover:bg-blue-600 w-[100px] text-center"
+                disabled={loading}
             >
-                Extraire
+                {loading ? 'Chargement...' : 'Extraire'}
             </button>
 
-            {isOpen && (
+            {isOpen && pdfUrl && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-lg w-full h-[95vh] max-w-[95vw] relative">
                         {/* Header avec bouton de fermeture */}

@@ -16,7 +16,7 @@ interface DateSegment {
 const FiltreDate = () => {
     const [isOpen, setIsOpen] = useState(false);
     const { segmentDates, setSegmentDates } = useFilterContext();
-    const session = useSession();
+    const {entreprise_id} = useSession();
     const containerRef = useRef<HTMLDivElement>(null);
     const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
     const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
@@ -30,9 +30,9 @@ const FiltreDate = () => {
         const startOfYear = new Date(currentYear, 0, 1);
         const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
 
-        // 12 derniers mois
-        const twelveMonthsAgo = new Date();
-        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+        // Année précédente
+        const startOfLastYear = new Date(currentYear - 1, 0, 1, 0, 0, 0);
+        const endOfLastYear = new Date(currentYear - 1, 11, 31, 23, 59, 59);
 
         return [
             {
@@ -41,15 +41,15 @@ const FiltreDate = () => {
                 fin: endOfYear
             },
             {
-                label: "12 derniers mois",
-                debut: twelveMonthsAgo,
-                fin: now
+                label: "Année précédente",
+                debut: startOfLastYear,
+                fin: endOfLastYear
             }
         ];
     };
 
     const getDatesFromEntreprise = async () => {
-        if (session?.entreprise_id) {
+        if (entreprise_id) {
             // Détecter si on est sur mobile (largeur d'écran < 768px)
             const isMobile = window.innerWidth < 768;
 
@@ -84,7 +84,7 @@ const FiltreDate = () => {
             const { data: minData, error: minError } = await supabase
                 .from('bsd')
                 .select('created_at')
-                .eq('entreprise_id', session.entreprise_id)
+                .eq('entreprise_id', entreprise_id)
                 //.not('status_track_dechets', 'is', 'Ligne demandée')
                 .order('created_at', { ascending: true })
                 .limit(1)
@@ -138,7 +138,7 @@ const FiltreDate = () => {
             // Si pas de dates sauvegardées, charger depuis l'API
             getDatesFromEntreprise();
         }
-    }, [session?.entreprise_id]);
+    }, [entreprise_id]);
 
     const handleSegmentSelect = (segment: DateSegment) => {
         setSegmentDates({ debut: segment.debut, fin: segment.fin });
@@ -155,25 +155,36 @@ const FiltreDate = () => {
 
     const handleDateChange = (date: Date | null, isStart: boolean) => {
         if (date) {
+            const adjustedDate = new Date(date);
+            
             if (isStart) {
-                setCustomStartDate(date);
+                // Premier jour du mois à 00:00:00
+                adjustedDate.setDate(1);
+                adjustedDate.setHours(0, 0, 0, 0);
+                
+                setCustomStartDate(adjustedDate);
                 if (customEndDate) {
-                    setSegmentDates({ debut: date, fin: customEndDate });
+                    setSegmentDates({ debut: adjustedDate, fin: customEndDate });
                     setActiveSegment('custom');
                     localStorage.setItem('selectedDates', JSON.stringify({ 
-                        debut: date, 
+                        debut: adjustedDate, 
                         fin: customEndDate 
                     }));
                     localStorage.setItem('activeSegment', 'custom');
                 }
             } else {
-                setCustomEndDate(date);
+                // Dernier jour du mois à 23:59:59
+                adjustedDate.setMonth(adjustedDate.getMonth() + 1);
+                adjustedDate.setDate(0);
+                adjustedDate.setHours(23, 59, 59, 999);
+                
+                setCustomEndDate(adjustedDate);
                 if (customStartDate) {
-                    setSegmentDates({ debut: customStartDate, fin: date });
+                    setSegmentDates({ debut: customStartDate, fin: adjustedDate });
                     setActiveSegment('custom');
                     localStorage.setItem('selectedDates', JSON.stringify({ 
                         debut: customStartDate, 
-                        fin: date 
+                        fin: adjustedDate 
                     }));
                     localStorage.setItem('activeSegment', 'custom');
                 }
