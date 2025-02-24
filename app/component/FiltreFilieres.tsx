@@ -7,6 +7,14 @@ import { getColors } from "./Analyse/MetaComponent/Colours";
 import { useModalContextNew } from "../register/RegisterComponents/Modal/ContextModal";
 import { RowBSD } from "../register/interface/BSD_Interface";
 
+const cleanCED = (ced: string): string => {
+    if(ced == null || ced == undefined || ced == '') {
+        return ced.replaceAll(' ', '').replaceAll('*', '').trim();
+    } else {
+        return ced.replace(/[^\d]/g,'');
+    }
+};
+
 const FiltreFilieres = () => {
     const { filieres, setFilieres, toggleFiliere } = useFilterContext();
     const {entreprise_id} = useSession();
@@ -28,7 +36,7 @@ const FiltreFilieres = () => {
             .map((bsd:RowBSD) => bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code)
             .filter((code:string) => code != null);
         
-        const array_codes_propres = codes.map((code:string) => code.replaceAll(' ', '').replace('*', '').trim());
+        const array_codes_propres = codes.map((code:string) => cleanCED(code));
         const array_codes_clean = array_codes_propres.map((code:string) => String(code));
         const set_codes_clean = new Set(array_codes_clean);
         const codes_uniques = Array.from(set_codes_clean) as string[];
@@ -43,7 +51,7 @@ const FiltreFilieres = () => {
             let others = false;
             
             for(const code of codes_uniques) {
-                const match = mappingArray.find((item:{ced:string, filiere:string}) => item.ced.replaceAll(' ', '').replace('*', '').trim() === code.replaceAll(' ', '').replace('*', '').trim());
+                const match = mappingArray.find((item:{ced:string, filiere:string}) => cleanCED(item.ced) === cleanCED(code));
                 if(match) {
                     filieres_uniques.push(match.filiere);
                 } else {

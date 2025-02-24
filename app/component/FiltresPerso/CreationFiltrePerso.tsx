@@ -6,7 +6,7 @@ const SELECTED_FIELDS_KEY = 'selectedFields';
 
 const CreationFiltrePerso = () => {
     const [isOpen, setIsOpen] = useState(false);
-    const { filterFields, filterData, updateFilterValue, isLoading } = useFiltresPerso();
+    const { filterFields, filterData, updateFilterValue, updateAllFilterValues, isLoading } = useFiltresPerso();
     const [selectedFields, setSelectedFields] = useState<Record<string, boolean>>(() => {
         // Initialiser selectedFields depuis localStorage si disponible
         if (typeof window !== 'undefined') {
@@ -141,6 +141,24 @@ const CreationFiltrePerso = () => {
                             {hoveredFilter === fieldLabel && (
                                 <div className="absolute z-40 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
                                     <div className="p-3 max-h-64 overflow-y-auto">
+                                        {filterData[fieldLabel]?.length > 5 && (
+                                            <div className="mb-2 px-3 py-2 border-b border-gray-200">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation(); // Empêcher la fermeture
+                                                        updateAllFilterValues(
+                                                            fieldLabel,
+                                                            !filterData[fieldLabel].every(v => v.checked)
+                                                        );
+                                                    }}
+                                                    className="text-sm text-blue-600 hover:text-blue-800"
+                                                >
+                                                    {filterData[fieldLabel].every(v => v.checked) 
+                                                        ? "Tout désélectionner" 
+                                                        : "Tout sélectionner"}
+                                                </button>
+                                            </div>
+                                        )}
                                         {filterData[fieldLabel]?.map((value) => (
                                             <label 
                                                 key={value.value} 

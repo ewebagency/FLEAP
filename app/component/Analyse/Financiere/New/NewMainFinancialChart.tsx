@@ -43,6 +43,15 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
     const filteredChartData = useMemo(() => {
         if (!mappingTable.length) return null;
 
+        // Si aucune filière n'est sélectionnée, retourner un dataset vide
+        const selectedFilieres = filieres.filter(f => f.checked).map(f => f.name);
+        if (selectedFilieres.length === 0) {
+            return {
+                labels: [],
+                datasets: []
+            };
+        }
+
         const monthLabels: string[] = [];
         const currentDate = new Date(segmentDates.debut || new Date());
         const endDate = segmentDates.fin || new Date();
@@ -61,24 +70,27 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
 
         factures.forEach(facture => {
             facture.infos_json.departs.forEach(depart => {
-                if (!depart.line_header?.code_dechet) return;
+                const header = depart.line_header;
+                const cleanedCed = header?.code_dechet?.replaceAll(' ', '').replace('*', '').trim() || '';
 
-                const date = new Date(depart.line_header.date_depart);
-                if (date < (segmentDates.debut || new Date(0)) || date > (segmentDates.fin || new Date())) {
-                    return;
+                // Détermination de la filière
+                let filiere: string;
+                
+                // Si le code est dans le mapping, on utilise la filière correspondante
+                const mappedFiliere = mappingTable.find(m => 
+                    m.ced.replaceAll(' ', '').replace('*', '').trim() === cleanedCed
+                )?.filiere;
+
+                if (mappedFiliere) {
+                    filiere = mappedFiliere;
+                } else {
+                    // Si le code n'est pas dans le mapping, c'est "Autres"
+                    filiere = 'Autres';
                 }
-
-                const cleanedCed = depart.line_header.code_dechet
-                    .replaceAll(' ', '')
-                    .replace('*', '');
-
-                const filiere = mappingTable.find(m => 
-                    m.ced.replaceAll(' ', '').replace('*', '') === cleanedCed
-                )?.filiere || 'Autres';
 
                 const amount = facture.infos_json.footer.total_ht;
                 const monthIndex = Math.floor(
-                    (date.getTime() - (segmentDates.debut || new Date(0)).getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+                    (new Date(header?.date_depart).getTime() - (segmentDates.debut || new Date(0)).getTime()) / (1000 * 60 * 60 * 24 * 30.44)
                 );
 
                 if (monthIndex >= 0 && monthIndex < monthLabels.length) {

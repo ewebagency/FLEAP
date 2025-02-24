@@ -21,7 +21,7 @@ interface WasteDetail {
 }
 
 // Fonction utilitaire pour nettoyer et formater les codes CED
-const cleanCedCode = (code: string) => code.replaceAll(' ', '').replace('*', '');
+const cleanCedCode = (code: string) => code.replace(/[^\d]/g,'');
 const formatCedCode = (code: string) => {
     const cleaned = cleanCedCode(code);
     return cleaned.replace(/(\d{2})(\d{2})(\d{2})/, '$1 $2 $3');

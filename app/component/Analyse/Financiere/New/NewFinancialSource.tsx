@@ -71,34 +71,106 @@ const NewFinancialSource = () => {
         fetchMappingTable();
     }, [session?.entreprise_id]);
 
-    // Filtrer les factures valides et par date
-    const validFactures = factures.filter(facture => {
-        // Vérifier que chaque départ a les informations requises
-        return facture.infos_json.departs.every(depart => {
-            const header = depart.line_header;
-            
-            // Vérifier la date
-            const date = new Date(header.date_depart);
-            const isValidDate = !isNaN(date.getTime());
-
-            // Filtrer par date si les dates sont définies
-            if (segmentDates.debut && date < segmentDates.debut) return false;
-            if (segmentDates.fin && date > segmentDates.fin) return false;
-
-            // Vérifier le code CED et la filière
-            if (!header.code_dechet) return false;
-            
-            const filiere = getFiliere(header.code_dechet, mappingTable);
-            //console.log("filieres", filieres);
-            const selectedFilieres = filieres.filter(f => f.checked).map(f => f.name);
-            //console.log("selectedFilieres", selectedFilieres);
-            // Si aucune filière n'est sélectionnée, on accepte toutes les factures
-            if (selectedFilieres.length === 0) return true;
-            
-            // Sinon, on vérifie que la filière du code CED est dans les filières sélectionnées
-            return selectedFilieres.includes(filiere);
-        });
+    // Au début du composant
+    console.log('=== Configuration des filtres ===');
+    console.log('Filières configurées:', filieres.map(f => ({
+        nom: f.name,
+        active: f.checked
+    })));
+    console.log('Période:', {
+        debut: segmentDates.debut?.toLocaleDateString(),
+        fin: segmentDates.fin?.toLocaleDateString()
     });
+
+    const validFactures = factures.map(facture => {
+        // Vérifier la cohérence des montants
+        const sommeDeparts = facture.infos_json.departs.reduce((sum, depart) => {
+            return sum + depart.line_body.reduce((lineSum, line) => {
+                // Si c'est un rachat, le montant doit être négatif
+                const montant = line.type_operation === "Rachat" 
+                    ? -Math.abs(line.montant_ht)  // Force le montant en négatif
+                    : line.montant_ht;
+                return lineSum + montant;
+            }, 0);
+        }, 0);
+        
+        const ecart = Math.abs(sommeDeparts - facture.infos_json.footer.total_ht);
+        
+        // Si l'écart est trop grand (> 10), on ignore cette facture
+        if (ecart > 10) {
+            console.log(`Facture ${facture.id} ignorée - Écart de ${ecart}€`, {
+                sommeDeparts,
+                total_ht: facture.infos_json.footer.total_ht
+            });
+            return {
+                ...facture,
+                infos_json: {
+                    ...facture.infos_json,
+                    departs: [] // Facture ignorée
+                }
+            };
+        }
+
+        const selectedFilieres = filieres.filter(f => f.checked).map(f => f.name);
+        if (selectedFilieres.length === 0) {
+            return {
+                ...facture,
+                infos_json: {
+                    ...facture.infos_json,
+                    departs: []
+                }
+            };
+        }
+
+        const validDeparts = facture.infos_json.departs.filter(depart => {
+            const header = depart.line_header;
+            const date = new Date(header.date_depart);
+            
+            // Vérifications date
+            if (!isNaN(date.getTime())) {
+                if (segmentDates.debut && date < segmentDates.debut) return false;
+                if (segmentDates.fin && date > segmentDates.fin) return false;
+            }
+
+            // Nettoyage du code CED
+            const cleanedCed = header.code_dechet?.replaceAll(' ', '').replace('*', '').trim() || '';
+            
+            // Liste de tous les CEDs mappés
+            const allMappedCEDs = new Set(mappingTable.map(m => 
+                m.ced.replaceAll(' ', '').replace('*', '').trim()
+            ));
+
+            // Liste des CEDs des filières sélectionnées (sauf Autres)
+            const selectedFiliereCEDs = new Set(
+                mappingTable
+                    .filter(m => selectedFilieres.filter(f => f !== 'Autres').includes(m.filiere))
+                    .map(m => m.ced.replaceAll(' ', '').replace('*', '').trim())
+            );
+
+            const hasAutres = selectedFilieres.includes('Autres');
+
+            // Si uniquement "Autres" est sélectionné
+            if (hasAutres && selectedFilieres.length === 1) {
+                return !allMappedCEDs.has(cleanedCed);
+            }
+            // Si "Autres" est sélectionné avec d'autres filières
+            else if (hasAutres) {
+                return selectedFiliereCEDs.has(cleanedCed) || !allMappedCEDs.has(cleanedCed);
+            }
+            // Si "Autres" n'est pas sélectionné
+            else {
+                return selectedFiliereCEDs.has(cleanedCed);
+            }
+        });
+
+        return {
+            ...facture,
+            infos_json: {
+                ...facture.infos_json,
+                departs: validDeparts
+            }
+        };
+    }).filter(facture => facture.infos_json.departs.length > 0);
 
     if (isLoading) {
         return <div className="flex justify-center items-center p-4">

@@ -156,6 +156,47 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setFilterFunctions(newFilterFunctions);
   };
 
+  // Ajouter cette nouvelle fonction pour mettre à jour toutes les valeurs d'un champ
+  const updateAllFilterValues = (fieldLabel: string, checked: boolean) => {
+    const newData = { ...filterData };
+    
+    newData[fieldLabel] = newData[fieldLabel].map(v => ({
+      ...v,
+      checked
+    }));
+    
+    setFilterData(newData);
+
+    // Reconstruire les fonctions de filtrage
+    const newFilterFunctions: FilterFunction[] = [];
+
+    FILTER_FIELDS.forEach(field => {
+      const checkedValues = newData[field.label]?.filter(v => v.checked).map(v => v.value);
+      
+      if (checkedValues && checkedValues.length < newData[field.label].length) {
+        const filterFunction = (data: TYPE_table_bsd[]) => {
+          return data.filter(item => {
+            if (field.supabase_column === 'on_track_dechets' || field.supabase_column === 'created_on_fleap') {
+              const boolValue = item[field.supabase_column];
+              const stringValue = boolValue ? "Oui" : "Non";
+              return checkedValues.includes(stringValue);
+            }
+            
+            const itemValue = get(item[field.supabase_column], field.json_path);
+            if (field.label === "Déchet Dangereux") {
+              const displayValue = itemValue ? "Dangereux" : "Non dangereux";
+              return checkedValues.includes(displayValue);
+            }
+            return checkedValues.includes(itemValue?.toString() || '');
+          });
+        };
+        newFilterFunctions.push(filterFunction);
+      }
+    });
+
+    setFilterFunctions(newFilterFunctions);
+  };
+
   // Applique toutes les fonctions de filtrage à un ensemble de données
   const applyFilters = (data: TYPE_table_bsd[]) => {
     return filterFunctions.reduce((filteredData, filterFn) => {
@@ -185,6 +226,7 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
         filterData,
         filterFunctions,
         updateFilterValue,
+        updateAllFilterValues,
         clearFilters,
         applyFilters,
         isLoading

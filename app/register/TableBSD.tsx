@@ -19,8 +19,9 @@ import { useFiltresPerso } from "../component/FiltresPerso/FiltresPersoProvider"
 import { filterBSDs } from "./FiltreFunctionnal";
 import { CommonBSD } from "./FiltreFunctionnal";
 
+
 const cleanCED = (ced: string): string => {
-    const ced_clean = ced.replaceAll(' ', '').replace('*', '').trim();
+    const ced_clean = ced.replace(/[^\d]/g,'');
     //return String(parseInt(ced_clean)); => attention, ne fonctionne pas pour les CEDs avec des 0 à gauche
     return ced_clean;
 }

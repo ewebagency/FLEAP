@@ -6,7 +6,6 @@ import { getMappingTableFiliere } from '../register/RegisterComponents/Modal/For
 import { FormInput, BSDD_TrackDechets, OtherInfos } from '../register/interface/BSD_Interface';
 import { useFiltresPerso } from '../component/FiltresPerso/FiltresPersoProvider';
 import { filterBSDs, CommonBSD } from '../register/FiltreFunctionnal';
-
 // Utiliser l'interface commune
 export type BSD = CommonBSD;
 
@@ -75,7 +74,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
                 segmentDates,
                 mappingTable,
                 [], // pas de filtres personnalisés pour l'analyse
-                false // pas de filtre des BSDs en attente pour l'analyse
+                false, // pas de filtre des BSDs en attente pour l'analyse
             );
 
             setBsds(filtered);
@@ -116,7 +115,7 @@ export const useAnalysis = (): AnalysisContextType => {
 };
 
 const cleanCED = (ced: string): string => {
-    const ced_clean = ced.replaceAll(' ', '').replace('*', '').trim();
+    const ced_clean = ced.replace(/[^\d]/g,'');
     return ced_clean;
 };
 

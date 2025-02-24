@@ -29,7 +29,7 @@ interface SegmentDates {
 }
 
 const cleanCED = (ced: string): string => {
-    return ced.replaceAll(' ', '').replace('*', '').trim();
+    return ced.replace(/[^\d]/g,'');
 };
 
 const formatCEDs = (ceds: string[]) => {

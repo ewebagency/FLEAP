@@ -30,6 +30,7 @@ export type FilterContextType = {
   filterData: FilterData;
   filterFunctions: FilterFunction[];
   updateFilterValue: (fieldLabel: string, value: string, checked: boolean) => void;
+  updateAllFilterValues: (fieldLabel: string, checked: boolean) => void;
   clearFilters: () => void;
   applyFilters: (data: TYPE_table_bsd[]) => TYPE_table_bsd[];
   isLoading: boolean;

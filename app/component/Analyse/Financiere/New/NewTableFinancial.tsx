@@ -47,9 +47,6 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
     }, [entreprise_id]);
 
     const filiereData = factures.reduce((acc: FiliereData, facture) => {
-        const departsCount = facture.infos_json.departs.length;
-        const montantParDepart = facture.infos_json.footer.total_ht / departsCount;
-
         facture.infos_json.departs.forEach(depart => {
             const cleanedCed = depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
             const filiere = mappingTable.find(m => m.ced.replace(' ', '').replace('*', '') === cleanedCed)?.filiere || 'Autres';
@@ -74,17 +71,30 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
                 };
             }
 
-            // Traiter les rachats comme des revenus (négatifs)
-            if (montantParDepart < 0) {
-                acc[filiere].rachat += Math.abs(montantParDepart);
-            } else {
-                // Répartir les coûts positifs entre traitement et transport
-                acc[filiere].traitement += montantParDepart * 0.7; // 70% traitement
-                acc[filiere].transport += montantParDepart * 0.3;  // 30% transport
-            }
+            // Traiter chaque ligne du body individuellement
+            depart.line_body.forEach(line => {
+                const montant = line.montant_ht;
+                const type = line.type_operation.toLowerCase().replace(/ /g, '_');
 
-            // Le total est la somme des coûts moins les rachats
-            acc[filiere].total = acc[filiere].traitement + acc[filiere].transport - acc[filiere].rachat;
+                // Si c'est un type d'opération connu
+                if (type in acc[filiere]) {
+                    acc[filiere][type] += montant;
+                } else {
+                    // Si type inconnu, mettre dans "autres"
+                    acc[filiere].autres += montant;
+                }
+            });
+
+            // Calculer le total pour cette filière
+            acc[filiere].total = Object.entries(acc[filiere])
+                .filter(([key]) => key !== 'total') // Exclure le total lui-même
+                .reduce((sum, [key, value]) => {
+                    // Les rachats sont comptés négativement dans le total
+                    if (key === 'rachat') {
+                        return sum - Math.abs(value);
+                    }
+                    return sum + value;
+                }, 0);
         });
 
         return acc;

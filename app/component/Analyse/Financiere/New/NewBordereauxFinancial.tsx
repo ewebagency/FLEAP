@@ -11,13 +11,17 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
             costs: number,
             revenues: number
         }, facture) => {
-            const montant = facture.infos_json.footer.total_ht;
-            
-            if (montant < 0) {
-                acc.revenues += Math.abs(montant);
-            } else {
-                acc.costs += montant;
-            }
+            // Calculer la somme des montants des sous-factures
+            facture.infos_json.departs.forEach(depart => {
+                depart.line_body.forEach(line => {
+                    const montant = line.montant_ht;
+                    if (line.type_operation === "Rachat") {
+                        acc.revenues += Math.abs(montant);
+                    } else {
+                        acc.costs += montant;
+                    }
+                });
+            });
             
             return acc;
         }, { costs: 0, revenues: 0 });
@@ -34,11 +38,17 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
     }, [factures]);
 
     return (
-        <div className="flex justify-between bg-gray-200 p-4 rounded-lg">
+        <div className="flex justify-between p-4 rounded-lg bg-gray-200">
             <div className="block">
-                <div className="text-sm text-gray-600 font-thin">Budget Déchet</div>
+                <div className={`text-sm font-thin ${
+                    stats.totalCosts > stats.totalRevenues ? "text-gray-600" : "text-gray-600"
+                }`}>
+                    {stats.totalCosts > stats.totalRevenues ? "Budget Déchet" : "Gain Déchet"}
+                </div>
                 <div className="flex items-center mt-2">
-                    <div className="font-bold text-xl text-gray-700">
+                    <div className={`font-bold text-xl ${
+                        stats.totalCosts > stats.totalRevenues ? "text-gray-700" : "text-green-600"
+                    }`}>
                         {stats.profit.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
                     </div>
                     {/*<div className={`ml-4 px-2 py-1 rounded-full text-xs ${
