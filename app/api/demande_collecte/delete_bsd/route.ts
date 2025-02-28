@@ -20,15 +20,50 @@ export async function POST(request: Request) {
     }
 
     //Check if the BSD is on TrackDéchets
-    const { data:bsd, error:bsdError } = await supabase.from('bsd').select('on_track_dechets, status_track_dechets, id_track_dechets').eq('id', id).single();
+    const { data:bsd, error:bsdError } = await supabase
+        .from('bsd')
+        .select('on_track_dechets, status_track_dechets, id_track_dechets, photo')
+        .eq('id', id)
+        .single();
+
     if(bsd?.on_track_dechets){
         const trackDechetsResponse = await deleteBSDD_API(bsd.id_track_dechets, token_track, url_track);
         if(trackDechetsResponse.status === 200){
+            // Delete photo from storage if exists
+            if (bsd.photo) {
+                // Extract filename from full URL
+                const photoFileName = bsd.photo.split('/').pop();
+                if (photoFileName) {
+                    const { error: storageError } = await supabase.storage
+                        .from('photos')
+                        .remove([photoFileName]);
+                    
+                    if (storageError) {
+                        console.error('Erreur lors de la suppression de la photo:', storageError);
+                    }
+                }
+            }
             //Delete from Supabase
             const { data, error } = await supabase.from('bsd').delete().eq('id', id);
             return NextResponse.json({ data, error });
         }
     }
+
+    // Delete photo from storage if exists
+    if (bsd?.photo) {
+        // Extract filename from full URL
+        const photoFileName = bsd.photo.split('/').pop();
+        if (photoFileName) {
+            const { error: storageError } = await supabase.storage
+                .from('photos')
+                .remove([photoFileName]);
+            
+            if (storageError) {
+                console.error('Erreur lors de la suppression de la photo:', storageError);
+            }
+        }
+    }
+
     const { data, error } = await supabase.from('bsd').delete().eq('id', id);
     return NextResponse.json({ data, error });
 }

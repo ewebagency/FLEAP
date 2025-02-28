@@ -42,6 +42,8 @@ const FiltreSiteEtablissement = () => {
     const [siteGroups, setSiteGroups] = useState<SiteGroup[]>([]);
     const [mappingSite, setMappingSite] = useState<Record<string, string[]>>({});
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+    const [isFullDataLoaded, setIsFullDataLoaded] = useState(false);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     useEffect(() => {
         if (entreprise_id) {
@@ -49,7 +51,11 @@ const FiltreSiteEtablissement = () => {
                 try {
                     // Utiliser l'API get_data_bsd
                     const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
-                    const { data: bsds } = await response.json();
+                    const { data: bsds, isPartialData } = await response.json();
+
+                    // Mettre à jour l'état de chargement complet
+                    setIsFullDataLoaded(!isPartialData);
+                    setIsInitialLoad(false);
 
                     if (!bsds || bsds.length === 0) {
                         console.log('Pas de BSDs trouvés');
@@ -96,7 +102,7 @@ const FiltreSiteEtablissement = () => {
             }
             getAdditionnalSites();
         }
-    }, [modalReload, entreprise_id]);
+    }, [modalReload, entreprise_id, isFullDataLoaded]);
 
     //On va chercher les webhook du compte track
     useEffect(() => {
@@ -459,6 +465,13 @@ const FiltreSiteEtablissement = () => {
                 <div className="flex items-center space-x-4">
                     <BoxIcon name='map' type='solid' size="18px" />
                     <h1 className="text-sm font-semibold text-gray-700">Sites</h1>
+                    {!isFullDataLoaded && !isInitialLoad && (
+                        <span className="text-xs text-blue-600 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </span>
+                    )}
                 </div>
                 <span className={`transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
                     ▼

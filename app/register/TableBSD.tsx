@@ -14,10 +14,11 @@ import BoxIcon from "../component/BoxIconWrapper";
 import { getPendingBSDs } from "./RegisterComponents/BordereauxRegister";
 import { FactureJSON } from "../import_page/FactureImport/ButtonImportFacture";
 import { useFiltresPerso } from "../component/FiltresPerso/FiltresPersoProvider";
-//import NewFormulaireDemande from "./DemandeCollecteNew/NewFormulaireDemande";
-//import ValidateCollecte from './DemandeCollecteNew/ValidateCollecte';
+import NewFormulaireDemande from "./DemandeCollecteNew/NewFormulaireDemande";
 import { filterBSDs } from "./FiltreFunctionnal";
 import { CommonBSD } from "./FiltreFunctionnal";
+import ValidateCollecte from "./DemandeCollecteNew/ValidateCollecte";
+import { handleCancelCollecte } from "./DemandeCollecteNew/DemandeFonctions";
 
 
 const cleanCED = (ced: string): string => {
@@ -130,7 +131,7 @@ const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres
 
 const TableBSD = () => {
     const {entreprise_id, user_id} = useSession();
-    const [bsds, setBSDs] = useState<BSD[]>([]);
+    
     //const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
     //A faire passer sur useModalContextNew
     const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType, filterPendingBSDs, setFilterPendingBSDs } = useModalContextNew();
@@ -150,14 +151,22 @@ const TableBSD = () => {
     const [weightInputs, setWeightInputs] = useState<Record<string, number>>({});
     const { filterFunctions } = useFiltresPerso();
     
-    //const [showValidateModal, setShowValidateModal] = useState(false);
-    //const [selectedBsdForValidation, setSelectedBsdForValidation] = useState<BSD | null>(null);
+    const [showValidateModal, setShowValidateModal] = useState(false);
+    const [selectedBsdForValidation, setSelectedBsdForValidation] = useState<BSD | null>(null);
 
     const prevModalReload = useRef(modalReload);
+
+    //const [forceReloadNextTime, setForceReloadNextTime] = useState(false); -> pour l'instant, on utilise modalReload (quand on fait ctrl+R ça ne refait pas un get_data_bsd on dirait)
     const [allBSDs, setAllBSDs] = useState<BSD[]>([]); // Pour stocker tous les BSDs non filtrés
     const [allFilteredBSDs, setAllFilteredBSDs] = useState<BSD[]>([]); // Tous les BSDs filtrés
     const [displayedBSDs, setDisplayedBSDs] = useState<BSD[]>([]); // BSDs actuellement affichés
     const [displayLimit, setDisplayLimit] = useState(50); // Nombre de BSDs à afficher
+    const [totalBSDsCount, setTotalBSDsCount] = useState(0); // Nombre total de BSDs dans la base de données
+
+    const [isLoadingInitialData, setIsLoadingInitialData] = useState(true);
+    const [isLoadingFullData, setIsLoadingFullData] = useState(false);
+    const [filtersEnabled, setFiltersEnabled] = useState(false);
+    const [isPartialData, setIsPartialData] = useState(false);
 
     // Ajouter un useEffect pour charger la table de mapping au démarrage
     useEffect(() => {
@@ -173,7 +182,7 @@ const TableBSD = () => {
     // Ajouter un useEffect pour réinitialiser la pagination quand les filtres changent
     useEffect(() => {
         setCurrentPage(1);
-        setBSDs([]); // Vider la liste des BSDs
+        setAllBSDs([]); // Vider la liste des BSDs
     }, [filieres, points_collecte]); // Se déclenche quand les filtres changent
 
     // Fonction pour vérifier et initialiser les webhooks
@@ -219,36 +228,111 @@ const TableBSD = () => {
         }
     };
 
-    const loadMore = () => {
-        setDisplayLimit(prev => {
-            const newLimit = prev + 50;
-            // Afficher les prochains 50 BSDs (déjà triés)
-            setDisplayedBSDs(allFilteredBSDs.slice(0, newLimit));
-            return newLimit;
-        });
-    };
-
     const fetchAndFilterBSDs = async () => {
         if (!entreprise_id) return;
-
+        
         try {
-            setLoadingBSDs(true);
-            
-            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&forceReload=${prevModalReload.current !== modalReload}`);
-            const { data: fetchedBSDs } = await response.json();
-
-            //console.log('data received', fetchedBSDs.map((bsd:CommonBSD)=>bsd.status_track_dechets))
-            
-
-            if (!fetchedBSDs) {
-                setAllFilteredBSDs([]);
-                setDisplayedBSDs([]);
-                return;
+            // Ne pas afficher le loader si on a déjà des données et qu'on est en train de charger les données complètes
+            if (!isLoadingFullData || displayedBSDs.length === 0) {
+                setLoadingBSDs(true);
             }
+            
+            // Déterminer si on doit faire un chargement rapide
+            const shouldFastLoad = isLoadingInitialData && !isLoadingFullData;
+            
+            // Appel API avec le paramètre fastLoad si nécessaire
+            const forceReload = prevModalReload.current !== modalReload;
+            
+            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}${shouldFastLoad ? '&fastLoad=true' : ''}${forceReload ? '&forceReload=true' : ''}`);
+            const result = await response.json();
+            
+            // Mettre à jour l'état pour indiquer si les données sont partielles
+            setIsPartialData(result.isPartialData);
+            
+            // Mettre à jour le nombre total de BSDs
+            if (result.totalCount) {
+                setTotalBSDsCount(result.totalCount);
+            }
+            
+            // Si c'est le premier chargement rapide, désactiver les filtres
+            if (shouldFastLoad) {
+                setFiltersEnabled(false);
+                setIsLoadingInitialData(false);
+                
+                // Stocker les BSDs initiaux
+                setAllBSDs(result.data);
+                setAllFilteredBSDs(result.data);
+                setDisplayedBSDs(result.data.slice(0, displayLimit));
+                
+                // Lancer le chargement complet en arrière-plan sans afficher de loader
+                setTimeout(() => {
+                    setIsLoadingFullData(true);
+                    fetchFullData();
+                }, 100);
+                
+                return; // Sortir de la fonction pour éviter de retraiter les données
+            }
+            
+            // Stocker tous les BSDs non filtrés
+            setAllBSDs(result.data);
+            
+            // Appliquer les filtres seulement si activés
+            let filteredData = result.data;
+            
+            if (filtersEnabled) {
+                // Utiliser la fonction filterBSDs de FiltreFunctionnal.ts
+                filteredData = filterBSDs(
+                    result.data,
+                    filieres,
+                    sites,
+                    points_collecte,
+                    segmentDates,
+                    mappingTable,
+                    filterFunctions,
+                    filterPendingBSDs
+                );
+            }
+            
+            // Mettre à jour les BSDs filtrés
+            setAllFilteredBSDs(filteredData);
+            
+            // Mettre à jour les BSDs affichés (limités)
+            setDisplayedBSDs(filteredData.slice(0, displayLimit));
+            
+        } catch (error) {
+            console.error('Error fetching BSDs:', error);
+        } finally {
+            setLoadingBSDs(false);
+        }
+    };
+    
+    // Fonction pour charger toutes les données en arrière-plan
+    const fetchFullData = async () => {
+        if (!entreprise_id) return;
+        
+        try {
+            // Ne pas afficher de loader pour le chargement en arrière-plan
 
-            // Appliquer les filtres
-            const filtered = filterBSDs(
-                fetchedBSDs,
+            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
+            const result = await response.json();
+            
+            // Mettre à jour l'état pour indiquer que les données sont complètes
+            setIsPartialData(false);
+            
+            // Mettre à jour le nombre total de BSDs
+            if (result.totalCount) {
+                setTotalBSDsCount(result.totalCount);
+            }
+            
+            // Stocker tous les BSDs non filtrés (remplacer complètement les données partielles)
+            setAllBSDs(result.data);
+            
+            // Activer les filtres
+            setFiltersEnabled(true);
+            
+            // Appliquer les filtres maintenant que nous avons toutes les données
+            const filteredData = filterBSDs(
+                result.data,
                 filieres,
                 sites,
                 points_collecte,
@@ -257,30 +341,43 @@ const TableBSD = () => {
                 filterFunctions,
                 filterPendingBSDs
             );
-
-            // Trier par created_at
-            /*const sortedBSDs = filtered.sort((a, b) => 
-                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            );*/
-
-            // Stocker tous les BSDs filtrés et triés
-            setAllFilteredBSDs(filtered);
             
-            // N'afficher que les 50 premiers
-            setDisplayedBSDs(filtered.slice(0, displayLimit));
-
+            // Mettre à jour les BSDs filtrés
+            setAllFilteredBSDs(filteredData);
+            
+            // Mettre à jour les BSDs affichés (limités) en préservant la position de défilement
+            setDisplayedBSDs(filteredData.slice(0, displayLimit));
+            
         } catch (error) {
-            console.error("Error fetching BSDs:", error);
-            setAllFilteredBSDs([]);
-            setDisplayedBSDs([]);
+            console.error('Error fetching full BSDs:', error);
         } finally {
-            setLoadingBSDs(false);
+            setIsLoadingFullData(false);
+        }
+    };
+
+    // Fonction pour charger plus de BSDs
+    const loadMore = () => {
+        const newLimit = displayLimit + 50;
+        setDisplayLimit(newLimit);
+        setDisplayedBSDs(allFilteredBSDs.slice(0, newLimit));
+        
+        // Si on approche de la fin des données chargées et qu'on est en mode données partielles,
+        // on peut déclencher un chargement complet
+        if (isPartialData && newLimit > allFilteredBSDs.length * 0.8 && !isLoadingFullData) {
+            setIsLoadingFullData(true);
+            fetchFullData();
         }
     };
 
     // Effet pour le modalReload
     useEffect(() => {
         if (prevModalReload.current !== modalReload) {
+            console.log("Modal reload changed, fetching BSDs...");
+            // Forcer un rechargement complet des données
+            setAllBSDs([]);
+            setAllFilteredBSDs([]);
+            setDisplayedBSDs([]);
+            setTotalBSDsCount(0);
             fetchAndFilterBSDs();
             prevModalReload.current = modalReload;
         }
@@ -288,16 +385,44 @@ const TableBSD = () => {
 
     // Effet pour les changements de filtres
     useEffect(() => {
-        fetchAndFilterBSDs();
+        if (filtersEnabled && allBSDs.length > 0) {
+            // Si les filtres sont activés, appliquer les filtres aux BSDs existants
+            const filteredData = filterBSDs(
+                allBSDs,
+                filieres,
+                sites,
+                points_collecte,
+                segmentDates,
+                mappingTable,
+                filterFunctions,
+                filterPendingBSDs
+            );
+            
+            setAllFilteredBSDs(filteredData);
+            setDisplayedBSDs(filteredData.slice(0, displayLimit));
+        } else if (entreprise_id && !isLoadingInitialData && !isLoadingFullData) {
+            // Si les filtres ne sont pas activés ou si on n'a pas encore de données, recharger les données
+            fetchAndFilterBSDs();
+        }
     }, [
-        entreprise_id,
         filieres,
         sites,
         points_collecte,
         segmentDates,
         filterPendingBSDs,
-        filterFunctions
+        filterFunctions,
+        filtersEnabled
     ]);
+
+    // Effet pour charger les données initiales
+    useEffect(() => {
+        if (entreprise_id) {
+            setIsLoadingInitialData(true);
+            setIsLoadingFullData(false);
+            setFiltersEnabled(false);
+            fetchAndFilterBSDs();
+        }
+    }, [entreprise_id]);
 
     useEffect(() => {
         // Exécution immédiate
@@ -333,8 +458,8 @@ const TableBSD = () => {
         }
 
         setDeletingId(id);
-        if(on_track_dechets){
-            try {
+        try {
+            if(on_track_dechets){
                 const result = await fetch('/api/demande_collecte/delete_bsd', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -349,23 +474,60 @@ const TableBSD = () => {
                     if (!silent) {
                         toast.success("BSD supprimé avec succès");
                     }
+                    
+                    // Mettre à jour l'état local en supprimant le BSD
+                    setAllBSDs(prev => prev.filter(bsd => bsd.id !== id));
+                    setAllFilteredBSDs(prev => prev.filter(bsd => bsd.id !== id));
+                    setDisplayedBSDs(prev => prev.filter(bsd => bsd.id !== id));
+                    //setForceReloadNextTime(true);
+                    // Déclencher un rechargement complet
                     setModalReload(!modalReload);
                 }
-            } finally {
-                setDeletingId(null);
-            }
-        } else {
-            const result = await supabase
-                .from('bsd')
-                .delete()
-                .eq('id', id);
-            if(result.error){
-                toast.error("Erreur lors de la suppression du BSD");
             } else {
-                toast.success("BSD supprimé avec succès");
-                setDeletingId(null);
-                setModalReload(!modalReload);
+                // Récupérer d'abord les informations du BSD pour avoir l'URL de la photo
+                const { data: bsd, error: bsdError } = await supabase
+                    .from('bsd')
+                    .select('photo')
+                    .eq('id', id)
+                    .single();
+
+                // Supprimer la photo si elle existe
+                if (bsd?.photo) {
+                    // Extract filename from full URL
+                    const photoFileName = bsd.photo.split('/').pop();
+                    if (photoFileName) {
+                        const { error: storageError } = await supabase.storage
+                            .from('photos')
+                            .remove([photoFileName]);
+                        
+                        if (storageError) {
+                            console.error('Erreur lors de la suppression de la photo:', storageError);
+                        }
+                    }
+                }
+
+                // Supprimer le BSD
+                const result = await supabase
+                    .from('bsd')
+                    .delete()
+                    .eq('id', id);
+
+                if(result.error){
+                    toast.error("Erreur lors de la suppression du BSD");
+                } else {
+                    toast.success("BSD supprimé avec succès");
+                    
+                    // Mettre à jour l'état local en supprimant le BSD
+                    setAllBSDs(prev => prev.filter(bsd => bsd.id !== id));
+                    setAllFilteredBSDs(prev => prev.filter(bsd => bsd.id !== id));
+                    setDisplayedBSDs(prev => prev.filter(bsd => bsd.id !== id));
+                    //setForceReloadNextTime(true);
+                    // Déclencher un rechargement complet
+                    setModalReload(!modalReload);
+                }
             }
+        } finally {
+            setDeletingId(null);
         }
     }
 
@@ -380,7 +542,7 @@ const TableBSD = () => {
     }
 
     const handleSeal = async (id: string) => {
-        const checkedBSD = checkBSDBeforeSeal(bsds.find(bsd => bsd.id === id))
+        const checkedBSD = checkBSDBeforeSeal(displayedBSDs.find(bsd => bsd.id === id));
         if(checkedBSD){
             const result = await Swal.fire({
                 title: 'Attention !',
@@ -410,7 +572,6 @@ const TableBSD = () => {
                 }
             }
         }
-        
     }
 
     const handleSign = async (id: string) => {
@@ -443,11 +604,14 @@ const TableBSD = () => {
         
         if (!error && data) {
             // Mettre à jour le BSD modifié dans l'état local
-            setBSDs(prevBsds => prevBsds.map(prevBsd => 
+            setAllBSDs(prevBsds => prevBsds.map(prevBsd => 
                 prevBsd.id === bsd.id 
                     ? { ...prevBsd, status_track_dechets: value }
                     : prevBsd
             ));
+            setAllFilteredBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: value} : prevbsd));
+            setDisplayedBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: value} : prevbsd));
+            //setForceReloadNextTime(true);
         }
     };
 
@@ -477,7 +641,7 @@ const TableBSD = () => {
             .single();
 
         if (!error && data) {
-            setBSDs(prevBsds => prevBsds.map(prevBsd => 
+            setAllBSDs(prevBsds => prevBsds.map(prevBsd => 
                 prevBsd.id === bsd.id 
                     ? { 
                         ...prevBsd, 
@@ -492,7 +656,11 @@ const TableBSD = () => {
                     }
                     : prevBsd
             ));
+            setAllFilteredBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: 'Collecté'} : prevbsd));
+            setDisplayedBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: 'Collecté'} : prevbsd));
             toast.success("BSD mis à jour avec succès");
+            //setForceReloadNextTime(true);
+            //setModalReload(!modalReload);
         } else {
             toast.error("Erreur lors de la mise à jour du BSD");
         }
@@ -556,7 +724,7 @@ const TableBSD = () => {
         if (weightInputs[bsd.id] === undefined) {
             setWeightInputs(prev => ({
                 ...prev,
-                [bsd.id]: bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0
+                [bsd.id]: parseFloat(String(bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity)) || 0
             }));
         }
 
@@ -649,391 +817,455 @@ const TableBSD = () => {
         }
     };
 
-    /*const handleValidateCollecte = (bsd: BSD) => {
+    const handleValidateCollecte = (bsd: BSD) => {
         setSelectedBsdForValidation(bsd);
         setShowValidateModal(true);
-    };*/
+    };
 
     return (
         <>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }} className="table-fixed">
-                <thead>
-                    <tr style={{ backgroundColor: 'white' }}>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '0' }} 
-                            className="text-sm font-normal text-gray-500 mb-0">Déchet</th>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '23px' }}
-                            className="text-sm font-normal text-gray-500 mb-0">Statut</th>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '25px' }}
-                            className="text-sm font-normal text-gray-500 mb-0 hidden md:table-cell">Prestataires</th>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'right', paddingRight: '1.25rem' }}
-                            className="text-sm font-normal text-gray-500 mb-0 hidden md:table-cell">Montant</th>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'right', paddingRight: '3.5rem' }}
-                            className="text-sm font-normal text-gray-500 mb-0">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {loadingBSDs ? (
-                        <tr><td colSpan={5}>Chargement des BSDs...</td></tr>
-                    ) : allFilteredBSDs.length > 0 ? (
-                        displayedBSDs.map((bsd) => (
-                        <tr key={bsd.id} style={{ borderBottom: '1px solid #ddd' }} 
-                            className={`${bsd.status_track_dechets === "Ligne créée automatiquement" ? 
-                                "bg-[var(--gray-light)]" : 
-                                bsd.status_track_dechets === "Ligne demandée" ? 
-                                    "bg-[var(--gray-light)]" : ""}`}>
-                            <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px'}}>
-                                <div className="absolute top-1 left-2 w-full">
-                                    <div className="font-medium text-[10px] text-gray-600">
-                                        {bsd.readable_id_track_dechets ? 
-                                            (bsd.readable_id_track_dechets.startsWith('BSD-') ? 
-                                                `${bsd.readable_id_track_dechets.substring(0, 15)}...` : 
-                                                bsd.readable_id_track_dechets) : 
-                                            "ID non disponible"
-                                        }
-                                    </div>
-                                </div>
-                                <div className="h-full flex items-center mt-2">
-                                    <div className="flex items-center justify-start gap-4">
-                                        <div className="text-2xl h-full">
-                                            {(() => {
-                                                const icon = getWasteIcon(getFiliere(
-                                                    bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
-                                                    mappingTable
-                                                ));
-                                                return <BoxIcon type={icon.type} name={icon.name} color="#000000" size="30px" />;
-                                            })()}
+            <div className="overflow-x-auto">
+                {isPartialData && (
+                    <div className="bg-blue-50 p-2 mb-4 rounded-md text-sm text-blue-700 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Chargement rapide en cours... Affichage des {displayedBSDs.length} premiers BSDs sur un total de {totalBSDsCount}. Les filtres seront activés une fois toutes les données chargées.
+                    </div>
+                )}
+                <table style={{ width: '100%', borderCollapse: 'collapse' }} className="table-fixed">
+                    <thead>
+                        <tr style={{ backgroundColor: 'white' }}>
+                            <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '0' }} 
+                                className="text-sm font-normal text-gray-500 mb-0">Déchet</th>
+                            <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '23px' }}
+                                className="text-sm font-normal text-gray-500 mb-0">Statut</th>
+                            <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '25px' }}
+                                className="text-sm font-normal text-gray-500 mb-0 hidden md:table-cell">Prestataires</th>
+                            <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'right', paddingRight: '1.25rem' }}
+                                className="text-sm font-normal text-gray-500 mb-0 hidden md:table-cell">Montant</th>
+                            <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'right', paddingRight: '3.5rem' }}
+                                className="text-sm font-normal text-gray-500 mb-0">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {loadingBSDs && displayedBSDs.length === 0 ? (
+                            <tr>
+                                <td colSpan={5} className="text-center py-4">
+                                    <div className="loading loading-spinner loading-md hidden"></div>
+                                </td>
+                            </tr>
+                        ) : displayedBSDs.length > 0 ? (
+                            displayedBSDs.map((bsd) => (
+                            <tr key={bsd.id} style={{ borderBottom: '1px solid #ddd' }} 
+                                className={`${bsd.status_track_dechets === "Ligne créée automatiquement" ? 
+                                    "bg-[var(--gray-light)]" : 
+                                    bsd.status_track_dechets === "Ligne demandée" ? 
+                                        "bg-[var(--gray-light)]" : ""}`}>
+                                <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px'}}>
+                                    <div className="absolute top-1 left-2 w-full">
+                                        <div className="font-medium text-[10px] text-gray-600">
+                                            {bsd.readable_id_track_dechets ? 
+                                                (bsd.readable_id_track_dechets.startsWith('BSD-') ? 
+                                                    `${bsd.readable_id_track_dechets.substring(0, 15)}...` : 
+                                                    bsd.readable_id_track_dechets) : 
+                                                "ID non disponible"
+                                            }
                                         </div>
-                                        <div className="space-y-0.5">
-                                            {/* Informations sur le déchet */}
-                                            <div className="text-sm font-bold mb-[-5px]">
-                                                <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.code}</div>
-                                            </div>
-
-                                            <div>
-                                                <div className="text-blue-500 mb-0 hidden">
-                                                    {getFiliere(
+                                    </div>
+                                    <div className="h-full flex items-center mt-2">
+                                        <div className="flex items-center justify-start gap-4">
+                                            <div className="text-2xl h-full">
+                                                {(() => {
+                                                    const icon = getWasteIcon(getFiliere(
                                                         bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
                                                         mappingTable
-                                                    )}
+                                                    ));
+                                                    return <BoxIcon type={icon.type} name={icon.name} color="#000000" size="30px" />;
+                                                })()}
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                {/* Informations sur le déchet */}
+                                                <div className="text-sm font-bold mb-[-5px]">
+                                                    <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.code}</div>
                                                 </div>
-                                                {bsd.infos_json.formAPI.createFormInput.wasteDetails.name && (
-                                                    <div className="text-xs mt-0 truncate overflow-hidden whitespace-nowrap w-[180px]">
-                                                        {bsd.infos_json.formAPI.createFormInput.wasteDetails.name}
-                                                    </div>
-                                                )}
-                                                
-                                                {bsd.status_track_dechets === "Ligne créée automatiquement" ?
-                                                    <div className="text-xs mt-0">
-                                                        {handleUpdateWeight(bsd)} T
-                                                    </div>
-                                                :
-                                                    <div className="text-xs mt-0">
-                                                        {bsd.infos_json.formAPI.createFormInput.quantityReceived 
-                                                        ? 
-                                                            `${parseFloat(String(bsd.infos_json.formAPI.createFormInput.quantityReceived)).toFixed(2)} T` 
-                                                        :
-                                                            bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity !== null && 
-                                                            bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity !== undefined 
-                                                                ? 
-                                                                    `${parseFloat(String(bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity)).toFixed(2)} T` 
-                                                                : 
-                                                                    "-"}
-                                                    </div>
 
-
+                                                <div>
+                                                    <div className="text-blue-500 mb-0 hidden">
+                                                        {getFiliere(
+                                                            bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
+                                                            mappingTable
+                                                        )}
+                                                    </div>
+                                                    {bsd.infos_json.formAPI.createFormInput.wasteDetails.name && (
+                                                        <div className="text-xs mt-0 truncate overflow-hidden whitespace-nowrap w-[180px]">
+                                                            {bsd.infos_json.formAPI.createFormInput.wasteDetails.name}
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {bsd.status_track_dechets === "Ligne créée automatiquement" ?
+                                                        <div className="text-xs mt-0">
+                                                            {handleUpdateWeight(bsd)} T
+                                                        </div>
+                                                    :
+                                                        <div className="text-xs mt-0">
+                                                            {bsd.infos_json.formAPI.createFormInput.quantityReceived 
+                                                            ? 
+                                                                `${parseFloat(String(bsd.infos_json.formAPI.createFormInput.quantityReceived)).toFixed(2)} T` 
+                                                            :
+                                                                bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity !== null && 
+                                                                bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity !== undefined 
+                                                                    ? 
+                                                                        `${parseFloat(String(bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity)).toFixed(2)} T` 
+                                                                    : 
+                                                                        "-"}
+                                                        </div>
                                                 }
 
 
 
 
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            </td>
-                            <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px' }}>
-                                <div className="absolute top-1 left-2 w-full">
-                                    <div className="text-[10px] text-gray-600 ml-4 flex justify-start gap-2">
-                                        {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p>Collecté le {new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>{bsd.status_track_dechets === "Ligne demandée" ? <p>Attendu pour le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p> : <p>Créé le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}</p>}
-                                        {/*<p>CREE le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>*/}
-                                        {/* {bsd.infos_json.formAPI.createFormInput.emittedAt} */}
-                                        {/* {bsd.infos_json.formAPI.createFormInput.createdAt} */}
-                                        {/* {bsd.infos_json.formAPI.createFormInput.processedAt} */}
-                                        {/* {bsd.infos_json.formAPI.createFormInput.receivedAt} */}
-                                        {/* {bsd.infos_json.formAPI.createFormInput.signedAt} */}  
-                                        {/* {bsd.infos_json.formAPI.createFormInput.takenOverAt} */}
-                                        {/* {bsd.infos_json.formAPI.createFormInput.updatedAt} */}
+                                </td>
+                                <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px' }}>
+                                    <div className="absolute top-1 left-2 w-full">
+                                        <div className="text-[10px] text-gray-600 ml-4 flex justify-start gap-2">
+                                            {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p>Collecté le {new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>{bsd.status_track_dechets === "Ligne demandée" ? <p>Attendu le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p> : <p>Créé le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}</p>}
+                                            {/*<p>CREE le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>*/}
+                                            {/* {bsd.infos_json.formAPI.createFormInput.emittedAt} */}
+                                            {/* {bsd.infos_json.formAPI.createFormInput.createdAt} */}
+                                            {/* {bsd.infos_json.formAPI.createFormInput.processedAt} */}
+                                            {/* {bsd.infos_json.formAPI.createFormInput.receivedAt} */}
+                                            {/* {bsd.infos_json.formAPI.createFormInput.signedAt} */}  
+                                            {/* {bsd.infos_json.formAPI.createFormInput.takenOverAt} */}
+                                            {/* {bsd.infos_json.formAPI.createFormInput.updatedAt} */}
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="h-full flex flex-col justify-center ml-4 mt-0">
-                                    {bsd.status_track_dechets !== null ? (
-                                        <>
-                                            <div className={`text-md md:text-md font-semibold ${getStatusStyle(bsd.status_track_dechets).color} text-[13px] md:text-base`}>
-                                                {getStatusStyle(bsd.status_track_dechets).mainText}
-                                            </div>
-                                            {getStatusStyle(bsd.status_track_dechets).subText && (
-                                                <div className={`text-xs ${getStatusStyle(bsd.status_track_dechets).color} mt-[-4px] hidden md:block`}>
-                                                    {getStatusStyle(bsd.status_track_dechets).subText}
+                                    <div className="h-full flex flex-col justify-center ml-4 mt-0">
+                                        {bsd.status_track_dechets !== null ? (
+                                            <>
+                                                <div className={`text-md md:text-md font-semibold ${getStatusStyle(bsd.status_track_dechets).color} text-[13px] md:text-base`}>
+                                                    {getStatusStyle(bsd.status_track_dechets).mainText}
+                                                </div>
+                                                {getStatusStyle(bsd.status_track_dechets).subText && (
+                                                    <div className={`text-xs ${getStatusStyle(bsd.status_track_dechets).color} mt-[-4px] hidden md:block`}>
+                                                        {getStatusStyle(bsd.status_track_dechets).subText}
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div className="text-md">...</div>
+                                        )}
+                                    </div>
+                                </td>
+                                <td style={{ padding: '6px', width: '20%', height: '80px' }} className="hidden md:table-cell overflow-hidden">
+                                    <div className="text-xs ml-4 overflow-hidden space-y-0">
+                                        {/* Site Etablissement */}
+                                        <div className="overflow-hidden">
+                                            <span className="flex items-center gap-2">
+                                                <BoxIcon type='solid' color='#727272' size="20px" name='map' className="flex-shrink-0" />
+                                                <span className="truncate block">{bsd.infos_json.formAPI.createFormInput.emitter?.company?.name || "Site non spécifié"}</span>
+                                            </span>
+                                        </div>
+                                        {/* Entreprises */}
+                                        <div className="overflow-hidden">
+                                            <span className="flex items-center gap-2">
+                                                <BoxIcon type='solid' color='#727272' size="20px" name='truck' className="flex-shrink-0" />
+                                                <span className="truncate block">{bsd.infos_json.formAPI.createFormInput.transporter?.company?.name || ""}</span>
+                                            </span>
+                                        </div>
+                                        <div className="overflow-hidden">
+                                            <span className="flex items-center gap-2">
+                                                <BoxIcon type='solid' color='#727272' size="20px" name='factory' className="flex-shrink-0" />
+                                                <span className="truncate block">{bsd.infos_json.formAPI.createFormInput.recipient?.company?.name || ""}</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td style={{ padding: '6px', width: '15%', height: '80px' }} className="hidden md:table-cell">
+                                    {
+                                    bsd.facture_treated ? 
+                                        <div className="text-md font-550 text-right mr-5">
+                                            {getSommeBSD(bsd.facture_infos).toFixed(2)} € HT
+                                        </div> 
+                                    : 
+                                        <div className="text-md font-550 text-right mr-5">-€ HT</div>
+                                    }
+                                </td>
+                                <td style={{ padding: '6px', width: '15%', height: '80px' }}>
+                                    <div className="flex items-center justify-end gap-2 w-full">
+
+
+                                        {/* Actions principales */}
+                                        <div className="flex items-center gap-0">
+                                            {bsd.status_track_dechets === "Ligne demandée" && (
+                                                <div className="text-center items-center ml-16 mr-[-15px] md:mr-[-5px]">
+                                                    <button 
+                                                        className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
+                                                        hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
+                                                         onClick={() => handleValidateCollecte(bsd)}
+                                                    >
+                                                        Valider
+                                                    </button>
+                                                    {/*<button 
+                                                        className="px-3 py-1 bg-[var(--red-medium)] text-white rounded-md text-xs 
+                                                        hover:bg-[var(--red-dark)] transition-colors whitespace-nowrap" 
+                                                        onClick={() => {
+                                                            handleCancelCollecte(bsd).then(() => {
+                                                                setModalReload(!modalReload);
+                                                            });
+                                                        }}
+                                                    >
+                                                        Annuler
+                                                    </button>*/}
                                                 </div>
                                             )}
-                                        </>
-                                    ) : (
-                                        <div className="text-md">...</div>
-                                    )}
-                                </div>
-                            </td>
-                            <td style={{ padding: '6px', width: '20%', height: '80px' }} className="hidden md:table-cell overflow-hidden">
-                                <div className="text-xs ml-4 overflow-hidden space-y-0">
-                                    {/* Site Etablissement */}
-                                    <div className="overflow-hidden">
-                                        <span className="flex items-center gap-2">
-                                            <BoxIcon type='solid' color='#727272' size="20px" name='map' className="flex-shrink-0" />
-                                            <span className="truncate block">{bsd.infos_json.formAPI.createFormInput.emitter?.company?.name || "Site non spécifié"}</span>
-                                        </span>
-                                    </div>
-                                    {/* Entreprises */}
-                                    <div className="overflow-hidden">
-                                        <span className="flex items-center gap-2">
-                                            <BoxIcon type='solid' color='#727272' size="20px" name='truck' className="flex-shrink-0" />
-                                            <span className="truncate block">{bsd.infos_json.formAPI.createFormInput.transporter?.company?.name || ""}</span>
-                                        </span>
-                                    </div>
-                                    <div className="overflow-hidden">
-                                        <span className="flex items-center gap-2">
-                                            <BoxIcon type='solid' color='#727272' size="20px" name='factory' className="flex-shrink-0" />
-                                            <span className="truncate block">{bsd.infos_json.formAPI.createFormInput.recipient?.company?.name || ""}</span>
-                                        </span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td style={{ padding: '6px', width: '15%', height: '80px' }} className="hidden md:table-cell">
-                                {
-                                bsd.facture_treated ? 
-                                    <div className="text-md font-550 text-right mr-5">
-                                        {getSommeBSD(bsd.facture_infos).toFixed(2)} € HT
-                                    </div> 
-                                : 
-                                    <div className="text-md font-550 text-right mr-5">-€ HT</div>
-                                }
-                            </td>
-                            <td style={{ padding: '6px', width: '15%', height: '80px' }}>
-                                <div className="flex items-center justify-end gap-2 w-full">
-
-
-                                    {/* Actions principales */}
-                                    <div className="flex items-center gap-0">
-                                        {/*bsd.status_track_dechets === "Ligne demandée" && (
-                                            <button 
-                                                className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
-                                                hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
-                                                onClick={() => handleValidateCollecte(bsd)}
-                                            >
-                                                Valider la collecte
-                                            </button>
-                                        )*/}
-                                        {bsd.status_track_dechets === "DRAFT" && (
-                                            <button 
-                                                className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
-                                                hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
-                                                onClick={() => handleSeal(bsd.id)}
-                                            >
-                                                Sceller
-                                            </button>
-                                        )}
-                                        {bsd.status_track_dechets === "SEALED" && (
-                                            <button 
-                                                className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
-                                                hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
-                                                onClick={() => handleSign(bsd.id)}
-                                            >
-                                                Signer
-                                            </button>
-                                        )}
-                                        {bsd.status_track_dechets === "Brouillon Local" && (
-                                            <button 
-                                                className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
-                                                hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
-                                                onClick={() => handleSendDraft(bsd)}
-                                            >
-                                                Envoyer
-                                            </button>
-                                        )}
-                                        {nonDangerousStatut(bsd.status_track_dechets) && (
-                                            <div className="relative">
-                                                <select 
-                                                    className="appearance-none px-2 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs
-                                                    hover:bg-[var(--green-dark)] transition-colors w-[60px] cursor-pointer"
-                                                    onChange={(e) => handleChangeNonDangerous(bsd, e.target.value)}
-                                                    value={bsd.status_track_dechets}
+                                            {bsd.status_track_dechets === "DRAFT" && (
+                                                <button 
+                                                    className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
+                                                    hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
+                                                    onClick={() => handleSeal(bsd.id)}
                                                 >
-                                                    <option value={bsd.status_track_dechets} hidden></option>
-                                                    <option value="Brouillon">Brouillon</option>
-                                                    <option value="Collecte demandée">Collecte demandée</option>
-                                                    <option value="Collecté">Collecté</option>
-                                                    <option value="Accepté">Accepté</option>
-                                                    <option value="Traité">Traité</option>
-                                                </select>
-                                                <div className="pointer-events-none absolute inset-0 flex items-center px-2 py-1 text-white text-xs ml-1">
-                                                    Statut
+                                                    Sceller
+                                                </button>
+                                            )}
+                                            {bsd.status_track_dechets === "SEALED" && (
+                                                <button 
+                                                    className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
+                                                    hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
+                                                    onClick={() => handleSign(bsd.id)}
+                                                >
+                                                    Signer
+                                                </button>
+                                            )}
+                                            {bsd.status_track_dechets === "Brouillon Local" && (
+                                                <button 
+                                                    className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
+                                                    hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
+                                                    onClick={() => handleSendDraft(bsd)}
+                                                >
+                                                    Envoyer
+                                                </button>
+                                            )}
+                                            {nonDangerousStatut(bsd.status_track_dechets) && (
+                                                <div className="relative">
+                                                    <select 
+                                                        className="appearance-none px-2 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs
+                                                        hover:bg-[var(--green-dark)] transition-colors w-[60px] cursor-pointer"
+                                                        onChange={(e) => handleChangeNonDangerous(bsd, e.target.value)}
+                                                        value={bsd.status_track_dechets}
+                                                    >
+                                                        <option value={bsd.status_track_dechets} hidden></option>
+                                                        <option value="Brouillon">Brouillon</option>
+                                                        <option value="Collecte demandée">Collecte demandée</option>
+                                                        <option value="Collecté">Collecté</option>
+                                                        <option value="Accepté">Accepté</option>
+                                                        <option value="Traité">Traité</option>
+                                                    </select>
+                                                    <div className="pointer-events-none absolute inset-0 flex items-center px-2 py-1 text-white text-xs ml-1">
+                                                        Statut
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
-                                        {bsd.status_track_dechets === "Ligne créée automatiquement" && (
-                                            <button 
-                                                className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs
-                                                hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
-                                                onClick={() => handleValidateLine(bsd)}
-                                            >
-                                                <span className="hidden md:inline">Ajouter au registre</span>
-                                                <span className="md:hidden">Ajouter</span>
-                                            </button>
-                                        )}
-                                        {/*bsd.status_track_dechets === "Ligne validée" && (
-                                            <button 
-                                                className="px-1 py-1 text-[var(--green-medium)] rounded-md text-xs mr-3 whitespace-nowrap" 
-                                            >
-                                                Validée
-                                            </button>
-                                        )*/}
-                                    </div>
+                                            )}
+                                            {bsd.status_track_dechets === "Ligne créée automatiquement" && (
+                                                <button 
+                                                    className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs
+                                                    hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
+                                                    onClick={() => handleValidateLine(bsd)}
+                                                >
+                                                    <span className="hidden md:inline">Ajouter au registre</span>
+                                                    <span className="md:hidden">Ajouter</span>
+                                                </button>
+                                            )}
+                                            {/*bsd.status_track_dechets === "Ligne validée" && (
+                                                <button 
+                                                    className="px-1 py-1 text-[var(--green-medium)] rounded-md text-xs mr-3 whitespace-nowrap" 
+                                                >
+                                                    Validée
+                                                </button>
+                                            )*/}
+                                        </div>
 
-                                    {/* Menu trois points */}
-                                    <div className="relative">
-                                        <button 
-                                            className="px-1 py-1 text-gray-600 rounded-md hover:bg-gray-100 mt-0.5 h-8"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setOpenMenuId(openMenuId === bsd.id ? null : bsd.id);
-                                            }}
-                                            onMouseEnter={() => setHoveredMenuId(bsd.id)}
-                                            onMouseLeave={() => setHoveredMenuId(null)}
-                                        >
-                                            <BoxIcon name='dots-vertical-rounded' size="20px" />
-                                        </button>
+                                        {/* Menu trois points */}
+                                        <div className="relative">
+                                            <button 
+                                                className="px-1 py-1 text-gray-600 rounded-md hover:bg-gray-100 mt-0.5 h-8"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenMenuId(openMenuId === bsd.id ? null : bsd.id);
+                                                }}
+                                                onMouseEnter={() => setHoveredMenuId(bsd.id)}
+                                                onMouseLeave={() => setHoveredMenuId(null)}
+                                            >
+                                                <BoxIcon name='dots-vertical-rounded' size="20px" />
+                                            </button>
 
-                                        {/* Menu déroulant (inchangé) */}
-                                        {openMenuId === bsd.id && (
-                                            <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg z-50 top-8">
-                                                <div className="py-1">
-                                                    {canModify(bsd.id_track_dechets, bsd.status_track_dechets) ? (
+                                            {/* Menu déroulant (inchangé) */}
+                                            {openMenuId === bsd.id && (
+                                                <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg z-50 top-8">
+                                                    <div className="py-1">
+                                                        {canModify(bsd.id_track_dechets, bsd.status_track_dechets) ? (
+                                                            <button 
+                                                                className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600 text-left"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleModify(bsd.id);
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                            >
+                                                                Modifier
+                                                            </button>
+                                                        ) : (
+                                                            <button 
+                                                                className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-green-50 hover:text-green-600 text-left"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDisplay(bsd.id);
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                            >
+                                                                Voir
+                                                            </button>
+                                                        )}
                                                         <button 
-                                                            className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600 text-left"
+                                                            className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-red-50 hover:text-red-600 text-left relative"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                handleModify(bsd.id);
+                                                                handleDelete(bsd.id, bsd.on_track_dechets);
+                                                                setOpenMenuId(null);
+                                                            }}
+                                                            disabled={deletingId === bsd.id}
+                                                        >
+                                                            <span className="flex items-center">
+                                                                {deletingId === bsd.id ? (
+                                                                    <>
+                                                                        <span className="mr-2">Suppression</span>
+                                                                        <span className="loading loading-spinner loading-xs"></span>
+                                                                    </>
+                                                                ) : (
+                                                                    'Supprimer'
+                                                                )}
+                                                            </span>
+                                                        </button>
+                                                        {bsd.id_track_dechets === "Ligne automatique" && <button 
+                                                            className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-orange-50 hover:text-orange-600 text-left"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteRecurrence(bsd.id);
                                                                 setOpenMenuId(null);
                                                             }}
                                                         >
-                                                            Modifier
-                                                        </button>
-                                                    ) : (
+                                                            Supprimer la récurrence
+                                                        </button>}     
+                                                    {bsd.status_track_dechets === "Ligne demandée" && (
                                                         <button 
-                                                            className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-green-50 hover:text-green-600 text-left"
+                                                            className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-red-50 hover:text-red-600 text-left"
                                                             onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleDisplay(bsd.id);
-                                                                setOpenMenuId(null);
+                                                                    e.stopPropagation();
+                                                                    handleCancelCollecte(bsd).then(() => {
+                                                                        setModalReload(!modalReload);
+                                                                    });
                                                             }}
                                                         >
-                                                            Voir
+                                                            Annuler la collecte
                                                         </button>
-                                                    )}
-                                                    <button 
-                                                        className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-red-50 hover:text-red-600 text-left relative"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDelete(bsd.id, bsd.on_track_dechets);
-                                                            setOpenMenuId(null);
-                                                        }}
-                                                        disabled={deletingId === bsd.id}
-                                                    >
-                                                        <span className="flex items-center">
-                                                            {deletingId === bsd.id ? (
-                                                                <>
-                                                                    <span className="mr-2">Suppression</span>
-                                                                    <span className="loading loading-spinner loading-xs"></span>
-                                                                </>
-                                                            ) : (
-                                                                'Supprimer'
-                                                            )}
-                                                        </span>
-                                                    </button>
-                                                    {bsd.id_track_dechets === "Ligne automatique" && <button 
-                                                        className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-orange-50 hover:text-orange-600 text-left"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDeleteRecurrence(bsd.id);
-                                                            setOpenMenuId(null);
-                                                        }}
-                                                    >
-                                                        Supprimer la récurrence
-                                                    </button>}                                                    
+                                                    )}                                                   
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="relative h-0">
-                                {hoveredMenuId === bsd.id && (
-                                        <div className="absolute text-[8px] text-gray-400 text-right mr-14 z-50 right-0 top-0">
-                                        N° {bsd.id}
+                                    <div className="relative h-0">
+                                    {hoveredMenuId === bsd.id && (
+                                            <div className="absolute text-[8px] text-gray-400 text-right mr-14 z-50 right-0 top-0">
+                                            N° {bsd.id}
+                                        </div>
+                                    )}
                                     </div>
-                                )}
-                                </div>
-                            </td>
-                        </tr>
-                        ))
-                    ) : (
-                        <tr><td colSpan={5}>Aucun BSD disponible</td></tr>
-                    )}
-                </tbody>
-            </table>
-            
-            {showSendDraftModal && selectedBsd && (
-                <SendDraftModal
-                    isOpen={showSendDraftModal}
-                    onClose={() => {
-                        setShowSendDraftModal(false);
-                        setSelectedBsd(null);
-                    }}
-                    formData={selectedBsd.infos_json.formAPI.createFormInput as FormInput}
-                    userId={user_id || ''}
-                    entrepriseId={entreprise_id || ''}
-                    bsdId={selectedBsd.id}
-                    onDelete={handleDelete}
-                />
-            )}
-            
-            {allFilteredBSDs.length > displayLimit && !loadingBSDs && (
-                <div className="flex justify-center mt-4">
-                    <button
-                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                        onClick={loadMore}
-                    >
-                        Afficher 50 BSDs supplémentaires 
-                        ({displayedBSDs.length} sur {allFilteredBSDs.length})
-                    </button>
-                </div>
-            )}
-            
-            {loadingBSDs && (
-                <div className="flex justify-center mt-4">
-                    <div className="loading loading-spinner loading-lg"></div>
-                </div>
-            )}
-            
-            {/*{showValidateModal && selectedBsdForValidation && (
-                <ValidateCollecte
-                    bsd={selectedBsdForValidation}
-                    onClose={() => {
-                        setShowValidateModal(false);
-                        setSelectedBsdForValidation(null);
-                    }}
-                    onValidate={() => {
-                        setModalReload(!modalReload);
-                    }}
-                />
-            )}*/}
+                                </td>
+                            </tr>
+                            ))
+                        ) : (
+                            <tr><td colSpan={5}>Aucun BSD disponible</td></tr>
+                        )}
+                    </tbody>
+                </table>
+                
+                {showSendDraftModal && selectedBsd && (
+                    <SendDraftModal
+                        isOpen={showSendDraftModal}
+                        onClose={() => {
+                            setShowSendDraftModal(false);
+                            setSelectedBsd(null);
+                        }}
+                        formData={selectedBsd.infos_json.formAPI.createFormInput as FormInput}
+                        userId={user_id || ''}
+                        entrepriseId={entreprise_id || ''}
+                        bsdId={selectedBsd.id}
+                        onDelete={handleDelete}
+                    />
+                )}
+                
+                {allFilteredBSDs.length > displayLimit && !loadingBSDs && (
+                    <div className="flex justify-center mt-4">
+                        <button
+                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            onClick={loadMore}
+                        >
+                            Afficher 50 BSDs supplémentaires 
+                            ({displayedBSDs.length} sur {allFilteredBSDs.length})
+                            {isPartialData && totalBSDsCount > allFilteredBSDs.length && (
+                                <span className="ml-1 text-xs">
+                                    (Total en base: {totalBSDsCount})
+                                </span>
+                            )}
+                        </button>
+                    </div>
+                )}
+                
+                {/* Si on a moins de BSDs filtrés que le total mais qu'on a fini de charger, afficher un message */}
+                {!isPartialData && !loadingBSDs && allFilteredBSDs.length < totalBSDsCount && filtersEnabled && (
+                    <div className="text-center mt-4 text-sm text-gray-500">
+                        {allFilteredBSDs.length} BSDs sur {totalBSDsCount} après filtrage
+                    </div>
+                )}
+                
+                {/* Afficher le loader uniquement lors du chargement initial, pas pendant le chargement en arrière-plan */}
+                {loadingBSDs && displayedBSDs.length === 0 && (
+                    <div className="flex justify-center mt-4">
+                        <div className="loading loading-spinner loading-lg"></div>
+                    </div>
+                )}
+                
+                {displayedBSDs.length === 0 && !loadingBSDs && (
+                    <tr>
+                        <td colSpan={5} className="text-center py-4">
+                            
+                            {isPartialData && totalBSDsCount > 0 && (
+                                <span className="ml-1">
+                                    (Chargement des {totalBSDsCount} BSDs en cours...)
+                                </span>
+                            )}
+                        </td>
+                    </tr>
+                )}
+                
+                {showValidateModal && selectedBsdForValidation && (
+                    <ValidateCollecte
+                        bsd={selectedBsdForValidation}
+                        onClose={() => {
+                            setShowValidateModal(false);
+                            setSelectedBsdForValidation(null);
+                        }}
+                        onValidate={() => {
+                            setModalReload(!modalReload);
+                        }}
+                    />
+                )}
+            </div>
         </>
     )
 }
@@ -1224,4 +1456,5 @@ const checkBSDBeforeSeal = (bsd: BSD|undefined) => {
 
     return true;
 }
+
 

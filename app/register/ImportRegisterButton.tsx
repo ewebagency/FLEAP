@@ -571,7 +571,7 @@ const ImportRegisterButton = () => {
             if (isTestMode) {
                 jsonData = jsonData
                     .sort(() => 0.5 - Math.random()) // Mélanger le tableau
-                    .slice(0, 3); // Prendre les 3 premières lignes
+                    .slice(0, 20); // Prendre les 3 premières lignes
             }
 
             // Traiter les données
@@ -672,7 +672,7 @@ const ImportRegisterButton = () => {
                                     className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                                 />
                                 <label htmlFor="testMode" className="text-sm text-gray-700">
-                                    Mode test (3 lignes aléatoires)
+                                    Mode test (20 lignes aléatoires)
                                 </label>
                             </div>
                             <div className="flex justify-end space-x-3 mt-4">

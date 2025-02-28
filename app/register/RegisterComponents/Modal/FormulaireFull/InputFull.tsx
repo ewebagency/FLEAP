@@ -128,7 +128,7 @@ const InputFull: React.FC<InputFullProps> = ({
 
     return (
         <div>
-            <div className={`w-[${width * 10}px] overflow-x-auto my-0.5 ${display ? "block" : "hidden"}`}>
+            <div className={`w-full max-w-full my-0.5 ${display ? "block" : "hidden"}`}>
                 <div className="flex justify-start items-center space-x-2">
                     {!popup && titre && (
                         <div className={`w-[120px] text-right text-xs text-gray-500 ${stylePrimary ? 'font-medium' : 'font-thin'}`}>
@@ -230,7 +230,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                     menuPosition="fixed"
                                 />
                             ) : (
-                                <div className={`w-full text-xs border border-gray-400 rounded-md p-2 whitespace-nowrap overflow-x-auto ${stylePrimary ? 'bg-blue-50 border-blue-500 border-2' : getBackgroundColor()}`}>
+                                <div className={`w-full text-xs border border-gray-400 rounded-md p-2 whitespace-nowrap overflow-hidden text-ellipsis ${stylePrimary ? 'bg-blue-50 border-blue-500 border-2' : getBackgroundColor()}`}>
                                     {value}
                                 </div>
                             )}

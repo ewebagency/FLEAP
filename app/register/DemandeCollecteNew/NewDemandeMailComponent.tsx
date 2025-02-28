@@ -1,4 +1,4 @@
-/*'use client';
+'use client';
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useMailContext } from '../MailComponents/MailContext';
@@ -35,6 +35,7 @@ interface MailComponentProps {
     params: EmailParams;
     pastBrouillon?: boolean;
     onMobile?: boolean;
+    onUpdateRecipientEmail: (email: string) => void;
 }
 
 const emailTemplates: EmailTemplate[] = [
@@ -63,7 +64,7 @@ Je souhaite organiser des collectes de déchets pour ${params.entrepriseName}, a
 
 J'aurais besoin de collecter :
 ${Object.entries(wastesByDate).map(([date, lines]) => `
-Le ${date.split('-')[2]}/${date.split('-')[1]}/${date.split('-')[0]}
+${date === 'Dès que possible' ? 'Dès que possible' : `Le ${date.split('-')[2]}/${date.split('-')[1]}/${date.split('-')[0]}`}
 ${lines.map(line => {
     const container = line.container + (line.volume ? ` - ${line.volume} ${line.volumeUnit}` : '');
     return `• 1 ${container} ${line.description ? `de ${line.description}` : ''} ${line.code ? `(${line.code})` : ''}`;
@@ -107,7 +108,7 @@ Lieu de collecte : ${params.emitter.address}
 
 Détails des collectes :
 ${Object.entries(wastesByDate).map(([date, lines]) => `
-Date souhaitée : ${date}
+Date souhaitée : ${date === 'Dès que possible' ? 'Dès que possible' : date}
 ${lines.map(line => {
     const container = line.container + (line.volume ? ` - ${line.volume} ${line.volumeUnit}` : '');
     return `• ${container} de ${line.description} ${line.code}`;
@@ -128,7 +129,12 @@ Email envoyé depuis FLEAP`;
     }
 ];
 
-const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ params, pastBrouillon=false, onMobile=false }) => {
+const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ 
+    params, 
+    pastBrouillon = false, 
+    onMobile = false,
+    onUpdateRecipientEmail
+}) => {
     const [selectedTemplate, setSelectedTemplate] = useState<number>(0);
     const [to, setTo] = useState<string>(params.destinataire || '');
     const [cc, setCc] = useState<string>('');
@@ -137,7 +143,8 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ params, pastBro
     const [subject, setSubject] = useState<string>('');
     const [emailBody, setEmailBody] = useState<string>('');
     const { setIsValidMail, setSendMailFunction } = useMailContext();
-
+    const [lastSelectedTemplate, setLastSelectedTemplate] = useState<number>(0);
+    const [userEditedBody, setUserEditedBody] = useState<boolean>(false);
 
     useEffect(() => {
         setTo(params.destinataire || '');
@@ -148,13 +155,21 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ params, pastBro
     }, [params.destinataire, params.emitter.email]);
 
     useEffect(() => {
+        onUpdateRecipientEmail(to);
+    }, [to, onUpdateRecipientEmail]);
+
+    useEffect(() => {
         const getSubject = async () => {
             const subject = await emailTemplates[selectedTemplate].subject(params);
             setSubject(subject);
         };
         getSubject();
-        setEmailBody(emailTemplates[selectedTemplate].getBody(params));
-    }, [selectedTemplate, params]);
+        
+        if (selectedTemplate !== lastSelectedTemplate || !userEditedBody) {
+            setEmailBody(emailTemplates[selectedTemplate].getBody(params));
+            setLastSelectedTemplate(selectedTemplate);
+        }
+    }, [selectedTemplate, params, lastSelectedTemplate, userEditedBody]);
 
     useEffect(() => {
         if(!to || !replyTo || !subject || !emailBody){
@@ -208,6 +223,7 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ params, pastBro
 
     const handleEmailBodyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setEmailBody(e.target.value);
+        setUserEditedBody(true);
     };
 
     const handleSubjectChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -217,9 +233,9 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ params, pastBro
     return (
         <div className={`mt-7 ${onMobile ? 'w-full px-3' : 'w-[95%] ml-8'} mb-0`}>
             {pastBrouillon && false && <div className="text-center text-xl text-black font-bold">Brouillon</div>}
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                <div className={`${onMobile ? 'flex flex-col' : 'grid grid-cols-12 divide-x divide-gray-200'}`}>
-                    <div className={`${onMobile ? 'order-1' : 'col-span-4'} p-3 space-y-2.5`}>
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden w-full ml-[-10px]">
+                <div className="flex flex-col md:flex-row">
+                    <div className="w-full md:w-1/3 p-3 space-y-2.5 border-b md:border-b-0 md:border-r border-gray-200">
                         <div>
                             <label className="block text-xs text-gray-600 mb-1">Modèle</label>
                             <select 
@@ -234,10 +250,9 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ params, pastBro
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <label className="text-xs text-gray-600 w-24">À:</label>
+                            <label className="text-xs text-gray-600 w-16 md:w-24">À:</label>
                             <input
                                 type="email"
-                                //required
                                 className="block w-full text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={to}
                                 onChange={(e) => setTo(e.target.value)}
@@ -246,7 +261,7 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ params, pastBro
 
                         <div>
                             <div className="flex items-center gap-2">
-                                <label className="text-xs text-gray-600 w-24">Cc:</label>
+                                <label className="text-xs text-gray-600 w-16 md:w-24">Cc:</label>
                                 <div className="flex flex-1 gap-1">
                                     <input
                                         type="email"
@@ -264,7 +279,7 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ params, pastBro
                                 </div>
                             </div>
                             {ccList.length > 0 && (
-                                <div className="mt-1 ml-24 space-y-1">
+                                <div className="mt-1 ml-16 md:ml-24 space-y-1">
                                     {ccList.map((email) => (
                                         <div key={email} className="flex items-center gap-1 text-xs">
                                             <span className="flex-1 truncate">{email}</span>
@@ -282,10 +297,9 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ params, pastBro
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <label className="text-xs text-gray-600 w-24">Répondre à:</label>
+                            <label className="text-xs text-gray-600 w-16 md:w-24">Répondre à:</label>
                             <input
                                 type="email"
-                                //required
                                 className="block w-full text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={replyTo}
                                 onChange={(e) => setReplyTo(e.target.value)}
@@ -293,10 +307,9 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ params, pastBro
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <label className="text-xs text-gray-600 w-24">Objet:</label>
+                            <label className="text-xs text-gray-600 w-16 md:w-24">Objet:</label>
                             <input
                                 type="text"
-                                //required
                                 className="block w-full text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={subject}
                                 onChange={handleSubjectChange}
@@ -304,12 +317,12 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ params, pastBro
                         </div>
                     </div>
 
-                    <div className={`${onMobile ? 'order-2' : 'col-span-8'} flex flex-col`}>
+                    <div className="w-full md:w-2/3 flex flex-col">
                         <textarea
-                            //required
-                            className="flex-1 w-full p-3 text-xs leading-tight text-black font-sans bg-gray-50 border-0 focus:ring-0 resize-none min-h-[250px]"
+                            className="flex-1 w-full p-3 text-xs leading-tight text-black font-sans bg-gray-50 border-0 focus:ring-0 resize-none min-h-[350px] md:min-h-[350px]"
                             value={emailBody}
                             onChange={handleEmailBodyChange}
+                            placeholder="Contenu de l'email"
                         />
                     </div>
                 </div>
@@ -320,4 +333,3 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ params, pastBro
 
 export default NewDemandeMailComponent;
 
-*/

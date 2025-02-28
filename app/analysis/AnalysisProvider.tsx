@@ -73,7 +73,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
                 points_collecte,
                 segmentDates,
                 mappingTable,
-                [], // pas de filtres personnalisés pour l'analyse
+                filterFunctions, // filtres personnalisés pour l'analyse
                 false, // pas de filtre des BSDs en attente pour l'analyse
             );
 
@@ -85,7 +85,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
         } finally {
             setLoading(false);
         }
-    }, [entreprise_id, filieres, sites, points_collecte, segmentDates, mappingTable]);
+    }, [entreprise_id, filieres, sites, points_collecte, segmentDates, mappingTable, filterFunctions]);
 
     useEffect(() => {
         setLoading(true);

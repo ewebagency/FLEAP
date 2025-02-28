@@ -1,4 +1,4 @@
-/*import { useState } from "react";
+import { useState } from "react";
 import { useModalContextNew } from "../RegisterComponents/Modal/ContextModal";
 import BoxIcon from "@/app/component/BoxIconWrapper";
 import NewFormulaireDemande from "./NewFormulaireDemande";
@@ -14,10 +14,10 @@ const NewDemandeMailButon = () => {
         <div>
             <button
                 onClick={handleClick}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-            >
-                <BoxIcon name="plus-circle" type="regular" className="w-5 h-5" />
-                <span>Nouvelle demande de collecte</span>
+                className="bg-[var(--green-medium)] hover:bg-[var(--green-dark)] text-white px-4 py-2 ml-2 rounded-lg flex items-center space-x-2 text-lg font-medium transition-colors duration-200"
+                >
+                <BoxIcon name='truck' type='solid' color='white' size="24px" />
+                <span>Demander des collectes</span>
             </button>
             {displayNewDemandeMail && <NewFormulaireDemande setDisplayThis={setDisplayNewDemandeMail}/>}
         </div>
@@ -25,4 +25,3 @@ const NewDemandeMailButon = () => {
 };
 
 export default NewDemandeMailButon;
-*/

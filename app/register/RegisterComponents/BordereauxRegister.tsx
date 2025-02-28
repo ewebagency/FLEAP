@@ -5,7 +5,7 @@ import { useSession } from '../../component/SessionProvider';
 import { BoutonOpenModal } from './Modal/BoutonOpenModal';
 import { useModalContextNew } from './Modal/ContextModal';
 import { Filiere, useFilterContext } from '@/app/FilterContext';
-//import NewDemandeMailButon from '../DemandeCollecteNew/NewDemandeMailButon';
+import NewDemandeMailButon from '../DemandeCollecteNew/NewDemandeMailButton';
 import { RowBSD } from "../interface/BSD_Interface";
 
 const BordereauxRegister = () => {
@@ -54,7 +54,8 @@ const BordereauxRegister = () => {
                     ${filterPendingBSDs ? 'border-2 border-[var(--green-medium)]' : 'border border-gray-200'}`}
                 >
                     <div className="flex-grow">
-                        <BoutonOpenModal />
+                        {/*<BoutonOpenModal />*/}
+                        <NewDemandeMailButon/>
                     </div>
                 </div>
                 </div>
@@ -62,8 +63,10 @@ const BordereauxRegister = () => {
             {/* Version Desktop */}
             <div className="hidden md:block bg-gray-100 p-2 rounded-lg shadow-sm mb-2">
                 <div className="flex items-center justify-between">
-                    <BoutonOpenModal/>
-                    {/*<NewDemandeMailButon/>*/}
+                    <div className="flex space-x-2">
+                    <NewDemandeMailButon/>
+                    {/*<BoutonOpenModal/>*/}
+                    </div>
                     <div className="flex space-x-8">
                         <div>
                             {/*<button className={`text-center ${filterPendingBSDs ? 'text-[var(--green-medium)] font-bold' : 'text-gray-600'}`} 

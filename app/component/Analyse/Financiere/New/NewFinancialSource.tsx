@@ -12,7 +12,7 @@ import { getFiliere, getMappingTableFiliere } from '@/app/register/RegisterCompo
 
 const NewFinancialSource = () => {
     const session = useSession() as SessionMore;
-    const { segmentDates, filieres } = useFilterContext();
+    const { segmentDates, filieres, sites } = useFilterContext();
     const [entreprise_id, setEntreprise_id] = useState<string | null>(null);
     const [factures, setFactures] = useState<Facture[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -77,6 +77,11 @@ const NewFinancialSource = () => {
         nom: f.name,
         active: f.checked
     })));
+    console.log('Sites configurés:', sites.map(s => ({
+        orgId: s.orgId,
+        nom: s.name,
+        active: s.checked
+    })));
     console.log('Période:', {
         debut: segmentDates.debut?.toLocaleDateString(),
         fin: segmentDates.fin?.toLocaleDateString()
@@ -130,6 +135,22 @@ const NewFinancialSource = () => {
             if (!isNaN(date.getTime())) {
                 if (segmentDates.debut && date < segmentDates.debut) return false;
                 if (segmentDates.fin && date > segmentDates.fin) return false;
+            }
+
+            // Filtre sur le site_siret
+            const checkedSites = sites.filter(site => site.checked).map(site => site.orgId);
+            if (checkedSites.length > 0) {
+                const siteSiret = header.site_siret;
+                // Si "----" est coché, on accepte les sites vides ou les sites cochés
+                if (checkedSites.includes('----')) {
+                    if (siteSiret && siteSiret !== '' && !checkedSites.includes(siteSiret)) {
+                        return false;
+                    }
+                } else if (!siteSiret || !checkedSites.includes(siteSiret)) {
+                    return false;
+                }
+            } else {
+                return false;
             }
 
             // Nettoyage du code CED

@@ -36,6 +36,7 @@ interface InputFullProps {
     stylePrimary?: boolean;
     onMobile?: boolean;
     popup?: boolean;
+    hideIndicators?: boolean;
 }
 
 const InputFull: React.FC<InputFullProps> = ({
@@ -54,6 +55,7 @@ const InputFull: React.FC<InputFullProps> = ({
     stylePrimary=false,
     onMobile = false,
     popup = false,
+    hideIndicators = false,
 }: InputFullProps) => {
     const [isTextMode, setIsTextMode] = useState(false);
 
@@ -181,11 +183,11 @@ const InputFull: React.FC<InputFullProps> = ({
                                         }),
                                         clearIndicator: (base) => ({
                                             ...base,
-                                            display: popup ? 'none' : 'flex'
+                                            display: hideIndicators ? 'none' : popup ? 'none' : 'flex'
                                         }),
                                         indicatorSeparator: (base) => ({
                                             ...base,
-                                            display: popup ? 'none' : 'flex'
+                                            display: hideIndicators ? 'none' : popup ? 'none' : 'flex'
                                         }),
                                         valueContainer: (base) => ({
                                             ...base,
@@ -258,6 +260,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                         }),
                                         dropdownIndicator: (base) => ({
                                             ...base,
+                                            display: 'flex',
                                             padding: 2
                                         })
                                     }}
@@ -266,7 +269,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                     }}
                                 />
                             ) : (
-                                <div className={`w-full text-xs border border-gray-400 rounded-md p-2 whitespace-nowrap overflow-x-auto ${stylePrimary ? 'bg-blue-50 border-blue-500 border-2' : getBackgroundColor()}`}>
+                                <div className={`w-full text-xs border border-gray-400 rounded-md p-2 whitespace-nowrap overflow-hidden text-ellipsis ${stylePrimary ? 'bg-blue-50 border-blue-500 border-2' : getBackgroundColor()}`}>
                                     {value}
                                 </div>
                             )}

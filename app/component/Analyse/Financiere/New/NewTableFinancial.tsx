@@ -34,6 +34,23 @@ interface FiliereData {
     [filiere: string]: OperationSums;
 }
 
+    // Fonction pour normaliser les types d'opérations
+    const normalizeOperationType = (type: string): string => {
+        // Convertir en minuscules et remplacer les espaces par des underscores
+        const normalized = type.toLowerCase().replace(/ /g, '_');
+        
+        // Gérer les cas spécifiques mentionnés
+        if (normalized === 'gestion_global') return 'gestion_globale';
+        if (normalized === 'préparation') return 'preparation';
+        if (normalized === 'non_expliqués') return 'non_expliques';
+        if (normalized.includes('contenant')) return 'autres_contenant';
+        
+        // Supprimer les accents pour d'autres cas potentiels
+        return normalized
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+    };
+
 const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
     const { filieres } = useFilterContext();
@@ -74,12 +91,13 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
             // Traiter chaque ligne du body individuellement
             depart.line_body.forEach(line => {
                 const montant = line.montant_ht;
-                const type = line.type_operation.toLowerCase().replace(/ /g, '_');
+                const type = normalizeOperationType(line.type_operation);
 
                 // Si c'est un type d'opération connu
                 if (type in acc[filiere]) {
                     acc[filiere][type] += montant;
                 } else {
+                    //console.log('Type inconnu:', type, 'Original:', line.type_operation);
                     // Si type inconnu, mettre dans "autres"
                     acc[filiere].autres += montant;
                 }
@@ -133,7 +151,7 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
 
     // Liste des opérations à afficher
     const operationsToShow = [...MAIN_OPERATIONS, ...EXPANDED_OPERATIONS]
-        .map(op => op.toLowerCase().replace(/ /g, '_'))
+        .map(op => normalizeOperationType(op))
         .filter(op => shouldShowColumn(op));
 
     return (

@@ -66,72 +66,110 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
         };
     };
 
-    const commonOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '60%',
-        layout: {
-            padding: {
-                top: 20,
-                bottom: 20
+    // Plugin pour afficher le titre au centre
+    const centerTextPlugin = (title: string) => {
+        return {
+            id: 'centerText',
+            afterDraw: function(chart: ChartJS<'doughnut'>) {
+                // Obtenir les dimensions du graphique sans la légende
+                const chartArea = chart.chartArea;
+                if (!chartArea) return;
+                
+                // Calculer le centre du graphique (pas de la canvas entière)
+                const centerX = (chartArea.left + chartArea.right) / 2;
+                const centerY = (chartArea.top + chartArea.bottom) / 2;
+                
+                const ctx = chart.ctx;
+                
+                ctx.save();
+                ctx.font = '600 14px sans-serif';
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'center';
+                
+                // Fond blanc semi-transparent
+                ctx.fillStyle = 'rgba(255, 255, 255, 0)';
+                const textWidth = ctx.measureText(title).width;
+                const padding = 10;
+                const rectWidth = textWidth + padding * 2;
+                const rectHeight = 24;
+                ctx.beginPath();
+                ctx.roundRect(
+                    centerX - rectWidth / 2,
+                    centerY - rectHeight / 2,
+                    rectWidth,
+                    rectHeight,
+                    8
+                );
+                ctx.fill();
+                
+                // Texte
+                ctx.fillStyle = '#4B5563'; // text-gray-600
+                ctx.fillText(title, centerX, centerY);
+                ctx.restore();
             }
-        },
-        plugins: {
-            legend: {
-                position: 'bottom' as const,
-                labels: {
-                    font: { size: 11 },
-                    // Ne pas afficher les légendes pour les valeurs < 5%
-                    filter: (legendItem: LegendItem, data: ChartData) => {
-                        const dataset = data.datasets[0];
-                        const total = dataset.data.reduce((a: number, b: number) => a + b, 0);
-                        const value = dataset.data[legendItem.index as number];
-                        return ((value / total) * 100) >= 5;
+        };
+    };
+
+    const getOptions = (title: string) => {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: {
+                    position: 'bottom' as const,
+                    align: 'center' as const,
+                    labels: {
+                        boxWidth: 12,
+                        padding: 15,
+                        font: { size: 11 },
+                        filter: (legendItem: LegendItem, data: ChartData) => {
+                            const dataset = data.datasets[0];
+                            const total = dataset.data.reduce((a: number, b: number) => a + b, 0);
+                            const value = dataset.data[legendItem.index as number];
+                            return ((value / total) * 100) >= 5;
+                        }
+                    }
+                },
+                tooltip: {
+                    enabled: true,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    titleFont: { size: 14 },
+                    bodyFont: { size: 13 },
+                    displayColors: true,
+                    callbacks: {
+                        label: function(context: TooltipItem<'doughnut'>) {
+                            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                            const value = context.raw as number;
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return ` ${percentage}% (${value.toLocaleString('fr-FR')} €)`;
+                        }
                     }
                 }
-            },
-            tooltip: {
-                enabled: true,
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                padding: 12,
-                titleFont: { size: 14 },
-                bodyFont: { size: 13 },
-                displayColors: true,
-                callbacks: {
-                    label: function(context: TooltipItem<'doughnut'>) {
-                        const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-                        const value = context.raw as number;
-                        const percentage = ((value / total) * 100).toFixed(1);
-                        return ` ${percentage}% (${value.toLocaleString('fr-FR')} €)`;
-                    }
-                }
             }
-        }
+        };
     };
 
     return (
         <div className="w-full grid grid-cols-2 gap-4">
             {/* Couts inversé */}
-            <div className="relative h-[250px] flex flex-col items-center">
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <h3 className="text-sm font-semibold text-gray-600 mb-11">Coûts</h3>
-                </div>
-                <div className="w-full h-full flex items-center justify-center">
+            <div className="flex flex-col">
+                <div className="h-[200px] relative">
                     <Doughnut 
                         data={getChartData(revenues)}
-                        options={commonOptions}
+                        options={getOptions('Coûts')}
+                        plugins={[centerTextPlugin('Coûts')]}
                     />
                 </div>
             </div>
             {/* Revenus (inversé) */}
-            <div className="relative h-[250px] flex flex-col items-center">
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <h3 className="text-sm font-semibold text-gray-600 top-6">Revenus</h3>
-                </div>
-                <div className="w-full h-full flex items-center justify-center">
+            <div className="flex flex-col">
+                <div className="h-[200px] relative">
                     <Doughnut 
                         data={getChartData(costs)}
-                        options={commonOptions}
+                        options={getOptions('Revenus')}
+                        plugins={[centerTextPlugin('Revenus')]}
                     />
                 </div>
             </div>

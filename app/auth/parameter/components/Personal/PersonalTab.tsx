@@ -1,18 +1,27 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { SessionMore, useSession } from '@/app/component/SessionProvider';
 
-export default function PersonalTab({ email, currentProfile }: { email: string|null, currentProfile: {first_name?: string, last_name?: string} | null }) {
+export default function PersonalTab({ email, currentProfile }: { email: string|null, currentProfile: {first_name?: string, last_name?: string, phone?: string} | null }) {
     const router = useRouter();
     const session = useSession() as SessionMore;
     const [pastPassword, setPastPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
+    const [phone, setPhone] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+
+    useEffect(() => {
+        if (currentProfile) {
+            setFirstName(currentProfile.first_name || '');
+            setLastName(currentProfile.last_name || '');
+            setPhone(currentProfile.phone || '');
+        }
+    }, [currentProfile]);
 
     const handleChangePassword = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -62,6 +71,7 @@ export default function PersonalTab({ email, currentProfile }: { email: string|n
                 .update({
                     first_name: firstName,
                     last_name: lastName,
+                    phone: phone,
                 })
                 .eq('user_id', session.user_id);
 
@@ -77,6 +87,7 @@ export default function PersonalTab({ email, currentProfile }: { email: string|n
                     user_id: session.user_id,
                     first_name: firstName,
                     last_name: lastName,
+                    phone: phone,
                 });
 
             if (insertProfileError) {
@@ -125,8 +136,9 @@ export default function PersonalTab({ email, currentProfile }: { email: string|n
                 <h2 className="text-2xl font-bold text-gray-800 mb-6">Modifier votre profil</h2>
                 <div className="text-gray-600 mb-4">
                     {currentProfile?.first_name || 'Non défini'} {currentProfile?.last_name || 'Non défini'}
+                    {currentProfile?.phone && <div>Tél: {currentProfile.phone}</div>}
                 </div>
-                <form onSubmit={handleChangeProfile} className="flex flex-col h-[200px] justify-between">
+                <form onSubmit={handleChangeProfile} className="flex flex-col h-[250px] justify-between">
                     <div className="space-y-4">
                         <input
                             type="text"
@@ -140,6 +152,13 @@ export default function PersonalTab({ email, currentProfile }: { email: string|n
                             placeholder="Nom"
                             value={lastName}
                             onChange={(e) => setLastName(e.target.value)}
+                            className="border border-gray-300 p-3 w-full rounded"
+                        />
+                        <input
+                            type="tel"
+                            placeholder="Téléphone"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
                             className="border border-gray-300 p-3 w-full rounded"
                         />
                     </div>

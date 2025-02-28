@@ -5,10 +5,11 @@ import { supabase } from "@/app/database/supabaseClient";
 import { useSession } from "@/app/component/SessionProvider";
 import { getMappingTableFiliere, getFiliere } from "../FormulaireFull/utils_new";
 import { OtherInfos } from "../../../interface/BSD_Interface";
+import Image from 'next/image';
 
 const DisplayCard = () => {
     const { modalId, modalType, setModalType, modalReload } = useModalContextNew();
-    const [bsd, setBSD] = useState<BSDD_TrackDechets | null>(null);
+    const [bsd, setBSD] = useState<BSDD_TrackDechets & { photo?: string } | null>(null);
     const [otherInfos, setOtherInfos] = useState<OtherInfos | null>(null);
     const session = useSession();
     const [filiere, setFiliere] = useState<string>("");
@@ -23,7 +24,10 @@ const DisplayCard = () => {
 
         if (result.data) {
             console.log("BSD trouvé:", result.data);
-            setBSD(result.data.infos_json.formAPI.createFormInput);
+            setBSD({
+                ...result.data.infos_json.formAPI.createFormInput,
+                photo: result.data.photo
+            });
             setOtherInfos(result.data.other_infos);
         } else {
             console.error("Pas de BSD trouvé pour l'ID:", modalId);
@@ -176,6 +180,34 @@ const DisplayCard = () => {
                                     <LabelValue label="Nombre de contenants" value={bsd.wasteDetails?.packagingInfos[0]?.quantity || null} />
                                     <LabelValue label="Description" value={bsd.wasteDetails?.packagingInfos[0]?.other || null} />
                                 </div>
+
+                                {/* Après la section "Détails du déchet" et avant la section "Suivi" */}
+                                {bsd?.photo && (
+                                    <div className="bg-orange-50 p-3 rounded border border-orange-100">
+                                        <h3 className="font-semibold text-orange-800 mb-2">Photo du déchet</h3>
+                                        <div className="relative w-full h-48 rounded-lg overflow-hidden">
+                                            <Image
+                                                src={bsd.photo}
+                                                alt="Photo du déchet"
+                                                fill
+                                                className="object-contain"
+                                                onError={(e) => {
+                                                    const target = e.target as HTMLImageElement;
+                                                    target.src = "/placeholder-image.jpg";
+                                                    console.error("Erreur de chargement de l'image");
+                                                }}
+                                            />
+                                        </div>
+                                        <a 
+                                            href={bsd.photo} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-sm text-blue-600 hover:text-blue-800 mt-2 inline-block"
+                                        >
+                                            Voir la photo en taille réelle
+                                        </a>
+                                    </div>
+                                )}
 
                                 {/* Suivi */}
                                 <div className="bg-gray-50 p-3 rounded border border-gray-100">

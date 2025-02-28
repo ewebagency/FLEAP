@@ -93,6 +93,10 @@ const AnalOpMainChart = () => {
       );
       if (monthIndex >= 0 && monthIndex < monthLabels.length) {
         const quantity = bsd.infos_json.formAPI.createFormInput.quantityReceived ? bsd.infos_json.formAPI.createFormInput.quantityReceived : bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
+        
+        //if(typeof quantity !== 'number')console.log("quantité", quantity, bsd.id);
+          
+        
         quantitiesBySegment[segmentKey][monthIndex] += quantity;
       }
     });

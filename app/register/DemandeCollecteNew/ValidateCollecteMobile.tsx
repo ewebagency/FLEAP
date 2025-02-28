@@ -1,6 +1,6 @@
 import { FormInput } from "@/app/register/interface/BSD_Interface";
 import { useModalContextNew } from "../RegisterComponents/Modal/ContextModal";
-import InputFull from "../RegisterComponents/Modal/FormulaireFull/InputFull";
+import InputMobile from "../RegisterComponents/Modal/FormulaireFull/InputMobile";
 import { getDataAutocompletion, getMappingTableFiliere, getFiliere, filter_dependencies, formatText } from "../RegisterComponents/Modal/FormulaireFull/utils_new";
 import { useEffect, useState, useRef } from "react";
 import { useSession } from "@/app/component/SessionProvider";
@@ -16,8 +16,6 @@ import { isAncestor, getDataAutocompletionFull, getUniqueOptions, updateNestedVa
 import { useMediaQuery } from 'react-responsive';
 import dynamic from 'next/dynamic';
 
-// Charger dynamiquement le composant mobile
-const ValidateCollecteMobile = dynamic(() => import('./ValidateCollecteMobile'), { ssr: false });
 
 // Définition de la structure des dépendances
 interface InputDependency {
@@ -57,6 +55,9 @@ const inputDependencies: InputDependencies = {
             'fillRate'
         ]
     },
+    'other_infos.containerDescription': {
+        children: ['other_infos.volume', 'other_infos.volumeUnit', 'other_infos.fillRate']
+    },
     'emitter.company.contact': {
         children: ['emitter.company.mail', 'emitter.company.phone']
     },
@@ -73,7 +74,20 @@ const shouldDisplayField = (currentField: string, changedField: string, parentDe
     // Si le champ est le même que celui qui a changé
     if (currentField === changedField) return true;
     
+    // Normaliser les champs pour gérer les other_infos
+    const normalizedCurrentField = currentField.replace('other_infos.', '');
+    const normalizedChangedField = changedField.replace('other_infos.', '');
+    
     // Vérifier si le champ changé est un ancêtre du champ actuel
+    // Cas spécial pour les champs other_infos
+    if (changedField.startsWith('other_infos.') && currentField.startsWith('other_infos.')) {
+        const dependency = parentDependencies[changedField];
+        if (dependency && dependency.children.includes(currentField)) {
+            return true;
+        }
+    }
+    
+    // Vérification standard pour les autres champs
     const condition = isAncestor(changedField, currentField, parentDependencies);
     if (condition) {
         return true;
@@ -153,7 +167,7 @@ const compressImage = async (file: File): Promise<File> => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = (event) => {
-            const img = document.createElement('img');
+            const img = document.createElement('img') as HTMLImageElement;
             img.src = event.target?.result as string;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
@@ -196,7 +210,7 @@ const compressImage = async (file: File): Promise<File> => {
     });
 };
 
-const ValidateCollecte = ({ onClose, bsd }: ValidateCollecteProps) => {
+const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
     const {             
         setDisplayFormulaire,
         options,
@@ -209,6 +223,13 @@ const ValidateCollecte = ({ onClose, bsd }: ValidateCollecteProps) => {
     // Initialiser dataToogle avec les données du BSD
     const [dataToogle, setDataToogle] = useState<FormInput>(
         bsd.infos_json.formAPI.createFormInput as unknown as FormInput
+    );
+
+    const [initialDataToogle, setInitialDataToogle] = useState<FormInput>(
+        bsd.infos_json.formAPI.createFormInput as unknown as FormInput
+    );
+    const [initialOtherInfos, setInitialOtherInfos] = useState<OtherInfos>(
+        bsd.other_infos as unknown as OtherInfos
     );
 
     // Initialiser other_infos avec les données du BSD
@@ -361,6 +382,11 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: 
 
     // Gérer les champs other_infos séparément
     if (name.startsWith('other_infos.')) {
+        // Si c'est le champ containerDescription, mettre à jour changedField
+        if (name === 'other_infos.containerDescription') {
+            setChangedField(name);
+        }
+        
         const fieldName = name.replace('other_infos.', '');
         setOtherInfos(prev => ({
             ...prev,
@@ -522,33 +548,164 @@ useEffect(() => {
 const handleTakePhoto = async () => {
     try {
         if (!session) {
-            throw new Error('Vous devez être connecté pour prendre une photo');
+            toast.error('Vous devez être connecté pour prendre une photo');
+            return;
         }
+
+        // Créer une div de statut pour iOS
+        const statusDiv = document.createElement('div');
+        statusDiv.style.position = 'fixed';
+        statusDiv.style.bottom = '20px';
+        statusDiv.style.left = '50%';
+        statusDiv.style.transform = 'translateX(-50%)';
+        statusDiv.style.backgroundColor = 'rgba(0,0,0,0.8)';
+        statusDiv.style.color = 'white';
+        statusDiv.style.padding = '10px 20px';
+        statusDiv.style.borderRadius = '20px';
+        statusDiv.style.zIndex = '9999';
+        statusDiv.style.display = 'none';
+        document.body.appendChild(statusDiv);
+
+        const updateStatus = (message: string) => {
+            statusDiv.textContent = message;
+            console.log('Status:', message);
+        };
+
+        const cleanupStatus = () => {
+            if (document.body.contains(statusDiv)) {
+                document.body.removeChild(statusDiv);
+            }
+        };
+
+        // Nettoyer après 10 secondes dans tous les cas
+        setTimeout(cleanupStatus, 10000);
+
+        updateStatus('Initialisation de la capture...');
 
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
-        input.click();
+        
+        // Sur iOS, ne pas utiliser capture="environment"
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        if (!isIOS) {
+            input.setAttribute('capture', 'environment');
+        }
 
-        input.onchange = async (e) => {
-            const file = (e.target as HTMLInputElement).files?.[0];
-            if (!file) return;
+        updateStatus('Ouverture de la sélection...');
+        
+        return new Promise((resolve, reject) => {
+            input.onchange = async (e) => {
+                const files = (e.target as HTMLInputElement).files;
+                if (!files || files.length === 0) {
+                    updateStatus('Aucune photo sélectionnée');
+                    setTimeout(cleanupStatus, 2000);
+                    reject(new Error('Aucune photo sélectionnée'));
+                    return;
+                }
 
-            // Compresser l'image
-            const compressedFile = await compressImage(file);
-            
-            // Stocker le fichier compressé
-            setCompressedPhoto(compressedFile);
-            
-            // Créer une URL temporaire pour l'aperçu
-            const tempUrl = URL.createObjectURL(compressedFile);
-            setPhotoUrl(tempUrl);
-            
-            toast.success('Photo ajoutée');
-        };
+                const file = files[0];
+                updateStatus('Photo sélectionnée, compression en cours...');
+                console.log('Type de fichier:', file.type);
+                console.log('Taille originale:', file.size);
+
+                try {
+                    // Compresser l'image
+                    const compressedFile = await compressImage(file);
+                    console.log('Taille après compression:', compressedFile.size);
+                    updateStatus('Photo compressée, création de l\'aperçu...');
+
+                    // Créer un URL temporaire pour l'aperçu
+                    const objectUrl = URL.createObjectURL(compressedFile);
+
+                    // Nettoyer l'ancienne URL si elle existe
+                    if (photoUrl && !photoUrl.startsWith('http')) {
+                        URL.revokeObjectURL(photoUrl);
+                    }
+
+                    // Mettre à jour l'état avec la nouvelle photo compressée
+                    setCompressedPhoto(compressedFile);
+                    setPhotoUrl(objectUrl);
+
+                    updateStatus('Photo chargée avec succès');
+                    setTimeout(cleanupStatus, 2000);
+                    resolve(undefined);
+
+                } catch (error) {
+                    console.error('Erreur lors de la compression:', error);
+                    updateStatus('Tentative de méthode alternative...');
+
+                    // Fallback à FileReader avec une compression basique
+                    const reader = new FileReader();
+                    reader.onloadend = async (event) => {
+                        if (event.target?.result) {
+                            // Créer une image pour la compression basique
+                            const img = document.createElement('img') as HTMLImageElement;
+                            img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                const MAX_SIZE = 800;
+                                let width = img.width;
+                                let height = img.height;
+
+                                if (width > height) {
+                                    if (width > MAX_SIZE) {
+                                        height *= MAX_SIZE / width;
+                                        width = MAX_SIZE;
+                                    }
+                                } else {
+                                    if (height > MAX_SIZE) {
+                                        width *= MAX_SIZE / height;
+                                        height = MAX_SIZE;
+                                    }
+                                }
+
+                                canvas.width = width;
+                                canvas.height = height;
+                                const ctx = canvas.getContext('2d');
+                                ctx?.drawImage(img, 0, 0, width, height);
+
+                                // Convertir en base64 avec une qualité réduite
+                                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                                setPhotoUrl(compressedDataUrl);
+
+                                // Convertir le base64 en File pour l'upload
+                                fetch(compressedDataUrl)
+                                    .then(res => res.blob())
+                                    .then(blob => {
+                                        const compressedFile = new File([blob], file.name, {
+                                            type: 'image/jpeg',
+                                            lastModified: Date.now()
+                                        });
+                                        setCompressedPhoto(compressedFile);
+                                        updateStatus('Photo chargée via méthode alternative');
+                                        setTimeout(cleanupStatus, 2000);
+                                        resolve(undefined);
+                                    });
+                            };
+                            img.src = event.target.result as string;
+                        }
+                    };
+                    reader.onerror = () => {
+                        updateStatus('Échec du chargement de la photo');
+                        setTimeout(cleanupStatus, 2000);
+                        reject(new Error('Échec de lecture du fichier'));
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            input.onerror = (error) => {
+                updateStatus('Erreur lors de la sélection');
+                setTimeout(cleanupStatus, 2000);
+                reject(error);
+            };
+
+            // Déclencher la sélection de fichier
+            input.click();
+        });
     } catch (error) {
-        console.error('Erreur lors de la prise de photo:', error);
-        toast.error(error instanceof Error ? error.message : 'Une erreur est survenue');
+        console.error('Erreur globale:', error);
+        toast.error('Erreur lors de la prise de photo');
     }
 };
 
@@ -652,50 +809,65 @@ useEffect(() => {
     };
 }, [photoUrl]);
 
-//Render
-    if (isMobile) {
-        return (
-            <ValidateCollecteMobile
-                bsd={bsd}
-                onClose={onClose}
-                onValidate={onValidate}
-            />
-        );
-    }
+// Ajouter un useEffect pour améliorer la gestion des événements tactiles
+useEffect(() => {
+    // Sélectionner l'élément de la jauge
+    const gaugeElement = document.querySelector('.touch-none');
     
+    if (gaugeElement) {
+        // Fonction pour empêcher le défilement par défaut
+        const preventDefaultTouch = (e: Event) => {
+            e.preventDefault();
+        };
+        
+        // Ajouter les écouteurs d'événements avec passive: false
+        gaugeElement.addEventListener('touchstart', preventDefaultTouch as EventListener, { passive: false });
+        gaugeElement.addEventListener('touchmove', preventDefaultTouch as EventListener, { passive: false });
+        gaugeElement.addEventListener('touchend', preventDefaultTouch as EventListener, { passive: false });
+        
+        // Nettoyer les écouteurs d'événements
+        return () => {
+            gaugeElement.removeEventListener('touchstart', preventDefaultTouch as EventListener);
+            gaugeElement.removeEventListener('touchmove', preventDefaultTouch as EventListener);
+            gaugeElement.removeEventListener('touchend', preventDefaultTouch as EventListener);
+        };
+    }
+}, []);
+
     return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center overflow-y-auto py-0 sm:py-4 z-50">
         <div className="bg-white p-3 sm:p-6 rounded-lg shadow-lg mb-0 sm:mb-2 w-full sm:w-[80%] max-w-8xl min-h-screen sm:min-h-0 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
                 <h3 className="font-bold text-base sm:text-lg ml-2 sm:ml-8 flex items-center gap-2">
-                        <BoxIcon className="mb-1" name='truck' type='solid' />
                         <span className="text-green-medium mt-1 font-bold">
-                            Valider la collecte
+                            Collecte à
                         </span>
+                        <BoxIcon className="mb-1" name='check-circle' type='solid' />
                     </h3>
                 <div className="flex gap-2 mr-1 sm:mr-3">
                         <button type="button" className="text-xs h-[25px] bg-[var(--green-medium)] rounded-md px-2 text-white font-thin hover:bg-[var(--green-dark)] active:font-bold" onClick={() => toogleFunction()}>Afficher/Masquer</button>
                         <button type="button" className="text-xs h-[25px] bg-[var(--green-medium)] rounded-md px-2 text-white font-thin hover:bg-[var(--green-dark)] active:font-bold" onClick={ResetData}>Réinitialiser</button>
                     </div>
                 </div>
-                
+    
             <form className="ml-0 sm:ml-2 pb-4">
                     {/* Première ligne : Site, Point de collecte, Contact émetteur*/}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-0 mb-1 w-full sm:w-[85%] bg-gray-50 rounded-md p-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-0 mb-1 w-full sm:w-[85%] rounded-md p-2">
                         {/* Colonne 1: Site*/}
                         <div>
-                            <InputFull
+                            <InputMobile    
                                 titre="Site"
-                                placeholder="Sélectionner un site"
+                                placeholder="Site"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.name)}
                                 width={30}
                                 name="emitter.company.name"
                                 value={dataToogle.emitter.company.name}
                                 onChange={handleChange}
                                 enableText={true}
+                                display={displayAll || dataToogle.emitter.company.name == ""}
                             />
-                            <InputFull
-                                titre=" "
+                            <InputMobile
+                                titre="Siret"
                                 placeholder="Siret"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.siret)}
                                 width={30}
@@ -709,18 +881,19 @@ useEffect(() => {
 
                         {/* Colonne 2: Point de collecte*/}
                         <div>
-                            <InputFull
+                            <InputMobile
                                 titre="Point de collecte"
-                                placeholder="Sélectionner un point de collecte"
+                                placeholder="Point de Collecte"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.workSite.name)}
                                 width={30}
                                 name="emitter.workSite.name"
                                 value={dataToogle.emitter.workSite.name}
                                 onChange={handleChange}
                                 enableText={true}
+                                display={displayAll || initialDataToogle.emitter.workSite.name == ""}
                             />
-                            <InputFull
-                                titre=" "
+                            <InputMobile
+                                titre="Point de collecte"
                                 placeholder="Adresse d'enlèvement"
                                 options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.emitter.workSite.fullAddress ?? ""}`)}
                                 width={30}
@@ -734,7 +907,7 @@ useEffect(() => {
 
                         {/* Colonne 3: Contact émetteur*/}
                         <div>
-                            <InputFull
+                            <InputMobile
                                 titre="Contact"
                                 placeholder="Contact"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.contact)}
@@ -743,9 +916,10 @@ useEffect(() => {
                                 value={dataToogle.emitter.company.contact}
                                 onChange={handleChange}
                                 enableText={true}
+                                display={displayAll || dataToogle.emitter.company.contact == ""}
                             />
-                            <InputFull
-                                titre=" "
+                            <InputMobile
+                                titre="Téléphone"
                                 placeholder="Téléphone"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.phone)}
                                 width={30}
@@ -755,8 +929,8 @@ useEffect(() => {
                                 enableText={true}
                                 display={displayAll || shouldDisplayField("emitter.company.phone", changedField)}
                             />
-                            <InputFull
-                                titre=" "
+                            <InputMobile
+                                titre="Mail"
                                 placeholder="Mail"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.mail)}
                                 width={30}
@@ -770,21 +944,22 @@ useEffect(() => {
                     </div>
 
                     {/* Deuxième ligne : Transporteur, Destinataire, Autres*/}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-0 mb-1 w-full sm:w-[85%] bg-gray-50 rounded-md p-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-0 mb-1 w-full sm:w-[85%] rounded-md p-2">
                         {/* Colonne 1: Transporteur*/}
                         <div>
-                            <InputFull
+                            <InputMobile
                                 titre="Transporteur"
-                                placeholder="Sélectionner un transporteur"
+                                placeholder="Transporteur"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.name)}
                                 width={30}
                                 name="transporter.company.name"
                                 value={dataToogle.transporter.company.name}
                                 onChange={handleChange}
                                 enableText={false}
-                            />
-                            <InputFull
-                                titre=" "
+                                display={displayAll || initialDataToogle.transporter.company.name == ""}
+                            />  
+                            <InputMobile
+                                titre="Siret"
                                 placeholder="Siret transporteur"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.siret)}
                                 width={30}
@@ -798,18 +973,19 @@ useEffect(() => {
 
                         {/* Colonne 2: Destinataire*/}
                         <div>
-                            <InputFull
+                            <InputMobile
                                 titre="Destinataire"
-                                placeholder="Sélectionner un destinataire"
+                                placeholder="Destinataire"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.name)}
                                 width={30}
                                 name="recipient.company.name"
                                 value={dataToogle.recipient.company.name}
                                 onChange={handleChange}
                                 enableText={false}
+                                display={displayAll || initialDataToogle.recipient.company.name == ""}
                             />
-                            <InputFull
-                                titre=" "
+                            <InputMobile
+                                titre="Siret"
                                 placeholder="Siret destinataire"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.siret)}
                                 width={30}
@@ -823,8 +999,8 @@ useEffect(() => {
 
                         {/* Colonne 3: Autres*/}
                         <div>
-                            <InputFull
-                                titre=" "
+                            <InputMobile
+                                titre="CAP"
                                 placeholder="CAP"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.cap || '')}
                                 width={30}
@@ -834,8 +1010,8 @@ useEffect(() => {
                                 enableText={false}
                                 display={displayAll || shouldDisplayField("recipient.cap", changedField)}
                             />
-                            <InputFull
-                                titre=" "
+                            <InputMobile
+                                titre="Code traitement"
                                 placeholder="Code traitement"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.processingOperation || '')}
                                 width={30}
@@ -849,24 +1025,25 @@ useEffect(() => {
                     </div>
 
                     {/* Troisième ligne : Filière, Déchet, Contenant*/}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-0 mb-1 w-full sm:w-[85%] bg-gray-50 rounded-md p-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-0 mb-1 w-full sm:w-[85%] rounded-md p-2">
                         {/* Colonne 1: Filière*/}
                         <div>
-                            <InputFull
+                            <InputMobile
                                 titre="Filière"
-                                placeholder="Sélectionner une filière"
+                                placeholder="Filière"
                                 options={getUniqueOptions(options, allOptions, opt => getFiliere(opt.json_row.wasteDetails.code, ced_table))}
                                 width={30}
                                 name="filiere"
                                 value={currentFiliere}
                                 onChange={handleChange}
                                 enableText={false}
+                                display={displayAll ||  initialDataToogle.filiere == ""}
                             />
                         </div>
 
                         {/* Colonne 2: Déchet*/}
                         <div>
-                            <InputFull
+                            <InputMobile
                                 titre="Déchet"
                                 placeholder="Nom du déchet"
                                 options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.name}`)}
@@ -875,9 +1052,10 @@ useEffect(() => {
                                 value={dataToogle.wasteDetails.name}
                                 onChange={handleChange}
                                 enableText={false}
+                                display={displayAll || initialDataToogle.wasteDetails.name == ""}
                             />
-                            <InputFull
-                                titre=" "
+                            <InputMobile
+                                titre="Code CED"
                                 placeholder="Code CED"
                                 options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.code}`)}
                                 width={30}
@@ -891,7 +1069,7 @@ useEffect(() => {
 
                         {/* Colonne 3: Contenant*/}
                         <div>
-                            <InputFull
+                            <InputMobile
                                 titre="Description"
                                 placeholder="Description du contenant"
                                 options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.containerDescription || '')}
@@ -900,8 +1078,9 @@ useEffect(() => {
                                 value={other_infos.containerDescription}
                                 onChange={handleChange}
                                 enableText={true}
+                                display={displayAll ||  initialOtherInfos.containerDescription == ""}
                             />
-                            <InputFull
+                            <InputMobile
                                 titre="Volume"
                                 placeholder="Volume"
                                 name="other_infos.volume"
@@ -909,13 +1088,10 @@ useEffect(() => {
                                 onChange={handleChange}
                                 width={30}
                                 enableText={true}
-                                options={{
-                                    filteredOptions: [],
-                                    allOptions: ['20', '30', '100', '200', '500', '1000']
-                                }}
+                                options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.volume || '')}
                                 display={displayAll || shouldDisplayField("other_infos.volume", changedField)}
                             />
-                            <InputFull
+                            <InputMobile
                                 titre="Unité"
                                 placeholder="Unité"
                                 name="other_infos.volumeUnit"
@@ -932,72 +1108,130 @@ useEffect(() => {
                         </div>
                     </div>
 
-                {/* Section Validation de la collecte */}
-                <div className="text-md font-semibold ml-2 sm:ml-6 mt-4 sm:mt-6 mb-1 sm:mb-2">Validation de la collecte</div>
-                <div className="w-full md:w-[75%] bg-gray-50 rounded-md p-2 sm:p-4 mx-auto">
-                                {/* Header avec radio buttons et checkbox */}
-                    <div className="flex flex-wrap gap-2 sm:gap-4 mb-2 sm:mb-6">
-                                    <label className="flex items-center space-x-2">
+
+                
+                <div className="bg-gray-50 rounded-md p-4 mb-4">
+                    <h4 className="font-semibold text-base mb-4 font-bold">Informations quantitatives</h4>
+                    
+                    {/* Options de calcul - Agrandies */}
+                    <div className="flex justify-between items-center gap-4 mb-8">
+
+                        {other_infos.automaticMode && (
+                                <div className="flex flex-row gap-4">
+                                    <label className="flex items-center space-x-1">
                                         <input
                                             type="radio"
                                             name="inputMode"
                                             value="volume"
                                             checked={other_infos.inputMode === 'volume'}
                                             onChange={(e) => setOtherInfos(prev => ({ ...prev, inputMode: 'volume' }))}
-                                            className="h-4 w-4 text-blue-600"
-                                            disabled={!other_infos.automaticMode}
+                                            className="h-5 w-5 text-blue-600"
                                         />
-                            <span className={`text-xs sm:text-sm font-medium ${!other_infos.automaticMode ? 'text-gray-400' : 'text-gray-700'}`}>
-                                            Remplissage
-                                        </span>
+                                        <span className="text-base font-medium">Remplissage</span>
                                     </label>
-                                    <label className="flex items-center space-x-2">
+                                    <label className="flex items-center space-x-1">
                                         <input
                                             type="radio"
                                             name="inputMode"
                                             value="tonnage"
                                             checked={other_infos.inputMode === 'tonnage'}
                                             onChange={(e) => setOtherInfos(prev => ({ ...prev, inputMode: 'tonnage' }))}
-                                            className="h-4 w-4 text-blue-600"
-                                            disabled={!other_infos.automaticMode}
+                                            className="h-5 w-5 text-blue-600"
                                         />
-                            <span className={`text-xs sm:text-sm font-medium ${!other_infos.automaticMode ? 'text-gray-400' : 'text-gray-700'}`}>
-                                            Tonnage
-                                        </span>
+                                        <span className="text-base font-medium">Poids</span>
                                     </label>
-                                    <div className="flex items-center space-x-2">
+                                </div>
+                            )}
+
+                        <div className="flex items-center space-x-1">
                                         <input
                                             type="checkbox"
+                                id="automaticMode"
                                             checked={other_infos.automaticMode}
                                             onChange={(e) => setOtherInfos(prev => ({
                                                 ...prev,
                                                 automaticMode: e.target.checked,
                                                 inputMode: e.target.checked ? 'volume' : prev.inputMode
                                             }))}
-                                            className="h-4 w-4 text-blue-600 rounded"
+                                className="h-5 w-5 text-blue-600 rounded"
                                         />
-                            <label className="text-xs sm:text-sm font-medium text-gray-700">
-                                            Calcul automatique
+                            <label htmlFor="automaticMode" className="text-base font-medium">
+                                Auto
                                         </label>
                                     </div>
+                        
+
                                 </div>
 
-                    {/* Contenu réorganisé */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-8">
-                        {/* Colonne A */}
-                        <div className="flex flex-col space-y-3">
-                            {/* Sous-colonnes avec alignement vertical */}
-                            <div className="grid grid-cols-2 gap-3 items-center">
-                                {/* Jauge - Agrandie */}
-                                <div className="flex justify-center items-center h-full">
-                                    <div className="relative w-24 sm:w-40 h-[150px] sm:h-[220px] bg-gray-300 rounded-lg overflow-hidden border border-gray-200">
+                    {/* Jauge de remplissage et photo - Agrandis */}
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        {/* Photo */}
+                        <div>
+                            {photoUrl ? (
+                                <div>
+                                    <div className="relative w-full h-[180px] rounded-lg overflow-hidden border border-gray-200 mb-2">
+                                        <img
+                                            src={photoUrl}
+                                            alt="Photo du déchet"
+                                            className="object-contain w-full h-full"
+                                            key={`img-${Date.now()}`}
+                                            style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                            onLoad={(e) => {
+                                                console.log('Image chargée avec succès:', (e.target as HTMLImageElement).src);
+                                            }}
+                                            onError={(e) => {
+                                                console.error('Erreur de chargement de l\'image:', {
+                                                    src: (e.target as HTMLImageElement).src,
+                                                    error: e
+                                                });
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <a 
+                                            href={photoUrl || '#'}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm text-blue-600"
+                                            onClick={(e) => {
+                                                if (!photoUrl) e.preventDefault();
+                                            }}
+                                        >
+                                            Voir
+                                        </a>
+                                        <button
+                                            type="button"
+                                            className="text-sm bg-gray-100 text-gray-600 px-3 py-1 rounded"
+                                            onClick={handleTakePhoto}
+                                        >
+                                            Changer
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center w-full h-[180px] border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                                    <button
+                                        type="button"
+                                        onClick={handleTakePhoto}
+                                        className="flex flex-col items-center justify-center p-4 text-gray-600 hover:text-gray-800"
+                                    >
+                                        <BoxIcon name="camera" type="solid" className="w-8 h-8 mb-2" />
+                                        <span className="text-sm font-medium">Prendre une photo</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Jauge de remplissage */}
+                        <div className="flex flex-col items-center" onTouchMove={(e) => e.stopPropagation()}>
+                            <div className="relative w-32 h-[180px] bg-gray-300 rounded-lg overflow-hidden border border-gray-200 mb-2 touch-none">
                                             {/* Logo poubelle en filigrane */}
-                                            <div className="absolute inset-0 flex items-end justify-center opacity-20 overflow-visible">
-                                            <div className="transform scale-[4] sm:scale-[6] mb-[25px] sm:mb-[40px]">
+                                <div className="absolute inset-0 flex items-end justify-center opacity-20">
+                                    <div className="transform scale-[5] mb-[30px]">
                                                     <BoxIcon 
                                                         name="trash" 
                                                         type="solid"
-                                                    className="w-5 sm:w-8 h-10 sm:h-16 text-gray-600"
+                                            className="w-6 h-12 text-gray-600"
                                                     />
                                                 </div>
                                             </div>
@@ -1012,46 +1246,91 @@ useEffect(() => {
                                             
                                             {/* Pourcentage */}
                                             <div className="absolute inset-0 flex items-center justify-center">
-                                            <span className="text-sm sm:text-lg font-bold text-white">
+                                    <span className="text-2xl font-bold text-white">
                                                     {other_infos.fillRate || 0}%
                                                 </span>
                                             </div>
 
-                                            {/* Input range vertical superposé */}
-                                            <input
-                                                type="range"
-                                                min="0"
-                                                max="100"
-                                                step="5"
-                                                value={other_infos.fillRate || 0}
-                                                onChange={(e) => {
-                                                    if (!other_infos.automaticMode || other_infos.inputMode !== 'tonnage') {
-                                                        handleOtherInfosChange({ fillRate: e.target.value });
-                                                    }
-                                                }}
-                                                className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer ${
-                                                    other_infos.automaticMode && other_infos.inputMode === 'tonnage'
-                                                        ? 'cursor-not-allowed'
-                                                        : ''
-                                                }`}
-                                                style={{
-                                                    WebkitAppearance: 'slider-vertical'
-                                                }}
-                                                disabled={other_infos.automaticMode && other_infos.inputMode === 'tonnage'}
-                                            />
+                                {/* Zone tactile */}
+                                        <div 
+                                            className="absolute inset-0 touch-manipulation"
+                                            style={{ touchAction: 'none' }}
+                                            onTouchStart={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                        if (other_infos.automaticMode && other_infos.inputMode !== 'volume') return;
+                                                
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const height = rect.height;
+                                                const touchY = e.touches[0].clientY - rect.top;
+                                                const percentage = Math.round(100 - (touchY / height * 100));
+                                                
+                                                const newFillRate = Math.max(0, Math.min(100, percentage));
+                                                handleOtherInfosChange({ fillRate: newFillRate.toString() });
+                                        
+                                        if (other_infos.automaticMode && other_infos.inputMode === 'volume') {
+                                            const weight = calculateEstimatedWeight(
+                                                other_infos.volume,
+                                                newFillRate.toString(),
+                                                dataToogle.wasteDetails.code,
+                                                other_infos.volumeUnit
+                                            );
+                                            if (weight !== null) {
+                                                const newData = { ...dataToogle };
+                                                updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.quantity', weight.toFixed(3));
+                                                setDataToogle(newData);
+                                            }
+                                        }
+                                            }}
+                                            onTouchMove={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                        if (other_infos.automaticMode && other_infos.inputMode !== 'volume') return;
+                                                
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const height = rect.height;
+                                                const touchY = e.touches[0].clientY - rect.top;
+                                                const percentage = Math.round(100 - (touchY / height * 100));
+                                                
+                                                const newFillRate = Math.max(0, Math.min(100, percentage));
+                                                handleOtherInfosChange({ fillRate: newFillRate.toString() });
+                                        
+                                        if (other_infos.automaticMode && other_infos.inputMode === 'volume') {
+                                            const weight = calculateEstimatedWeight(
+                                                other_infos.volume,
+                                                newFillRate.toString(),
+                                                dataToogle.wasteDetails.code,
+                                                other_infos.volumeUnit
+                                            );
+                                            if (weight !== null) {
+                                                const newData = { ...dataToogle };
+                                                updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.quantity', weight.toFixed(3));
+                                                setDataToogle(newData);
+                                            }
+                                        }
+                                    }}
+                                    onTouchEnd={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                    }}
+                                />
+                            </div>
+                            <div className="text-sm text-center text-gray-500">
+                                Glisser pour ajuster
+                            </div>
                                         </div>
                                     </div>
 
-                                    {/* Inputs */}
-                                <div className="flex flex-col space-y-2 self-center h-full justify-center">
-                                        {/* Input quantité */}
+                    {/* Quantité et nombre - Agrandis */}
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        {/* Quantité */}
                                     <div>
-                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
                                             Quantité (t)
                                         </label>
                                         <input
                                             type="number"
-                                            className={`w-full text-base sm:text-2xl px-2 sm:px-3 py-1 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                className={`w-full text-xl px-3 py-3 border border-gray-300 rounded-md ${
                                                 other_infos.automaticMode && other_infos.inputMode === 'volume' ? 'bg-gray-100' : ''
                                             }`}
                                             value={dataToogle.wasteDetails.quantity || ''}
@@ -1075,13 +1354,11 @@ useEffect(() => {
                                             disabled={other_infos.automaticMode && other_infos.inputMode === 'volume'}
                                             placeholder="0.00"
                                         />
-                                    </div>
-
-                                        {/* Checkbox quantité estimée */}
-                                        <div className="flex items-center space-x-2">
+                            <div className="flex items-center mt-2">
                                             <input
                                                 type="checkbox"
-                                            className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600 rounded"
+                                    id="estimatedQuantity"
+                                    className="h-4 w-4 text-blue-600 rounded"
                                                 checked={dataToogle.wasteDetails.quantityType === 'ESTIMATED'}
                                                 onChange={(e) => {
                                                     const newData = { ...dataToogle };
@@ -1089,17 +1366,18 @@ useEffect(() => {
                                                     setDataToogle(newData);
                                                 }}
                                             />
-                                        <label className="text-xs sm:text-sm text-gray-600">
+                                <label htmlFor="estimatedQuantity" className="ml-2 text-sm text-gray-600">
                                                 Quantité estimée
                                             </label>
+                            </div>
                                         </div>
 
-                                        {/* Input nombre de contenants */}
-                                    <div className="mt-1">
-                                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                        {/* Nombre */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
                                             Nombre
                                             </label>
-                                        <div className="flex items-center space-x-1 sm:space-x-2">
+                            <div className="flex items-center space-x-2">
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -1110,14 +1388,13 @@ useEffect(() => {
                                                             setDataToogle(newData);
                                                         }
                                                     }}
-                                                className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-200 rounded-full hover:bg-gray-300"
+                                    className="w-10 h-10 flex items-center justify-center bg-gray-200 rounded-full text-xl font-bold"
                                                 >
-                                                    <span className="sr-only">Diminuer</span>
                                                     -
                                                 </button>
                                                 <input
                                                     type="number"
-                                                className="w-12 sm:w-20 h-[32px] sm:h-[42px] text-center px-1 sm:px-2 border border-gray-300 rounded-md"
+                                    className="w-20 h-12 text-xl text-center px-2 border border-gray-300 rounded-md"
                                                     value={dataToogle.wasteDetails.packagingInfos[0].quantity || 1}
                                                     onChange={(e) => {
                                                         const value = Math.max(Number(e.target.value) || 1, 1);
@@ -1135,58 +1412,11 @@ useEffect(() => {
                                                         updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.packagingInfos[0].quantity', (currentQty + 1).toString());
                                                         setDataToogle(newData);
                                                     }}
-                                                className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-200 rounded-full hover:bg-gray-300"
+                                    className="w-10 h-10 flex items-center justify-center bg-gray-200 rounded-full text-xl font-bold"
                                                 >
                                                     +
                                                 </button>
-                                            </div>
                                         </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Colonne B - Photo */}
-                        <div className="flex flex-col items-center justify-center mt-1 md:mt-0">
-                                {photoUrl ? (
-                                    <>
-                                    <div className="w-full max-w-md mb-1 sm:mb-4">
-                                        <div className="relative w-full h-32 sm:h-48 md:h-64 rounded-lg overflow-hidden border border-gray-200">
-                                                <Image
-                                                    src={photoUrl}
-                                                    alt="Photo du déchet"
-                                                    fill
-                                                    className="object-contain"
-                                                />
-                                            </div>
-                                        <div className="flex flex-row justify-between items-center mt-1 sm:mt-2 space-x-2">
-                                                <a 
-                                                    href={photoUrl}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                className="text-xs sm:text-sm text-blue-600 hover:text-blue-800"
-                                                >
-                                                Voir
-                                                </a>
-                                                <button
-                                                    type="button"
-                                                className="text-xs sm:text-sm bg-gray-100 text-gray-600 px-2 sm:px-3 py-1 rounded hover:bg-gray-200"
-                                                    onClick={handleTakePhoto}
-                                                >
-                                                Changer
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <button
-                                        type="button"
-                                    className="w-full sm:w-auto bg-[var(--green-medium)] text-white px-3 sm:px-6 py-2 sm:py-3 rounded-md hover:bg-[var(--green-dark)] flex items-center justify-center gap-2"
-                                        onClick={handleTakePhoto}
-                                    >
-                                    <BoxIcon name="camera" type="solid" className="w-4 h-4 sm:w-6 sm:h-6" color="white" />
-                                    <span className="text-xs sm:text-base">Prendre une photo</span>
-                                    </button>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -1214,7 +1444,7 @@ useEffect(() => {
     );
 }
 
-export default ValidateCollecte;
+export default ValidateCollecteMobile;
 
 
 

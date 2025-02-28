@@ -17,14 +17,14 @@ export default function UserSettings() {
     const session = useSession() as SessionMore;
     const email = session?.user_email;
     const [activeTab, setActiveTab] = useState('tab_personal');
-    const [currentProfile, setCurrentProfile] = useState<{first_name?: string, last_name?: string} | null>(null);
+    const [currentProfile, setCurrentProfile] = useState<{first_name?: string, last_name?: string, phone?: string} | null>(null);
 
     useEffect(() => {
         const fetchProfile = async () => {
             if (session) {
                 const { data } = await supabase
                     .from('profiles')
-                    .select('first_name, last_name')
+                    .select('first_name, last_name, phone')
                     .eq('user_id', session.user_id)
                     .single();
                 setCurrentProfile(data);

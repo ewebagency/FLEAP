@@ -992,6 +992,7 @@ export interface OtherInfos {
     volumeUnit: string;
     automaticMode?: boolean;
     containerDescription: string;      
+    recipientEmail?: string;
   }
 
 export interface CompleteFormInput{

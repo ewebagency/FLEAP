@@ -140,7 +140,7 @@ export interface FactureJSON {
 }
 
 // Fonction pour mapper les données Excel vers le format souhaité
-export const mapToFactureFormat = (row: Row): FactureData => {
+export const mapToFactureFormat: (row: Row) => FactureData = (row) => {
     const factureJSON: FactureJSON = {
         departs: [{
             line_body: [

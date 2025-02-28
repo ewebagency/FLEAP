@@ -29,6 +29,7 @@ interface SegmentDates {
 }
 
 const cleanCED = (ced: string): string => {
+    //if(ced === '10 12 01') console.log(ced, "10 12 01");
     return ced.replace(/[^\d]/g,'');
 };
 
@@ -149,13 +150,13 @@ export const filterBSDs = (
     //console.log("5. Après filtres personnalisés:", filtered.length);
 
     // 6. Filtrer les BSDs en attente si nécessaire
-    if (filterPendingBSDs) {
+    /*if (filterPendingBSDs) {
         filtered = filtered.filter(bsd => {
             return bsd.status_track_dechets === "Ligne créée automatiquement" || 
                    bsd.status_track_dechets === "Ligne demandée";
         });
         //console.log("6. Après filtre BSDs en attente:", filtered.length);
-    }
+    }*/
 
     return filtered;
 };

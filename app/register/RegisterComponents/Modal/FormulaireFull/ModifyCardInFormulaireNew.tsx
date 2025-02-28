@@ -660,13 +660,14 @@ const ModifyCardInFormulaireNew = ({
         if (willCreateRecurrence.isDismissed) {
             return;
         }
-
+        
+        const {data:newDataForReccurence} = await prepareDataToCloud(dataText, showTrader, showBroker, showEcoOrganisme, showParcelFields);
         if (willCreateRecurrence.isConfirmed) {
             // Créer d'abord la ligne BSD
             const bsdId = await RecurrenceFunctions.createBSDFromTemplate(
                 session.user_id,
                 session.entreprise_id,
-                dataText
+                newDataForReccurence
             );
 
             if (!bsdId) {
@@ -684,7 +685,7 @@ const ModifyCardInFormulaireNew = ({
                 session.user_id,
                 session.entreprise_id,
                 updatedPattern,
-                dataText
+                newDataForReccurence
             );
 
             if (success) {
