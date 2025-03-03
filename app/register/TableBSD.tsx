@@ -1029,7 +1029,7 @@ const TableBSD = () => {
                                                     hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
                                                     onClick={() => handleSeal(bsd.id)}
                                                 >
-                                                    Sceller
+                                                    Sceller 
                                                 </button>
                                             )}
                                             {bsd.status_track_dechets === "SEALED" && (
