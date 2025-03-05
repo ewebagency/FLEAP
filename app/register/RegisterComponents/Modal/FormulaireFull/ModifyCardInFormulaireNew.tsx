@@ -735,7 +735,7 @@ const ModifyCardInFormulaireNew = ({
 
   // Ajouter une nouvelle fonction pour gérer le clic sur le bouton Créer
   const handleCreateLineWithPopup = () => {
-    setShowPopup(true);
+    handlePopupConfirm();
   };
 
   return (

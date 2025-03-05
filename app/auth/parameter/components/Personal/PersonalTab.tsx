@@ -134,26 +134,33 @@ export default function PersonalTab({ email, currentProfile }: { email: string|n
 
             <div className="bg-white rounded-lg shadow-lg p-6 w-[40%]">
                 <h2 className="text-2xl font-bold text-gray-800 mb-6">Modifier votre profil</h2>
-                <div className="text-gray-600 mb-4">
-                    {currentProfile?.first_name || 'Non défini'} {currentProfile?.last_name || 'Non défini'}
-                    {currentProfile?.phone && <div>Tél: {currentProfile.phone}</div>}
+                <div className="text-gray-600 mb-4 flex justify-start gap-4">
+                    <div>
+                        {currentProfile?.first_name || 'Non défini'} {currentProfile?.last_name || 'Non défini'}
+                    </div>
+                    <p>/</p>
+                    <div>
+                        {currentProfile?.phone && <div>{currentProfile.phone}</div>}
+                    </div>
                 </div>
-                <form onSubmit={handleChangeProfile} className="flex flex-col h-[250px] justify-between">
+                <form onSubmit={handleChangeProfile} className="flex flex-col h-[250px] justify-start gap-6">
                     <div className="space-y-4">
-                        <input
-                            type="text"
-                            placeholder="Prénom"
-                            value={firstName}
-                            onChange={(e) => setFirstName(e.target.value)}
-                            className="border border-gray-300 p-3 w-full rounded"
-                        />
-                        <input
-                            type="text"
-                            placeholder="Nom"
-                            value={lastName}
-                            onChange={(e) => setLastName(e.target.value)}
-                            className="border border-gray-300 p-3 w-full rounded"
-                        />
+                        <div className='flex justify-between gap-4'>
+                            <input
+                                type="text"
+                                placeholder="Prénom"
+                                value={firstName}
+                                onChange={(e) => setFirstName(e.target.value)}
+                                className="border border-gray-300 p-3 w-full rounded"
+                            />
+                            <input
+                                type="text"
+                                placeholder="Nom"
+                                value={lastName}
+                                onChange={(e) => setLastName(e.target.value)}
+                                className="border border-gray-300 p-3 w-full rounded"
+                            />
+                        </div>
                         <input
                             type="tel"
                             placeholder="Téléphone"
@@ -164,7 +171,7 @@ export default function PersonalTab({ email, currentProfile }: { email: string|n
                     </div>
                     <button 
                         type="submit" 
-                        className="w-full p-3 rounded bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white text-lg mt-auto"
+                        className="w-full p-3 rounded bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white text-lg mt-2"
                     >
                         Mettre à jour mon profil
                     </button>

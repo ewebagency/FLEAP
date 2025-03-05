@@ -3,7 +3,7 @@ export const formatNumber = (value: number, forceDecimals: boolean = false, forc
     if (Math.abs(value) >= 1000) {
         if (forceTroisChiffres) {
             // Formater avec 3 décimales et séparateur de milliers
-            const nombreFormate = value.toFixed(3);
+            const nombreFormate = value.toFixed(2);
             const [partieEntiere, partieDecimale] = nombreFormate.split('.');
             return `${partieEntiere.replace(/\B(?=(\d{3})+(?!\d))/g, " ")},${partieDecimale}`;
         }
@@ -17,7 +17,7 @@ export const formatNumber = (value: number, forceDecimals: boolean = false, forc
     
     // Pour les nombres décimaux < 1000
     if (forceTroisChiffres) {
-        return value.toFixed(3).replace('.', ',');
+        return value.toFixed(2).replace('.', ',');
     }
     return value.toFixed(2).replace('.', ',');
 }; 

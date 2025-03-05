@@ -57,9 +57,7 @@ const DisplayCard = () => {
         return new Date(dateString).toLocaleDateString('fr-FR', {
             day: '2-digit',
             month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
+            year: 'numeric'
         });
     };
 
@@ -83,11 +81,16 @@ const DisplayCard = () => {
                         <div className="border-b pb-2 flex justify-between items-start">
                             <div className="pr-8">
                                 <h2 className="text-lg md:text-xl font-bold text-gray-800">Bordereau de Suivi des Déchets</h2>
-                                <div className="mt-2 space-y-1">
-                                    <LabelValue label="Site" value={bsd.emitter?.workSite?.name || ""} />
-                                    <LabelValue label="Filière" value={filiere || ""} />
-                                    <LabelValue label="Code déchet" value={bsd.wasteDetails?.code || ""} />
-                                    {/* <LabelValue label="Date de création" value={formatDate(bsd.createdAt || "")} /> */}
+                                <div className="mt-2 grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <LabelValue label="Filière" value={filiere || ""} />
+                                        <LabelValue label="Code déchet" value={bsd.wasteDetails?.code || ""} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <LabelValue label="Site" value={bsd.emitter?.workSite?.name || ""} />
+                                        <LabelValue label="Créer le" value={formatDate(bsd.createdAt || "")} />
+                                        <LabelValue label="Collecté le" value={formatDate(bsd.takenOverAt || "")} />
+                                    </div>
                                 </div>
                             </div>
                             <button 

@@ -17,10 +17,18 @@ interface EmailParams {
         phone: string;
         email: string;
         address: string;
+        workSite: {
+            name: string;
+            fullAddress: string;
+            address: string;
+            postalCode: string;
+            city: string;
+        };
     };
     destinataire: string;
     entrepriseId: string;
     entrepriseName: string;
+    entrepriseGlobalName: string;
     wasteLines: {
         code: string;
         description: string;
@@ -38,29 +46,32 @@ interface MailComponentProps {
     onUpdateRecipientEmail: (email: string) => void;
 }
 
-const emailTemplates: EmailTemplate[] = [
-    {
-        name: "Demande de collecte",
-        subject: async (params: EmailParams) => {
-            const mappingTable = await getMappingTableFiliere(params.entrepriseId);
-            const filieres = new Set(params.wasteLines.map(line => 
-                getFiliere(line.code, mappingTable)
-            ));
-            return `Demande de collecte - ${Array.from(filieres).join(', ')} | ${params.entrepriseName}`;
-        },
-        getBody: (params: EmailParams) => {
-            // Grouper les déchets par date de collecte
-            const wastesByDate = params.wasteLines.reduce((acc, line) => {
-                const date = line.collectDate || 'Dès que possible';
-                if (!acc[date]) {
-                    acc[date] = [];
-                }
-                acc[date].push(line);
-                return acc;
-            }, {} as { [key: string]: typeof params.wasteLines });
+const emailTemplate: EmailTemplate = {
+    name: "Demande de collecte",
+    subject: async (params: EmailParams) => {
+        const mappingTable = await getMappingTableFiliere(params.entrepriseId);
+        const filieres = new Set(params.wasteLines.map(line => 
+            getFiliere(line.code, mappingTable)
+        ));
+        return `Demande de collecte - ${Array.from(filieres).join(', ')} | ${params.entrepriseName}`;
+    },
+    getBody: (params: EmailParams) => {
+        // Grouper les déchets par date de collecte
+        const wastesByDate = params.wasteLines.reduce((acc, line) => {
+            const date = line.collectDate || 'Dès que possible';
+            if (!acc[date]) {
+                acc[date] = [];
+            }
+            acc[date].push(line);
+            return acc;
+        }, {} as { [key: string]: typeof params.wasteLines });
 
-            return `Bonjour,
-Je souhaite organiser des collectes de déchets pour ${params.entrepriseName}, au l'adresse suivante : ${params.emitter.address}
+        // Construire l'adresse complète du point de collecte
+        const collectAddress = params.emitter.workSite.fullAddress || 
+            `${params.emitter.workSite.address || ''} ${params.emitter.workSite.postalCode || ''} ${params.emitter.workSite.city || ''}`.trim();
+
+        return `Bonjour,
+Je souhaite organiser des collectes de déchets pour ${params.entrepriseName} ${collectAddress ? `à l'adresse suivante : ${collectAddress}` : ''}.
 
 J'aurais besoin de collecter :
 ${Object.entries(wastesByDate).map(([date, lines]) => `
@@ -73,61 +84,13 @@ ${lines.map(line => {
 Merci et bonne journée,
 
 ${params.emitter.contact}
-${params.entrepriseName}
+${params.entrepriseGlobalName}
 ${params.emitter.phone ? `Tél : ${params.emitter.phone}` : ''}
 ${params.emitter.email ? `Email : ${params.emitter.email}` : ''}
 
 Email envoyé depuis FLEAP`;
-        }
-    },
-    {
-        name: "Rappel de collecte",
-        subject: async (params: EmailParams) => {
-            const mappingTable = await getMappingTableFiliere(params.entrepriseId);
-            const filieres = new Set(params.wasteLines.map(line => 
-                getFiliere(line.code, mappingTable)
-            ));
-            return `Rappel - Collectes en attente - ${Array.from(filieres).join(', ')} | ${params.entrepriseName}`;
-        },
-        getBody: (params: EmailParams) => {
-            // Grouper les déchets par date de collecte
-            const wastesByDate = params.wasteLines.reduce((acc, line) => {
-                const date = line.collectDate || 'Dès que possible';
-                if (!acc[date]) {
-                    acc[date] = [];
-                }
-                acc[date].push(line);
-                return acc;
-            }, {} as { [key: string]: typeof params.wasteLines });
-
-            return `Bonjour,
-
-Je vous recontacte concernant les collectes en attente pour ${params.entrepriseName}.
-
-Lieu de collecte : ${params.emitter.address}
-
-Détails des collectes :
-${Object.entries(wastesByDate).map(([date, lines]) => `
-Date souhaitée : ${date === 'Dès que possible' ? 'Dès que possible' : date}
-${lines.map(line => {
-    const container = line.container + (line.volume ? ` - ${line.volume} ${line.volumeUnit}` : '');
-    return `• ${container} de ${line.description} ${line.code}`;
-}).join('\n')}`).join('\n')}
-
-Ces collectes sont toujours en attente. Merci de me tenir informé de leur avancement.
-
-Cordialement,
-
-${params.emitter.contact}
-${params.entrepriseName}
-${params.emitter.phone ? `Tél : ${params.emitter.phone}` : ''}
-${params.emitter.email ? `Email : ${params.emitter.email}` : ''}
-
---
-Email envoyé depuis FLEAP`;
-        }
     }
-];
+};
 
 const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ 
     params, 
@@ -135,7 +98,6 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
     onMobile = false,
     onUpdateRecipientEmail
 }) => {
-    const [selectedTemplate, setSelectedTemplate] = useState<number>(0);
     const [to, setTo] = useState<string>(params.destinataire || '');
     const [cc, setCc] = useState<string>('');
     const [ccList, setCcList] = useState<string[]>(params.emitter.email ? [params.emitter.email] : []);
@@ -143,7 +105,6 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
     const [subject, setSubject] = useState<string>('');
     const [emailBody, setEmailBody] = useState<string>('');
     const { setIsValidMail, setSendMailFunction } = useMailContext();
-    const [lastSelectedTemplate, setLastSelectedTemplate] = useState<number>(0);
     const [userEditedBody, setUserEditedBody] = useState<boolean>(false);
 
     useEffect(() => {
@@ -160,16 +121,15 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
 
     useEffect(() => {
         const getSubject = async () => {
-            const subject = await emailTemplates[selectedTemplate].subject(params);
+            const subject = await emailTemplate.subject(params);
             setSubject(subject);
         };
         getSubject();
         
-        if (selectedTemplate !== lastSelectedTemplate || !userEditedBody) {
-            setEmailBody(emailTemplates[selectedTemplate].getBody(params));
-            setLastSelectedTemplate(selectedTemplate);
+        if (!userEditedBody) {
+            setEmailBody(emailTemplate.getBody(params));
         }
-    }, [selectedTemplate, params, lastSelectedTemplate, userEditedBody]);
+    }, [params, userEditedBody]);
 
     useEffect(() => {
         if(!to || !replyTo || !subject || !emailBody){
@@ -236,19 +196,6 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
             <div className="bg-white rounded-lg shadow-lg overflow-hidden w-full ml-[-10px]">
                 <div className="flex flex-col md:flex-row">
                     <div className="w-full md:w-1/3 p-3 space-y-2.5 border-b md:border-b-0 md:border-r border-gray-200">
-                        <div>
-                            <label className="block text-xs text-gray-600 mb-1">Modèle</label>
-                            <select 
-                                className="block w-full text-xs py-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                value={selectedTemplate}
-                                onChange={(e) => setSelectedTemplate(Number(e.target.value))}
-                            >
-                                {emailTemplates.map((template, index) => (
-                                    <option key={index} value={index}>{template.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
                         <div className="flex items-center gap-2">
                             <label className="text-xs text-gray-600 w-16 md:w-24">À:</label>
                             <input

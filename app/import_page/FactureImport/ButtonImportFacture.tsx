@@ -260,7 +260,7 @@ export const mapToFactureFormat: (row: Row) => FactureData = (row) => {
             linked_to_bsd: false
         }],
         footer: {
-            total_ht: parseNumber(row["montantTotalHT"]) || 0
+            total_ht: parseNumber(row["coutsTGAP"]) + parseNumber(row["coutsDeclassement"]) + parseNumber(row["coutsPenalites"]) + parseNumber(row["coutsNonExpliques"]) + parseNumber(row["coutsContenantAutres"]) + parseNumber(row["autresCoutsHT"]) + parseNumber(row["coutsMiseDispo"]) + parseNumber(row["coutsMaintenance"]) + parseNumber(row["coutsTransportHT"]) + parseNumber(row["coutGlobal"]) + parseNumber(row["coutsTraitementHT"]) + parseNumber(row["coutsPreparationHT"]) - parseNumber(row["rachatTotalHT"]) + parseNumber(row["equivalentCoutsContenantsHT"])
         },
         header: {
             num_facture: "",

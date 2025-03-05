@@ -102,7 +102,7 @@ const NewFinancialSource = () => {
         const ecart = Math.abs(sommeDeparts - facture.infos_json.footer.total_ht);
         
         // Si l'écart est trop grand (> 10), on ignore cette facture
-        if (ecart > 10) {
+        if (ecart > 10 && false) {
             console.log(`Facture ${facture.id} ignorée - Écart de ${ecart}€`, {
                 sommeDeparts,
                 total_ht: facture.infos_json.footer.total_ht

@@ -11,6 +11,7 @@ export type FilterField = {
 export type FilterValue = {
   value: string;
   checked: boolean;
+  mostFrequentName?: string;
 };
 
 export type FilterData = {
@@ -93,7 +94,7 @@ export const FILTER_FIELDS: FilterField[] = [
     supabase_column: "infos_json",
     json_path: "formAPI.createFormInput.recipient.company.siret"
   },
-  {
+  /*{
     label: "Sur Track Déchets",
     supabase_column: "on_track_dechets",
     json_path: ""
@@ -102,6 +103,6 @@ export const FILTER_FIELDS: FilterField[] = [
     label: "Créé sur Fleap",
     supabase_column: "created_on_fleap",
     json_path: ""
-  },
+  },*/
 
 ]; 

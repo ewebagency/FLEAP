@@ -77,14 +77,12 @@ const ModifyCard = () => {
           validityLimit: "",
           company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
         },
-        //grouping: { form: { id: "" }, quantity: 0 },//Pour l'instant on va dire qu'on ne permet pas de grouper les déchets
         ecoOrganisme: { name: "", siret: "" },
         temporaryStorageDetail: {
           company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
           cap: "",
           processingOperation: "",
-        }, //Si le recipient est un stockage provisoire, on va mettre les infos du destinataire final pour le traitement 
-        //intermediaries: [],
+        },
       });
     const [otherInfos, setOtherInfos] = useState<OtherInfos>({
         containerDescription: "",
@@ -92,6 +90,7 @@ const ModifyCard = () => {
         volumeUnit: "",
         fillRate: "",
     });
+    const [createdAt, setCreatedAt] = useState<string>("");
 
     const session = useSession();
     const [filiere, setFiliere] = useState<string>("");
@@ -106,6 +105,7 @@ const ModifyCard = () => {
 
         if (result.data) {
             setLocalData(result.data.infos_json.formAPI.createFormInput);
+            setCreatedAt(result.data.created_at);
             setOtherInfos(result.data.other_infos || {
                 containerDescription: "",
                 volume: "",
@@ -214,7 +214,10 @@ const ModifyCard = () => {
                 body: JSON.stringify({
                     user_id: session.user_id,
                     bsd_id: modalId,
-                    data: {formAPI:{createFormInput: dataToSend}},
+                    infos_json: {
+                        formAPI: { createFormInput: dataToSend }
+                    },
+                    created_at: createdAt,
                     other_infos: otherInfos
                 }),
             });
@@ -246,23 +249,45 @@ const ModifyCard = () => {
                 <div className="border-b pb-2 flex justify-between items-start">
                     <div className="pr-8">
                         <h2 className="text-lg md:text-xl font-bold text-gray-800">Bordereau de Suivi des Déchets</h2>
-                        <div className="mt-2 space-y-1 ml-2 md:ml-6">
-                            <div className="flex items-center text-sm">
-                                <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Site: </span>
-                                <span className="text-gray-600">{localData.emitter?.workSite?.name || 'Non renseigné'}</span>
+                        <div className="mt-2 grid grid-cols-2 gap-4 ml-2 md:ml-6">
+                            <div className="space-y-1">
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Filière: </span>
+                                    <span className="text-gray-600">{filiere}</span>
+                                </div>
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Code déchet: </span>
+                                    <input 
+                                        type="text"
+                                        value={localData.wasteDetails.code}
+                                        onChange={(e) => handleChange("wasteDetails.code", e.target.value)}
+                                        className="text-gray-700 border-b-2 border-gray-300 focus:border-blue-500 focus:outline-none px-2 w-[90px] text-md font-medium"
+                                    />
+                                </div>
                             </div>
-                            <div className="flex items-center text-sm">
-                                <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Filière: </span>
-                                <span className="text-gray-600">{filiere}</span>
-                            </div>
-                            <div className="flex items-center text-sm">
-                                <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Code déchet: </span>
-                                <input 
-                                    type="text"
-                                    value={localData.wasteDetails.code}
-                                    onChange={(e) => handleChange("wasteDetails.code", e.target.value)}
-                                    className="text-gray-700 border-b-2 border-gray-300 focus:border-blue-500 focus:outline-none px-2 w-[90px] text-md font-medium"
-                                />
+                            <div className="space-y-1">
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Site: </span>
+                                    <span className="text-gray-600">{localData.emitter?.workSite?.name || 'Non renseigné'}</span>
+                                </div>
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Créer le: </span>
+                                    <input 
+                                        type="date"
+                                        value={createdAt ? new Date(createdAt).toISOString().split('T')[0] : ''}
+                                        onChange={(e) => setCreatedAt(e.target.value)}
+                                        className="text-gray-700 border-b-2 border-gray-300 focus:border-blue-500 focus:outline-none px-2 text-md font-medium"
+                                    />
+                                </div>
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Collecté le: </span>
+                                    <input 
+                                        type="date"
+                                        value={localData.takenOverAt ? new Date(localData.takenOverAt).toISOString().split('T')[0] : ''}
+                                        onChange={(e) => handleChange("takenOverAt", e.target.value)}
+                                        className="text-gray-700 border-b-2 border-gray-300 focus:border-blue-500 focus:outline-none px-2 text-md font-medium"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>

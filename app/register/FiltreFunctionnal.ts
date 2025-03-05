@@ -2,6 +2,7 @@ import { BSD } from "@/app/register/TableBSD";
 import { Filiere, Site, PointCollecte, SegmentDates as FilterContextSegmentDates } from "../FilterContext";
 import { BSDD_TrackDechets, OtherInfos } from "./interface/BSD_Interface";
 import { FactureJSON } from "../import_page/FactureImport/ButtonImportFacture";
+import { ListStatusEnAttente } from "./RegisterComponents/BordereauxRegister";
 
 // Interface commune pour les BSDs
 export interface CommonBSD {
@@ -60,7 +61,7 @@ export const filterBSDs = (
     console.log("1. BSDs entrants:", filtered.length);
 
     // 1. Filtre des dates (uniquement created_at)
-    if (segmentDates.debut || segmentDates.fin) {
+    if ((segmentDates.debut || segmentDates.fin) && !filterPendingBSDs) {
         const startDate = segmentDates.debut ? 
             (segmentDates.debut instanceof Date ? 
                 segmentDates.debut.setHours(0, 0, 0, 0) : 
@@ -150,13 +151,12 @@ export const filterBSDs = (
     //console.log("5. Après filtres personnalisés:", filtered.length);
 
     // 6. Filtrer les BSDs en attente si nécessaire
-    /*if (filterPendingBSDs) {
+    if (filterPendingBSDs) {
         filtered = filtered.filter(bsd => {
-            return bsd.status_track_dechets === "Ligne créée automatiquement" || 
-                   bsd.status_track_dechets === "Ligne demandée";
+            return ListStatusEnAttente.includes(bsd.status_track_dechets);
         });
         //console.log("6. Après filtre BSDs en attente:", filtered.length);
-    }*/
+    }
 
     return filtered;
 };

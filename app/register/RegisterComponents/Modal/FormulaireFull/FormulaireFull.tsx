@@ -114,10 +114,10 @@ const inputDependencies: InputDependencies = {
             'wasteDetails.consistence',
             'wasteDetails.pop',
             'wasteDetails.isDangerous',
-            'volume',
-            'volumeUnit',
-            'containerDescription',
-            'fillRate'
+            'other_infos.volume',
+            'other_infos.volumeUnit',
+            'other_infos.containerDescription',
+            'other_infos.fillRate'
         ]
     },
     'emitter.company.contact': {
@@ -128,6 +128,10 @@ const inputDependencies: InputDependencies = {
     },
     'recipient.company.name': {
         children: ['recipient.company.siret', 'recipient.company.address', 'recipient.company.contact', 'recipient.company.phone', 'recipient.company.mail', 'recipient.cap', 'recipient.processingOperation', 'recipient.isTempStorage']
+    },
+    'other_infos.containerDescription': {
+        children: ['other_infos.volume', 'other_infos.volumeUnit'],
+        filterFields: ['other_infos.containerDescription']
     }
 };
 
@@ -141,6 +145,20 @@ const shouldDisplayField = (currentField: string, changedField: string, parentDe
     if (condition) {
         return true;
     }
+
+    // Cas spécial pour les champs de other_infos
+    const otherInfosFields = ['containerDescription', 'volume', 'volumeUnit'];
+    if (otherInfosFields.includes(currentField)) {
+        // Si le champ changé est le type de contenant, afficher tous les champs de other_infos
+        if (changedField === 'wasteDetails.packagingInfos[0].type') {
+            return true;
+        }
+        // Si le champ changé est un autre champ de other_infos, afficher les champs liés
+        if (otherInfosFields.includes(changedField)) {
+            return true;
+        }
+    }
+
     return false;
 };
 
@@ -227,7 +245,7 @@ const FormulaireFull = () => {
         setOptions,
         modalType } = useModalContextNew();
     const [currentFiliere, setCurrentFiliere] = useState("");
-    const session = useSession();
+    const {entreprise_id, user_email, user_contact, user_phone} = useSession();
     const [ced_table, setCedTable] = useState<{ ced: string, filiere: string }[]>([]);
     const [displayAll, setDisplayAll] = useState(false);
     const [dataFilter, setDataFilter] = useState<{name: string, value: string}[]>([]);
@@ -242,26 +260,52 @@ const FormulaireFull = () => {
     // Ajouter un état pour tracker si l'autocomplétion est désactivée
     const [disableAutocompletion, setDisableAutocompletion] = useState(false);
 
+    // Définition des champs qui désactivent l'autocomplétion
+    const disablingFields = [
+        'wasteDetails.quantity',
+        'wasteDetails.packagingInfos[0].quantity',
+        'volume',
+        'volumeUnit',
+        'fillRate'
+    ];
+
+    useEffect(() => {
+        if(user_email) {
+            setDataToogle(prev => ({
+                ...prev,
+                emitter: {
+                    ...prev.emitter,
+                    company: {
+                        ...prev.emitter.company,
+                        mail: user_email,
+                        contact: user_contact || '',
+                        phone: user_phone || ''
+                    }
+                }
+            }));
+        }
+    }, [user_email, user_contact, user_phone]);
+
 //Initialisation des options
 useEffect(() => {
-    if(session?.entreprise_id) {
-        getDataAutocompletionFull([], session.entreprise_id, []).then(data => {
+    if(entreprise_id) {
+        getDataAutocompletionFull([], entreprise_id, []).then(data => {
             setAllOptions(data);
             setOptions(data);
         });
     }
-}, [session]);
+}, [entreprise_id]);
 
 //Initialisation de ced_table
 useEffect(() => {
     //aller chercher la table mapping filiere
-    if(session && session.entreprise_id) {
-        getMappingTableFiliere(session.entreprise_id).then(data => setCedTable(data));
+    if(entreprise_id) {
+        getMappingTableFiliere(entreprise_id).then(data => setCedTable(data));
     }
-}, [session]);
+}, [entreprise_id]);
 
 // Ajouter un useEffect pour initialiser les données avec le site sélectionné
-useEffect(() => {
+/*useEffect(() => {
     // Trouver le premier site coché
     const checkedSite = sites.find(site => site.checked);
     if (checkedSite) {
@@ -277,7 +321,7 @@ useEffect(() => {
             }
         }));
     }
-}, [sites]); // Se déclenche quand les sites changent
+}, [sites]); // Se déclenche quand les sites changent*/
 
 //HandleChange -> AUTOCOMPLETION
 const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => {
@@ -325,11 +369,11 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: 
         );
 
         // Mise à jour des options si nécessaire
-    if (session?.entreprise_id) {
+    if (entreprise_id) {
         try {
                 const [filteredOptions, allOptionsData] = await Promise.all([
-                    getDataAutocompletionFull(newDataFilter, session.entreprise_id, ced_table),
-                getDataAutocompletionFull([], session.entreprise_id, ced_table)
+                    getDataAutocompletionFull(newDataFilter, entreprise_id, ced_table),
+                getDataAutocompletionFull([], entreprise_id, ced_table)
             ]);
             
                 setOptions(filteredOptions);
@@ -348,8 +392,8 @@ const ResetData = () => {
     setCurrentFiliere("");
     setChangedField("");
     setOtherInfos(initialOtherInfos);
-    if(session?.entreprise_id) {
-        getDataAutocompletionFull([], session.entreprise_id, []).then(data => setOptions(data));
+    if(entreprise_id) {
+        getDataAutocompletionFull([], entreprise_id, []).then(data => setOptions(data));
     }
 }
 
@@ -363,16 +407,83 @@ const toogleFunction = () => {
 }
 
 // Ajouter cette nouvelle fonction de mise à jour
-const handleOtherInfosChange = (updates: Partial<{
+const handleOtherInfosChange = async (updates: Partial<{
     containerDescription: string;
     volume: string;
     volumeUnit: string;
     fillRate: string;
 }>) => {
+    // Mettre à jour other_infos
     setOtherInfos(prev => ({
         ...prev,
         ...updates
     }));
+
+    // Mettre à jour le champ changé pour l'affichage
+    const changedFieldName = Object.keys(updates)[0];
+    setChangedField(changedFieldName);
+
+    // Mise à jour de dataFilter pour l'autocomplétion
+    if (!disablingFields.includes(changedFieldName)) {
+        const newDataFilter = [...dataFilter];
+        const fieldValue = updates[changedFieldName as keyof typeof updates] || '';
+        
+        // Mettre à jour ou ajouter le filtre pour le champ other_infos
+        const filterName = `other_infos.${changedFieldName}`;
+        const existingFilterIndex = newDataFilter.findIndex(f => f.name === filterName);
+        
+        if (existingFilterIndex !== -1) {
+            newDataFilter[existingFilterIndex].value = fieldValue;
+        } else {
+            newDataFilter.push({ name: filterName, value: fieldValue });
+        }
+
+        setDataFilter(newDataFilter);
+
+        // Mise à jour des options si nécessaire
+        if (entreprise_id) {
+            try {
+                const [filteredOptions, allOptionsData] = await Promise.all([
+                    getDataAutocompletionFull(newDataFilter, entreprise_id, ced_table),
+                    getDataAutocompletionFull([], entreprise_id, ced_table)
+                ]);
+                
+                setOptions(filteredOptions);
+                setAllOptions(allOptionsData);
+
+                // Si le champ changé est containerDescription, mettre à jour volume et volumeUnit
+                if (changedFieldName === 'containerDescription') {
+                    const suggestedVolume = preciseFilter(
+                        allOptionsData,
+                        dataToogle,
+                        ['other_infos.containerDescription'],
+                        'other_infos.volume'
+                    );
+                    const suggestedUnit = preciseFilter(
+                        allOptionsData,
+                        dataToogle,
+                        ['other_infos.containerDescription'],
+                        'other_infos.volumeUnit'
+                    );
+
+                    if (suggestedVolume) {
+                        setOtherInfos(prev => ({
+                            ...prev,
+                            volume: suggestedVolume
+                        }));
+                    }
+                    if (suggestedUnit) {
+                        setOtherInfos(prev => ({
+                            ...prev,
+                            volumeUnit: suggestedUnit
+                        }));
+                    }
+                }
+            } catch (error) {
+                console.error("Erreur lors de la mise à jour des options:", error);
+            }
+        }
+    }
 };
 
 // Modifier le useEffect pour prendre en compte l'état de désactivation
@@ -384,10 +495,16 @@ useEffect(() => {
 
     Object.entries(filter_dependencies).forEach(([key, config]) => {
         const allParentsHaveValues = config.parent.every(parentField => {
-            const parentValue = parentField.split('.').reduce<unknown>((obj, key) => 
-                typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
-                dataToogle as unknown as Record<string, unknown>
-            );
+            let parentValue;
+            if (parentField.startsWith('other_infos.')) {
+                const fieldName = parentField.replace('other_infos.', '');
+                parentValue = other_infos[fieldName as keyof OtherInfos];
+            } else {
+                parentValue = parentField.split('.').reduce<unknown>((obj, key) => 
+                    typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                    dataToogle as unknown as Record<string, unknown>
+                );
+            }
             return parentValue && parentValue !== '';
         });
 
@@ -396,10 +513,17 @@ useEffect(() => {
             let hasUpdates = false;
 
             config.children.forEach(childField => {
-                const currentValue = childField.split('.').reduce<unknown>((obj, key) => 
-                    typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
-                    dataToogle as unknown as Record<string, unknown>
-                );
+                let currentValue;
+                if (childField.startsWith('other_infos.')) {
+                    const fieldName = childField.replace('other_infos.', '');
+                    currentValue = other_infos[fieldName as keyof OtherInfos];
+                } else {
+                    currentValue = childField.split('.').reduce<unknown>((obj, key) => 
+                        typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                        dataToogle as unknown as Record<string, unknown>
+                    );
+                }
+
                 if (!currentValue || currentValue === '') {
                     const suggestedValue = preciseFilter(
                         allOptions,
@@ -409,7 +533,15 @@ useEffect(() => {
                     );
                     
                     if (suggestedValue) {
-                        updateNestedValue(newData as unknown as NestedObject, childField, suggestedValue);
+                        if (childField.startsWith('other_infos.')) {
+                            const fieldName = childField.replace('other_infos.', '');
+                            setOtherInfos(prev => ({
+                                ...prev,
+                                [fieldName]: suggestedValue
+                            }));
+                        } else {
+                            updateNestedValue(newData as unknown as NestedObject, childField, suggestedValue);
+                        }
                         hasUpdates = true;
                     }
                 }
@@ -420,7 +552,7 @@ useEffect(() => {
             }
         }
     });
-}, [dataToogle, allOptions, disableAutocompletion]);
+}, [dataToogle, allOptions, disableAutocompletion, other_infos]);
 
 //Render
     return (
@@ -518,7 +650,7 @@ useEffect(() => {
                             </div>
                         </div>
                         {/*2ème ligne*/}
-                        <div className="mt-0 flex justify-between gap-4 w-1/2 ml-8">
+                        <div className="mt-0 flex justify-between gap-4 w-1/2 ml-8 hidden">
                             {/*Personne */}
                             <div>
                                 <InputFull
@@ -563,7 +695,7 @@ useEffect(() => {
                     <div className="w-[95%] pb-2 border-b border-3 mt-0 mx-auto border-gray-300">
                         {/*3ème ligne*/}
                         <div className="mt-0 flex justify-between gap-4 w-1/2 ml-8">
-                            {/*Filière*/}
+                            {/*Déchet*/}
                             <div>
                                 <InputFull
                                     titre="Filière"
@@ -575,10 +707,8 @@ useEffect(() => {
                                     onChange={handleChange}
                                     enableText={false}
                                     stylePrimary={true}
-                                />
-                            </div>
-                            {/*Déchet*/}
-                            <div>
+                                    display={false}
+                                />                                
                                 <InputFull
                                     titre="Déchet"
                                     placeholder="Nom du déchet"
@@ -602,17 +732,6 @@ useEffect(() => {
                                     display={displayAll || shouldDisplayField("wasteDetails.code", changedField)}
                                 />      
                                 <InputFull
-                                    titre="Sujet à l'ADR"
-                                    placeholder="Sujet à l'ADR"
-                                    options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.isSubjectToADR}`)}
-                                    width={40}
-                                    name="wasteDetails.isSubjectToADR"
-                                    value={dataToogle.wasteDetails.isSubjectToADR}
-                                    onChange={handleChange}
-                                    enableText={false}
-                                    display={displayAll || (shouldDisplayField("wasteDetails.isSubjectToADR", changedField) && false)}
-                                />
-                                <InputFull
                                     titre="Code ONU"
                                     placeholder="Code ONU"
                                     options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.onuCode}`)}
@@ -621,12 +740,9 @@ useEffect(() => {
                                     value={dataToogle.wasteDetails.onuCode}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || (false && shouldDisplayField("wasteDetails.onuCode", changedField)   )}
+                                    display={displayAll || (false && shouldDisplayField("wasteDetails.onuCode", changedField))}
                                 />
                             </div>
-                        </div>
-                        {/*4ème ligne*/}
-                        <div className="mt-0 flex justify-between gap-4 w-1/2 ml-8">
                             <div>
                                 <InputFull
                                         titre="Contenant"
@@ -641,9 +757,23 @@ useEffect(() => {
                                         onChange={handleChange}
                                         enableText={false}
                                         stylePrimary={true}
-                                        display={displayAll || (false && shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField))}
+                                        display={false && (displayAll || (false && shouldDisplayField("wasteDetails.packagingInfos[0].type", changedField)))}
                                     />
                                     {/* Nouveaux champs pour other_infos */}
+                                    <InputFull
+                                        titre="Contenant"
+                                        placeholder="Nom du contenant"
+                                        name="containerDescription"
+                                        value={other_infos.containerDescription || ''}
+                                        onChange={(e: string | { target: { name: string; value: string } }) => {
+                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                            handleOtherInfosChange({ containerDescription: String(newValue) })
+                                        }}
+                                        options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.containerDescription || '')}
+                                        enabled={true}
+                                        stylePrimary={true}
+                                        width={40}
+                                    />
                                     <InputFull
                                         titre="Volume"
                                         placeholder="Volume"
@@ -653,17 +783,14 @@ useEffect(() => {
                                             const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
                                             handleOtherInfosChange({ volume: String(newValue) })
                                         }}
-                                        options={{
-                                            filteredOptions: [],
-                                            allOptions: ['20', '30', '100', '200', '500', '1000']
-                                        }}
+                                        options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.volume || '')}
                                         enabled={true}
-                                        display={displayAll || (false && shouldDisplayField("volume", changedField))}
+                                        display={displayAll || shouldDisplayField("volume", changedField)}
                                         width={40}
                                     />
                                     <InputFull
-                                        titre="Unité de volume"
-                                        placeholder="Unité de volume"
+                                        titre="Unité"
+                                        placeholder="m3 ou L"
                                         name="volumeUnit"
                                         value={other_infos.volumeUnit || ''}
                                         onChange={(e: string | { target: { name: string; value: string } }) => {
@@ -675,24 +802,7 @@ useEffect(() => {
                                             allOptions: ['m3', 'L']
                                         }}
                                         enabled={true}
-                                        display={displayAll || (false && shouldDisplayField("volumeUnit", changedField))}
-                                        width={40}
-                                    />
-                                    <InputFull
-                                        titre="Description"
-                                        placeholder="Description du conteneur"
-                                        name="containerDescription"
-                                        value={other_infos.containerDescription || ''}
-                                        onChange={(e: string | { target: { name: string; value: string } }) => {
-                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
-                                            handleOtherInfosChange({ containerDescription: String(newValue) })
-                                        }}
-                                        options={{
-                                            filteredOptions: [],
-                                            allOptions: ['Benne', 'Citerne', 'Pipeline', 'Autre']
-                                        }}
-                                        enabled={true}
-                                        display={displayAll || (false && shouldDisplayField("containerDescription", changedField))}
+                                        display={displayAll || shouldDisplayField("volumeUnit", changedField)}
                                         width={40}
                                     />
                                     <InputFull
@@ -709,10 +819,14 @@ useEffect(() => {
                                             allOptions: ['50', '75', '95']
                                         }}
                                         enabled={true}
-                                        display={displayAll || (false && shouldDisplayField("fillRate", changedField))}
+                                        display={false && (displayAll || (false && shouldDisplayField("fillRate", changedField)))}
                                         width={40}
                                     />
                             </div>
+                        </div>
+                        {/*4ème ligne*/}
+                        <div className="mt-0 flex justify-between gap-4 w-1/2 ml-8">
+
                             {/*Contenant*/}
                             <div>
                                 <InputFull
@@ -724,7 +838,7 @@ useEffect(() => {
                                     value={String(dataToogle.wasteDetails.packagingInfos[0].quantity)}
                                     onChange={handleChange}
                                     enableText={true}
-                                    display={displayAll || (false && shouldDisplayField("wasteDetails.packagingInfos[0].quantity", changedField))}
+                                    display={false && (displayAll || (false && shouldDisplayField("wasteDetails.packagingInfos[0].quantity", changedField)))}
                                 />
                                 <InputFull
                                     titre="Poids"
@@ -738,21 +852,7 @@ useEffect(() => {
                                     value={String(dataToogle.wasteDetails.quantity)}
                                     onChange={handleChange}
                                     enableText={true}
-                                    display={displayAll || (false && shouldDisplayField("wasteDetails.quantity", changedField))}
-                                />
-                                <InputFull
-                                    titre="Type de quantité "
-                                    placeholder="Type de quantité"
-                                    options={{
-                                        filteredOptions: ['ESTIMATED'],
-                                        allOptions: ['REAL']
-                                    }}
-                                    width={40}
-                                    name="wasteDetails.quantityType"
-                                    value={String(dataToogle.wasteDetails.quantityType)}
-                                    onChange={handleChange}
-                                    enableText={true}
-                                    display={displayAll || (false && shouldDisplayField("wasteDetails.quantityType", changedField))}
+                                    display={false && (displayAll || (false && shouldDisplayField("wasteDetails.quantity", changedField)))}
                                 />
                                 <InputFull
                                     titre="Consistance"
@@ -767,35 +867,65 @@ useEffect(() => {
                                     onChange={handleChange}
                                     enableText={true}
                                     display={displayAll || (false && shouldDisplayField("wasteDetails.consistence", changedField))}
-                                />
+                                />                                
                                 <InputFull
-                                    titre="Pop"
-                                    placeholder="Pop"
+                                    titre="Type de quantité "
+                                    placeholder="Type de quantité"
                                     options={{
-                                        filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.pop}`).filteredOptions,
-                                        allOptions: ['true', 'false']
+                                        filteredOptions: ['ESTIMATED'],
+                                        allOptions: ['REAL']
                                     }}
                                     width={40}
-                                    name="wasteDetails.pop"
-                                    value={String(dataToogle.wasteDetails.pop)}
+                                    name="wasteDetails.quantityType"
+                                    value={String(dataToogle.wasteDetails.quantityType)}
                                     onChange={handleChange}
                                     enableText={true}
-                                    display={displayAll || (false && shouldDisplayField("wasteDetails.pop", changedField))}
+                                    display={displayAll || (false && shouldDisplayField("wasteDetails.quantityType", changedField))}
                                 />
-                                <InputFull
-                                    titre="Dangereux"
-                                    placeholder="Est dangereux"
-                                    options={{
-                                        filteredOptions: [dataToogle.wasteDetails.code?.includes('*') ? 'true' : 'false'],
-                                        allOptions: ['true', 'false']
-                                    }}
-                                    width={40}
-                                    name="wasteDetails.isDangerous"
-                                    value={String(dataToogle.wasteDetails.isDangerous)}
-                                    onChange={handleChange}
-                                    enableText={true}
-                                    display={displayAll || (false && shouldDisplayField("wasteDetails.isDangerous", changedField))}
-                                />
+                                <div className="flex justify-start gap-[-10px]">
+                                    <InputFull
+                                        titre="Sujet à l'ADR"
+                                        placeholder="Sujet à l'ADR"
+                                        options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.isSubjectToADR}`)}
+                                        width={2}
+                                        name="wasteDetails.isSubjectToADR"
+                                        value={dataToogle.wasteDetails.isSubjectToADR}
+                                        onChange={handleChange}
+                                        enableText={false}
+                                        isCheckbox={true}
+                                        display={displayAll || (shouldDisplayField("wasteDetails.isSubjectToADR", changedField) && false)}
+                                    />                                
+                                    <InputFull
+                                        titre="Pop"
+                                        placeholder="Pop"
+                                        options={{
+                                            filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.pop}`).filteredOptions,
+                                            allOptions: ['true', 'false']
+                                        }}
+                                        width={2}
+                                        name="wasteDetails.pop"
+                                        value={String(dataToogle.wasteDetails.pop)}
+                                        onChange={handleChange}
+                                        enableText={true}
+                                        isCheckbox={true}
+                                        display={displayAll || (false && shouldDisplayField("wasteDetails.pop", changedField))}
+                                    />
+                                    <InputFull
+                                        titre="Dangereux"
+                                        placeholder="Est dangereux"
+                                        options={{
+                                            filteredOptions: [dataToogle.wasteDetails.code?.includes('*') ? 'true' : 'false'],
+                                            allOptions: ['true', 'false']
+                                        }}
+                                        width={2}
+                                        name="wasteDetails.isDangerous"
+                                        value={String(dataToogle.wasteDetails.isDangerous)}
+                                        onChange={handleChange}
+                                        enableText={true}
+                                        isCheckbox={true}
+                                        display={displayAll || (false && shouldDisplayField("wasteDetails.isDangerous", changedField))}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1021,7 +1151,7 @@ useEffect(() => {
 
                    
                     <div className="ml-[-10px]">
-                        {(session?.entreprise_id && modalType !== 'create_line') && <MailComponent 
+                        {(entreprise_id && modalType !== 'create_line') && <MailComponent 
                             params={{
                                 wasteCode: dataToogle.wasteDetails.code,
                                 responsibleName: dataToogle.emitter.company.contact,
@@ -1031,7 +1161,7 @@ useEffect(() => {
                                 collectionAddress: dataToogle.emitter.workSite.fullAddress,
                                 destinataire: dataToogle.transporter.company.mail,
                                 emetteur: dataToogle.emitter.company.mail,
-                                entrepriseId: session.entreprise_id,
+                                entrepriseId: entreprise_id,
                                 entrepriseName: dataToogle.emitter.company.name,
                                 wasteDescription: dataToogle.wasteDetails.name,
                                 containerCount: dataToogle.wasteDetails.packagingInfos[0].quantity,
@@ -1047,25 +1177,12 @@ useEffect(() => {
                             modalType={modalType}
                             otherInfos={other_infos}
                             setOtherInfos={setOtherInfos}
-                            //onMailSubmit={handleMailWithPopup}
                             options={options}
                             allOptions={allOptions}
                             handleChange={handleChange}
                             ced_table={ced_table}
                         />
-                        {/*<PopUp 
-                            dataToogle={dataToogle} 
-                            setDataToogle={setDataToogle} 
-                            modalType={modalType} 
-                            onMobile={true} 
-                            otherInfos={other_infos}
-                            setOtherInfos={setOtherInfos}
-                            getUniqueOptions={getUniqueOptions}
-                            options={options}
-                            allOptions={allOptions}
-                        />*/}
                     </div>
-                    {/*<button type="button" className="text-md h-[25px] text-gray-500 bg-gray-200 px-2 rounded-md font-thin hover:text-gray-700 active:font-bold" onClick={() => setDisplayFormulaire(false)}>Fermer</button>*/}
                 </form>
             </div>
         </div>
@@ -1098,6 +1215,10 @@ const getDataAutocompletionFull = async (dataFilter: {name: string, value: strin
             ]);
             const ced_all = ceds_all_types.flatMap(ced_types => ced_types);
             query = query.filter('json_row->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
+        } else if (name.startsWith('other_infos.')) {
+            // Gestion spéciale pour les champs other_infos
+            const fieldName = name.replace('other_infos.', '');
+            query = query.eq(`other_infos->>${fieldName}`, value);
         } else if (value && typeof value === 'string') {
             const name_prefilter = name.replaceAll('.', '->');
             const name_filter = replaceLastOccurrence(name_prefilter, '->', '->>')
@@ -1123,6 +1244,15 @@ export const getUniqueOptions = (
 ) => {
     const filtered = Array.from(new Set(filteredOptions.map(selector))).filter(Boolean);
     const all = Array.from(new Set(allOptions.map(selector))).filter(Boolean);
+    
+    // Si le sélecteur est pour un champ other_infos, on filtre différemment
+    if (selector.toString().includes('other_infos')) {
+        return {
+            filteredOptions: filtered,
+            allOptions: all.filter(opt => !filtered.includes(opt))
+        };
+    }
+    
     return {
         filteredOptions: filtered,
         allOptions: all.filter(opt => !filtered.includes(opt))
@@ -1193,14 +1323,24 @@ const preciseFilter = (
         // 1. Filtrer les options qui correspondent aux champs déjà remplis
         const filteredOptions = allOptions.filter(option => {
             return fieldsForFilter.every(field => {
-                const value = field.split('.').reduce<unknown>((obj, key) => 
-                    typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
-                    option.json_row as unknown as Record<string, unknown>
-                );
-                const chosenValue = field.split('.').reduce<unknown>((obj, key) => 
-                    typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
-                    alreadyChosenData as unknown as Record<string, unknown>
-                );
+                let value, chosenValue;
+                
+                if (field.startsWith('other_infos.')) {
+                    // Gestion spéciale pour les champs other_infos
+                    const fieldName = field.replace('other_infos.', '');
+                    value = option.other_infos?.[fieldName as keyof OtherInfos];
+                    chosenValue = (alreadyChosenData as FormInput & { other_infos?: OtherInfos }).other_infos?.[fieldName as keyof OtherInfos];
+                } else {
+                    // Gestion normale pour les champs json_row
+                    value = field.split('.').reduce<unknown>((obj, key) => 
+                        typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                        option.json_row as unknown as Record<string, unknown>
+                    );
+                    chosenValue = field.split('.').reduce<unknown>((obj, key) => 
+                        typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                        alreadyChosenData as unknown as Record<string, unknown>
+                    );
+                }
                 
                 if (!chosenValue) return true;
                 return value === chosenValue;
@@ -1210,12 +1350,16 @@ const preciseFilter = (
         // 2. Si aucune option ne correspond, retourner une chaîne vide
         if (filteredOptions.length === 0) return '';
 
-        // 3. Extraire les valeurs du champ d'intérêt avec gestion spéciale pour fullAddress
+        // 3. Extraire les valeurs du champ d'intérêt
         const interestValues = filteredOptions.map(option => {
             if (interestField === 'emitter.workSite.fullAddress') {
                 const workSite = option.json_row.emitter.workSite;
                 return workSite.fullAddress || 
                     `${workSite.address || ''} ${workSite.postalCode || ''} ${workSite.city || ''}`.trim();
+            } else if (interestField.startsWith('other_infos.')) {
+                // Gestion spéciale pour les champs other_infos
+                const fieldName = interestField.replace('other_infos.', '');
+                return option.other_infos?.[fieldName as keyof OtherInfos];
             }
             return interestField.split('.').reduce<unknown>((obj, key) => 
                 typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,

@@ -63,7 +63,7 @@ export default function UserSettings() {
                        onClick={() => handleTabClick('tab_personal')}>
                        Informations personnelles
                     </a>
-                    <a role="tab" 
+                    {/*<a role="tab" 
                        className={`tab border-0 ${activeTab === 'tab_filiere' ? 'border-b-4 border-green-500' : ''}`}
                        onClick={() => handleTabClick('tab_filiere')}>
                        Filière
@@ -72,7 +72,7 @@ export default function UserSettings() {
                        className={`tab border-0 ${activeTab === 'tab_site' ? 'border-b-4 border-green-500' : ''}`}
                        onClick={() => handleTabClick('tab_site')}>
                        Site
-                    </a>
+                    </a>*/}
                     {/*<a role="tab" 
                        className={`tab border-0 ${activeTab === 'tab_permissions' ? 'border-b-4 border-green-500' : ''}`}
                        onClick={() => handleTabClick('tab_permissions')}>

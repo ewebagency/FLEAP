@@ -29,6 +29,41 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [isLoading, setIsLoading] = useState(true);
   const {entreprise_id} = useSession();
 
+  // Fonction pour calculer le nom le plus fréquent pour un SIRET donné
+  const calculateMostFrequentName = (data: TYPE_table_bsd[], field: string, siret: string): string => {
+    const nameCounts: Record<string, number> = {};
+    
+    data.forEach(item => {
+      const formInput = item.infos_json?.formAPI?.createFormInput;
+      if (!formInput) return;
+
+      // Utiliser le chemin complet du champ pour la comparaison
+      if (field === 'formAPI.createFormInput.transporter.company.siret' && formInput.transporter?.company?.siret === siret) {
+        const name = formInput.transporter?.company?.name || '';
+        if (name) {
+          nameCounts[name] = (nameCounts[name] || 0) + 1;
+        }
+      } else if (field === 'formAPI.createFormInput.recipient.company.siret' && formInput.recipient?.company?.siret === siret) {
+        const name = formInput.recipient?.company?.name || '';
+        if (name) {
+          nameCounts[name] = (nameCounts[name] || 0) + 1;
+        }
+      }
+    });
+
+    let mostFrequentName = '';
+    let maxCount = 0;
+
+    Object.entries(nameCounts).forEach(([name, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        mostFrequentName = name;
+      }
+    });
+
+    return mostFrequentName;
+  };
+
   // Sauvegarder filterData dans localStorage quand il change
   useEffect(() => {
     if (Object.keys(filterData).length > 0) {
@@ -72,7 +107,6 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Mettre à jour filterData quand data change
   useEffect(() => {
     if (!data.length) {
-      // Ne pas réinitialiser filterData ici pour garder les valeurs persistantes
       return;
     }
     
@@ -85,26 +119,32 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const json_path = field.json_path;
       const unique_values = Array.from(new Set(data.map(item => {
         if (colonne === 'on_track_dechets' || colonne === 'created_on_fleap') {
-          // Pour les booléens, convertir en "Oui"/"Non"
           return item[colonne] ? "Oui" : "Non";
         }
         
         const value = get(item[colonne], json_path);
-        // Traitement spécial pour le champ isDangerous
         if (field.label === "Déchet Dangereux") {
           return value ? "Dangereux" : "Non dangereux";
         }
         return value?.toString() || '';
       })));
       
-      // Fusionner les anciennes valeurs avec les nouvelles
       const savedValues = savedFilterData[field.label] || [];
       const savedValuesMap = new Map(savedValues.map((v: FilterValue) => [v.value, !!v.checked]));
       
-      const value_checked = unique_values.map(value => ({
-        value,
-        checked: savedValuesMap.has(value) ? Boolean(savedValuesMap.get(value)) : true,
-      }));
+      const value_checked = unique_values.map(value => {
+        let mostFrequentName = '';
+        // Calculer le nom le plus fréquent pour les SIRET
+        if (field.label === "Transporteur (siret)" || field.label === "Destinataire (siret)") {
+          mostFrequentName = calculateMostFrequentName(data, json_path, value);
+        }
+        
+        return {
+          value,
+          checked: savedValuesMap.has(value) ? Boolean(savedValuesMap.get(value)) : true,
+          mostFrequentName
+        };
+      });
       
       newFilterData[field.label] = value_checked;
     }

@@ -159,26 +159,36 @@ const CreationFiltrePerso = () => {
                                                 </button>
                                             </div>
                                         )}
-                                        {filterData[fieldLabel]?.map((value) => (
-                                            <label 
-                                                key={value.value} 
-                                                className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
-                                            >
-                                        <input
-                                            type="checkbox"
-                                            checked={value.checked}
-                                            onChange={(e) => updateFilterValue(
-                                                        fieldLabel,
-                                                value.value,
-                                                e.target.checked
-                                            )}
-                                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                                />
-                                                <span className="ml-3 text-sm text-gray-700">
-                                                    {value.value}
-                                                </span>
-                                            </label>
-                                        ))}
+                                        {filterData[fieldLabel]?.map((value) => {
+                                            console.log('Rendering filter value:', { fieldLabel, value });
+                                            return (
+                                                <label 
+                                                    key={value.value} 
+                                                    className="flex flex-col px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                                                >
+                                                    <div className="flex items-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={value.checked}
+                                                            onChange={(e) => updateFilterValue(
+                                                                fieldLabel,
+                                                                value.value,
+                                                                e.target.checked
+                                                            )}
+                                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                        />
+                                                        <span className="ml-3 text-sm text-gray-700">
+                                                            {value.value}
+                                                        </span>
+                                                    </div>
+                                                    {value.mostFrequentName && (
+                                                        <span className="ml-7 text-xs text-gray-500">
+                                                            {value.mostFrequentName}
+                                                        </span>
+                                                    )}
+                                                </label>
+                                            );
+                                        })}
                                     </div>
                             </div>
                             )}

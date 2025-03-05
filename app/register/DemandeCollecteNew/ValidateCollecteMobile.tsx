@@ -122,7 +122,8 @@ const calculateEstimatedWeight = (
     volume: string | undefined, 
     fillRate: string | undefined, 
     wasteCode: string | undefined,
-    volumeUnit: string = 'm3'
+    volumeUnit: string = 'm3',
+    numberOfContainers: number = 1
 ): number | null => {
     if (!volume) return null;
 
@@ -136,7 +137,7 @@ const calculateEstimatedWeight = (
     const masseVolumique = wasteInfo?.masse_volumique || 1000;
     const fillRateMultiplier = fillRate ? parseInt(fillRate) / 100 : 1;
     
-    return (volumeInM3 * masseVolumique * fillRateMultiplier) / 1000;
+    return (volumeInM3 * masseVolumique * fillRateMultiplier * numberOfContainers) / 1000;
 };
 
 const calculateFillRate = (
@@ -400,7 +401,8 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: 
                 fieldName === 'volume' ? value : other_infos.volume,
                 fieldName === 'fillRate' ? value : other_infos.fillRate,
                 dataToogle.wasteDetails.code,
-                fieldName === 'volumeUnit' ? value : other_infos.volumeUnit
+                fieldName === 'volumeUnit' ? value : other_infos.volumeUnit,
+                other_infos.automaticMode ? 1 : 0
             );
             if (weight !== null) {
                 const newData = { ...dataToogle };
@@ -485,7 +487,8 @@ const handleOtherInfosChange = (updates: Partial<OtherInfos>) => {
             updatedOtherInfos.volume,
             updatedOtherInfos.fillRate,
             dataToogle.wasteDetails.code,
-            updatedOtherInfos.volumeUnit
+            updatedOtherInfos.volumeUnit,
+            updatedOtherInfos.automaticMode ? 1 : 0
         );
         if (weight !== null) {
             const newData = { ...dataToogle };
@@ -867,7 +870,7 @@ useEffect(() => {
                                 display={displayAll || dataToogle.emitter.company.name == ""}
                             />
                             <InputMobile
-                                titre="Siret"
+                                titre="Siret émetteur"
                                 placeholder="Siret"
                                 options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.siret)}
                                 width={30}
@@ -893,7 +896,7 @@ useEffect(() => {
                                 display={displayAll || initialDataToogle.emitter.workSite.name == ""}
                             />
                             <InputMobile
-                                titre="Point de collecte"
+                                titre="Adresse"
                                 placeholder="Adresse d'enlèvement"
                                 options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.emitter.workSite.fullAddress ?? ""}`)}
                                 width={30}
@@ -906,7 +909,7 @@ useEffect(() => {
                         </div>
 
                         {/* Colonne 3: Contact émetteur*/}
-                        <div>
+                        <div className='hidden'>
                             <InputMobile
                                 titre="Contact"
                                 placeholder="Contact"
@@ -998,7 +1001,7 @@ useEffect(() => {
                         </div>
 
                         {/* Colonne 3: Autres*/}
-                        <div>
+                        <div className='hidden'>
                             <InputMobile
                                 titre="CAP"
                                 placeholder="CAP"
@@ -1027,7 +1030,7 @@ useEffect(() => {
                     {/* Troisième ligne : Filière, Déchet, Contenant*/}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-0 mb-1 w-full sm:w-[85%] rounded-md p-2">
                         {/* Colonne 1: Filière*/}
-                        <div>
+                        <div className='hidden'>
                             <InputMobile
                                 titre="Filière"
                                 placeholder="Filière"
@@ -1070,7 +1073,7 @@ useEffect(() => {
                         {/* Colonne 3: Contenant*/}
                         <div>
                             <InputMobile
-                                titre="Description"
+                                titre="Contenant"
                                 placeholder="Description du contenant"
                                 options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.containerDescription || '')}
                                 width={30}
@@ -1080,31 +1083,39 @@ useEffect(() => {
                                 enableText={true}
                                 display={displayAll ||  initialOtherInfos.containerDescription == ""}
                             />
-                            <InputMobile
-                                titre="Volume"
-                                placeholder="Volume"
-                                name="other_infos.volume"
-                                value={other_infos.volume}
-                                onChange={handleChange}
-                                width={30}
-                                enableText={true}
-                                options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.volume || '')}
-                                display={displayAll || shouldDisplayField("other_infos.volume", changedField)}
-                            />
-                            <InputMobile
-                                titre="Unité"
-                                placeholder="Unité"
-                                name="other_infos.volumeUnit"
-                                value={other_infos.volumeUnit}
-                                onChange={handleChange}
-                                width={30}
-                                enableText={true}
-                                options={{
-                                    filteredOptions: [],
-                                    allOptions: ['L', 'm³']
-                                }}
-                                display={displayAll || shouldDisplayField("other_infos.volumeUnit", changedField)}
-                            />
+                            <div className='flex justify-start gap-0 w-[101%] items-center'>
+                                {(displayAll || shouldDisplayField("other_infos.volume", changedField)) && <div className='w-[70%] text-md text-gray-500 text-right ml-12 mr-3'>Volume</div>}
+                                    <InputMobile
+                                        titre=""
+                                        placeholder="Volume"
+                                        name="other_infos.volume"
+                                        value={other_infos.volume}
+                                        onChange={handleChange}
+                                        width={25}
+                                        enableText={true}
+                                        options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.volume || '')}
+                                        display={displayAll || shouldDisplayField("other_infos.volume", changedField)}
+                                        hideIndicators={true}
+                                    />
+                                
+                                
+                                    <InputMobile
+                                        titre=""
+                                        placeholder="Unité"
+                                        name="other_infos.volumeUnit"
+                                        value={other_infos.volumeUnit}
+                                        onChange={handleChange}
+                                        width={15}
+                                        enableText={true}
+                                        options={{
+                                            filteredOptions: [],
+                                            allOptions: ['L', 'm³']
+                                        }}
+                                        display={displayAll || shouldDisplayField("other_infos.volumeUnit", changedField)}
+                                        hideIndicators={true}
+                                    />
+                                
+                            </div>
                         </div>
                     </div>
 
@@ -1225,6 +1236,12 @@ useEffect(() => {
                         {/* Jauge de remplissage */}
                         <div className="flex flex-col items-center" onTouchMove={(e) => e.stopPropagation()}>
                             <div className="relative w-32 h-[180px] bg-gray-300 rounded-lg overflow-hidden border border-gray-200 mb-2 touch-none">
+                                <div className="text-xs text-center text-black mt-2 mx-2">
+                                    {dataToogle.wasteDetails.packagingInfos[0].quantity <= 1 ? 
+                                        `Estimez le remplissage de la ${other_infos.containerDescription}` :
+                                        `Estimez le remplissage moyen des ${dataToogle.wasteDetails.packagingInfos[0].quantity} ${other_infos.containerDescription}s`
+                                    }
+                                </div>                                            
                                             {/* Logo poubelle en filigrane */}
                                 <div className="absolute inset-0 flex items-end justify-center opacity-20">
                                     <div className="transform scale-[5] mb-[30px]">
@@ -1238,7 +1255,7 @@ useEffect(() => {
                                             
                                             {/* Barre de remplissage */}
                                             <div 
-                                                className="absolute bottom-0 left-0 w-full bg-[var(--green-medium)]"
+                                                className="absolute bottom-0 left-0 w-full bg-[var(--green-medium)] opacity-85"
                                                 style={{ 
                                                     height: `${other_infos.fillRate || 0}%`
                                                 }}
@@ -1273,7 +1290,8 @@ useEffect(() => {
                                                 other_infos.volume,
                                                 newFillRate.toString(),
                                                 dataToogle.wasteDetails.code,
-                                                other_infos.volumeUnit
+                                                other_infos.volumeUnit,
+                                                other_infos.automaticMode ? 1 : 0
                                             );
                                             if (weight !== null) {
                                                 const newData = { ...dataToogle };
@@ -1300,7 +1318,8 @@ useEffect(() => {
                                                 other_infos.volume,
                                                 newFillRate.toString(),
                                                 dataToogle.wasteDetails.code,
-                                                other_infos.volumeUnit
+                                                other_infos.volumeUnit,
+                                                other_infos.automaticMode ? 1 : 0
                                             );
                                             if (weight !== null) {
                                                 const newData = { ...dataToogle };
@@ -1326,7 +1345,7 @@ useEffect(() => {
                         {/* Quantité */}
                                     <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Quantité (t)
+                                            Quantité totale (T)
                                         </label>
                                         <input
                                             type="number"
@@ -1383,9 +1402,23 @@ useEffect(() => {
                                                     onClick={() => {
                                                         const currentQty = Number(dataToogle.wasteDetails.packagingInfos[0].quantity) || 0;
                                                         if (currentQty > 1) {
-                                                            const newData = { ...dataToogle };
-                                                            updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.packagingInfos[0].quantity', (currentQty - 1).toString());
-                                                            setDataToogle(newData);
+                                                            const newValue = (currentQty - 1).toString();
+                                                            const newData = JSON.parse(JSON.stringify(dataToogle)) as FormInput;
+                                                            updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.packagingInfos[0].quantity', newValue);
+                                                            
+                                                            if (other_infos.automaticMode && other_infos.inputMode === 'volume') {
+                                                                updateWeight(
+                                                                    other_infos.volume,
+                                                                    other_infos.fillRate,
+                                                                    newData.wasteDetails.code,
+                                                                    other_infos.volumeUnit,
+                                                                    Number(newValue),
+                                                                    setDataToogle,
+                                                                    newData
+                                                                );
+                                                            } else {
+                                                                setDataToogle(newData);
+                                                            }
                                                         }
                                                     }}
                                     className="w-10 h-10 flex items-center justify-center bg-gray-200 rounded-full text-xl font-bold"
@@ -1398,9 +1431,22 @@ useEffect(() => {
                                                     value={dataToogle.wasteDetails.packagingInfos[0].quantity || 1}
                                                     onChange={(e) => {
                                                         const value = Math.max(Number(e.target.value) || 1, 1);
-                                                        const newData = { ...dataToogle };
+                                                        const newData = JSON.parse(JSON.stringify(dataToogle)) as FormInput;
                                                         updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.packagingInfos[0].quantity', value.toString());
-                                                        setDataToogle(newData);
+                                                        
+                                                        if (other_infos.automaticMode && other_infos.inputMode === 'volume') {
+                                                            updateWeight(
+                                                                other_infos.volume,
+                                                                other_infos.fillRate,
+                                                                newData.wasteDetails.code,
+                                                                other_infos.volumeUnit,
+                                                                value,
+                                                                setDataToogle,
+                                                                newData
+                                                            );
+                                                        } else {
+                                                            setDataToogle(newData);
+                                                        }
                                                     }}
                                                     min="1"
                                                 />
@@ -1408,9 +1454,23 @@ useEffect(() => {
                                                     type="button"
                                                     onClick={() => {
                                                         const currentQty = Number(dataToogle.wasteDetails.packagingInfos[0].quantity) || 0;
-                                                        const newData = { ...dataToogle };
-                                                        updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.packagingInfos[0].quantity', (currentQty + 1).toString());
-                                                        setDataToogle(newData);
+                                                        const newValue = (currentQty + 1).toString();
+                                                        const newData = JSON.parse(JSON.stringify(dataToogle)) as FormInput;
+                                                        updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.packagingInfos[0].quantity', newValue);
+                                                        
+                                                        if (other_infos.automaticMode && other_infos.inputMode === 'volume') {
+                                                            updateWeight(
+                                                                other_infos.volume,
+                                                                other_infos.fillRate,
+                                                                newData.wasteDetails.code,
+                                                                other_infos.volumeUnit,
+                                                                Number(newValue),
+                                                                setDataToogle,
+                                                                newData
+                                                            );
+                                                        } else {
+                                                            setDataToogle(newData);
+                                                        }
                                                     }}
                                     className="w-10 h-10 flex items-center justify-center bg-gray-200 rounded-full text-xl font-bold"
                                                 >
@@ -1445,7 +1505,6 @@ useEffect(() => {
 }
 
 export default ValidateCollecteMobile;
-
 
 
 // Modifier la fonction preciseFilter pour utiliser la nouvelle structure
@@ -1570,3 +1629,29 @@ const dataFilterUpdate = (setCurrentFiliere: (filiere: string) => void, ced_tabl
     setDataFilter(newDataFilter);
     return newDataFilter;
 }
+
+// Ajouter cette fonction après les autres fonctions utilitaires
+const updateWeight = (
+    volume: string | undefined,
+    fillRate: string | undefined,
+    wasteCode: string | undefined,
+    volumeUnit: string | undefined,
+    numberOfContainers: number,
+    setDataToogle: (data: FormInput) => void,
+    dataToogle: FormInput
+) => {
+    const weight = calculateEstimatedWeight(
+        volume,
+        fillRate,
+        wasteCode,
+        volumeUnit,
+        numberOfContainers
+    );
+    
+    if (weight !== null) {
+        const newData = { ...dataToogle };
+        updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.quantity', weight.toFixed(3));
+        setDataToogle(newData);
+    }
+};
+

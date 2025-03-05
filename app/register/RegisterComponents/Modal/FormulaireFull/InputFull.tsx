@@ -35,6 +35,7 @@ interface InputFullProps {
     display?: boolean;
     stylePrimary?: boolean;
     popup?: boolean;
+    isCheckbox?: boolean;
 }
 
 const InputFull: React.FC<InputFullProps> = ({
@@ -51,7 +52,8 @@ const InputFull: React.FC<InputFullProps> = ({
     stade="freeze", 
     display=true,
     stylePrimary=false,
-    popup=false
+    popup=false,
+    isCheckbox=false
 }: InputFullProps) => {
     const [isTextMode, setIsTextMode] = useState(false);
 
@@ -140,95 +142,113 @@ const InputFull: React.FC<InputFullProps> = ({
                     ) : (
                         <div className={popup ? 'w-full' : `w-[${(width * 10) - 120}px]`}>
                             {enabled ? (
-                                <CreatableSelect
-                                    isClearable
-                                    isSearchable
-                                    placeholder={placeholder}
-                                    value={value ? { 
-                                        label: value.toString(), 
-                                        value: value.toString(),
-                                        isFiltered: true 
-                                    } : null}
-                                    onChange={(newValue: SingleValue<SelectOption>, actionMeta: ActionMeta<SelectOption>) => {
-                                        onChange({
-                                            target: {
-                                                name,
-                                                value: newValue?.value || ''
-                                            }
-                                        });
-                                    }}
-                                    options={[
-                                        ...options.filteredOptions.map(opt => ({
-                                            label: opt,
-                                            value: opt,
-                                            isFiltered: true
-                                        })),
-                                        ...options.allOptions.map(opt => ({
-                                            label: opt,
-                                            value: opt,
-                                            isFiltered: false
-                                        }))
-                                    ]}
-                                    styles={{
-                                        control: (base) => ({
-                                            ...base,
-                                            minHeight: popup ? '42px' : '16px',
-                                            width: popup ? '100%' : `${(width * 10) - 120}px`,
-                                            backgroundColor: getBackgroundColor(),
-                                            borderColor: stylePrimary ? '#43A047' : base.borderColor,
-                                            borderWidth: '1px',
-                                            fontSize: popup ? '1rem' : '0.65rem'
-                                        }),
-                                        valueContainer: (base) => ({
-                                            ...base,
-                                            padding: popup ? '6px 8px' : '0 3px'
-                                        }),
-                                        input: (base) => ({
-                                            ...base,
-                                            margin: '0px',
-                                            fontSize: popup ? '1rem' : '0.65rem'
-                                        }),
-                                        menu: (base) => ({
-                                            ...base,
-                                            zIndex: 9999,
-                                            position: 'absolute',
-                                            width: '100%',
-                                            backgroundColor: 'white',
-                                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                            fontSize: popup ? '1rem' : '0.65rem'
-                                        }),
-                                        menuPortal: (base) => ({
-                                            ...base,
-                                            zIndex: 9999
-                                        }),
-                                        option: (base, state) => ({
-                                            ...base,
-                                            backgroundColor: state.data.isFiltered ? 
-                                                (state.isSelected ? '#2684FF' : '#E8F0FE') : 
-                                                (state.isSelected ? '#2684FF' : 'white'),
-                                            color: state.isSelected ? 'white' : 'black',
-                                            fontSize: popup ? '1rem' : '0.65rem',
-                                            padding: popup ? '8px 12px' : '4px 8px'
-                                        }),
-                                        dropdownIndicator: (base) => ({
-                                            ...base,
-                                            padding: 2,
-                                            display: popup ? 'none' : 'flex'
-                                        }),
-                                        clearIndicator: (base) => ({
-                                            ...base,
-                                            padding: 2,
-                                            display: popup ? 'none' : 'flex'
-                                        }),
-                                        indicatorSeparator: (base) => ({
-                                            ...base,
-                                            margin: 2,
-                                            display: popup ? 'none' : 'flex'
-                                        })
-                                    }}
-                                    menuPortalTarget={document.body}
-                                    menuPosition="fixed"
-                                />
+                                isCheckbox ? (
+                                    <div className="flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={value === true || value === 'true'}
+                                            onChange={(e) => {
+                                                onChange({
+                                                    target: {
+                                                        name,
+                                                        value: e.target.checked.toString()
+                                                    }
+                                                });
+                                            }}
+                                            className={`h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${stylePrimary ? 'border-blue-500' : ''}`}
+                                        />
+                                    </div>
+                                ) : (
+                                    <CreatableSelect<SelectOption>
+                                        isClearable
+                                        isSearchable
+                                        placeholder={placeholder}
+                                        value={value ? { 
+                                            label: value.toString(), 
+                                            value: value.toString(),
+                                            isFiltered: true 
+                                        } : null}
+                                        onChange={(newValue: SingleValue<SelectOption>, actionMeta: ActionMeta<SelectOption>) => {
+                                            onChange({
+                                                target: {
+                                                    name,
+                                                    value: newValue?.value || ''
+                                                }
+                                            });
+                                        }}
+                                        options={[
+                                            ...options.filteredOptions.map(opt => ({
+                                                label: opt,
+                                                value: opt,
+                                                isFiltered: true
+                                            })),
+                                            ...options.allOptions.map(opt => ({
+                                                label: opt,
+                                                value: opt,
+                                                isFiltered: false
+                                            }))
+                                        ]}
+                                        styles={{
+                                            control: (base) => ({
+                                                ...base,
+                                                minHeight: popup ? '42px' : '16px',
+                                                width: popup ? '100%' : `${(width * 10) - 120}px`,
+                                                backgroundColor: getBackgroundColor(),
+                                                borderColor: stylePrimary ? '#43A047' : base.borderColor,
+                                                borderWidth: '1px',
+                                                fontSize: popup ? '1rem' : '0.65rem'
+                                            }),
+                                            valueContainer: (base) => ({
+                                                ...base,
+                                                padding: popup ? '6px 8px' : '0 3px'
+                                            }),
+                                            input: (base) => ({
+                                                ...base,
+                                                margin: '0px',
+                                                fontSize: popup ? '1rem' : '0.65rem'
+                                            }),
+                                            menu: (base) => ({
+                                                ...base,
+                                                zIndex: 9999,
+                                                position: 'absolute',
+                                                width: '100%',
+                                                backgroundColor: 'white',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                                fontSize: popup ? '1rem' : '0.65rem'
+                                            }),
+                                            menuPortal: (base) => ({
+                                                ...base,
+                                                zIndex: 9999
+                                            }),
+                                            option: (base, state) => ({
+                                                ...base,
+                                                backgroundColor: (state.data as SelectOption).isFiltered ? 
+                                                    (state.isSelected ? '#2684FF' : '#E8F0FE') : 
+                                                    (state.isSelected ? '#2684FF' : 'white'),
+                                                color: state.isSelected ? 'white' : 'black',
+                                                fontSize: popup ? '1rem' : '0.65rem',
+                                                padding: popup ? '8px 12px' : '4px 8px'
+                                            }),
+                                            dropdownIndicator: (base) => ({
+                                                ...base,
+                                                padding: 2,
+                                                display: popup ? 'none' : 'flex'
+                                            }),
+                                            clearIndicator: (base) => ({
+                                                ...base,
+                                                padding: 2,
+                                                display: popup ? 'none' : 'flex'
+                                            }),
+                                            indicatorSeparator: (base) => ({
+                                                ...base,
+                                                margin: 2,
+                                                display: popup ? 'none' : 'flex'
+                                            })
+                                        }}
+                                        menuPortalTarget={document.body}
+                                        menuPosition="fixed"
+                                    />
+                                )
                             ) : (
                                 <div className={`w-full text-xs border border-gray-400 rounded-md p-2 whitespace-nowrap overflow-hidden text-ellipsis ${stylePrimary ? 'bg-blue-50 border-blue-500 border-2' : getBackgroundColor()}`}>
                                     {value}

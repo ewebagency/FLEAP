@@ -11,7 +11,6 @@ import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/F
 //import 'boxicons'
 import { RecurrenceEntry } from "./RegisterComponents/Modal/Recurrence/RecurrenceFunctionnal";
 import BoxIcon from "../component/BoxIconWrapper";
-import { getPendingBSDs } from "./RegisterComponents/BordereauxRegister";
 import { FactureJSON } from "../import_page/FactureImport/ButtonImportFacture";
 import { useFiltresPerso } from "../component/FiltresPerso/FiltresPersoProvider";
 import NewFormulaireDemande from "./DemandeCollecteNew/NewFormulaireDemande";
@@ -711,8 +710,8 @@ const TableBSD = () => {
             "IMPORTED": { mainText: "Importé", subText: "dans FLEAP", color: "text-gray-600" },
             
             "Ligne créée": { mainText: "Ligne créée", color: "text-gray-600" },
-            "Ligne validée": { mainText: "Ligne validée", color: "text-[var(--green-light)]" },
-            "Ligne demandée": { mainText: "Ligne demandée", subText: "en attente de collecte", color: "text-red-600" },
+            "Ligne validée": { mainText: "Collecté", subText: "en cours de transport", color: "text-blue-600" },
+            "Ligne demandée": { mainText: "Collecte demandée", subText: "en attente de collecte", color: "text-red-600" },
 
         };
 
@@ -1000,8 +999,8 @@ const TableBSD = () => {
 
 
                                         {/* Actions principales */}
-                                        <div className="flex items-center gap-0">
-                                            {bsd.status_track_dechets === "Ligne demandée" && (
+                                        <div className="flex items-center">
+                                            {["Ligne demandée", "Ligne créée"].includes(bsd.status_track_dechets) && (
                                                 <div className="text-center items-center ml-16 mr-[-15px] md:mr-[-5px]">
                                                     <button 
                                                         className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
@@ -1059,8 +1058,8 @@ const TableBSD = () => {
                                                         value={bsd.status_track_dechets}
                                                     >
                                                         <option value={bsd.status_track_dechets} hidden></option>
-                                                        <option value="Brouillon">Brouillon</option>
-                                                        <option value="Collecte demandée">Collecte demandée</option>
+                                                        {bsd.readable_id_track_dechets !== "Ligne validée" && <option value="Brouillon">Brouillon</option>}
+                                                        {bsd.readable_id_track_dechets !== "Ligne validée" && <option value="Collecte demandée">Collecte demandée</option>}
                                                         <option value="Collecté">Collecté</option>
                                                         <option value="Accepté">Accepté</option>
                                                         <option value="Traité">Traité</option>
@@ -1107,7 +1106,18 @@ const TableBSD = () => {
                                             {openMenuId === bsd.id && (
                                                 <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg z-50 top-8">
                                                     <div className="py-1">
-                                                        {canModify(bsd.id_track_dechets, bsd.status_track_dechets) ? (
+                                                        <button 
+                                                            className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-green-50 hover:text-green-600 text-left"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDisplay(bsd.id);
+                                                                setOpenMenuId(null);
+                                                            }}
+                                                        >
+                                                            Voir
+                                                        </button>
+
+                                                        {canModify(bsd.id_track_dechets, bsd.status_track_dechets) && (
                                                             <button 
                                                                 className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600 text-left"
                                                                 onClick={(e) => {
@@ -1118,18 +1128,8 @@ const TableBSD = () => {
                                                             >
                                                                 Modifier
                                                             </button>
-                                                        ) : (
-                                                            <button 
-                                                                className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-green-50 hover:text-green-600 text-left"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleDisplay(bsd.id);
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                            >
-                                                                Voir
-                                                            </button>
                                                         )}
+                                                        
                                                         <button 
                                                             className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-red-50 hover:text-red-600 text-left relative"
                                                             onClick={(e) => {
@@ -1273,12 +1273,12 @@ const TableBSD = () => {
 export default TableBSD
 
 const nonDangerousStatut = (statut: string) => {
-    const acceptableStatuts = ["Déchet non dangereux", "Brouillon", "Collecte demandée", "Collecté", "Accepté", "Traité", "Rupture de traçabilité", "Ligne créée"];
+    const acceptableStatuts = ["Déchet non dangereux", "Brouillon", "Collecte demandée", "Collecté", "Accepté", "Traité", "Rupture de traçabilité", "Ligne validée"];
     return acceptableStatuts.includes(statut);
 }
 
 const canModify = (id_track: string, statut_track: string) => {
-    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED" || statut_track === "DRAFT" || id_track === "Ligne créée" || id_track === "Ligne automatique") {
+    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED" || statut_track === "DRAFT" || id_track === "Ligne validée" || id_track === "Ligne créée" || id_track === "Ligne automatique") {
         return true;
     }
     return false;

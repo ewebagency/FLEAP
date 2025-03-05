@@ -403,16 +403,62 @@ const toogleFunction = () => {
 }
 
 // Ajouter cette nouvelle fonction de mise à jour
-const handleOtherInfosChange = (updates: Partial<{
+const handleOtherInfosChange = async (updates: Partial<{
     containerDescription: string;
     volume: string;
     volumeUnit: string;
     fillRate: string;
 }>) => {
+    // Mettre à jour l'état local
     setOtherInfos(prev => ({
         ...prev,
         ...updates
     }));
+
+    // Si nous avons des options et que nous sommes dans le mode d'autocomplétion
+    if (!disableAutocompletion && allOptions.length > 0) {
+        // Filtrer les options en fonction des champs déjà remplis
+        const filteredOptions = allOptions.filter(option => {
+            return Object.entries(updates).every(([key, value]) => {
+                return option.other_infos?.[key as keyof OtherInfos] === value;
+            });
+        });
+
+        // Si nous avons des options filtrées, utiliser la première pour l'autocomplétion
+        if (filteredOptions.length > 0) {
+            const firstOption = filteredOptions[0];
+            const newUpdates: Partial<OtherInfos> = {};
+            
+            // Pour chaque champ dans other_infos qui n'a pas été mis à jour
+            Object.keys(firstOption.other_infos || {}).forEach(key => {
+                if (!(key in updates)) {
+                    const value = firstOption.other_infos?.[key as keyof OtherInfos];
+                    if (value !== undefined) {
+                        if (key === 'melange' && Array.isArray(value)) {
+                            newUpdates.melange = value;
+                        } else if (key === 'inputMode' && (value === 'volume' || value === 'tonnage')) {
+                            newUpdates.inputMode = value;
+                        } else if (key === 'automaticMode' && typeof value === 'boolean') {
+                            newUpdates.automaticMode = value;
+                        } else if (typeof value === 'string') {
+                            if (key === 'volume') newUpdates.volume = value;
+                            else if (key === 'volumeUnit') newUpdates.volumeUnit = value;
+                            else if (key === 'fillRate') newUpdates.fillRate = value;
+                            else if (key === 'containerDescription') newUpdates.containerDescription = value;
+                        }
+                    }
+                }
+            });
+
+            // Mettre à jour les champs non modifiés
+            if (Object.keys(newUpdates).length > 0) {
+                setOtherInfos(prev => ({
+                    ...prev,
+                    ...newUpdates
+                }));
+            }
+        }
+    }
 };
 
 // Modifier le useEffect pour prendre en compte l'état de désactivation
@@ -622,6 +668,7 @@ useEffect(() => {
                             enableText={false}
                             stylePrimary={true}
                             onMobile={true}
+                            display={false}
                         />
                                 </div>
                         
@@ -685,85 +732,6 @@ useEffect(() => {
                         </div>
                                 )}
 
-                                {/* Contenant */}
-                                <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Contenant"
-                            placeholder="Sélectionner un contenant"
-                            options={{
-                                filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.packagingInfos[0].type}`).filteredOptions,
-                                allOptions: ['FUT', 'GRV', 'CITERNE', 'BENNE', 'PIPELINE', 'AUTRE']
-                            }}
-                            width={1}
-                            name="wasteDetails.packagingInfos[0].type"
-                            value={dataToogle.wasteDetails.packagingInfos[0].type}
-                            onChange={handleChange}
-                            enableText={false}
-                            stylePrimary={true}
-                            display={displayAll}
-                            onMobile={true}
-                        />
-                        {/* Nouveaux champs pour other_infos */}
-                        <InputMobile
-                            titre="Volume"
-                            placeholder="Volume"
-                            name="volume"
-                            value={other_infos.volume || ''}
-                            onChange={(e: string | { target: { name: string; value: string } }) => {
-                                const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
-                                handleOtherInfosChange({ volume: String(newValue) })
-                            }}
-                            options={{
-                                filteredOptions: [],
-                                allOptions: ['20', '30', '100', '200', '500', '1000']
-                            }}
-                            enabled={true}
-                            display={displayAll}
-                            width={1}
-                            onMobile={true}
-                        />
-                                </div>
-
-                                {/* Unité et Description */}
-                                <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Unité"
-                            placeholder="Unité de volume"
-                            name="volumeUnit"
-                            value={other_infos.volumeUnit || ''}
-                            onChange={(e: string | { target: { name: string; value: string } }) => {
-                                const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
-                                handleOtherInfosChange({ volumeUnit: String(newValue) })
-                            }}
-                            options={{
-                                filteredOptions: [],
-                                allOptions: ['m3', 'L']
-                            }}
-                            enabled={true}
-                            display={displayAll}
-                            width={1}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="Contenant"
-                            placeholder="Description du contenants"
-                            name="containerDescription"
-                            value={other_infos.containerDescription || ''}
-                            onChange={(e: string | { target: { name: string; value: string } }) => {
-                                const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
-                                handleOtherInfosChange({ containerDescription: String(newValue) })
-                            }}
-                            options={{
-                                filteredOptions: [],
-                                allOptions: ['Benne', 'Citerne', 'Pipeline', 'Autre']
-                            }}
-                            enabled={true}
-                            display={displayAll}
-                            width={1}
-                            onMobile={true}
-                        />
-                                </div>
-
                                 {/* Remplissage et Nombre */}
                                 <div className="flex flex-col gap-0">
                         <InputMobile
@@ -780,7 +748,7 @@ useEffect(() => {
                                 allOptions: ['50', '75', '95']
                             }}
                             enabled={true}
-                            display={displayAll}
+                            display={false}
                             width={1}
                             onMobile={true}
                         />
@@ -793,7 +761,7 @@ useEffect(() => {
                             value={String(dataToogle.wasteDetails.packagingInfos[0].quantity)}
                             onChange={handleChange}
                             enableText={true}
-                            display={displayAll}
+                            display={false}
                             onMobile={true}
                         />
                                 </div>
@@ -812,9 +780,24 @@ useEffect(() => {
                             value={String(dataToogle.wasteDetails.quantity)}
                             onChange={handleChange}
                             enableText={true}
-                            display={displayAll}
+                            display={false}
                             onMobile={true}
                         />
+                        <InputMobile
+                            titre="Consist."
+                            placeholder="Consistance"
+                            options={{
+                                filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.consistence}`).filteredOptions,
+                                allOptions: ['SOLID', 'LIQUID', 'GASEOUS', 'DOUGHY']
+                            }}
+                            width={1}
+                            name="wasteDetails.consistence"
+                            value={String(dataToogle.wasteDetails.consistence)}
+                            onChange={handleChange}
+                            enableText={true}
+                            display={displayAll}
+                            onMobile={true}
+                        />                        
                         <InputMobile
                             titre="Type"
                             placeholder="Type de quantité"
@@ -835,21 +818,6 @@ useEffect(() => {
                                 {/* Consistance et Pop */}
                                 <div className="flex flex-col gap-0">
                         <InputMobile
-                            titre="Consist."
-                            placeholder="Consistance"
-                            options={{
-                                filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.consistence}`).filteredOptions,
-                                allOptions: ['SOLID', 'LIQUID', 'GASEOUS', 'DOUGHY']
-                            }}
-                            width={1}
-                            name="wasteDetails.consistence"
-                            value={String(dataToogle.wasteDetails.consistence)}
-                            onChange={handleChange}
-                            enableText={true}
-                            display={displayAll}
-                            onMobile={true}
-                        />
-                        <InputMobile
                             titre="Pop"
                             placeholder="Pop"
                             options={{
@@ -866,7 +834,81 @@ useEffect(() => {
                         />
                                 </div>
                             </div>
-                    </div>
+                    
+
+                                {/* Contenant */}
+                                <div className="flex flex-col gap-0 mt-2">
+                                    <InputMobile
+                                        titre="Contenant"
+                                        placeholder="Sélectionner un contenant"
+                                        options={{
+                                            filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.packagingInfos[0].type}`).filteredOptions,
+                                            allOptions: ['FUT', 'GRV', 'CITERNE', 'BENNE', 'PIPELINE', 'AUTRE']
+                                        }}
+                                        width={1}
+                                        name="wasteDetails.packagingInfos[0].type"
+                                        value={dataToogle.wasteDetails.packagingInfos[0].type}
+                                        onChange={handleChange}
+                                        enableText={false}
+                                        stylePrimary={true}
+                                        display={false}
+                                        onMobile={true}
+                                    />
+                                     {/* Nouveaux champs pour other_infos */}
+                                    <InputMobile
+                                        titre="Contenant"
+                                        placeholder="Description du contenant"
+                                        name="containerDescription"
+                                        value={other_infos.containerDescription || ''}
+                                        onChange={(e: string | { target: { name: string; value: string } }) => {
+                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                            handleOtherInfosChange({ containerDescription: String(newValue) })
+                                        }}
+                                        options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.containerDescription || '')}
+                                        enabled={true}
+                                        width={1}
+                                        onMobile={true}
+                                        stylePrimary={true}
+                                    />                        
+                                    <InputMobile
+                                        titre="Volume"
+                                        placeholder="Volume"
+                                        name="volume"
+                                        value={other_infos.volume || ''}
+                                        onChange={(e: string | { target: { name: string; value: string } }) => {
+                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                            handleOtherInfosChange({ volume: String(newValue) })
+                                        }}
+                                        options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.volume || '')}
+                                        enabled={true}
+                                        display={displayAll}
+                                        width={1}
+                                        onMobile={true}
+                                    />
+                                </div>
+
+                                {/* Unité et Description */}
+                                <div className="flex flex-col gap-0">
+                                    <InputMobile
+                                        titre="Unité"
+                                        placeholder="Unité de volume"
+                                        name="volumeUnit"
+                                        value={other_infos.volumeUnit || ''}
+                                        onChange={(e: string | { target: { name: string; value: string } }) => {
+                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                            handleOtherInfosChange({ volumeUnit: String(newValue) })
+                                        }}
+                                        options={{
+                                            filteredOptions: [],
+                                            allOptions: ['m3', 'L']
+                                        }}
+                                        enabled={true}
+                                        display={displayAll}
+                                        width={1}
+                                        onMobile={true}
+                                    />
+                                </div>   
+                        </div>                 
 
                     {/* Section Prestataires */}
                         <div className="border-b border-gray-200 pb-4">
@@ -897,7 +939,79 @@ useEffect(() => {
                             enableText={false}
                             display={displayAll}
                             onMobile={true}
+                        />           
+                        <InputMobile
+                            titre="Contact"
+                            placeholder="Contact"
+                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.contact)}
+                            width={1}
+                            name="transporter.company.contact"
+                            value={dataToogle.transporter.company.contact}
+                            onChange={handleChange}
+                            enableText={false}
+                            display={displayAll}
+                            onMobile={true}
                         />
+                        <InputMobile
+                            titre="Téléphone"
+                            placeholder="Téléphone"
+                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.phone)}
+                            width={1}
+                            name="transporter.company.phone"
+                            value={dataToogle.transporter.company.phone}
+                            onChange={handleChange}
+                            enableText={false}
+                            display={displayAll}
+                            onMobile={true}
+                        />
+                        <InputMobile
+                            titre="Mail"
+                            placeholder="Mail"
+                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.mail)}
+                            width={1}
+                            name="transporter.company.mail"
+                            value={dataToogle.transporter.company.mail}
+                            onChange={handleChange}
+                            enableText={false}
+                            display={displayAll}
+                            onMobile={true}
+                        />  
+                        <InputMobile
+                            titre="Exemption"
+                            placeholder="de récépissé"
+                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.isExemptedOfReceipt ? 'true' : 'false')}
+                            width={1}
+                            name="transporter.isExemptedOfReceipt"
+                            value={dataToogle.transporter.isExemptedOfReceipt ? 'true' : 'false'}
+                            onChange={handleChange}
+                            enableText={false}
+                            display={displayAll}
+                            onMobile={true}
+                        />                               
+                        <InputMobile
+                            titre="Plaque"
+                            placeholder="d'immatriculation"
+                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.numberPlate || '')}
+                            width={1}
+                            name="transporter.numberPlate"
+                            value={dataToogle.transporter.numberPlate || '' }
+                            onChange={handleChange}
+                            enableText={false}
+                            display={displayAll}
+                            onMobile={true}
+                        />   
+                        <InputMobile
+                            titre="Infos"
+                            placeholder="Complémentaires"
+                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.customInfo || '')}
+                            width={1}
+                            name="transporter.customInfo"
+                            value={dataToogle.transporter.customInfo || ''}
+                            onChange={handleChange}
+                            enableText={false}
+                            display={displayAll}
+                            onMobile={true}
+                        />                                                                             
                     </div>
 
                                 {/* Destinataire */}
@@ -930,42 +1044,42 @@ useEffect(() => {
 
                                 {/* Contact Destinataire */}
                                 <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Contact"
-                            placeholder="Contact"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.contact)}
-                            width={1}
-                            name="recipient.company.contact"
-                            value={dataToogle.recipient.company.contact}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={displayAll}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="Téléphone"
-                            placeholder="Téléphone"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.phone)}
-                            width={1}
-                            name="recipient.company.phone"
-                            value={dataToogle.recipient.company.phone}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={displayAll}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="Mail"
-                            placeholder="Mail"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.mail)}
-                            width={1}
-                            name="recipient.company.mail"
-                            value={dataToogle.recipient.company.mail}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={displayAll}
-                            onMobile={true}
-                        />
+                                    <InputMobile
+                                        titre="Contact"
+                                        placeholder="Contact"
+                                        options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.contact)}
+                                        width={1}
+                                        name="recipient.company.contact"
+                                        value={dataToogle.recipient.company.contact}
+                                        onChange={handleChange}
+                                        enableText={false}
+                                        display={displayAll}
+                                        onMobile={true}
+                                    />
+                                    <InputMobile
+                                        titre="Téléphone"
+                                        placeholder="Téléphone"
+                                        options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.phone)}
+                                        width={1}
+                                        name="recipient.company.phone"
+                                        value={dataToogle.recipient.company.phone}
+                                        onChange={handleChange}
+                                        enableText={false}
+                                        display={displayAll}
+                                        onMobile={true}
+                                    />
+                                    <InputMobile
+                                        titre="Mail"
+                                        placeholder="Mail"
+                                        options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.mail)}
+                                        width={1}
+                                        name="recipient.company.mail"
+                                        value={dataToogle.recipient.company.mail}
+                                        onChange={handleChange}
+                                        enableText={false}
+                                        display={displayAll}
+                                        onMobile={true}
+                                    />
                                 </div>
 
                                 {/* Adresse Destinataire */}

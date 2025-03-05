@@ -69,9 +69,9 @@ export async function POST(request: Request) {
     }
 
     try {
-        const { user_id, bsd_id, data, other_infos } = await request.json();
+        const { user_id, bsd_id, infos_json, created_at, other_infos } = await request.json();
 
-        if (!user_id || !bsd_id || !data) {
+        if (!user_id || !bsd_id || !infos_json) {
             return NextResponse.json({ 
                 success: false, 
                 message: "Données manquantes" 
@@ -90,11 +90,9 @@ export async function POST(request: Request) {
         if (bsdError || !bsdData) {
             throw new Error("Erreur lors de la récupération de l'ID Trackdéchets");
         }
-
-
         
         //On enlève les champs qui ne sont pas modifiable sur Trackdéchets (orgId, other..)     
-        const data_augmented = augmentData(data);
+        const data_augmented = augmentData(infos_json);
         const data_on_track = cleanData(data_augmented);      
 
         if(bsdData.on_track_dechets){
@@ -116,7 +114,7 @@ export async function POST(request: Request) {
             }
             // 3. Mise à jour dans Supabase
             const updateData: {infos_json: DataOnSupabase_infos_json, other_infos?: OtherInfos} = {
-                infos_json: data,
+                infos_json,
             };
 
             if (other_infos !== undefined) {
@@ -139,12 +137,15 @@ export async function POST(request: Request) {
                 trackdechetsData: trackdechetsResponse.data
             });
         } else {
-            const updateData: {infos_json: DataOnSupabase_infos_json, other_infos?: OtherInfos} = {
-                infos_json: data,
+            const updateData: {infos_json: DataOnSupabase_infos_json, other_infos?: OtherInfos, created_at?: string} = {
+                infos_json,
             };
 
             if (other_infos !== undefined) {
                 updateData.other_infos = other_infos;
+            }
+            if (created_at !== undefined) {
+                updateData.created_at = created_at;
             }
 
             const { error: supabaseError } = await supabase

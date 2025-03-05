@@ -112,7 +112,7 @@ const AnalOpTable = () => {
                                 <tr key={index} className="border-b hover:bg-gray-50">
                                     <td className="px-2 py-1">{segment}</td>
                                     <td className="px-2 py-1 text-right">
-                                        {formatNumber(data.totalWeight)} T
+                                        {formatNumber(data.totalWeight, true, true)} T
                                     </td>
                                     <td className="px-2 py-1 text-right">
                                         {data.weightWithFillRate > 0 
@@ -132,7 +132,7 @@ const AnalOpTable = () => {
                         <tr className="bg-white hover:bg-gray-50">
                             <td className="px-2 py-1 font-bold">Total</td>
                             <td className="px-2 py-1 text-right font-bold">
-                                {formatNumber(tableData.totals.totalWeight, false, true)} T
+                                {formatNumber(tableData.totals.totalWeight, true, true)} T
                             </td>
                             <td className="px-2 py-1 text-right font-bold">
                                 {tableData.totals.weightWithFillRate > 0 

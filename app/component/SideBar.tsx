@@ -170,7 +170,7 @@ const SideBar = (props:SideBarProps) => {
                                     } ${isCollapsed ? 'justify-center' : ''}`}
                                 >
                                     <BoxIcon name='import' color={pathname === '/import_page' ? 'var(--green-medium)' : 'currentColor'} />
-                                    {!isCollapsed && <span className="ml-2 text-sm font-semibold">Importer</span>}
+                                    {!isCollapsed && <span className="ml-2 text-sm font-semibold">Imports</span>}
                                 </a>
                             </li>
                             {cofounderPermission && (

@@ -8,11 +8,14 @@ import { Filiere, useFilterContext } from '@/app/FilterContext';
 import NewDemandeMailButon from '../DemandeCollecteNew/NewDemandeMailButton';
 import { RowBSD } from "../interface/BSD_Interface";
 
+
+export const ListStatusEnAttente = ['AWAITING_GROUP','Ligne créée automatiquement', 'Ligne demandée', 'SIGNED_BY_PRODUCER', 'Collecte demandée', 'NO_TRACEABILITY', 'REFUSED', 'CANCELED'];
+
 const BordereauxRegister = () => {
     const session = useSession();
     const { filterPendingBSDs, setFilterPendingBSDs } = useModalContextNew();
     const [stats, setStats] = useState({
-        collected: 0,
+        //collected: 0,
         pending: 0,
         anomalies: 0
     });
@@ -21,23 +24,25 @@ const BordereauxRegister = () => {
         const fetchStats = async () => {
             if (!session?.entreprise_id) return;
 
-            const { data: collectedData, error: collectedError } = await supabase
+            
+            const { data: pendingData, error: pendingError } = await supabase
                 .from('bsd')
                 .select('count')
                 .eq('entreprise_id', session.entreprise_id)
-                .in('status_track_dechets', ['Collecté', 'SENT', 'Traité', 'Accepté', 'AWAITING_GROUP', 'GROUPED', 'ACCEPTED', 'PROCESSED']);
+                .in('status_track_dechets', ListStatusEnAttente);
             
-            /*const ListStatusEnAttente = ['Collecté', 'SENT', 'Traité', 'Accepté', 'AWAITING_GROUP', 'GROUPED', 'ACCEPTED', 'PROCESSED'];
-            const response = await fetch(`/api/get_data_bsd?entreprise_id=${session.entreprise_id}&forceReload=${false}`);
+            
+
+            /*const response = await fetch(`/api/get_data_bsd?entreprise_id=${session.entreprise_id}&forceReload=${false}`);
             const { data: BSDs } = await response.json();
             const collectedData = BSDs.filter(bsd => ListStatusEnAttente.includes(bsd.status_track_dechets));*/
 
-            const pendingData = await getPendingBSDs(session.entreprise_id);
+            //const pendingData = await getPendingBSDs(session.entreprise_id);
 
-            if (!collectedError && !pendingData!==null) {
+            if (!pendingError) {
                 setStats({
-                    collected: collectedData?.[0]?.count || 0,
-                    pending: pendingData?.length || 0,
+                    pending: pendingData?.[0]?.count || 0,
+                    //pending: pendingData?.length || 0,
                     anomalies: 0
                 });
             }
@@ -68,17 +73,15 @@ const BordereauxRegister = () => {
                     {/*<BoutonOpenModal/>*/}
                     </div>
                     <div className="flex space-x-8">
-                        <div>
-                            {/*<button className={`text-center ${filterPendingBSDs ? 'text-[var(--green-medium)] font-bold' : 'text-gray-600'}`} 
-                                    onClick={() => setFilterPendingBSDs(!filterPendingBSDs)}>}*/}
+                        <div className='border border-[var(--green-medium)] rounded-lg'>
+                            <button className={`text-center p-2 rounded-lg ${filterPendingBSDs ? 'text-white bg-[var(--green-medium)]' : 'text-gray-600 bg-gray-50 hover:bg-white'}`} 
+                                    onClick={() => setFilterPendingBSDs(!filterPendingBSDs)}>
                                 <div className="text-2xl font-bold">{stats.pending}</div>
-
-
 
                                 <div className={`text-sm ${filterPendingBSDs ? 'font-bold' : 'text-medium'}`}>
                                     En attente de collecte
                                 </div>
-                            {/*</button>*/}
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -89,7 +92,7 @@ const BordereauxRegister = () => {
 
 export default BordereauxRegister;
 
-export const getPendingBSDs = async (entrepriseId:string) => {
+/*export const getPendingBSDs = async (entrepriseId:string) => {
     const { data: collectedData, error: collectedError } = await supabase
         .from('bsd')
         .select('*')
@@ -102,4 +105,4 @@ export const getPendingBSDs = async (entrepriseId:string) => {
     }  
 
     return collectedData;
-}
+}*/

@@ -8,6 +8,7 @@ import { SessionMore } from "../SessionProvider";
 import { useSession } from "../SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
 import { useEntrepriseId } from "@/app/interface_admin_2/InterfaceAdmin2/hooks/useEntrepriseId";
+//import OptiTab from "./Optimisation/OptiTab";
 
 export interface Material { id: number, checked: boolean, color: string, label: string}
 export interface DataMaterialStructured { valueChain:string, materials:Material[]}
@@ -92,12 +93,18 @@ const TabBarAnalyses = () => {
                    onClick={() => handleTabClick('tab_env')}>
                    Analyse environnementale
                 </a>
+                {/*<a role="tab" 
+                   className={`tab border-0 ${activeTab === 'tab_opti' ? 'border-b-4 border-green-500' : ''}`} 
+                   onClick={() => handleTabClick('tab_opti')}>
+                   Optimisations
+                </a>*/}
             </div>
 
             {hasFinanceData ? <FinancialAnalyse active={activeTab == 'tab_finance'}/> : null}
             <OperationalAnalyse active={activeTab == 'tab_ops'}/>
             <FactureAnalyse active={activeTab == 'tab_facture'}/>
             <EnvAnalyse active={activeTab == 'tab_env'}/>
+            {/*<OptiTab active={activeTab == 'tab_opti'}/>*/}
         </div>
     )
 }

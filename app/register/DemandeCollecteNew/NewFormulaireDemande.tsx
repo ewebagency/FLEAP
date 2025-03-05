@@ -18,6 +18,7 @@ import { dataFilterUpdate, getDataAutocompletionFull, getUniqueOptions, initialO
 
 const NewFormulaireDemande = ({setDisplayThis}: {setDisplayThis: (display: boolean) => void}) => {
     const {modalReload, setModalReload} = useModalContextNew();
+    const [submitLoading, setSubmitLoading] = useState(false);
     // Fonction pour générer les dépendances d'une ligne
     const generateWasteLineDependencies = (index: number) => ({
         [`wasteLine.${index}.name`]: {
@@ -56,6 +57,21 @@ const NewFormulaireDemande = ({setDisplayThis}: {setDisplayThis: (display: boole
     const [other_infos, setOtherInfos] = useState<OtherInfos>(initialOtherInfos);
     const { sites } = useFilterContext();
     const [provider, setProvider] = useState<'transporter' | 'recipient'>('transporter');
+    const [entreprise_global_name, setEntrepriseGlobalName] = useState<string>("");
+
+    useEffect(() => {
+        if(entreprise_id) {
+            const getEntrepriseGlobalName = async () => {
+                const {data, error} = await supabase.from('entreprise').select('name').eq('id', entreprise_id);
+                if(error) {
+                    console.error(error);
+            } else {
+                    setEntrepriseGlobalName(data[0].name);
+                }
+            }
+            getEntrepriseGlobalName();
+        }
+    }, [entreprise_id]);
 
 
     // Ajouter une ref pour tracker la dernière modification
@@ -85,6 +101,9 @@ const NewFormulaireDemande = ({setDisplayThis}: {setDisplayThis: (display: boole
             automaticMode: true
         }
     }]);
+
+    // Remplacer l'état detailedLines par un seul booléen
+    const [showAllDetails, setShowAllDetails] = useState(false);
 
     // État pour stocker les dépendances
     const [dynamicDependencies, setDynamicDependencies] = useState({
@@ -577,6 +596,7 @@ useEffect(() => {
             return;
         }
 
+        setSubmitLoading(true);
         try {
             await sendMail(); // Envoyer le mail
             await createWasteLines(); // Créer les lignes
@@ -586,6 +606,8 @@ useEffect(() => {
         } catch (error) {
             console.error('Erreur:', error);
             toast.error('Une erreur est survenue');
+        } finally {
+            setSubmitLoading(false);
         }
     };
 
@@ -663,6 +685,11 @@ useEffect(() => {
             toast.error('Erreur lors de la création des lignes');
             throw error;
         }
+    };
+
+    // Remplacer la fonction toggleLineDetails par
+    const toggleAllDetails = () => {
+        setShowAllDetails(!showAllDetails);
     };
 
     return (
@@ -875,7 +902,7 @@ useEffect(() => {
                                             onChange={handleChange}
                                             enableText={true}
                                             stylePrimary={true}
-                                            display={displayAll || (shouldDisplayField("emitter.company.workSite.fullAddress", changedField) && false)}
+                                            display={false && (displayAll || (shouldDisplayField("emitter.company.workSite.fullAddress", changedField) && false))}
                                             onMobile={true}
                                             hideIndicators={true}
                                         />
@@ -890,7 +917,7 @@ useEffect(() => {
                                             onChange={handleChange}
                                             enableText={true}
                                             stylePrimary={true}
-                                            display={displayAll || (shouldDisplayField("emitter.company.workSite.fullAddress", changedField) && false)}
+                                            display={false && (displayAll || (shouldDisplayField("emitter.company.workSite.fullAddress", changedField) && false))}
                                         />
                                     )}
                                     {isMobile ? (
@@ -903,7 +930,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.phone}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={displayAll || (shouldDisplayField("emitter.company.phone", changedField) && false)}
+                                            display={false && (displayAll || (shouldDisplayField("emitter.company.phone", changedField) && false))}
                                             onMobile={true}
                                             hideIndicators={true}
                                         />
@@ -917,7 +944,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.phone}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={displayAll || (shouldDisplayField("emitter.company.phone", changedField) && false)}
+                                            display={false && (displayAll || (shouldDisplayField("emitter.company.phone", changedField) && false))}
                                         />
                                     )}
                                     {isMobile ? (
@@ -930,7 +957,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.mail}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={displayAll || shouldDisplayField("emitter.company.mail", changedField)}
+                                            display={false && (displayAll || (shouldDisplayField("emitter.company.mail", changedField) && false))}
                                             onMobile={true}
                                             hideIndicators={true}
                                         />
@@ -944,7 +971,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.mail}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={displayAll || shouldDisplayField("emitter.company.mail", changedField)}
+                                            display={false && (displayAll || (shouldDisplayField("emitter.company.mail", changedField) && false))}
                                         />
                                     )}
                                 </div>
@@ -1020,7 +1047,7 @@ useEffect(() => {
                                                                         value={dataToogle.transporter.company.contact}
                                                                         onChange={handleChange}
                                                                         enableText={true}
-                                                                        display={displayAll || (shouldDisplayField('transporter.company.contact', changedField) && false)}
+                                                                        display={false && (displayAll || (shouldDisplayField('transporter.company.contact', changedField) && false))}
                                                                     />
                                                                     <InputFull
                                                                         titre="Téléphone"
@@ -1033,7 +1060,7 @@ useEffect(() => {
                                                                         value={dataToogle.transporter.company.phone}
                                                                         onChange={handleChange}
                                                                         enableText={true}
-                                                                        display={displayAll || (shouldDisplayField('transporter.company.phone', changedField) && false)}
+                                                                        display={false && (displayAll || (shouldDisplayField('transporter.company.phone', changedField) && false))}
                                                                     />   
                                                                 </div>
                                                                 <div className="flex justify-between gap-4">
@@ -1048,7 +1075,7 @@ useEffect(() => {
                                                                         value={dataToogle.transporter.receipt || ''}
                                                                         onChange={handleChange}
                                                                         enableText={true}
-                                                                        display={displayAll || (shouldDisplayField('transporter.receipt', changedField) && false)}
+                                                                        display={false && (displayAll || (shouldDisplayField('transporter.receipt', changedField) && false))}
                                                                     />
                                                                     <InputFull
                                                                         titre="Plaque"
@@ -1061,7 +1088,7 @@ useEffect(() => {
                                                                         value={dataToogle.transporter.numberPlate || ''}
                                                                         onChange={handleChange}
                                                                         enableText={true}
-                                                                        display={displayAll || (shouldDisplayField('transporter.numberPlate', changedField) && false)}
+                                                                        display={false && (displayAll || (shouldDisplayField('transporter.numberPlate', changedField) && false))}
                                                                     />
                                                                 </div>                                                                
                                                             </div>
@@ -1133,7 +1160,7 @@ useEffect(() => {
                                                                 value={dataToogle.transporter.company.contact}
                                                                 onChange={handleChange}
                                                                 enableText={true}
-                                                                display={displayAll || (shouldDisplayField('transporter.company.contact', changedField) && false)}
+                                                                display={false && (displayAll || (shouldDisplayField('transporter.company.contact', changedField) && false))}
                                                                 onMobile={true}
                                                                 hideIndicators={true}
                                                             />                                                                 
@@ -1148,7 +1175,7 @@ useEffect(() => {
                                                                 value={dataToogle.transporter.company.phone}
                                                                 onChange={handleChange}
                                                                 enableText={true}
-                                                                display={displayAll || (shouldDisplayField('transporter.company.phone', changedField) && false)}
+                                                                display={false && (displayAll || (shouldDisplayField('transporter.company.phone', changedField) && false))}
                                                                 onMobile={true}
                                                                 hideIndicators={true}
                                                             />                                                        
@@ -1166,7 +1193,7 @@ useEffect(() => {
                                                                 value={dataToogle.transporter.receipt || ''}
                                                                 onChange={handleChange}
                                                                 enableText={true}
-                                                                display={displayAll || (shouldDisplayField('transporter.receipt', changedField) && false)}
+                                                                display={false && (displayAll || (shouldDisplayField('transporter.receipt', changedField) && false))}
                                                                 onMobile={true}
                                                                 hideIndicators={true}
                                                             />
@@ -1181,7 +1208,7 @@ useEffect(() => {
                                                                 value={dataToogle.transporter.numberPlate || ''}
                                                                 onChange={handleChange}
                                                                 enableText={true}
-                                                                display={displayAll || (shouldDisplayField('transporter.numberPlate', changedField) && false)}
+                                                                display={false && (displayAll || (shouldDisplayField('transporter.numberPlate', changedField) && false))}
                                                                 onMobile={true}
                                                                 hideIndicators={true}
                                                             />
@@ -1250,7 +1277,7 @@ useEffect(() => {
                                                                         value={dataToogle.recipient.company.contact}
                                                                         onChange={handleChange}
                                                                         enableText={true}
-                                                                        display={displayAll || (shouldDisplayField('recipient.company.contact', changedField) && false)}
+                                                                        display={false && (displayAll || (shouldDisplayField('recipient.company.contact', changedField) && false))}
                                                                     />                                                                    
                                                                     <InputFull
                                                                         titre="Téléphone"
@@ -1263,7 +1290,7 @@ useEffect(() => {
                                                                         value={dataToogle.recipient.company.phone}
                                                                         onChange={handleChange}
                                                                         enableText={true}
-                                                                        display={displayAll || (shouldDisplayField('recipient.company.phone', changedField) && false)}
+                                                                        display={false && (displayAll || (shouldDisplayField('recipient.company.phone', changedField) && false))}
                                                                     />
                                                                 </div>     
                                                                 <div className="flex justify-between gap-4">
@@ -1278,7 +1305,7 @@ useEffect(() => {
                                                                         value={dataToogle.recipient.processingOperation || ''}
                                                                         onChange={handleChange}
                                                                         enableText={true}
-                                                                        display={displayAll || (shouldDisplayField('recipient.processingOperation', changedField) && false)}
+                                                                        display={false && (displayAll || (shouldDisplayField('recipient.processingOperation', changedField) && false))}
                                                                     />                                                                    
                                                                     <InputFull
                                                                         titre="CAP"
@@ -1291,7 +1318,7 @@ useEffect(() => {
                                                                         value={dataToogle.recipient.cap || ''}
                                                                         onChange={handleChange}
                                                                         enableText={true}
-                                                                        display={displayAll || (shouldDisplayField('recipient.cap', changedField) && false)}
+                                                                        display={false && (displayAll || (shouldDisplayField('recipient.cap', changedField) && false))}
                                                                     />
                                                                 </div>                                                                                                                             
                                                             </>
@@ -1363,7 +1390,7 @@ useEffect(() => {
                                                                 value={dataToogle.recipient.company.contact}
                                                                 onChange={handleChange}
                                                                 enableText={true}
-                                                                display={displayAll || (shouldDisplayField('recipient.company.contact', changedField) && false)}
+                                                                display={false && (displayAll || (shouldDisplayField('recipient.company.contact', changedField) && false))}
                                                                 onMobile={true}
                                                                 hideIndicators={true}
                                                             />                                                            
@@ -1378,7 +1405,7 @@ useEffect(() => {
                                                                 value={dataToogle.recipient.company.phone}
                                                                 onChange={handleChange}
                                                                 enableText={true}
-                                                                display={displayAll || (shouldDisplayField('recipient.company.phone', changedField) && false)}
+                                                                display={false && (displayAll || (shouldDisplayField('recipient.company.phone', changedField) && false))}
                                                                 onMobile={true}
                                                                 hideIndicators={true}
                                                             />                                                        
@@ -1396,7 +1423,7 @@ useEffect(() => {
                                                                 value={dataToogle.recipient.processingOperation || ''}
                                                                 onChange={handleChange}
                                                                 enableText={true}
-                                                                display={displayAll || (shouldDisplayField('recipient.processingOperation', changedField) && false)}
+                                                                display={false && (displayAll || (shouldDisplayField('recipient.processingOperation', changedField) && false))}
                                                                 onMobile={true}
                                                                 hideIndicators={true}
                                                             />
@@ -1411,7 +1438,7 @@ useEffect(() => {
                                                                 value={dataToogle.recipient.cap || ''}
                                                                 onChange={handleChange}
                                                                 enableText={true}
-                                                                display={displayAll || (shouldDisplayField('recipient.cap', changedField) && false)}
+                                                                display={false && (displayAll || (shouldDisplayField('recipient.cap', changedField) && false))}
                                                                 onMobile={true}
                                                                 hideIndicators={true}
                                                             />                                                        
@@ -1448,11 +1475,22 @@ useEffect(() => {
                         </div>
 
                         <div className="text-sm font-semibold ml-2 md:ml-6 mt-2">
-                            <span>Lignes de déchets</span>
+                            <div className="flex justify-between items-center">
+                                <span>Lignes de déchets</span>
+                                <button
+                                    type="button"
+                                    onClick={toggleAllDetails}
+                                    className="text-xs h-[25px] bg-[var(--green-medium)] rounded-md px-2 text-white font-thin hover:bg-[var(--green-dark)] active:font-bold"
+                                >
+                                    {showAllDetails ? 'Masquer les détails' : 'Afficher les détails'}
+                                </button>
+                            </div>
                         </div>
                         <div className="w-[98%] md:w-[95%] pb-2 border-b border-3 mt-2 mx-auto border-gray-300">
                             {wasteLines.map((line, index) => (
                                 <div key={index} className="mb-4 p-3 bg-gray-50 rounded-md shadow-sm w-full max-w-full">
+                                    <h3 className="text-sm font-medium text-gray-700 mb-2">Ligne de déchet {index + 1}</h3>
+
                                     {/* Desktop layout - 3 columns */}
                                     <div className="hidden md:grid md:grid-cols-3 gap-3 space-y-1">
                                         {/* Column 1: Waste details */}
@@ -1470,7 +1508,7 @@ useEffect(() => {
                                                 enableText={true}
                                                 stylePrimary={true}
                                             />
-                                            {(displayAll || shouldDisplayField(`wasteLine.${index}.code`, changedField)) && (
+                                            {(showAllDetails || displayAll || shouldDisplayField(`wasteLine.${index}.code`, changedField)) && (
                                                 <InputFull
                                                     titre="Code CED"
                                                     placeholder="Code CED"
@@ -1498,7 +1536,7 @@ useEffect(() => {
                                                 value={line.filiere}
                                                 onChange={handleChange}
                                                 enableText={true}
-                                                display={displayAll || shouldDisplayField(`wasteLine.${index}.filiere`, changedField)}
+                                                display={false && (showAllDetails || displayAll || shouldDisplayField(`wasteLine.${index}.filiere`, changedField))}
                                             />
                                         </div>
 
@@ -1518,34 +1556,35 @@ useEffect(() => {
                                                 stylePrimary={true}
                                             />
                                         
-                                            <InputFull
-                                                titre="Volume"
-                                                placeholder="Volume"
-                                                width={30}
-                                                name={`wasteLine.${index}.other_infos.volume`}
-                                                value={line.other_infos.volume}
-                                                onChange={handleChange}
-                                                enableText={true}
-                                                options={getUniqueOptions(options, allOptions,
-                                                    opt => opt.other_infos?.volume
-                                                )}
-                                                display={displayAll || shouldDisplayField(`wasteLine.${index}.other_infos.volume`, changedField)}
-                                            />
-                                            <InputFull
-                                                titre="Unité"
-                                                placeholder="Unité"
-                                                width={30}
-                                                name={`wasteLine.${index}.other_infos.volumeUnit`}
-                                                value={line.other_infos.volumeUnit}
-                                                onChange={handleChange}
-                                                enableText={true}
-                                                options={{
-                                                    filteredOptions: ['L', 'm³'],
-                                                    allOptions: []
-                                                }}
-                                                display={displayAll || shouldDisplayField(`wasteLine.${index}.other_infos.volumeUnit`, changedField)}
-                                            />
-                                            
+                                            <div className="flex justify-start gap-1">
+                                                <InputFull
+                                                    titre="Volume"
+                                                    placeholder="Volume"
+                                                    width={21}
+                                                    name={`wasteLine.${index}.other_infos.volume`}
+                                                    value={line.other_infos.volume}
+                                                    onChange={handleChange}
+                                                    enableText={true}
+                                                    options={getUniqueOptions(options, allOptions,
+                                                        opt => opt.other_infos?.volume
+                                                    )}
+                                                    display={showAllDetails || displayAll || shouldDisplayField(`wasteLine.${index}.other_infos.volume`, changedField)}
+                                                />
+                                                <InputFull
+                                                    titre=""
+                                                    placeholder="Unité"
+                                                    width={20}
+                                                    name={`wasteLine.${index}.other_infos.volumeUnit`}
+                                                    value={line.other_infos.volumeUnit}
+                                                    onChange={handleChange}
+                                                    enableText={true}
+                                                    options={{
+                                                        filteredOptions: ['L', 'm³'],
+                                                        allOptions: []
+                                                    }}
+                                                    display={showAllDetails || displayAll || shouldDisplayField(`wasteLine.${index}.other_infos.volumeUnit`, changedField)}
+                                                />
+                                            </div>
                                         </div>
 
                                         {/* Column 3: Date and remove button */}
@@ -1585,7 +1624,7 @@ useEffect(() => {
                                     {/* Mobile layout - no automatic wrapping */}
                                     <div className="md:hidden w-full">
                                         {/* First row: Déchet and Contenant */}
-                                        <div className="grid grid-cols-2 gap-2 w-full max-w-full">
+                                        <div className="w-full max-w-full">
                                             <div className="space-y-1">
                                                 <InputMobile
                                                     titre=""
@@ -1600,23 +1639,24 @@ useEffect(() => {
                                                     enableText={true}
                                                     stylePrimary={true}
                                                     onMobile={true}
-                                                    hideIndicators={true}
+                                                    //hideIndicators={true}
                                                 />
-                                                <InputMobile
-                                                    titre=""
-                                                    placeholder="Code CED"
-                                                    options={getUniqueOptions(options, allOptions, 
-                                                        opt => opt.json_row?.wasteDetails?.code || undefined
-                                                    )}
-                                                    width={25}
-                                                    name={`wasteLine.${index}.code`}
-                                                    value={line.wasteDetails.code}
-                                                    onChange={handleChange}
-                                                    enableText={true}
-                                                    display={displayAll || shouldDisplayField(`wasteLine.${index}.code`, changedField)}
-                                                    onMobile={true}
-                                                    hideIndicators={true}
-                                                />
+                                                {(showAllDetails || displayAll || shouldDisplayField(`wasteLine.${index}.code`, changedField)) && (
+                                                    <InputMobile
+                                                        titre=""
+                                                        placeholder="Code CED"
+                                                        options={getUniqueOptions(options, allOptions, 
+                                                            opt => opt.json_row?.wasteDetails?.code || undefined
+                                                        )}
+                                                        width={25}
+                                                        name={`wasteLine.${index}.code`}
+                                                        value={line.wasteDetails.code}
+                                                        onChange={handleChange}
+                                                        enableText={true}
+                                                        onMobile={true}
+                                                        //hideIndicators={true}
+                                                    />
+                                                )}
                                                 
                                                 <InputMobile
                                                     titre=""
@@ -1632,9 +1672,9 @@ useEffect(() => {
                                                     value={line.filiere}
                                                     onChange={handleChange}
                                                     enableText={true}
-                                                    display={displayAll || shouldDisplayField(`wasteLine.${index}.filiere`, changedField)}
+                                                    display={false && (showAllDetails || displayAll || shouldDisplayField(`wasteLine.${index}.filiere`, changedField))}
                                                     onMobile={true}
-                                                    hideIndicators={true}
+                                                    //hideIndicators={true}
                                                 />                                            
                                             </div>
                                             <div className="space-y-1">
@@ -1651,39 +1691,41 @@ useEffect(() => {
                                                     enableText={true}
                                                     stylePrimary={true}
                                                     onMobile={true}
-                                                    hideIndicators={true}
+                                                    //hideIndicators={true}
                                                 />
-                                                <InputMobile
-                                                    titre=""
-                                                    placeholder="Volume"
-                                                    width={25}
-                                                    name={`wasteLine.${index}.other_infos.volume`}
-                                                    value={line.other_infos.volume}
-                                                    onChange={handleChange}
-                                                    enableText={true}
-                                                    options={getUniqueOptions(options, allOptions,
-                                                        opt => opt.other_infos?.volume
-                                                    )}
-                                                    display={displayAll || shouldDisplayField(`wasteLine.${index}.other_infos.volume`, changedField)}
-                                                    onMobile={true}
-                                                    hideIndicators={true}
-                                                />
-                                                <InputMobile
-                                                    titre=""
-                                                    placeholder="Unité"
-                                                    width={25}
-                                                    name={`wasteLine.${index}.other_infos.volumeUnit`}
-                                                    value={line.other_infos.volumeUnit}
-                                                    onChange={handleChange}
-                                                    enableText={true}
-                                                    options={{
-                                                        filteredOptions: ['L', 'm³'],
-                                                        allOptions: []
-                                                    }}
-                                                    display={displayAll || shouldDisplayField(`wasteLine.${index}.other_infos.volumeUnit`, changedField)}
-                                                    onMobile={true}
-                                                    hideIndicators={true}
-                                                />                                            
+                                                <div className="flex justify-start gap-1 w-[102%]">
+                                                    <InputMobile
+                                                        titre=""
+                                                        placeholder="Volume"
+                                                        width={25}
+                                                        name={`wasteLine.${index}.other_infos.volume`}
+                                                        value={line.other_infos.volume}
+                                                        onChange={handleChange}
+                                                        enableText={true}
+                                                        options={getUniqueOptions(options, allOptions,
+                                                            opt => opt.other_infos?.volume
+                                                        )}
+                                                        display={showAllDetails || displayAll || shouldDisplayField(`wasteLine.${index}.other_infos.volume`, changedField)}
+                                                        onMobile={true}
+                                                        //hideIndicators={true}
+                                                    />
+                                                    <InputMobile
+                                                        titre=""
+                                                        placeholder="Unité"
+                                                        width={25}
+                                                        name={`wasteLine.${index}.other_infos.volumeUnit`}
+                                                        value={line.other_infos.volumeUnit}
+                                                        onChange={handleChange}
+                                                        enableText={true}
+                                                        options={{
+                                                            filteredOptions: ['L', 'm³'],
+                                                            allOptions: []
+                                                        }}
+                                                        display={showAllDetails || displayAll || shouldDisplayField(`wasteLine.${index}.other_infos.volumeUnit`, changedField)}
+                                                        onMobile={true}
+                                                        //hideIndicators={true}
+                                                    />  
+                                                </div>                                          
                                             </div>
                                         </div>
                                         
@@ -1737,7 +1779,7 @@ useEffect(() => {
 
                        
                         <div className="ml-[-20px]">
-                            {(entreprise_id && modalType !== 'create_line') && 
+                            {entreprise_id && 
                                 <NewDemandeMailComponent 
                                     params={{
                                         emitter: {
@@ -1745,13 +1787,21 @@ useEffect(() => {
                                             contact: dataToogle.emitter.company.contact || '',
                                             phone: dataToogle.emitter.company.phone || '',
                                             email: dataToogle.emitter.company.mail || '',
-                                            address: dataToogle.emitter.company.address || ''
+                                            address: dataToogle.emitter.company.address || '',
+                                            workSite: {
+                                                name: dataToogle.emitter.workSite.name || '',
+                                                fullAddress: dataToogle.emitter.workSite.fullAddress || '',
+                                                address: dataToogle.emitter.workSite.address || '',
+                                                postalCode: dataToogle.emitter.workSite.postalCode || '',
+                                                city: dataToogle.emitter.workSite.city || ''
+                                            }
                                         },
                                         destinataire: provider === 'transporter' 
                                             ? dataToogle.transporter?.company?.mail || ''
                                             : dataToogle.recipient?.company?.mail || '',
                                         entrepriseId: entreprise_id,
                                         entrepriseName: dataToogle.emitter.company.name || '',
+                                        entrepriseGlobalName : entreprise_global_name || '',
                                         wasteLines: wasteLines.map(line => ({
                                             code: line.wasteDetails.code || '',
                                             description: line.wasteDetails.name || '',
@@ -1780,10 +1830,20 @@ useEffect(() => {
                             <button
                                 type="button"
                                 onClick={handleSendAndCreate}
-                                disabled={!isValidMail}
-                                className="w-full md:w-auto px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--green-medium)] disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={!isValidMail || submitLoading}
+                                className="w-full md:w-auto px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--green-medium)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                             >
-                                Envoyer et créer les lignes
+                                {submitLoading ? (
+                                    <>
+                                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span>En cours...</span>
+                                    </>
+                                ) : (
+                                    'Envoyer et créer les lignes'
+                                )}
                             </button>
                         </div>
                     </form>
