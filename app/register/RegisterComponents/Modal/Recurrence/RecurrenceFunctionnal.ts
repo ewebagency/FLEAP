@@ -57,7 +57,7 @@ const RecurrenceFunctions = {
     shouldContinueRecurrence: (pattern: RecurrencePattern, executionCount: number, lastExecution: Date): boolean => {
         if (pattern.endType === 'never') return true;
         if (pattern.endType === 'occurrences' && pattern.occurrences) {
-            return executionCount < (pattern.occurrences - 1);
+            return executionCount < pattern.occurrences;
         }
         if (pattern.endType === 'date' && pattern.endDate) {
             return new Date(lastExecution) <= new Date(pattern.endDate);

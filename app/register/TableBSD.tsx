@@ -475,12 +475,12 @@ const TableBSD = () => {
                     }
                     
                     // Mettre à jour l'état local en supprimant le BSD
+                    setModalReload(!modalReload);
                     setAllBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     setAllFilteredBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     setDisplayedBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     //setForceReloadNextTime(true);
                     // Déclencher un rechargement complet
-                    setModalReload(!modalReload);
                 }
             } else {
                 // Récupérer d'abord les informations du BSD pour avoir l'URL de la photo
@@ -517,12 +517,12 @@ const TableBSD = () => {
                     toast.success("BSD supprimé avec succès");
                     
                     // Mettre à jour l'état local en supprimant le BSD
+                    setModalReload(!modalReload);
                     setAllBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     setAllFilteredBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     setDisplayedBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     //setForceReloadNextTime(true);
                     // Déclencher un rechargement complet
-                    setModalReload(!modalReload);
                 }
             }
         } finally {

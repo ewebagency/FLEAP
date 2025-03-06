@@ -127,7 +127,7 @@ const calculateEstimatedWeight = (
     const fillRateMultiplier = fillRate ? parseInt(fillRate) / 100 : 1;
     
     const weight = (volumeInM3 * masseVolumique * fillRateMultiplier * numberOfContainers) / 1000;
-    console.log('calculateEstimatedWeight:', {
+    /*console.log('calculateEstimatedWeight:', {
         volume,
         volumeInM3,
         fillRate,
@@ -136,7 +136,7 @@ const calculateEstimatedWeight = (
         masseVolumique,
         numberOfContainers,
         weight
-    });
+    });*/
     return weight;
 };
 
@@ -941,7 +941,7 @@ useEffect(() => {
                                 enableText={false}
                             />
                             <InputFull
-                                titre=" "
+                                titre="Code CED"
                                 placeholder="Code CED"
                                 options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.code}`)}
                                 width={30}
@@ -1166,7 +1166,7 @@ useEffect(() => {
                                         {/* Input nombre de contenants */}
                                     <div className="mt-1">
                                         <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                                            Nombre
+                                            Nombre de contenants
                                             </label>
                                         <div className="flex items-center space-x-1 sm:space-x-2">
                                                 <button
@@ -1313,8 +1313,8 @@ useEffect(() => {
                         <button
                             type="button"
                             onClick={onValidate}
-                            disabled={submitLoading}
-                            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            disabled={submitLoading || dataToogle.wasteDetails.quantity < 0.00001}
+                            className="relative w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
                         >
                             {submitLoading ? (
                                 <>
@@ -1323,6 +1323,11 @@ useEffect(() => {
                                 </>
                             ) : (
                                 'Valider'
+                            )}
+                            {dataToogle.wasteDetails.quantity < 0.00001 && (
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-2/3 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                    Veuillez saisir un tonnage
+                                </div>
                             )}
                         </button>
                     </div>

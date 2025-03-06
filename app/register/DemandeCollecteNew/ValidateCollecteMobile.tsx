@@ -225,6 +225,7 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
     const [dataToogle, setDataToogle] = useState<FormInput>(
         bsd.infos_json.formAPI.createFormInput as unknown as FormInput
     );
+    const [submitLoading, setSubmitLoading] = useState(false);
 
     const [initialDataToogle, setInitialDataToogle] = useState<FormInput>(
         bsd.infos_json.formAPI.createFormInput as unknown as FormInput
@@ -715,19 +716,23 @@ const handleTakePhoto = async () => {
 // Modifier onValidate pour uploader la photo si elle existe
 const onValidate = async () => {
     try {
+        setSubmitLoading(true);
         // Vérifier que les champs obligatoires sont remplis
         if (!dataToogle.wasteDetails.quantity) {
             toast.error("La quantité est obligatoire");
+            setSubmitLoading(false);
             return;
         }
 
         if (!other_infos.containerDescription) {
             toast.error("La description du contenant est obligatoire");
+            setSubmitLoading(false);
             return;
         }
 
         if (!dataToogle.wasteDetails.packagingInfos[0].quantity) {
             toast.error("Le nombre de contenants est obligatoire");
+            setSubmitLoading(false);
             return;
         }
 
@@ -789,6 +794,7 @@ const onValidate = async () => {
             throw error;
         }
 
+        setSubmitLoading(false);
         toast.success('BSD validé avec succès');
         setModalReload(!modalReload);
         onClose();
@@ -800,6 +806,8 @@ const onValidate = async () => {
     } catch (error) {
         console.error('Erreur:', error);
         toast.error('Une erreur est survenue lors de la validation');
+    } finally {
+        setSubmitLoading(false);
     }
 };
 
@@ -1394,7 +1402,7 @@ useEffect(() => {
                         {/* Nombre */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Nombre
+                                            Nombre de contenants
                                             </label>
                             <div className="flex items-center space-x-2">
                                                 <button
@@ -1493,9 +1501,22 @@ useEffect(() => {
                         <button
                             type="button"
                             onClick={onValidate}
-                            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)]"
+                            disabled={submitLoading || dataToogle.wasteDetails.quantity < 0.00001}
+                            className="relative w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
                         >
-                            Valider
+                            {submitLoading ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                    <span>En cours...</span>
+                                </>
+                            ) : (
+                                'Valider'
+                            )}
+                            {dataToogle.wasteDetails.quantity < 0.00001 && (
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                    Veuillez saisir un tonnage
+                                </div>
+                            )}
                         </button>
                     </div>
                 </form>

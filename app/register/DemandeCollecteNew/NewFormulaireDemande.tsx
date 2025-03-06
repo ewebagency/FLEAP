@@ -1831,7 +1831,7 @@ useEffect(() => {
                                 type="button"
                                 onClick={handleSendAndCreate}
                                 disabled={!isValidMail || submitLoading}
-                                className="w-full md:w-auto px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--green-medium)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                className="w-full md:w-auto px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--green-medium)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 relative group"
                             >
                                 {submitLoading ? (
                                     <>
@@ -1843,6 +1843,12 @@ useEffect(() => {
                                     </>
                                 ) : (
                                     'Envoyer et créer les lignes'
+                                )}
+                                {(!isValidMail && !submitLoading) && (
+                                    <div className="absolute bottom-full left-1/2 transform sm:-translate-x-3/4 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                                        N&apos;oubliez pas d&apos;indiquer un email de destinataire/transporteur
+                                        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
+                                    </div>
                                 )}
                             </button>
                         </div>

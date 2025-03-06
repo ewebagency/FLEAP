@@ -73,13 +73,15 @@ const emailTemplate: EmailTemplate = {
         return `Bonjour,
 Je souhaite organiser des collectes de déchets pour ${params.entrepriseName} ${collectAddress ? `à l'adresse suivante : ${collectAddress}` : ''}.
 
-J'aurais besoin de collecter :
+Voici la liste des collectes attendues :
 ${Object.entries(wastesByDate).map(([date, lines]) => `
 ${date === 'Dès que possible' ? 'Dès que possible' : `Le ${date.split('-')[2]}/${date.split('-')[1]}/${date.split('-')[0]}`}
 ${lines.map(line => {
     const container = line.container + (line.volume ? ` - ${line.volume} ${line.volumeUnit}` : '');
     return `• 1 ${container} ${line.description ? `de ${line.description}` : ''} ${line.code ? `(${line.code})` : ''}`;
 }).join('\n')}`).join('\n')}
+
+Merci de me confirmer la prise en charge de toutes les demandes de collecte ci-dessus.
 
 Merci et bonne journée,
 
