@@ -10,10 +10,11 @@ class CacheManager {
     timestamp: number; 
     fullDataLoaded: boolean;
     totalCount?: number;
-    lastModified?: number; // Ajout d'un timestamp de dernière modification
+    lastModified?: number;
   }> = {};
-  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  private readonly CACHE_DURATION = 1 * 60 * 1000; // 1 minute
   private readonly MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes maximum
+  private nextTimeFullReload: Record<string, boolean> = {};
 
   private constructor() {}
 
@@ -31,12 +32,14 @@ class CacheManager {
     if (item) {
       // Vérifier si le cache est expiré
       if (now - item.timestamp > this.MAX_CACHE_AGE) {
+        console.log(`Cache expired for key: ${key}`);
         delete this.cache[key];
         return { data: null, fullDataLoaded: false };
       }
 
       // Si le cache est périmé mais pas complètement expiré, on le considère comme partiel
       if (now - item.timestamp > this.CACHE_DURATION) {
+        console.log(`Cache stale for key: ${key}, returning partial data`);
         return { 
           data: item.data, 
           fullDataLoaded: false,
@@ -44,12 +47,14 @@ class CacheManager {
         };
       }
 
+      console.log(`Cache hit for key: ${key}`);
       return { 
         data: item.data, 
         fullDataLoaded: item.fullDataLoaded,
         totalCount: item.totalCount
       };
     }
+    console.log(`Cache miss for key: ${key}`);
     return { data: null, fullDataLoaded: false };
   }
 
@@ -61,11 +66,13 @@ class CacheManager {
     if (existingData) {
       // Si les données sont identiques, on ne met pas à jour le timestamp
       if (JSON.stringify(existingData.data) === JSON.stringify(data)) {
+        console.log(`No changes detected for key: ${key}, keeping existing cache`);
         return;
       }
     }
 
     // Mise à jour du cache avec un nouveau timestamp
+    console.log(`Updating cache for key: ${key}, fullDataLoaded: ${fullDataLoaded}`);
     this.cache[key] = {
       data,
       timestamp: now,
@@ -76,20 +83,37 @@ class CacheManager {
   }
 
   public clear(): void {
+    console.log('Clearing all cache');
     this.cache = {};
+    this.nextTimeFullReload = {};
   }
 
-  // Nouvelle méthode pour invalider spécifiquement le cache d'une entreprise
   public invalidate(entreprise_id: string): void {
     const key = `bsds:${entreprise_id}`;
     if (this.cache[key]) {
+      console.log(`Invalidating cache for key: ${key}`);
       delete this.cache[key];
-      console.log('Cache invalidé pour:', key);
     }
+  }
+
+  public setNextTimeFullReload(entreprise_id: string): void {
+    const key = `bsds:${entreprise_id}`;
+    this.nextTimeFullReload[key] = true;
+    console.log(`Set next time full reload for key: ${key}`);
+  }
+
+  public shouldFullReload(entreprise_id: string): boolean {
+    const key = `bsds:${entreprise_id}`;
+    const shouldReload = this.nextTimeFullReload[key] || false;
+    if (shouldReload) {
+      delete this.nextTimeFullReload[key];
+      console.log(`Full reload requested for key: ${key}`);
+    }
+    return shouldReload;
   }
 }
 
-const cacheManager = CacheManager.getInstance();
+export const cacheManager = CacheManager.getInstance();
 
 interface FilterParams {
   entreprise_id: string;
@@ -113,18 +137,20 @@ export async function GET(request: Request) {
   try {
     const cacheKey = `bsds:${entreprise_id}`;
     
-    // Si forceReload est true, on invalide le cache pour cette entreprise
-    if (forceReload) {
-      console.log('------Force reload requested, invalidating cache for:', cacheKey);
+    // Vérifier si on doit forcer un rechargement complet
+    const shouldFullReload = forceReload || cacheManager.shouldFullReload(entreprise_id);
+    
+    if (shouldFullReload) {
+      console.log('------Full reload requested, invalidating cache for:', cacheKey);
       cacheManager.invalidate(cacheKey);
     }
     
     // Vérifier le cache
-    const { data: cachedData, fullDataLoaded, totalCount: cachedTotalCount } = !forceReload ? cacheManager.get(cacheKey) : { data: null, fullDataLoaded: false, totalCount: undefined };
+    const { data: cachedData, fullDataLoaded, totalCount: cachedTotalCount } = !shouldFullReload ? cacheManager.get(cacheKey) : { data: null, fullDataLoaded: false, totalCount: undefined };
 
     // Si on a des données en cache et qu'on demande un fastLoad, on retourne les données du cache
     // même si on n'a pas encore chargé toutes les données
-    if (cachedData && !forceReload) {
+    if (cachedData && !shouldFullReload) {
       console.log('------Bsd_Data from Server CACHE HIT 🎯', fastLoad ? '(fast load)' : '', fullDataLoaded ? '(full data)' : '(partial data)');
       console.log(`------Total BSDs in cache: ${cachedData.length}`);
       
@@ -145,7 +171,7 @@ export async function GET(request: Request) {
       });
     }
 
-    console.log('------Bsd_Data from Server CACHE MISS 🔴', forceReload ? '(forced reload)' : '', fastLoad ? '(fast load)' : '');
+    console.log('------Bsd_Data from Server CACHE MISS 🔴', shouldFullReload ? '(forced reload)' : '', fastLoad ? '(fast load)' : '');
     
     // Récupération paginée des BSDs
     let allData: BSD[] = [];

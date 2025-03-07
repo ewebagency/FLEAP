@@ -60,7 +60,7 @@ import { CompleteFormInput, FormInput } from '../../interface/BSD_Interface';
 
 
 // Définir le type pour le contexte
-interface ModalContextType {
+export type ModalContextType = {
     displayFormulaire: boolean;
     setDisplayFormulaire: (value: boolean) => void;
     dataToogle: FormInput;
@@ -69,23 +69,26 @@ interface ModalContextType {
     setOptions: (options: CompleteFormInput[]) => void;
 
     modalId: string | null;
-    setModalId: (modalId: string | null) => void;
-    modalType: string; //'display' ou 'modify' ou un truc dans le genre (si rien alors on ne display pas la DisplayCard)
-    setModalType: (modalType: string) => void;
+    setModalId: (value: string | null) => void;
+    modalType: string | null;
+    setModalType: (value: string | null) => void;
     modalReload: boolean;
-    setModalReload: React.Dispatch<React.SetStateAction<boolean>>;
+    setModalReload: (value: boolean) => void;
 
     filterPendingBSDs: boolean;
-    setFilterPendingBSDs: React.Dispatch<React.SetStateAction<boolean>>;
-}
+    setFilterPendingBSDs: (value: boolean) => void;
+    nextFullReload: boolean;
+    setNextFullReload: (value: boolean) => void;
+};
 
 // Créer le contexte
-const ModalContextNew = createContext<ModalContextType>({} as ModalContextType);
+const ModalContextNew = createContext<ModalContextType | null>(null);
 
 // Créer un fournisseur de contexte
 export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
     const [displayFormulaire, setDisplayFormulaire] = useState<boolean>(false);
     const [filterPendingBSDs, setFilterPendingBSDs] = useState<boolean>(false);
+    const [nextFullReload, setNextFullReload] = useState(false);
 
     const initialToogleData: FormInput = {
         emitter: {
@@ -147,29 +150,32 @@ export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
       };
     const [dataToogle, setDataToogle] = useState<FormInput>(initialToogleData);
     const [options, setOptions] = useState<CompleteFormInput[]>([]);
-    const [modalId, setModalId] = useState<string | null>("");
-    const [modalType, setModalType] = useState("");
+    const [modalId, setModalId] = useState<string | null>(null);
+    const [modalType, setModalType] = useState<string | null>(null);
     const [modalReload, setModalReload] = useState(false);
 
+    const value = {
+        displayFormulaire,
+        setDisplayFormulaire,
+        dataToogle,
+        setDataToogle,
+        options,
+        setOptions,
+        modalId,
+        setModalId,
+        modalType,
+        setModalType,
+        modalReload,
+        setModalReload,
+        
+        filterPendingBSDs,
+        setFilterPendingBSDs,
+        nextFullReload,
+        setNextFullReload
+    };
 
     return (
-        <ModalContextNew.Provider value={{
-            displayFormulaire,
-            setDisplayFormulaire,
-            dataToogle,
-            setDataToogle,
-            options,
-            setOptions,
-            modalId,
-            setModalId,
-            modalType,
-            setModalType,
-            modalReload,
-            setModalReload,
-            
-            filterPendingBSDs,
-            setFilterPendingBSDs
-        }}>
+        <ModalContextNew.Provider value={value}>
             {children}
         </ModalContextNew.Provider>
     );

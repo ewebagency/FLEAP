@@ -1,5 +1,6 @@
 import { supabase } from "@/app/database/supabaseClient";
 import { FormInput } from "../../../interface/BSD_Interface";
+import { useModalContextNew } from "../ContextModal";
 
 // Types pour la récurrence
 export interface RecurrencePattern {
@@ -176,9 +177,10 @@ const RecurrenceFunctions = {
         }
     },
 
-    executeRecurrences: async (): Promise<void> => {
+    executeRecurrences: async (setNextFullReload?: (value: boolean) => void): Promise<boolean> => {
         try {
             const now = new Date().toISOString();
+            console.log('Executing recurrences at:', now);
             
             // Récupérer toutes les récurrences actives dont la prochaine exécution est due
             const { data: dueRecurrences, error } = await supabase
@@ -187,48 +189,77 @@ const RecurrenceFunctions = {
                 .eq('is_active', true)
                 .lte('next_execution', now);
 
-            if (error) throw error;
+            if (error) {
+                console.error('Error fetching due recurrences:', error);
+                throw error;
+            }
 
             console.log(`Found ${dueRecurrences?.length || 0} recurrences to execute`);
 
-            for (const recurrence of dueRecurrences) {
-                // Créer le nouveau BSD
-                const newBsdId = await RecurrenceFunctions.createBSDFromTemplate(
-                    recurrence.user_id,
-                    recurrence.entreprise_id,
-                    recurrence.bsd_template
-                );
+            let anyRecurrenceExecuted = false;
 
-                if (newBsdId) {
-                    const newExecutionCount = recurrence.execution_count + 1;
-                    const shouldContinue = RecurrenceFunctions.shouldContinueRecurrence(
-                        recurrence.pattern,
-                        newExecutionCount,
-                        new Date()
+            if (dueRecurrences && dueRecurrences.length > 0) {
+                for (const recurrence of dueRecurrences) {
+                    console.log(`Processing recurrence ${recurrence.id}:`, {
+                        pattern: recurrence.pattern,
+                        nextExecution: recurrence.next_execution,
+                        executionCount: recurrence.execution_count
+                    });
+
+                    // Créer le nouveau BSD
+                    const newBsdId = await RecurrenceFunctions.createBSDFromTemplate(
+                        recurrence.user_id,
+                        recurrence.entreprise_id,
+                        recurrence.bsd_template
                     );
 
-                    // Calculer la prochaine exécution
-                    const nextExecution = RecurrenceFunctions.calculateNextExecution(recurrence.pattern);
-                    
-                    // Mettre à jour la récurrence avec le nouveau BSD
-                    await RecurrenceFunctions.updateRecurrenceAfterExecution(
-                        recurrence.id,
-                        nextExecution,
-                        newExecutionCount,
-                        shouldContinue,
-                        newBsdId
-                    );
+                    if (newBsdId) {
+                        console.log(`Created new BSD ${newBsdId} for recurrence ${recurrence.id}`);
+                        anyRecurrenceExecuted = true;
+                        
+                        const newExecutionCount = recurrence.execution_count + 1;
+                        const shouldContinue = RecurrenceFunctions.shouldContinueRecurrence(
+                            recurrence.pattern,
+                            newExecutionCount,
+                            new Date()
+                        );
 
-                    console.log(`Created new BSD ${newBsdId} for recurrence ${recurrence.id}`);
+                        console.log(`Recurrence ${recurrence.id} should continue:`, shouldContinue);
+
+                        // Calculer la prochaine exécution
+                        const nextExecution = RecurrenceFunctions.calculateNextExecution(recurrence.pattern);
+                        console.log(`Next execution for ${recurrence.id}:`, nextExecution);
+                        
+                        // Mettre à jour la récurrence avec le nouveau BSD
+                        const updateSuccess = await RecurrenceFunctions.updateRecurrenceAfterExecution(
+                            recurrence.id,
+                            nextExecution,
+                            newExecutionCount,
+                            shouldContinue,
+                            newBsdId
+                        );
+
+                        console.log(`Update success for ${recurrence.id}:`, updateSuccess);
+                    } else {
+                        console.error(`Failed to create BSD for recurrence ${recurrence.id}`);
+                    }
+                }
+
+                if (anyRecurrenceExecuted && setNextFullReload) {
+                    setNextFullReload(true);
                 }
             }
+
+            return anyRecurrenceExecuted;
         } catch (error) {
             console.error('Error executing recurrences:', error);
+            return false;
         }
     },
 
-    checkRecurrences: async (): Promise<void> => {
+    checkRecurrences: async (setNextFullReload: (value: boolean) => void): Promise<void> => {
         try {
+            console.log('Checking recurrences via API...');
             const response = await fetch('/api/cron', {
                 method: 'GET',
                 headers: {
@@ -237,7 +268,16 @@ const RecurrenceFunctions = {
             });
             
             if (!response.ok) {
+                console.error('Failed to check recurrences:', response.status, response.statusText);
                 throw new Error('Failed to check recurrences');
+            }
+
+            const data = await response.json();
+            console.log('Recurrence check response:', data);
+            
+            // Si des récurrences ont été exécutées, activer nextFullReload
+            if (data.recurrencesExecuted) {
+                setNextFullReload(true);
             }
         } catch (error) {
             console.error('Error checking recurrences:', error);

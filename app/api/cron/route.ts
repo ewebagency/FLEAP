@@ -3,8 +3,8 @@ import RecurrenceFunctions from '@/app/register/RegisterComponents/Modal/Recurre
 
 export async function GET() {
     try {
-        await RecurrenceFunctions.executeRecurrences();
-        return NextResponse.json({ success: true });
+        const recurrencesExecuted = await RecurrenceFunctions.executeRecurrences();
+        return NextResponse.json({ success: true, recurrencesExecuted });
     } catch (error) {
         console.error('Error executing recurrences:', error);
         return NextResponse.json({ success: false, error: 'Failed to execute recurrences' }, { status: 500 });

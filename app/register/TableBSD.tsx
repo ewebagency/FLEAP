@@ -166,6 +166,7 @@ const TableBSD = () => {
     const [isLoadingFullData, setIsLoadingFullData] = useState(false);
     const [filtersEnabled, setFiltersEnabled] = useState(false);
     const [isPartialData, setIsPartialData] = useState(false);
+    const [nextFullReload, setNextFullReload] = useState(false);
 
     // Ajouter un useEffect pour charger la table de mapping au démarrage
     useEffect(() => {
@@ -239,11 +240,16 @@ const TableBSD = () => {
             // Déterminer si on doit faire un chargement rapide
             const shouldFastLoad = isLoadingInitialData && !isLoadingFullData;
             
-            // Appel API avec le paramètre fastLoad si nécessaire
-            const forceReload = prevModalReload.current !== modalReload;
+            // Appel API avec le paramètre forceReload si nécessaire
+            const forceReload = prevModalReload.current !== modalReload || nextFullReload;
             
             const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}${shouldFastLoad ? '&fastLoad=true' : ''}${forceReload ? '&forceReload=true' : ''}`);
             const result = await response.json();
+            
+            // Réinitialiser nextFullReload après l'appel
+            if (nextFullReload) {
+                setNextFullReload(false);
+            }
             
             // Mettre à jour l'état pour indiquer si les données sont partielles
             setIsPartialData(result.isPartialData);
@@ -474,18 +480,13 @@ const TableBSD = () => {
                         toast.success("BSD supprimé avec succès");
                     }
                     
-                    // Forcer un rechargement complet des données
-                    setAllBSDs([]);
-                    setAllFilteredBSDs([]);
-                    setDisplayedBSDs([]);
-                    setTotalBSDsCount(0);
-                    setModalReload(prev => !prev);
+                    // Mise à jour locale
+                    setAllBSDs(prev => prev.filter(bsd => bsd.id !== id));
+                    setAllFilteredBSDs(prev => prev.filter(bsd => bsd.id !== id));
+                    setDisplayedBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     
-                    // Attendre un court instant pour s'assurer que le cache est invalidé
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
-                    // Recharger les données
-                    fetchAndFilterBSDs();
+                    // Indiquer que le prochain chargement devra être un full reload
+                    setNextFullReload(true);
                 }
             } else {
                 // Récupérer d'abord les informations du BSD pour avoir l'URL de la photo
@@ -617,6 +618,7 @@ const TableBSD = () => {
             setDisplayedBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: value} : prevbsd));
             //setForceReloadNextTime(true);
         }
+        setNextFullReload(true);
     };
 
     const handleValidateLine = async (bsd: BSD) => {
@@ -645,6 +647,7 @@ const TableBSD = () => {
             .single();
 
         if (!error && data) {
+            // Mise à jour locale
             setAllBSDs(prevBsds => prevBsds.map(prevBsd => 
                 prevBsd.id === bsd.id 
                     ? { 
@@ -663,8 +666,9 @@ const TableBSD = () => {
             setAllFilteredBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: 'Collecté'} : prevbsd));
             setDisplayedBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: 'Collecté'} : prevbsd));
             toast.success("BSD mis à jour avec succès");
-            //setForceReloadNextTime(true);
-            //setModalReload(!modalReload);
+            
+            // Indiquer que le prochain chargement devra être un full reload
+            setNextFullReload(true);
         } else {
             toast.error("Erreur lors de la mise à jour du BSD");
         }
