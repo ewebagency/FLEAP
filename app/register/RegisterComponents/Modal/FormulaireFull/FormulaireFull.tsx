@@ -1176,7 +1176,7 @@ useEffect(() => {
                                         }}
                                         dateFormat="dd/MM/yyyy"
                                         placeholderText="Remplir la date"
-                                        className="mobile-datepicker"
+                                        className="w-[120%] mb-1 min-h-[28px] text-sm px-3 py-0 border border-green-600 rounded-md tracking-wide"
                                         isClearable
                                     />
                                 </div>

@@ -1599,15 +1599,22 @@ useEffect(() => {
                                                     </label>
                                                     <div className="flex-1 mr-2 w-[100px]">
                                                         <DatePicker
-                                                            selected={line.collectDate ? new Date(line.collectDate) : null}
+                                                            selected={line.collectDate ? new Date(line.collectDate + 'T00:00:00') : null}
                                                             onChange={(date) => {
-                                                                const newLines = [...wasteLines];
-                                                                newLines[index].collectDate = date ? date.toISOString().split('T')[0] : '';
-                                                                setWasteLines(newLines);
+                                                                if (date) {
+                                                                    const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+                                                                    const newLines = [...wasteLines];
+                                                                    newLines[index].collectDate = localDate.toISOString().split('T')[0];
+                                                                    setWasteLines(newLines);
+                                                                } else {
+                                                                    const newLines = [...wasteLines];
+                                                                    newLines[index].collectDate = '';
+                                                                    setWasteLines(newLines);
+                                                                }
                                                             }}
                                                             dateFormat="dd/MM/yyyy"
                                                             placeholderText="Dès que possible"
-                                                            className="w-full"
+                                                            className="w-[120%] mb-1 min-h-[28px] text-sm px-3 py-0 border border-green-600 bg-gray-50 rounded-md tracking-wide"
                                                             isClearable
                                                         />
                                                     </div>
@@ -1737,18 +1744,25 @@ useEffect(() => {
                                         </div>
                                         
                                         {/* Fourth row: Date and Remove button */}
-                                        <div className="flex justify-between items-center mt-4">
+                                        <div className="flex justify-between items-center mt-0">
                                             <div className="flex-1 mr-2 w-[100px]">
                                                 <DatePicker
-                                                    selected={line.collectDate ? new Date(line.collectDate) : null}
+                                                    selected={line.collectDate ? new Date(line.collectDate + 'T00:00:00') : null}
                                                     onChange={(date) => {
-                                                        const newLines = [...wasteLines];
-                                                        newLines[index].collectDate = date ? date.toISOString().split('T')[0] : '';
-                                                        setWasteLines(newLines);
+                                                        if (date) {
+                                                            const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+                                                            const newLines = [...wasteLines];
+                                                            newLines[index].collectDate = localDate.toISOString().split('T')[0];
+                                                            setWasteLines(newLines);
+                                                        } else {
+                                                            const newLines = [...wasteLines];
+                                                            newLines[index].collectDate = '';
+                                                            setWasteLines(newLines);
+                                                        }
                                                     }}
                                                     dateFormat="dd/MM/yyyy"
                                                     placeholderText="Dès que possible"
-                                                    className="w-[25%] h-[44px] text-base"
+                                                    className="w-[100%] mb-1 min-h-[32px] text-sm px-3 py-2 border border-green-600 bg-gray-50 rounded-md tracking-wide"
                                                     isClearable
                                                 />
                                             </div>
@@ -1759,7 +1773,7 @@ useEffect(() => {
                                                         const newLines = wasteLines.filter((_, i) => i !== index);
                                                         setWasteLines(newLines);
                                                     }}
-                                                    className="flex items-center justify-center px-3 py-2 text-white bg-red-500 rounded-md hover:bg-red-600 transition-colors text-sm"
+                                                    className="flex items-center justify-center px-3 py-2 text-white bg-red-500 rounded-md hover:bg-red-600 transition-colors text-sm mb-1"
                                                 >
                                                     <span className="mr-1">×</span>
                                                     <span>Supprimer</span>
