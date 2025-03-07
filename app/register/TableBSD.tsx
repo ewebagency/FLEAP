@@ -474,13 +474,18 @@ const TableBSD = () => {
                         toast.success("BSD supprimé avec succès");
                     }
                     
-                    // Mettre à jour l'état local en supprimant le BSD
-                    setModalReload(!modalReload);
-                    setAllBSDs(prev => prev.filter(bsd => bsd.id !== id));
-                    setAllFilteredBSDs(prev => prev.filter(bsd => bsd.id !== id));
-                    setDisplayedBSDs(prev => prev.filter(bsd => bsd.id !== id));
-                    //setForceReloadNextTime(true);
-                    // Déclencher un rechargement complet
+                    // Forcer un rechargement complet des données
+                    setAllBSDs([]);
+                    setAllFilteredBSDs([]);
+                    setDisplayedBSDs([]);
+                    setTotalBSDsCount(0);
+                    setModalReload(prev => !prev);
+                    
+                    // Attendre un court instant pour s'assurer que le cache est invalidé
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    // Recharger les données
+                    fetchAndFilterBSDs();
                 }
             } else {
                 // Récupérer d'abord les informations du BSD pour avoir l'URL de la photo

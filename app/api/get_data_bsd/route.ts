@@ -10,8 +10,10 @@ class CacheManager {
     timestamp: number; 
     fullDataLoaded: boolean;
     totalCount?: number;
+    lastModified?: number; // Ajout d'un timestamp de dernière modification
   }> = {};
   private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  private readonly MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes maximum
 
   private constructor() {}
 
@@ -26,7 +28,22 @@ class CacheManager {
     const item = this.cache[key];
     const now = Date.now();
 
-    if (item && now - item.timestamp < this.CACHE_DURATION) {
+    if (item) {
+      // Vérifier si le cache est expiré
+      if (now - item.timestamp > this.MAX_CACHE_AGE) {
+        delete this.cache[key];
+        return { data: null, fullDataLoaded: false };
+      }
+
+      // Si le cache est périmé mais pas complètement expiré, on le considère comme partiel
+      if (now - item.timestamp > this.CACHE_DURATION) {
+        return { 
+          data: item.data, 
+          fullDataLoaded: false,
+          totalCount: item.totalCount
+        };
+      }
+
       return { 
         data: item.data, 
         fullDataLoaded: item.fullDataLoaded,
@@ -37,24 +54,38 @@ class CacheManager {
   }
 
   public set(key: string, data: BSD[], fullDataLoaded: boolean = true, totalCount?: number): void {
-    // Supprimer explicitement l'ancienne entrée si elle existe
-    if (this.cache[key]) {
-        delete this.cache[key];
-        console.log('Cache supprimé pour la clé:', key);
-    }
+    const now = Date.now();
     
-    // Créer la nouvelle entrée
-    console.log('Cache mis à jour pour la clé:', key, 'fullDataLoaded:', fullDataLoaded, 'totalCount:', totalCount);
+    // Si on a déjà des données en cache, on vérifie si elles ont été modifiées
+    const existingData = this.cache[key];
+    if (existingData) {
+      // Si les données sont identiques, on ne met pas à jour le timestamp
+      if (JSON.stringify(existingData.data) === JSON.stringify(data)) {
+        return;
+      }
+    }
+
+    // Mise à jour du cache avec un nouveau timestamp
     this.cache[key] = {
-        data,
-        timestamp: Date.now(),
-        fullDataLoaded,
-        totalCount
+      data,
+      timestamp: now,
+      fullDataLoaded,
+      totalCount,
+      lastModified: now
     };
   }
 
   public clear(): void {
     this.cache = {};
+  }
+
+  // Nouvelle méthode pour invalider spécifiquement le cache d'une entreprise
+  public invalidate(entreprise_id: string): void {
+    const key = `bsds:${entreprise_id}`;
+    if (this.cache[key]) {
+      delete this.cache[key];
+      console.log('Cache invalidé pour:', key);
+    }
   }
 }
 
@@ -82,11 +113,10 @@ export async function GET(request: Request) {
   try {
     const cacheKey = `bsds:${entreprise_id}`;
     
-    // Si forceReload est true, on vide le cache pour cette entreprise
+    // Si forceReload est true, on invalide le cache pour cette entreprise
     if (forceReload) {
-      console.log('------Force reload requested, clearing cache for:', cacheKey);
-      // On ne supprime que l'entrée spécifique du cache
-      cacheManager.set(cacheKey, [], false, 0);
+      console.log('------Force reload requested, invalidating cache for:', cacheKey);
+      cacheManager.invalidate(cacheKey);
     }
     
     // Vérifier le cache

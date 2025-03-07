@@ -722,6 +722,7 @@ const ModifyCardInFormulaireNew = ({
             toast.success("Ligne créée");
             setDisplayFormulaire(false);
             setModalReload(!modalReload);
+            onClose();
         } else {
             toast.error("Erreur avec la création de la ligne");
         }
