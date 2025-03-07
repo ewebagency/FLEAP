@@ -24,21 +24,35 @@ class CacheManager {
     return CacheManager.instance;
   }
 
-  public get(key: string): { data: BSD[]|null, fullDataLoaded: boolean, totalCount?: number } {
-    const item = this.cache[key];
+  private getCacheKey(baseKey: string, nextTimeFullReload: boolean): string {
+    // En production, on ajoute un timestamp à la clé si nextTimeFullReload est true
+    if (process.env.VERCEL && nextTimeFullReload) {
+      return `${baseKey}:${Date.now()}`;
+    }
+    return baseKey;
+  }
+
+  public get(key: string, nextTimeFullReload: boolean = false): { data: BSD[]|null, fullDataLoaded: boolean, totalCount?: number } {
+    const cacheKey = this.getCacheKey(key, nextTimeFullReload);
+    const item = this.cache[cacheKey];
     const now = Date.now();
+
+    // En production, si nextTimeFullReload est true, on considère qu'il n'y a pas de cache
+    if (process.env.VERCEL && nextTimeFullReload) {
+      return { data: null, fullDataLoaded: false };
+    }
 
     if (item) {
       // Vérifier si le cache est expiré
       if (now - item.timestamp > this.MAX_CACHE_AGE) {
-        console.log(`Cache expired for key: ${key}`);
-        delete this.cache[key];
+        console.log(`Cache expired for key: ${cacheKey}`);
+        delete this.cache[cacheKey];
         return { data: null, fullDataLoaded: false };
       }
 
       // Si le cache est périmé mais pas complètement expiré, on le considère comme partiel
       if (now - item.timestamp > this.CACHE_DURATION) {
-        console.log(`Cache stale for key: ${key}, returning partial data`);
+        console.log(`Cache stale for key: ${cacheKey}, returning partial data`);
         return { 
           data: item.data, 
           fullDataLoaded: false,
@@ -46,33 +60,40 @@ class CacheManager {
         };
       }
 
-      console.log(`Cache hit for key: ${key}`);
+      console.log(`Cache hit for key: ${cacheKey}`);
       return { 
         data: item.data, 
         fullDataLoaded: item.fullDataLoaded,
         totalCount: item.totalCount
       };
     }
-    console.log(`Cache miss for key: ${key}`);
+    console.log(`Cache miss for key: ${cacheKey}`);
     return { data: null, fullDataLoaded: false };
   }
 
-  public set(key: string, data: BSD[], fullDataLoaded: boolean = true, totalCount?: number): void {
+  public set(key: string, data: BSD[], fullDataLoaded: boolean = true, totalCount?: number, nextTimeFullReload: boolean = false): void {
+    const cacheKey = this.getCacheKey(key, nextTimeFullReload);
     const now = Date.now();
     
+    // En production avec nextTimeFullReload, on ne met pas en cache
+    if (process.env.VERCEL && nextTimeFullReload) {
+      console.log(`Skipping cache set in production with nextTimeFullReload for key: ${cacheKey}`);
+      return;
+    }
+
     // Si on a déjà des données en cache, on vérifie si elles ont été modifiées
-    const existingData = this.cache[key];
+    const existingData = this.cache[cacheKey];
     if (existingData) {
       // Si les données sont identiques, on ne met pas à jour le timestamp
       if (JSON.stringify(existingData.data) === JSON.stringify(data)) {
-        console.log(`No changes detected for key: ${key}, keeping existing cache`);
+        console.log(`No changes detected for key: ${cacheKey}, keeping existing cache`);
         return;
       }
     }
 
     // Mise à jour du cache avec un nouveau timestamp
-    console.log(`Updating cache for key: ${key}, fullDataLoaded: ${fullDataLoaded}`);
-    this.cache[key] = {
+    console.log(`Updating cache for key: ${cacheKey}, fullDataLoaded: ${fullDataLoaded}`);
+    this.cache[cacheKey] = {
       data,
       timestamp: now,
       fullDataLoaded,
@@ -87,10 +108,21 @@ class CacheManager {
   }
 
   public invalidate(entreprise_id: string): void {
-    const key = `bsds:${entreprise_id}`;
-    if (this.cache[key]) {
-      console.log(`Invalidating cache for key: ${key}`);
-      delete this.cache[key];
+    // En production, on invalide toutes les clés qui commencent par ce préfixe
+    if (process.env.VERCEL) {
+      const prefix = `bsds:${entreprise_id}`;
+      Object.keys(this.cache).forEach(key => {
+        if (key.startsWith(prefix)) {
+          console.log(`Invalidating cache for key: ${key}`);
+          delete this.cache[key];
+        }
+      });
+    } else {
+      const key = `bsds:${entreprise_id}`;
+      if (this.cache[key]) {
+        console.log(`Invalidating cache for key: ${key}`);
+        delete this.cache[key];
+      }
     }
   }
 }
@@ -123,17 +155,16 @@ export async function GET(request: Request) {
     // Si forceReload ou nextTimeFullReload est true, on invalide le cache pour cette entreprise
     if (forceReload || nextTimeFullReload) {
       console.log('------Force reload requested, invalidating cache for:', cacheKey);
-      cacheManager.invalidate(cacheKey);
+      cacheManager.invalidate(entreprise_id);
     }
     
-    // Vérifier le cache
-    const { data: cachedData, fullDataLoaded, totalCount: cachedTotalCount } = !forceReload && !nextTimeFullReload ? 
-      cacheManager.get(cacheKey) : 
+    // Vérifier le cache avec nextTimeFullReload
+    const { data: cachedData, fullDataLoaded, totalCount: cachedTotalCount } = !forceReload ? 
+      cacheManager.get(cacheKey, nextTimeFullReload) : 
       { data: null, fullDataLoaded: false, totalCount: undefined };
 
     // Si on a des données en cache et qu'on demande un fastLoad, on retourne les données du cache
-    // même si on n'a pas encore chargé toutes les données
-    if (cachedData && !forceReload && !nextTimeFullReload) {
+    if (cachedData && !forceReload) {
       console.log('------Bsd_Data from Server CACHE HIT 🎯', fastLoad ? '(fast load)' : '', fullDataLoaded ? '(full data)' : '(partial data)');
       console.log(`------Total BSDs in cache: ${cachedData.length}`);
       
@@ -203,8 +234,8 @@ export async function GET(request: Request) {
 
     console.log(`------Total BSDs fetched: ${allData.length}`);
     
-    // Si on fait un fastLoad, on met en cache les données partielles
-    cacheManager.set(cacheKey, allData, !fastLoad, totalCount);
+    // Mettre en cache les données avec nextTimeFullReload
+    cacheManager.set(cacheKey, allData, !fastLoad, totalCount, nextTimeFullReload);
     
     return NextResponse.json({ 
       data: allData,
