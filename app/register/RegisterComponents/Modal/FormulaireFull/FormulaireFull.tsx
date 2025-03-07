@@ -12,6 +12,7 @@ import { useFilterContext } from "@/app/FilterContext";
 import { OtherInfos, CompleteFormInput } from "@/app/register/interface/BSD_Interface";
 import { toast } from "react-hot-toast";
 import { createRoot } from "react-dom/client";
+import DatePicker from "react-datepicker";
 
 const initialToogleData: FormInput = {
     emitter: {
@@ -1149,7 +1150,40 @@ useEffect(() => {
                         </div>
                     </div>
 
-                   
+                    <div className="text-sm font-semibold ml-6 mt-2">Date de collecte</div>
+                    <div className="w-[95%] pb-2 border-b border-3 mt-0 mx-auto border-gray-300">
+                        <div className="mt-0 flex justify-between gap-4 w-1/2 ml-8">
+                            <div className="flex items-center justify-between mr-4 mt-2 gap-2">
+                                <label className="block text-sm text-gray-500 font-medium mb-1 md:w-[90px] text-right ml-8">
+                                    Collecté le
+                                </label>
+                                <div className="flex-1 mr-2 w-[130px]">
+                                    <DatePicker
+                                        selected={dataToogle.takenOverAt ? new Date(dataToogle.takenOverAt + 'T00:00:00') : null}
+                                        onChange={(date) => {
+                                            if (date) {
+                                                const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+                                                setDataToogle(prev => ({
+                                                    ...prev,
+                                                    takenOverAt: localDate.toISOString().split('T')[0]
+                                                }));
+                                            } else {
+                                                setDataToogle(prev => ({
+                                                    ...prev,
+                                                    takenOverAt: ''
+                                                }));
+                                            }
+                                        }}
+                                        dateFormat="dd/MM/yyyy"
+                                        placeholderText="Remplir la date"
+                                        className="mobile-datepicker"
+                                        isClearable
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="ml-[-10px]">
                         {(entreprise_id && modalType !== 'create_line') && <MailComponent 
                             params={{

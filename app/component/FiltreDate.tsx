@@ -89,13 +89,28 @@ const FiltreDate = () => {
                 .order('created_at', { ascending: true })
                 .limit(1)
                 .single();
+
+            /*const { data: maxData, error: maxError } = await supabase
+                .from('bsd')
+                .select('created_at')
+                .eq('entreprise_id', entreprise_id)
+                //.not('status_track_dechets', 'is', 'Ligne demandée')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();*/
             
             if (minError) {
                 console.error('Error fetching dates:', minError);
                 return;
             }
 
+            /*if (maxError) {
+                console.error('Error fetching dates:', maxError);
+                return;
+            }*/
+
             const maxDate = new Date();
+            //const maxDate = new Date(maxData.created_at);
             //maxDate.setMonth(maxDate.getMonth());
             //maxDate.setDate(0);
             maxDate.setHours(23, 59, 59, 999);
@@ -254,7 +269,7 @@ const FiltreDate = () => {
                                         }}
                                         className="w-full p-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
                                     >
-                                        Auto
+                                        Aujourd&apos;hui
                                     </button>
                                 </div>
                             </div>

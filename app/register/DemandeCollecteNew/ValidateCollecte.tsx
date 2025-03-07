@@ -615,23 +615,23 @@ const onValidate = async () => {
     try {
         setSubmitLoading(true);
         // Vérifier que les champs obligatoires sont remplis
-        if (!dataToogle.wasteDetails.quantity) {
+        /*if (!dataToogle.wasteDetails.quantity) {
             toast.error("La quantité est obligatoire");
             setSubmitLoading(false);
             return;
-        }
+        }*/
 
-        if (!other_infos.containerDescription) {
+        /*if (!other_infos.containerDescription) {
             toast.error("La description du contenant est obligatoire");
             setSubmitLoading(false);
             return;
-        }
+        }*/
 
-        if (!dataToogle.wasteDetails.packagingInfos[0].quantity) {
+        /*if (!dataToogle.wasteDetails.packagingInfos[0].quantity) {
             toast.error("Le nombre de contenants est obligatoire");
             setSubmitLoading(false);
             return;
-        }
+        }*/
 
         let photoPublicUrl = null;
 
@@ -1313,7 +1313,7 @@ useEffect(() => {
                         <button
                             type="button"
                             onClick={onValidate}
-                            disabled={submitLoading || dataToogle.wasteDetails.quantity < 0.00001}
+                            disabled={submitLoading}
                             className="relative w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
                         >
                             {submitLoading ? (

@@ -74,3 +74,20 @@ async def get_table_demande_collecte(
                                     filiere: Optional[str] = None,
                                     dechet: Optional[str] = None):
     return data_from_excel(userId, site, filiere, dechet)
+
+
+@app.post("/ai-extract-json-from-pdf/")
+async def ai_extract_json_from_pdf(file: UploadFile = File(...)):
+    """
+    Process a PDF or image file to extract structured invoice information using AI
+    """
+    from ai import process_invoice_file
+    
+    try:
+        # Process the file using AI functions
+        invoice_info = process_invoice_file(file)
+        return invoice_info
+    except Exception as e:
+        return {"error": f"Failed to process invoice: {str(e)}"}
+
+    

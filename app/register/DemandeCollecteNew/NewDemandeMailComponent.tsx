@@ -199,10 +199,10 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
                 <div className="flex flex-col md:flex-row">
                     <div className="w-full md:w-1/3 p-3 space-y-2.5 border-b md:border-b-0 md:border-r border-gray-200">
                         <div className="flex items-center gap-2">
-                            <label className="text-xs text-gray-600 w-16 md:w-24">À:</label>
+                            <label className="text-sm text-gray-600 w-16 md:w-24">À:</label>
                             <input
                                 type="email"
-                                className="block w-full text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                className="block w-full text-sm py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={to}
                                 onChange={(e) => setTo(e.target.value)}
                             />
@@ -210,18 +210,18 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
 
                         <div>
                             <div className="flex items-center gap-2">
-                                <label className="text-xs text-gray-600 w-16 md:w-24">Cc:</label>
+                                <label className="text-sm text-gray-600 w-16 md:w-24">Cc:</label>
                                 <div className="flex flex-1 gap-1">
                                     <input
                                         type="email"
-                                        className="block flex-1 text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="block flex-1 text-sm py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                         value={cc}
                                         onChange={(e) => setCc(e.target.value)}
                                     />
                                     <button
                                         type="button"
                                         onClick={handleAddCc}
-                                        className="px-2 py-1 text-xs bg-gray-100 rounded-md hover:bg-gray-200"
+                                        className="px-2 py-1 text-sm bg-gray-100 rounded-md hover:bg-gray-200"
                                     >
                                         +
                                     </button>
@@ -230,7 +230,7 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
                             {ccList.length > 0 && (
                                 <div className="mt-1 ml-16 md:ml-24 space-y-1">
                                     {ccList.map((email) => (
-                                        <div key={email} className="flex items-center gap-1 text-xs">
+                                        <div key={email} className="flex items-center gap-1 text-sm">
                                             <span className="flex-1 truncate">{email}</span>
                                             <button
                                                 type="button"
@@ -246,20 +246,20 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <label className="text-xs text-gray-600 w-16 md:w-24">Répondre à:</label>
+                            <label className="text-sm text-gray-600 w-16 md:w-24">Répondre à:</label>
                             <input
                                 type="email"
-                                className="block w-full text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                className="block w-full text-sm py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={replyTo}
                                 onChange={(e) => setReplyTo(e.target.value)}
                             />
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <label className="text-xs text-gray-600 w-16 md:w-24">Objet:</label>
+                            <label className="text-sm text-gray-600 w-16 md:w-24">Objet:</label>
                             <input
                                 type="text"
-                                className="block w-full text-xs py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                className="block w-full text-sm py-1 pl-2 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                 value={subject}
                                 onChange={handleSubjectChange}
                             />
@@ -268,7 +268,7 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
 
                     <div className="w-full md:w-2/3 flex flex-col">
                         <textarea
-                            className="flex-1 w-full p-3 text-xs leading-tight text-black font-sans bg-gray-50 border-0 focus:ring-0 resize-none min-h-[350px] md:min-h-[350px]"
+                            className="flex-1 w-full p-3 text-sm leading-tight text-black font-sans bg-gray-50 border-0 focus:ring-0 resize-none min-h-[350px] md:min-h-[350px]"
                             value={emailBody}
                             onChange={handleEmailBodyChange}
                             placeholder="Contenu de l'email"

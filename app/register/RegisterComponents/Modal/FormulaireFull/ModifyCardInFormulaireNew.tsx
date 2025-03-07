@@ -645,7 +645,7 @@ const ModifyCardInFormulaireNew = ({
     if (recurrencePattern && session?.user_id && session?.entreprise_id) {
         const willCreateRecurrence = await Swal.fire({
             title: 'Créer une récurrence ?',
-            text: `Voulez-vous créer une récurrence pour cette ligne avec le pattern "${recurrencePattern.name}" ?`,
+            text: `Voulez-vous créer une récurrence pour cette ligne avec le pattern "${recurrencePattern.name}" ? ${recurrencePattern.endType === 'occurrences' ? `Une ligne sera créée maintenant et les ${recurrencePattern.occurrences} autres plus tard` : ''}`,
             icon: 'question',
             showCancelButton: true,
             showDenyButton: true,

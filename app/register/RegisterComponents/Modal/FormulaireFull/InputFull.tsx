@@ -196,7 +196,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                                 backgroundColor: getBackgroundColor(),
                                                 borderColor: stylePrimary ? '#43A047' : base.borderColor,
                                                 borderWidth: '1px',
-                                                fontSize: popup ? '1rem' : '0.65rem'
+                                                fontSize: '0.8rem'
                                             }),
                                             valueContainer: (base) => ({
                                                 ...base,
@@ -205,7 +205,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                             input: (base) => ({
                                                 ...base,
                                                 margin: '0px',
-                                                fontSize: popup ? '1rem' : '0.65rem'
+                                                fontSize: '0.8rem'
                                             }),
                                             menu: (base) => ({
                                                 ...base,
@@ -214,7 +214,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                                 width: '100%',
                                                 backgroundColor: 'white',
                                                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                                fontSize: popup ? '1rem' : '0.65rem'
+                                                fontSize: '0.8rem'
                                             }),
                                             menuPortal: (base) => ({
                                                 ...base,
@@ -226,7 +226,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                                     (state.isSelected ? '#2684FF' : '#E8F0FE') : 
                                                     (state.isSelected ? '#2684FF' : 'white'),
                                                 color: state.isSelected ? 'white' : 'black',
-                                                fontSize: popup ? '1rem' : '0.65rem',
+                                                fontSize: '0.8rem',
                                                 padding: popup ? '8px 12px' : '4px 8px'
                                             }),
                                             dropdownIndicator: (base) => ({

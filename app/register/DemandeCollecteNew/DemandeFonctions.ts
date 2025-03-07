@@ -73,8 +73,10 @@ import { toast } from "react-hot-toast";
 import Swal from 'sweetalert2';
 import { OtherInfos } from "../interface/BSD_Interface";
 
+
 interface OtherInfosWithRecipient extends OtherInfos {
     recipientEmail?: string;
+    entreprise_name?: string;
 }
 
 interface BSDWithRecipient extends BSD {
@@ -82,6 +84,8 @@ interface BSDWithRecipient extends BSD {
 }
 
 export const handleCancelCollecte = async (bsd: BSDWithRecipient) => {
+    
+    
     try {
         // Vérifier si l'email du destinataire est disponible
         const recipientEmail = bsd.other_infos?.recipientEmail;
@@ -102,6 +106,8 @@ export const handleCancelCollecte = async (bsd: BSDWithRecipient) => {
         const containerInfo = bsd.other_infos?.containerDescription || 'Non spécifié';
         const volume = bsd.other_infos?.volume ? `${bsd.other_infos.volume} ${bsd.other_infos.volumeUnit || ''}` : 'Non spécifié';
         const emitterEmail = bsd.infos_json.formAPI.createFormInput.emitter?.company?.mail;
+        const contact = bsd.infos_json.formAPI.createFormInput.emitter?.company?.contact;
+        const entreprise_name = bsd.other_infos?.entreprise_name || '';
 
         // Afficher l'aperçu du mail
         const mailPreviewResult = await Swal.fire({
@@ -114,13 +120,20 @@ export const handleCancelCollecte = async (bsd: BSDWithRecipient) => {
                     <hr class="my-3">
                     <div class="mt-4 ml-4">
                         <h2 class="font-bold">Annulation de la demande de collecte</h2>
-                        <p>Bonjour, j'aimerais annuler la demande de collecte suivante :</p>
+                        </br>
+                        <p>Bonjour,</p>
+                        <p>J'aimerais annuler la demande de collecte suivante :</p>
                         <ul class="list-disc pl-5">
                             <li>Date de collecte prévue : ${collectDate}</li>
                             <li>Déchet : ${wasteDetails.name} (${wasteDetails.code})</li>
                             <li>Contenant : ${containerInfo} ${volume}</li>
                         </ul>
+                        </br>
                         <p>Merci et bonne journée</p>
+                        <p>Cordialement,</p>
+                        </br>
+                        <p>${contact}</p>
+                        <p>${entreprise_name}</p>
                     </div>
                 </div>
             `,

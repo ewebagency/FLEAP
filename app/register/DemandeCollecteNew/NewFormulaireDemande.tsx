@@ -14,6 +14,8 @@ import Swal from 'sweetalert2';
 import NewDemandeMailComponent from "./NewDemandeMailComponent";
 import { useMailContext } from '../MailComponents/MailContext';
 import { dataFilterUpdate, getDataAutocompletionFull, getUniqueOptions, initialOtherInfos, initialToogleData, inputDependencies, isAncestor, NestedObject, preciseFilter, updateNestedValue, WasteLine } from "./NewFormulaireDemandefunctionnal";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 
 const NewFormulaireDemande = ({setDisplayThis}: {setDisplayThis: (display: boolean) => void}) => {
@@ -126,16 +128,16 @@ const NewFormulaireDemande = ({setDisplayThis}: {setDisplayThis: (display: boole
 
     
     useEffect(() => {
-        if(user_email && user_contact && user_phone) {
+        if(user_email) {
             setDataToogle(prev => ({
                 ...prev,
                 emitter: {
                 ...prev.emitter,
-                company: { ...prev.emitter.company, mail: user_email,  contact: user_contact, phone: user_phone }
+                company: { ...prev.emitter.company, mail: user_email,  contact: user_contact || '', phone: user_phone || '' }
                 }
             }));
         }
-        console.log(dataToogle, user_email, user_contact, user_phone);
+        console.log('mail',user_email, 'datatoogle',  dataToogle.emitter.company.mail);
     }, [user_email, user_contact, user_phone, emitter]);
     
     
@@ -663,7 +665,8 @@ useEffect(() => {
                         filiere: line.filiere,
                         inputMode: "volume",
                         automaticMode: true,
-                        recipientEmail: recipientEmail
+                        recipientEmail: recipientEmail,
+                        entreprise_name: entreprise_global_name
                     },
                     on_track_dechets: false,
                     status_track_dechets: 'Ligne demandée',
@@ -893,7 +896,7 @@ useEffect(() => {
                                 <div className="space-y-1 mt-1 sm:space-y-2">
                                     {isMobile ? (
                                         <InputMobile
-                                            titre="Contact"
+                                            titre="Personne"
                                             placeholder="Contact"
                                             options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.contact)}
                                             width={30}
@@ -902,7 +905,7 @@ useEffect(() => {
                                             onChange={handleChange}
                                             enableText={true}
                                             stylePrimary={true}
-                                            display={false && (displayAll || (shouldDisplayField("emitter.company.workSite.fullAddress", changedField) && false))}
+                                            display={(displayAll || (shouldDisplayField("emitter.company.workSite.fullAddress", changedField) && false))}
                                             onMobile={true}
                                             hideIndicators={true}
                                         />
@@ -917,7 +920,7 @@ useEffect(() => {
                                             onChange={handleChange}
                                             enableText={true}
                                             stylePrimary={true}
-                                            display={false && (displayAll || (shouldDisplayField("emitter.company.workSite.fullAddress", changedField) && false))}
+                                            display={(displayAll || (shouldDisplayField('emitter.company.workSite.fullAddress', changedField) && false))}
                                         />
                                     )}
                                     {isMobile ? (
@@ -930,7 +933,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.phone}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={false && (displayAll || (shouldDisplayField("emitter.company.phone", changedField) && false))}
+                                            display={(displayAll || (shouldDisplayField('emitter.company.phone', changedField) && false))}
                                             onMobile={true}
                                             hideIndicators={true}
                                         />
@@ -944,7 +947,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.phone}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={false && (displayAll || (shouldDisplayField("emitter.company.phone", changedField) && false))}
+                                            display={(displayAll || (shouldDisplayField('emitter.company.phone', changedField) && false))}
                                         />
                                     )}
                                     {isMobile ? (
@@ -957,7 +960,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.mail}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={false && (displayAll || (shouldDisplayField("emitter.company.mail", changedField) && false))}
+                                            display={(displayAll || (shouldDisplayField('emitter.company.mail', changedField) && false))}
                                             onMobile={true}
                                             hideIndicators={true}
                                         />
@@ -971,7 +974,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.mail}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={false && (displayAll || (shouldDisplayField("emitter.company.mail", changedField) && false))}
+                                            display={(displayAll || (shouldDisplayField('emitter.company.mail', changedField) && false))}
                                         />
                                     )}
                                 </div>
@@ -1494,7 +1497,7 @@ useEffect(() => {
                                     {/* Desktop layout - 3 columns */}
                                     <div className="hidden md:grid md:grid-cols-3 gap-3 space-y-1">
                                         {/* Column 1: Waste details */}
-                                        <div className="space-y-1">
+                                        <div className="space-y-1 mt-1">
                                             <InputFull
                                                 titre="Déchet"
                                                 placeholder="Nom du déchet"
@@ -1573,13 +1576,13 @@ useEffect(() => {
                                                 <InputFull
                                                     titre=""
                                                     placeholder="Unité"
-                                                    width={20}
+                                                    width={21}
                                                     name={`wasteLine.${index}.other_infos.volumeUnit`}
                                                     value={line.other_infos.volumeUnit}
                                                     onChange={handleChange}
                                                     enableText={true}
                                                     options={{
-                                                        filteredOptions: ['L', 'm³'],
+                                                        filteredOptions: ['L', 'm3'],
                                                         allOptions: []
                                                     }}
                                                     display={showAllDetails || displayAll || shouldDisplayField(`wasteLine.${index}.other_infos.volumeUnit`, changedField)}
@@ -1591,17 +1594,21 @@ useEffect(() => {
                                         <div className="space-y-1">
                                             <div className="flex items-center justify-between mr-4">
                                                 <div className="w-3/4 flex justify-start items-center gap-2">
-                                                    <label className="block text-xs text-gray-500 font-medium mb-1 md:w-[180px] w-full text-right">
+                                                    <label className="block text-sm text-gray-500 font-medium mb-1 md:w-[90px] text-right">
                                                         Collecte
                                                     </label>
-                                                    <div className="flex-1 mr-2">
-                                                        <input
-                                                            type="date"
-                                                            className="w-full px-3 py-0.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--green-medium)] text-sm"
-                                                            name={`wasteLine.${index}.collectDate`}
-                                                            value={line.collectDate}
-                                                            onChange={handleChange}
-                                                            placeholder="Date de collecte demandée"
+                                                    <div className="flex-1 mr-2 w-[100px]">
+                                                        <DatePicker
+                                                            selected={line.collectDate ? new Date(line.collectDate) : null}
+                                                            onChange={(date) => {
+                                                                const newLines = [...wasteLines];
+                                                                newLines[index].collectDate = date ? date.toISOString().split('T')[0] : '';
+                                                                setWasteLines(newLines);
+                                                            }}
+                                                            dateFormat="dd/MM/yyyy"
+                                                            placeholderText="Dès que possible"
+                                                            className="w-full"
+                                                            isClearable
                                                         />
                                                     </div>
                                                 </div>
@@ -1731,18 +1738,18 @@ useEffect(() => {
                                         
                                         {/* Fourth row: Date and Remove button */}
                                         <div className="flex justify-between items-center mt-4">
-                                            <div className="flex-1 mr-2">
-                                                <input
-                                                    type="date"
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--green-medium)] text-base bg-white appearance-none"
-                                                    name={`wasteLine.${index}.collectDate`}
-                                                    value={line.collectDate}
-                                                    onChange={handleChange}
-                                                    style={{
-                                                        minHeight: '44px',
-                                                        fontSize: '16px',
-                                                        maxWidth: '100%'
+                                            <div className="flex-1 mr-2 w-[100px]">
+                                                <DatePicker
+                                                    selected={line.collectDate ? new Date(line.collectDate) : null}
+                                                    onChange={(date) => {
+                                                        const newLines = [...wasteLines];
+                                                        newLines[index].collectDate = date ? date.toISOString().split('T')[0] : '';
+                                                        setWasteLines(newLines);
                                                     }}
+                                                    dateFormat="dd/MM/yyyy"
+                                                    placeholderText="Dès que possible"
+                                                    className="w-[25%] h-[44px] text-base"
+                                                    isClearable
                                                 />
                                             </div>
                                             {index > 0 && (
@@ -1812,6 +1819,7 @@ useEffect(() => {
                                         }))
                                     }}
                                     onUpdateRecipientEmail={setRecipientEmail}
+                                    
                                 />
                             }
                         </div>

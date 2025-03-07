@@ -13,6 +13,7 @@ import PopUp from "./PopUp";
 import { toast } from "react-hot-toast";
 import { createRoot } from "react-dom/client";
 import InputMobile from "./InputMobile";
+import DatePicker from "react-datepicker";
 
 const initialToogleData: FormInput = {
     emitter: {
@@ -910,6 +911,7 @@ useEffect(() => {
                                 </div>   
                         </div>                 
 
+
                     {/* Section Prestataires */}
                         <div className="border-b border-gray-200 pb-4">
                             <div className="text-sm font-semibold mb-2 text-gray-700">Prestataires</div>
@@ -1142,6 +1144,41 @@ useEffect(() => {
                                 </div>
                         </div>
                     </div>
+
+                    {/* Section Date de collecte */}
+                    <div>
+                        <div className="text-sm font-semibold mb-2 text-gray-700">Date de collecte</div>
+                        <div className="flex flex-col gap-0">
+                            <div className="flex items-center justify-between gap-2">
+                                <label className="block text-md text-gray-500 font-medium mb-1 md:w-[90px] text-right">
+                                    Collecté le
+                                </label>
+                                <div className="flex-1">
+                                    <DatePicker
+                                        selected={dataToogle.takenOverAt ? new Date(dataToogle.takenOverAt + 'T00:00:00') : null}
+                                        onChange={(date) => {
+                                            if (date) {
+                                                const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+                                                setDataToogle(prev => ({
+                                                    ...prev,
+                                                    takenOverAt: localDate.toISOString().split('T')[0]
+                                                }));
+                                            } else {
+                                                setDataToogle(prev => ({
+                                                    ...prev,
+                                                    takenOverAt: ''
+                                                }));
+                                            }
+                                        }}
+                                        dateFormat="dd/MM/yyyy"
+                                        placeholderText="Remplir la date"
+                                        className="mobile-datepicker"
+                                        isClearable
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>                    
 
                     {/* Composants de bas de page */}
                     <div className="space-y-4 mt-6">

@@ -191,9 +191,6 @@ const FiltreSiteEtablissement = () => {
                 isInDb: false
             }));
 
-            // Log avant la fusion
-            //console.log("4. Sites avant fusion:", { vrai_sites, sites_from_db, savedSiteStates });
-
             // Fusionner en donnant priorité aux noms de la BDD
             const mergedSites = vrai_sites.map(trackSite => {
                 const dbSite = sites_from_db.find(dbSite => dbSite.orgId === trackSite.orgId);
@@ -202,7 +199,6 @@ const FiltreSiteEtablissement = () => {
                         ...trackSite,
                         name: dbSite.name,
                         isInDb: true,
-                        // Conserver l'état checked du site fusionné
                         checked: savedSiteStates[trackSite.orgId]?.checked ?? trackSite.checked
                     };
                 }
@@ -214,7 +210,6 @@ const FiltreSiteEtablissement = () => {
             const uniqueDbSites = sites_from_db.filter(site => !trackDechetsSirets.has(site.orgId))
                 .map(site => ({
                     ...site,
-                    // Utiliser l'état sauvegardé pour les sites uniquement dans la BDD
                     checked: savedSiteStates[site.orgId]?.checked ?? site.checked
                 }));
 
@@ -224,53 +219,61 @@ const FiltreSiteEtablissement = () => {
                 checked: savedSiteStates['----']?.checked ?? sites_autre.checked
             };
 
-            const allSites = [...mergedSites, ...uniqueDbSites, sitesAutre];
-            //console.log("5. Sites finaux avant setSites:", allSites);
+            let allSites = [...mergedSites, ...uniqueDbSites, sitesAutre];
 
-            // Après avoir créé tous les sites, s'assurer qu'en mobile le premier site est coché
+            // En mode mobile, s'assurer qu'un seul site est sélectionné
             if (window.innerWidth <= 768) {
                 // Trouver le premier site valide (pas "Autres" et activé)
                 const firstValidSite = allSites.find(site => site.orgId !== '----' && site.activated);
                 if (firstValidSite) {
-                    firstValidSite.checked = true;
-                    // Mettre tous les autres sites à false
-                    allSites.forEach(site => {
-                        if (site.orgId !== firstValidSite.orgId) {
-                            site.checked = false;
-                        }
-                    });
-                }
-                setSites(allSites);
-            } else {
-                // Code existant pour desktop
-                if (Object.keys(mappingSite).length > 0) {
-                    // Créer les groupes selon le mapping
-                    const groups = Object.entries(mappingSite).map(([groupName, sirets]) => ({
-                        name: groupName,
-                        sirets: sirets,
-                        checked: allSites.some(site => sirets.includes(site.orgId) && site.checked)
-                    }));
-
-                    setSiteGroups(groups);
-
-                    // Mettre à jour les sites avec leur groupe
-                    const sitesWithGroups = allSites.map(site => ({
+                    // Mettre tous les sites à false
+                    allSites = allSites.map(site => ({
                         ...site,
-                        group: Object.entries(mappingSite).find(([_, sirets]) => sirets.includes(site.orgId))?.[0]
+                        checked: site.orgId === firstValidSite.orgId
                     }));
-
-                    setSites(sitesWithGroups);
-                    //console.log("6. Sites avec groupes:", sitesWithGroups);
-                } else {
-                    setSites(allSites);
                 }
+            }
+
+            if (Object.keys(mappingSite).length > 0) {
+                // Créer les groupes selon le mapping
+                const groups = Object.entries(mappingSite).map(([groupName, sirets]) => ({
+                    name: groupName,
+                    sirets: sirets,
+                    checked: allSites.some(site => sirets.includes(site.orgId) && site.checked)
+                }));
+
+                setSiteGroups(groups);
+
+                // Mettre à jour les sites avec leur groupe
+                const sitesWithGroups = allSites.map(site => ({
+                    ...site,
+                    group: Object.entries(mappingSite).find(([_, sirets]) => sirets.includes(site.orgId))?.[0]
+                }));
+
+                setSites(sitesWithGroups);
+            } else {
+                setSites(allSites);
             }
         } else {
             // Si pas de connexion TrackDechets, utiliser uniquement les sites de la BDD
-            const sitesWithSavedStates = [...sites_from_db, sites_autre].map(site => ({
+            let sitesWithSavedStates = [...sites_from_db, sites_autre].map(site => ({
                 ...site,
                 checked: savedSiteStates[site.orgId]?.checked ?? site.checked
             }));
+
+            // En mode mobile, s'assurer qu'un seul site est sélectionné
+            if (window.innerWidth <= 768) {
+                // Trouver le premier site valide (pas "Autres" et activé)
+                const firstValidSite = sitesWithSavedStates.find(site => site.orgId !== '----' && site.activated);
+                if (firstValidSite) {
+                    // Mettre tous les sites à false
+                    sitesWithSavedStates = sitesWithSavedStates.map(site => ({
+                        ...site,
+                        checked: site.orgId === firstValidSite.orgId
+                    }));
+                }
+            }
+
             setSites(sitesWithSavedStates);
         }
     }, [etablissementsWithStatus, additionnalSites, setSites, mappingSite, entreprise_id]);
@@ -464,7 +467,15 @@ const FiltreSiteEtablissement = () => {
             <div className="btn flex items-center justify-between px-2 py-0 bg-white rounded-lg hover:bg-gray-50 transition-all duration-200 w-full">
                 <div className="flex items-center space-x-4">
                     <BoxIcon name='map' type='solid' size="18px" />
-                    <h1 className="text-sm font-semibold text-gray-700">Sites</h1>
+                    <div className="flex items-center gap-2">
+                        {window.innerWidth <= 768 ? (
+                            <span className="text-sm text-gray-700">
+                                Site : <span className="text-gray-500">{sites.find(site => site.checked)?.name || ''}</span>
+                            </span>
+                        ) : (
+                            <h1 className="text-sm font-semibold text-gray-700">Sites</h1>
+                        )}
+                    </div>
                     {!isFullDataLoaded && !isInitialLoad && (
                         <span className="text-xs text-blue-600 flex items-center hidden">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
