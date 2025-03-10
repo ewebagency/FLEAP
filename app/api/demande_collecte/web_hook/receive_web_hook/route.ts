@@ -1,4 +1,5 @@
 import { supabase } from '@/app/database/supabaseClient';
+import { redis } from '@/app/database/redisClient';
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { cookies } from 'next/headers';
@@ -498,35 +499,54 @@ const HandleBSD_Supabase = async (action: string, id: string, token_track: strin
 }
 
 
+const invalidateCache = async (user_id: string, entreprise_id: string) => {
+    try {
+        const cacheKey = `bsds:${user_id}:${entreprise_id}`;
+        const exists = await redis.exists(cacheKey);
+        
+        if (exists) {
+            await redis.del(cacheKey);
+            console.log(`[Cache] INVALIDATED - ${cacheKey}`);
+        }
+    } catch (error) {
+        console.error('[Cache] Error invalidating:', error);
+    }
+};
+
 const createBSD_Supabase = async (readableId: string, data: {data: {form: formAPI_Track}}, user_ids_linked_to_its_siret: string[], entreprise_ids: string[]|null) => {
     console.log("BSD créé : ", readableId);
     console.log("User ID lié à la signature : ", user_ids_linked_to_its_siret);
     console.log("Entreprise ID lié à la signature : ", entreprise_ids);
-    try{
+    try {
         const {id, status, ...new_create_form_input} = data.data.form;
         const new_bsd_json_supabase = {
             formAPI: {
-            createFormInput: new_create_form_input
+                createFormInput: new_create_form_input
             }
         }
 
         // Créer un BSD pour chaque user_id
         for (let i=0; i<user_ids_linked_to_its_siret.length; i++) {
             const result = await supabase
-            .from('bsd')
-            .insert({
-                infos_json: new_bsd_json_supabase, 
-                user_id: user_ids_linked_to_its_siret[i], // Utiliser user_id de l'objet actuel
-                entreprise_id: entreprise_ids ? entreprise_ids[i] : null,
-                created_on_fleap: false,
-                on_track_dechets: true,
-                id_track_dechets: id,
-                status_track_dechets: status,
-                readable_id_track_dechets: readableId,    
-            })
-            .select();
+                .from('bsd')
+                .insert({
+                    infos_json: new_bsd_json_supabase, 
+                    user_id: user_ids_linked_to_its_siret[i],
+                    entreprise_id: entreprise_ids ? entreprise_ids[i] : null,
+                    created_on_fleap: false,
+                    on_track_dechets: true,
+                    id_track_dechets: id,
+                    status_track_dechets: status,
+                    readable_id_track_dechets: readableId,    
+                })
+                .select();
 
             console.log(`Résultat de la création du BSD pour user ${user_ids_linked_to_its_siret[i]}: `, result.data ? result.data[0].id + ' - ' + result.data[0].readable_id_track_dechets : result.error);
+            
+            // Invalider le cache après la création
+            if (entreprise_ids?.[i]) {
+                await invalidateCache(user_ids_linked_to_its_siret[i], entreprise_ids[i]);
+            }
         }
     } catch (error) {
         console.error('Erreur lors de la création du BSD : ', error);
@@ -537,14 +557,13 @@ const createBSD_Supabase = async (readableId: string, data: {data: {form: formAP
 const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAPI_Track}}, user_id: string, entreprise_id: string) => {
     console.log("BSD mis à jour : ", readableId);
     console.log("Données reçues par le WebHook : quantité : ", data.data.form.wasteDetails.quantity);
-    //Si readable_id n'existe pas dans la BDD, on créer un nouveau BSD avec ce readable_id pour ce user (entreprise) : id FLEAP unique mais ids TRACK pas uniques
 
     const json_past = await supabase
-    .from('bsd')
-    .select('infos_json')
-    .eq('readable_id_track_dechets', readableId)
-    .eq('entreprise_id', entreprise_id)
-    .single();
+        .from('bsd')
+        .select('infos_json')
+        .eq('readable_id_track_dechets', readableId)
+        .eq('entreprise_id', entreprise_id)
+        .single();
 
     if(!json_past.data){
         console.log("BSD encore non existant => création du BSD");
@@ -555,55 +574,59 @@ const updateBSD_Supabase = async (readableId: string, data: {data: {form: formAP
         console.log("BSD déjà existant dans la BDD => mise à jour du BSD");
                 
         const status = data.data.form.status;
-        const new_formAPI = data.data.form; // NOUVEAU
+        const new_formAPI = data.data.form;
         
         const past_infos_json = json_past.data?.infos_json;
-        //console.log("Nouvelles Infos JSON reçus par WebHook : ", new_formAPI);
-        //console.log("Infos JSON précédentes : ", past_infos_json?.formAPI.createFormInput);
-        //console.log("past_infos_json : ", past_infos_json);
-
-        
-        past_infos_json.formAPI.createFormInput.emitter = new_formAPI.emitter;
-        past_infos_json.formAPI.createFormInput.recipient = new_formAPI.recipient;
-        past_infos_json.formAPI.createFormInput.transporter = new_formAPI.transporter;
-        past_infos_json.formAPI.createFormInput.wasteDetails = new_formAPI.wasteDetails;
-        past_infos_json.formAPI.createFormInput = new_formAPI // NOUVEAU
-
-
-        //console.log("Infos JSON qu'on va mettre à jour : ", past_infos_json);
+        past_infos_json.formAPI.createFormInput = new_formAPI;
 
         const response = await supabase
-        .from('bsd')
-        .update({
-            infos_json: past_infos_json,
-            status_track_dechets: status,
-        }) //Gros probleme avec formData et FormAPI (tout ressortir et remapper)
-        .eq('readable_id_track_dechets', readableId);
+            .from('bsd')
+            .update({
+                infos_json: past_infos_json,
+                status_track_dechets: status,
+            })
+            .eq('readable_id_track_dechets', readableId);
 
-        if (response.status === 204){
+        if (response.status === 204) {
             console.log("Supabase mis à jour avec le WebHook TrackDéchet");
+            // Invalider le cache après la mise à jour
+            await invalidateCache(user_id, entreprise_id);
         } else {
             console.log("Erreur lors de la mise à jour de la BDD");
         }
-        //console.log("BDD mise à jour : ", response);
-        //console.log("Truc modifié : ", past_infos_json.formAPI.createFormInput.emitter);
 
-        return { status: 200 }; //Sinon on nous désactive le webhook
+        return { status: 200 };
     }
 }
 
 const deleteBSD_Supabase = async (readableId: string) => {
-    const response = await supabase
-    .from('bsd')
-    .delete()
-    .eq('readable_id_track_dechets', readableId);
+    // D'abord récupérer les informations du BSD avant de le supprimer
+    const bsdInfo = await supabase
+        .from('bsd')
+        .select('user_id, entreprise_id')
+        .eq('readable_id_track_dechets', readableId);
 
-    if(response){
+    const response = await supabase
+        .from('bsd')
+        .delete()
+        .eq('readable_id_track_dechets', readableId);
+
+    if(response) {
         console.log("BSD supprimé de la BDD");
-        return { status: 200 }; //Sinon on nous désactive le webhook
+        
+        // Invalider le cache pour chaque BSD supprimé
+        if (bsdInfo.data) {
+            for (const bsd of bsdInfo.data) {
+                if (bsd.user_id && bsd.entreprise_id) {
+                    await invalidateCache(bsd.user_id, bsd.entreprise_id);
+                }
+            }
+        }
+        
+        return { status: 200 };
     } else {
         console.log("Erreur lors de la suppression du BSD de la BDD");
-        return { status: 200 }; //Sinon on nous désactive le webhook
+        return { status: 200 };
     }
 }
 

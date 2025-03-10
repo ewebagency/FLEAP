@@ -11,7 +11,7 @@ export interface RecurrencePattern {
     endDate?: string;
     occurrences?: number;
     isScheduled: boolean;
-    created_bsd_ids?: string[]; // Ajout des IDs des BSD créés
+    created_bsd_ids?: string[];
 }
 
 export interface RecurrenceEntry {
@@ -87,13 +87,10 @@ const RecurrenceFunctions = {
                     is_active: true
                 });
 
-            if (error) {
-                console.error('Error creating recurrence:', error);
-                throw error;
-            }
+            if (error) throw error;
             return true;
         } catch (error) {
-            console.error('Error creating recurrence:', error);
+            console.error('[Recurrence] Error creating:', error);
             return false;
         }
     },
@@ -124,7 +121,7 @@ const RecurrenceFunctions = {
             if (error) throw error;
             return data?.id || null;
         } catch (error) {
-            console.error('Error creating BSD from template:', error);
+            console.error('[Recurrence] Error creating BSD:', error);
             return null;
         }
     },
@@ -137,7 +134,6 @@ const RecurrenceFunctions = {
         newBsdId: string | null
     ): Promise<boolean> => {
         try {
-            // Récupérer d'abord la récurrence actuelle pour mettre à jour created_bsd_ids
             const { data: currentRecurrence } = await supabase
                 .from('recurrence')
                 .select('pattern')
@@ -165,13 +161,10 @@ const RecurrenceFunctions = {
                 })
                 .eq('id', recurrence_id);
 
-            if (error) {
-                console.error('Error updating recurrence:', error);
-                throw error;
-            }
+            if (error) throw error;
             return true;
         } catch (error) {
-            console.error('Error updating recurrence:', error);
+            console.error('[Recurrence] Error updating:', error);
             return false;
         }
     },
@@ -179,30 +172,18 @@ const RecurrenceFunctions = {
     executeRecurrences: async (): Promise<void> => {
         try {
             const now = new Date().toISOString();
-            console.log('Executing recurrences at:', now);
             
-            // Récupérer toutes les récurrences actives dont la prochaine exécution est due
             const { data: dueRecurrences, error } = await supabase
                 .from('recurrence')
                 .select('*')
                 .eq('is_active', true)
                 .lte('next_execution', now);
 
-            if (error) {
-                console.error('Error fetching due recurrences:', error);
-                throw error;
-            }
+            if (error) throw error;
 
-            console.log(`Found ${dueRecurrences?.length || 0} recurrences to execute`);
+            console.log(`[Recurrence] Processing ${dueRecurrences?.length || 0} recurrences`);
 
             for (const recurrence of dueRecurrences) {
-                console.log(`Processing recurrence ${recurrence.id}:`, {
-                    pattern: recurrence.pattern,
-                    nextExecution: recurrence.next_execution,
-                    executionCount: recurrence.execution_count
-                });
-
-                // Créer le nouveau BSD
                 const newBsdId = await RecurrenceFunctions.createBSDFromTemplate(
                     recurrence.user_id,
                     recurrence.entreprise_id,
@@ -210,7 +191,7 @@ const RecurrenceFunctions = {
                 );
 
                 if (newBsdId) {
-                    console.log(`Created new BSD ${newBsdId} for recurrence ${recurrence.id}`);
+                    console.log(`[Recurrence] Created BSD ${newBsdId} for pattern "${recurrence.pattern.name}"`);
                     
                     const newExecutionCount = recurrence.execution_count + 1;
                     const shouldContinue = RecurrenceFunctions.shouldContinueRecurrence(
@@ -219,14 +200,9 @@ const RecurrenceFunctions = {
                         new Date()
                     );
 
-                    console.log(`Recurrence ${recurrence.id} should continue:`, shouldContinue);
-
-                    // Calculer la prochaine exécution
                     const nextExecution = RecurrenceFunctions.calculateNextExecution(recurrence.pattern);
-                    console.log(`Next execution for ${recurrence.id}:`, nextExecution);
                     
-                    // Mettre à jour la récurrence avec le nouveau BSD
-                    const updateSuccess = await RecurrenceFunctions.updateRecurrenceAfterExecution(
+                    await RecurrenceFunctions.updateRecurrenceAfterExecution(
                         recurrence.id,
                         nextExecution,
                         newExecutionCount,
@@ -234,35 +210,48 @@ const RecurrenceFunctions = {
                         newBsdId
                     );
 
-                    console.log(`Update success for ${recurrence.id}:`, updateSuccess);
-                } else {
-                    console.error(`Failed to create BSD for recurrence ${recurrence.id}`);
+                    // Invalider le cache après la création d'un BSD
+                    try {
+                        const response = await fetch('/api/invalidate_bsd_cache', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                entreprise_id: recurrence.entreprise_id,
+                                user_id: recurrence.user_id,
+                            }),
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Failed to invalidate cache');
+                        }
+
+                        // Forcer le rechargement des données dans TableBSD
+                        /*const reloadEvent = new CustomEvent('bsd-created', {
+                            detail: { 
+                                user_id: recurrence.user_id,
+                                entreprise_id: recurrence.entreprise_id 
+                            }
+                        });
+                        window.dispatchEvent(reloadEvent);*/
+                        
+                        console.log('[Recurrence] Cache invalidated and reload triggered');
+                    } catch (error) {
+                        console.error('[Recurrence] Error invalidating cache:', error);
+                    }
                 }
             }
         } catch (error) {
-            console.error('Error executing recurrences:', error);
+            console.error('[Recurrence] Error executing:', error);
         }
     },
 
     checkRecurrences: async (): Promise<void> => {
         try {
-            console.log('Checking recurrences via API...');
-            const response = await fetch('/api/cron', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            });
-            
-            if (!response.ok) {
-                console.error('Failed to check recurrences:', response.status, response.statusText);
-                throw new Error('Failed to check recurrences');
-            }
-
-            const data = await response.json();
-            console.log('Recurrence check response:', data);
+            await RecurrenceFunctions.executeRecurrences();
         } catch (error) {
-            console.error('Error checking recurrences:', error);
+            console.error('[Recurrence] Error checking:', error);
         }
     }
 };

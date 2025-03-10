@@ -27,7 +27,7 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
   });
   const [filterFunctions, setFilterFunctions] = useState<FilterFunction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const {entreprise_id} = useSession();
+  const {entreprise_id, user_id} = useSession();
 
   // Fonction pour calculer le nom le plus fréquent pour un SIRET donné
   const calculateMostFrequentName = (data: TYPE_table_bsd[], field: string, siret: string): string => {
@@ -85,7 +85,7 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setIsLoading(true);
       try {
         // Utiliser l'API get_data_bsd au lieu de Supabase
-        const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
+        const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}`);
         const { data: bsds } = await response.json();
 
         if (!bsds) {

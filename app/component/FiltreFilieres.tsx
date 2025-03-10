@@ -17,7 +17,7 @@ const cleanCED = (ced: string): string => {
 
 const FiltreFilieres = () => {
     const { filieres, setFilieres, toggleFiliere } = useFilterContext();
-    const {entreprise_id} = useSession();
+    const {entreprise_id, user_id} = useSession();
     const [loadingFilieres, setLoadingFilieres] = useState(true);
     const {modalReload, setFilterPendingBSDs} = useModalContextNew();
     const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -25,7 +25,7 @@ const FiltreFilieres = () => {
 
     const getFilieresFromEntreprise = async (forceReload = false) => {
         // Récupérer tous les BSDs depuis l'API
-        const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
+        const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}`);
         const { data: bsds, isPartialData } = await response.json();
 
         // Mettre à jour l'état de chargement complet

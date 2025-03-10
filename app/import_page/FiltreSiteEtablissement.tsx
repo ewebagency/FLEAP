@@ -36,7 +36,7 @@ const FiltreSiteEtablissement = () => {
     const { sites, setSites, toggleSite } = useFilterContext();
 
     const {modalReload, setFilterPendingBSDs} = useModalContextNew();
-    const {entreprise_id} = useSession();
+    const {entreprise_id, user_id} = useSession();
     const [additionnalSites, setAdditionnalSites] = useState<AdditionalSite[]>([]);
     const [isLoadingTrack, setIsLoadingTrack] = useState(false);
     const [siteGroups, setSiteGroups] = useState<SiteGroup[]>([]);
@@ -50,7 +50,7 @@ const FiltreSiteEtablissement = () => {
             const getAdditionnalSites = async () => {
                 try {
                     // Utiliser l'API get_data_bsd
-                    const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
+                    const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}`);
                     const { data: bsds, isPartialData } = await response.json();
 
                     // Mettre à jour l'état de chargement complet

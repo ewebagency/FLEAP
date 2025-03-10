@@ -133,7 +133,7 @@ const TableBSD = () => {
     
     //const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
     //A faire passer sur useModalContextNew
-    const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType, filterPendingBSDs, setFilterPendingBSDs, next_time_full_reload, setNextTimeFullReload } = useModalContextNew();
+    const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType, filterPendingBSDs, setFilterPendingBSDs } = useModalContextNew();
     const { sites, filieres, points_collecte, segmentDates } = useFilterContext();
 
     const [webhooksInitialized, setWebhooksInitialized] = useState(false);
@@ -227,8 +227,33 @@ const TableBSD = () => {
         }
     };
 
+    const invalidateCache = async () => {
+        if (!entreprise_id || !user_id) return;
+        
+        try {
+            const response = await fetch('/api/invalidate_bsd_cache', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    entreprise_id,
+                    user_id,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to invalidate cache');
+            }
+
+            console.log('Cache invalidated successfully');
+        } catch (error) {
+            console.error('Error invalidating cache:', error);
+        }
+    };
+
     const fetchAndFilterBSDs = async () => {
-        if (!entreprise_id) return;
+        if (!entreprise_id || !user_id) return;
         
         try {
             if (!isLoadingFullData || displayedBSDs.length === 0) {
@@ -238,12 +263,12 @@ const TableBSD = () => {
             const shouldFastLoad = isLoadingInitialData && !isLoadingFullData;
             const forceReload = prevModalReload.current !== modalReload;
             
-            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}${shouldFastLoad ? '&fastLoad=true' : ''}${forceReload ? '&forceReload=true' : ''}${next_time_full_reload ? '&nextTimeFullReload=true' : ''}`);
-            
-            // Réinitialiser next_time_full_reload après l'avoir utilisé
-            if (next_time_full_reload) {
-                setNextTimeFullReload(false);
+            // Si on doit forcer le rechargement, invalider le cache
+            if (forceReload) {
+                await invalidateCache();
             }
+            
+            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}${shouldFastLoad ? '&fastLoad=true' : ''}`);
             
             const result = await response.json();
             
@@ -271,7 +296,7 @@ const TableBSD = () => {
                     fetchFullData();
                 }, 100);
                 
-                return; // Sortir de la fonction pour éviter de retraiter les données
+                return;
             }
             
             // Stocker tous les BSDs non filtrés
@@ -281,7 +306,6 @@ const TableBSD = () => {
             let filteredData = result.data;
             
             if (filtersEnabled) {
-                // Utiliser la fonction filterBSDs de FiltreFunctionnal.ts
                 filteredData = filterBSDs(
                     result.data,
                     filieres,
@@ -386,7 +410,7 @@ const TableBSD = () => {
 
     // Effet pour les changements de filtres
     useEffect(() => {
-        if (filtersEnabled && allBSDs.length > 0) {
+        if (filtersEnabled && allBSDs?.length > 0) {
             // Si les filtres sont activés, appliquer les filtres aux BSDs existants
             const filteredData = filterBSDs(
                 allBSDs,
@@ -476,12 +500,13 @@ const TableBSD = () => {
                         toast.success("BSD supprimé avec succès");
                     }
                     
-                    // Mettre à jour l'état local et marquer pour un rechargement complet la prochaine fois
+                    // Mettre à jour l'état local
                     setAllBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     setAllFilteredBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     setDisplayedBSDs(prev => prev.filter(bsd => bsd.id !== id));
-                    setNextTimeFullReload(true);
-                    setModalReload(prev => !prev);
+                    
+                    await invalidateCache();
+                    //setModalReload(prev => !prev);
                 }
             } else {
                 // Récupérer d'abord les informations du BSD pour avoir l'URL de la photo
@@ -519,8 +544,8 @@ const TableBSD = () => {
                     setAllBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     setAllFilteredBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     setDisplayedBSDs(prev => prev.filter(bsd => bsd.id !== id));
-                    setNextTimeFullReload(true);
-                    setModalReload(prev => !prev);
+                    await invalidateCache();
+                    //setModalReload(prev => !prev);
                 }
             }
         } finally {
@@ -565,7 +590,11 @@ const TableBSD = () => {
                 } else {
                     //Swal.fire('Scellé !', 'Le BSD a été scellé avec succès.', 'success');
                     toast.success("BSD scellé avec succès");
-                    setModalReload(!modalReload);
+                    await invalidateCache();
+                    //setModalReload(!modalReload);
+                    setAllBSDs(prev => prev.map(bsd => bsd.id === id ? {...bsd, status: 'SEALED'} : bsd));
+                    setAllFilteredBSDs(prev => prev.map(bsd => bsd.id === id ? {...bsd, status: 'SEALED'} : bsd));
+                    setDisplayedBSDs(prev => prev.map(bsd => bsd.id === id ? {...bsd, status: 'SEALED'} : bsd));
                 }
             }
         }
@@ -582,7 +611,11 @@ const TableBSD = () => {
             toast.error(data.error);
         } else {
             toast.success("BSD signé avec succès");
-            setModalReload(!modalReload);
+            await invalidateCache();
+            //setModalReload(!modalReload);
+            setAllBSDs(prev => prev.map(bsd => bsd.id === id ? {...bsd, status: 'SIGNED_BY_PRODUCER'} : bsd));
+            setAllFilteredBSDs(prev => prev.map(bsd => bsd.id === id ? {...bsd, status: 'SIGNED_BY_PRODUCER'} : bsd));
+            setDisplayedBSDs(prev => prev.map(bsd => bsd.id === id ? {...bsd, status: 'SIGNED_BY_PRODUCER'} : bsd));
         }
     }
 
@@ -607,7 +640,7 @@ const TableBSD = () => {
             ));
             setAllFilteredBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: value} : prevbsd));
             setDisplayedBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: value} : prevbsd));
-            setNextTimeFullReload(true);
+            await invalidateCache();
         }
     };
 
@@ -652,11 +685,11 @@ const TableBSD = () => {
                     }
                     : prevBsd
             ));
-            setAllFilteredBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: 'Collecté'} : prevbsd));
-            setDisplayedBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: 'Collecté'} : prevbsd));
+            setAllFilteredBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: 'Collecté', infos_json: {...prevbsd.infos_json, formAPI: {...prevbsd.infos_json.formAPI, createFormInput: updatedFormInput}}} : prevbsd));
+            setDisplayedBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: 'Collecté', infos_json: {...prevbsd.infos_json, formAPI: {...prevbsd.infos_json.formAPI, createFormInput: updatedFormInput}}} : prevbsd));
             toast.success("BSD mis à jour avec succès");
-            setNextTimeFullReload(true);
-            setModalReload(!modalReload);
+            await invalidateCache();
+            //setModalReload(!modalReload);
         } else {
             toast.error("Erreur lors de la mise à jour du BSD");
         }
@@ -805,6 +838,7 @@ const TableBSD = () => {
                 }
 
                 toast.success("Récurrence supprimée avec succès");
+                await invalidateCache();
                 setModalReload(!modalReload);
             }
         } catch (error) {

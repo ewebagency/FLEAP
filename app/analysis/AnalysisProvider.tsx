@@ -21,7 +21,7 @@ interface AnalysisContextType {
 export const AnalysisContext = createContext<AnalysisContextType | null>(null);
 
 export const AnalysisProvider = ({ children }: { children: React.ReactNode }) => {
-    const {entreprise_id} = useSession();
+    const {entreprise_id, user_id} = useSession();
     const { filieres, points_collecte, sites, filieres_ou_prestataires, segmentDates } = useFilterContext();
     const [loading, setLoading] = useState(true);
     const [bsds, setBsds] = useState<BSD[]>([]);
@@ -57,7 +57,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
 
         try {
             setLoading(true);
-            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
+            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}`);
             const { data: fetchedBSDs } = await response.json();
 
             if (!fetchedBSDs) {

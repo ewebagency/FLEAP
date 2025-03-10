@@ -74,11 +74,8 @@ interface ModalContextType {
     setModalType: (modalType: string) => void;
     modalReload: boolean;
     setModalReload: React.Dispatch<React.SetStateAction<boolean>>;
-
     filterPendingBSDs: boolean;
     setFilterPendingBSDs: React.Dispatch<React.SetStateAction<boolean>>;
-    next_time_full_reload: boolean;
-    setNextTimeFullReload: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 // Créer le contexte
@@ -88,7 +85,6 @@ const ModalContextNew = createContext<ModalContextType>({} as ModalContextType);
 export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
     const [displayFormulaire, setDisplayFormulaire] = useState<boolean>(false);
     const [filterPendingBSDs, setFilterPendingBSDs] = useState<boolean>(false);
-    const [next_time_full_reload, setNextTimeFullReload] = useState(false);
 
     const initialToogleData: FormInput = {
         emitter: {
@@ -171,9 +167,7 @@ export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
             setModalReload,
             
             filterPendingBSDs,
-            setFilterPendingBSDs,
-            next_time_full_reload,
-            setNextTimeFullReload
+            setFilterPendingBSDs
         }}>
             {children}
         </ModalContextNew.Provider>
