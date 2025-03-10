@@ -269,7 +269,6 @@ const TableBSD = () => {
             }
             
             const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}${shouldFastLoad ? '&fastLoad=true' : ''}`);
-            
             const result = await response.json();
             
             // Mettre à jour l'état pour indiquer si les données sont partielles
@@ -280,9 +279,8 @@ const TableBSD = () => {
                 setTotalBSDsCount(result.totalCount);
             }
             
-            // Si c'est le premier chargement rapide, désactiver les filtres
+            // Si c'est le premier chargement rapide
             if (shouldFastLoad) {
-                setFiltersEnabled(false);
                 setIsLoadingInitialData(false);
                 
                 // Stocker les BSDs initiaux
@@ -290,16 +288,16 @@ const TableBSD = () => {
                 setAllFilteredBSDs(result.data);
                 setDisplayedBSDs(result.data.slice(0, displayLimit));
                 
-                // Si nous avons déjà toutes les données, ne pas montrer le message de chargement partiel
+                // Si nous avons déjà toutes les données
                 if (result.data.length === result.totalCount) {
                     setIsPartialData(false);
                     setFiltersEnabled(true);
+                    setLoadingBSDs(false);
                 } else {
                     // Lancer le chargement complet en arrière-plan immédiatement
                     setIsLoadingFullData(true);
                     fetchFullData();
                 }
-                
                 return;
             }
             
@@ -328,10 +326,20 @@ const TableBSD = () => {
             // Mettre à jour les BSDs affichés (limités)
             setDisplayedBSDs(filteredData.slice(0, displayLimit));
             
+            // Activer les filtres si ce n'est pas un chargement partiel
+            if (!result.isPartialData) {
+                setFiltersEnabled(true);
+                setIsPartialData(false);
+            }
+            
         } catch (error) {
             console.error('Error fetching BSDs:', error);
-        } finally {
+            setIsPartialData(false);
             setLoadingBSDs(false);
+        } finally {
+            if (!isLoadingFullData) {
+                setLoadingBSDs(false);
+            }
         }
     };
     
@@ -340,7 +348,7 @@ const TableBSD = () => {
         if (!entreprise_id) return;
         
         try {
-            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
+            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}`);
             const result = await response.json();
             
             // Mettre à jour l'état pour indiquer que les données sont complètes
@@ -372,7 +380,7 @@ const TableBSD = () => {
             // Mettre à jour les BSDs filtrés
             setAllFilteredBSDs(filteredData);
             
-            // Mettre à jour les BSDs affichés (limités) en préservant la position de défilement
+            // Mettre à jour les BSDs affichés (limités)
             setDisplayedBSDs(filteredData.slice(0, displayLimit));
             
         } catch (error) {
@@ -428,8 +436,12 @@ const TableBSD = () => {
             
             setAllFilteredBSDs(filteredData);
             setDisplayedBSDs(filteredData.slice(0, displayLimit));
+            // Réinitialiser isPartialData car nous avons déjà toutes les données nécessaires pour le filtrage
+            setIsPartialData(false);
         } else if (entreprise_id && !isLoadingInitialData && !isLoadingFullData) {
             // Si les filtres ne sont pas activés ou si on n'a pas encore de données, recharger les données
+            setIsLoadingInitialData(true);
+            setIsPartialData(true);
             fetchAndFilterBSDs();
         }
     }, [
