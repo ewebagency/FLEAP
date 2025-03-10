@@ -290,11 +290,15 @@ const TableBSD = () => {
                 setAllFilteredBSDs(result.data);
                 setDisplayedBSDs(result.data.slice(0, displayLimit));
                 
-                // Lancer le chargement complet en arrière-plan sans afficher de loader
-                setTimeout(() => {
+                // Si nous avons déjà toutes les données, ne pas montrer le message de chargement partiel
+                if (result.data.length === result.totalCount) {
+                    setIsPartialData(false);
+                    setFiltersEnabled(true);
+                } else {
+                    // Lancer le chargement complet en arrière-plan immédiatement
                     setIsLoadingFullData(true);
                     fetchFullData();
-                }, 100);
+                }
                 
                 return;
             }
@@ -336,8 +340,6 @@ const TableBSD = () => {
         if (!entreprise_id) return;
         
         try {
-            // Ne pas afficher de loader pour le chargement en arrière-plan
-
             const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
             const result = await response.json();
             
@@ -349,7 +351,7 @@ const TableBSD = () => {
                 setTotalBSDsCount(result.totalCount);
             }
             
-            // Stocker tous les BSDs non filtrés (remplacer complètement les données partielles)
+            // Stocker tous les BSDs non filtrés
             setAllBSDs(result.data);
             
             // Activer les filtres
@@ -377,6 +379,7 @@ const TableBSD = () => {
             console.error('Error fetching full BSDs:', error);
         } finally {
             setIsLoadingFullData(false);
+            setLoadingBSDs(false);
         }
     };
 
