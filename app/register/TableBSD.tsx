@@ -18,6 +18,7 @@ import { filterBSDs } from "./FiltreFunctionnal";
 import { CommonBSD } from "./FiltreFunctionnal";
 import ValidateCollecte from "./DemandeCollecteNew/ValidateCollecte";
 import { handleCancelCollecte } from "./DemandeCollecteNew/DemandeFonctions";
+import { useBSDs } from './BSDsProvider';
 
 
 const cleanCED = (ced: string): string => {
@@ -135,6 +136,7 @@ const TableBSD = () => {
     //A faire passer sur useModalContextNew
     const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType, filterPendingBSDs, setFilterPendingBSDs } = useModalContextNew();
     const { sites, filieres, points_collecte, segmentDates } = useFilterContext();
+    const { allBSDs, setAllBSDs, allFilteredBSDs, setAllFilteredBSDs, displayedBSDs, setDisplayedBSDs } = useBSDs();
 
     const [webhooksInitialized, setWebhooksInitialized] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -142,8 +144,7 @@ const TableBSD = () => {
     const [selectedBsd, setSelectedBsd] = useState<BSD | null>(null);
     const [loadingBSDs, setLoadingBSDs] = useState(true);
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
+    const [hasMore, setHasMore] = useState<boolean>(true);
     const itemsPerPage = 50;
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const [hoveredMenuId, setHoveredMenuId] = useState<string | null>(null);
@@ -155,17 +156,14 @@ const TableBSD = () => {
 
     const prevModalReload = useRef(modalReload);
 
-    //const [forceReloadNextTime, setForceReloadNextTime] = useState(false); -> pour l'instant, on utilise modalReload (quand on fait ctrl+R ça ne refait pas un get_data_bsd on dirait)
-    const [allBSDs, setAllBSDs] = useState<BSD[]>([]); // Pour stocker tous les BSDs non filtrés
-    const [allFilteredBSDs, setAllFilteredBSDs] = useState<BSD[]>([]); // Tous les BSDs filtrés
-    const [displayedBSDs, setDisplayedBSDs] = useState<BSD[]>([]); // BSDs actuellement affichés
-    const [displayLimit, setDisplayLimit] = useState(50); // Nombre de BSDs à afficher
-    const [totalBSDsCount, setTotalBSDsCount] = useState(0); // Nombre total de BSDs dans la base de données
-
     const [isLoadingInitialData, setIsLoadingInitialData] = useState(true);
     const [isLoadingFullData, setIsLoadingFullData] = useState(false);
     const [filtersEnabled, setFiltersEnabled] = useState(false);
     const [isPartialData, setIsPartialData] = useState(false);
+    const [lastLoadedId, setLastLoadedId] = useState<string | null>(null);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [totalBSDsCount, setTotalBSDsCount] = useState(0);
+    const [displayLimit, setDisplayLimit] = useState(50);
 
     // Ajouter un useEffect pour charger la table de mapping au démarrage
     useEffect(() => {
@@ -178,11 +176,7 @@ const TableBSD = () => {
         loadMappingTable();
     }, [entreprise_id]);
 
-    // Ajouter un useEffect pour réinitialiser la pagination quand les filtres changent
-    useEffect(() => {
-        setCurrentPage(1);
-        setAllBSDs([]); // Vider la liste des BSDs
-    }, [filieres, points_collecte]); // Se déclenche quand les filtres changent
+
 
     // Fonction pour vérifier et initialiser les webhooks
     const initializeWebhooks = async () => {
@@ -252,177 +246,116 @@ const TableBSD = () => {
         }
     };
 
-    const fetchAndFilterBSDs = async () => {
+    // Fonction pour charger toutes les données en arrière-plan
+    const fetchFullData = async () => {
+        if (!entreprise_id) return;
+        
+        try {
+            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}`);
+            const result = await response.json();
+            
+            setIsPartialData(false);
+            
+            if (result.totalCount) {
+                setTotalBSDsCount(result.totalCount);
+            }
+            
+            const sortedData = result.data.sort((a: BSD, b: BSD) => 
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );
+            setAllBSDs(sortedData);
+            setFiltersEnabled(true);
+            
+        } catch (error) {
+            console.error('Error fetching full BSDs:', error);
+        } finally {
+            setIsLoadingFullData(false);
+        }
+    };
+
+    const fetchBSDs = async (loadMore: boolean = false) => {
         if (!entreprise_id || !user_id) return;
         
         try {
-            if (!isLoadingFullData || displayedBSDs.length === 0) {
+            if (!isLoadingMore) {
                 setLoadingBSDs(true);
             }
             
             const shouldFastLoad = isLoadingInitialData && !isLoadingFullData;
             const forceReload = prevModalReload.current !== modalReload;
             
-            // Si on doit forcer le rechargement, invalider le cache
             if (forceReload) {
                 await invalidateCache();
             }
             
-            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}${shouldFastLoad ? '&fastLoad=true' : ''}`);
+            const url = `/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}${shouldFastLoad ? '&fastLoad=true' : ''}${loadMore && lastLoadedId ? `&lastId=${lastLoadedId}` : ''}`;
+            console.log('Fetching BSDs from:', url);
+            const response = await fetch(url);
             const result = await response.json();
             
-            // Mettre à jour l'état pour indiquer si les données sont partielles
-            setIsPartialData(result.isPartialData);
+            console.log('Received BSDs response:', {
+                count: result.data.length,
+                hasMore: result.hasMore,
+                totalCount: result.totalCount,
+                fullResponse: result
+            });
             
-            // Mettre à jour le nombre total de BSDs
+            setIsPartialData(result.isPartialData);
+            const newHasMore = result.hasMore === undefined ? true : result.hasMore;
+            console.log('Setting hasMore to:', newHasMore);
+            setHasMore(newHasMore);
+            
             if (result.totalCount) {
                 setTotalBSDsCount(result.totalCount);
             }
             
-            // Si c'est le premier chargement rapide
             if (shouldFastLoad) {
+                const sortedData = result.data.sort((a: BSD, b: BSD) => 
+                    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                );
+                setAllBSDs(sortedData);
                 setIsLoadingInitialData(false);
                 
-                // Stocker les BSDs initiaux
-                setAllBSDs(result.data);
-                setAllFilteredBSDs(result.data);
-                setDisplayedBSDs(result.data.slice(0, displayLimit));
-                
-                // Si nous avons déjà toutes les données
-                if (result.data.length === result.totalCount) {
-                    setIsPartialData(false);
-                    setFiltersEnabled(true);
-                    setLoadingBSDs(false);
-                } else {
-                    // Lancer le chargement complet en arrière-plan immédiatement
+                setTimeout(() => {
                     setIsLoadingFullData(true);
                     fetchFullData();
-                }
+                }, 100);
+                
                 return;
             }
             
-            // Stocker tous les BSDs non filtrés
-            setAllBSDs(result.data);
-            
-            // Appliquer les filtres seulement si activés
-            let filteredData = result.data;
-            
-            if (filtersEnabled) {
-                filteredData = filterBSDs(
-                    result.data,
-                    filieres,
-                    sites,
-                    points_collecte,
-                    segmentDates,
-                    mappingTable,
-                    filterFunctions,
-                    filterPendingBSDs
+            if (loadMore) {
+                const newData = [...allBSDs, ...result.data];
+                // Dédupliquer les BSDs en utilisant l'ID comme clé unique
+                const uniqueBSDs = Array.from(new Map(newData.map(bsd => [bsd.id, bsd])).values());
+                const sortedData = uniqueBSDs.sort((a: BSD, b: BSD) => 
+                    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
                 );
+                setAllBSDs(sortedData);
+            } else {
+                const sortedData = result.data.sort((a: BSD, b: BSD) => 
+                    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                );
+                setAllBSDs(sortedData);
             }
             
-            // Mettre à jour les BSDs filtrés
-            setAllFilteredBSDs(filteredData);
-            
-            // Mettre à jour les BSDs affichés (limités)
-            setDisplayedBSDs(filteredData.slice(0, displayLimit));
-            
-            // Activer les filtres si ce n'est pas un chargement partiel
-            if (!result.isPartialData) {
-                setFiltersEnabled(true);
-                setIsPartialData(false);
+            if (result.data.length > 0) {
+                setLastLoadedId(result.data[result.data.length - 1].id);
             }
             
         } catch (error) {
             console.error('Error fetching BSDs:', error);
-            setIsPartialData(false);
-            setLoadingBSDs(false);
         } finally {
-            if (!isLoadingFullData) {
-                setLoadingBSDs(false);
-            }
-        }
-    };
-    
-    // Fonction pour charger toutes les données en arrière-plan
-    const fetchFullData = async () => {
-        if (!entreprise_id) return;
-        
-        try {
-            const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}`);
-            const result = await response.json();
-            
-            // Mettre à jour l'état pour indiquer que les données sont complètes
-            setIsPartialData(false);
-            
-            // Mettre à jour le nombre total de BSDs
-            if (result.totalCount) {
-                setTotalBSDsCount(result.totalCount);
-            }
-            
-            // Stocker tous les BSDs non filtrés
-            setAllBSDs(result.data);
-            
-            // Activer les filtres
-            setFiltersEnabled(true);
-            
-            // Appliquer les filtres maintenant que nous avons toutes les données
-            const filteredData = filterBSDs(
-                result.data,
-                filieres,
-                sites,
-                points_collecte,
-                segmentDates,
-                mappingTable,
-                filterFunctions,
-                filterPendingBSDs
-            );
-            
-            // Mettre à jour les BSDs filtrés
-            setAllFilteredBSDs(filteredData);
-            
-            // Mettre à jour les BSDs affichés (limités)
-            setDisplayedBSDs(filteredData.slice(0, displayLimit));
-            
-        } catch (error) {
-            console.error('Error fetching full BSDs:', error);
-        } finally {
-            setIsLoadingFullData(false);
             setLoadingBSDs(false);
+            setIsLoadingMore(false);
         }
     };
 
-    // Fonction pour charger plus de BSDs
-    const loadMore = () => {
-        const newLimit = displayLimit + 50;
-        setDisplayLimit(newLimit);
-        setDisplayedBSDs(allFilteredBSDs.slice(0, newLimit));
+    const applyFilters = () => {
+        console.log("=== Début applyFilters ===");
+        console.log("Nombre de BSDs avant filtrage:", allBSDs?.length);
         
-        // Si on approche de la fin des données chargées et qu'on est en mode données partielles,
-        // on peut déclencher un chargement complet
-        if (isPartialData && newLimit > allFilteredBSDs.length * 0.8 && !isLoadingFullData) {
-            setIsLoadingFullData(true);
-            fetchFullData();
-        }
-    };
-
-    // Effet pour le modalReload
-    useEffect(() => {
-        if (prevModalReload.current !== modalReload) {
-            console.log("Modal reload changed, fetching BSDs...");
-            // Forcer un rechargement complet des données
-            setAllBSDs([]);
-            setAllFilteredBSDs([]);
-            setDisplayedBSDs([]);
-            setTotalBSDsCount(0);
-            fetchAndFilterBSDs();
-            prevModalReload.current = modalReload;
-        }
-    }, [modalReload]);
-
-    // Effet pour les changements de filtres
-    useEffect(() => {
-        if (filtersEnabled && allBSDs?.length > 0) {
-            // Si les filtres sont activés, appliquer les filtres aux BSDs existants
+        if (allBSDs?.length > 0) {
             const filteredData = filterBSDs(
                 allBSDs,
                 filieres,
@@ -434,16 +367,32 @@ const TableBSD = () => {
                 filterPendingBSDs
             );
             
+            console.log("Nombre de BSDs après filtrage (filteredData):", filteredData.length);
             setAllFilteredBSDs(filteredData);
-            setDisplayedBSDs(filteredData.slice(0, displayLimit));
-            // Réinitialiser isPartialData car nous avons déjà toutes les données nécessaires pour le filtrage
-            setIsPartialData(false);
-        } else if (entreprise_id && !isLoadingInitialData && !isLoadingFullData) {
-            // Si les filtres ne sont pas activés ou si on n'a pas encore de données, recharger les données
-            setIsLoadingInitialData(true);
-            setIsPartialData(true);
-            fetchAndFilterBSDs();
+            setDisplayLimit(50);
+            const newDisplayedBSDs = filteredData.slice(0, 50);
+            console.log("Nombre de BSDs à afficher (newDisplayedBSDs):", newDisplayedBSDs.length);
+            setDisplayedBSDs(newDisplayedBSDs);
         }
+        console.log("=== Fin applyFilters ===");
+    };
+
+    // Effet pour les changements de filtres
+    useEffect(() => {
+        console.log("=== Début useEffect filtres ===");
+        const hasActiveFilters = 
+            filieres.length > 0 || 
+            sites.length > 0 || 
+            points_collecte.length > 0 || 
+            (segmentDates && segmentDates.debut !== null) || 
+            (segmentDates && segmentDates.fin !== null) ||
+            filterPendingBSDs ||
+            (filterFunctions && Object.keys(filterFunctions).length > 0);
+        
+        console.log("Filtres actifs:", hasActiveFilters);
+        setFiltersEnabled(hasActiveFilters);
+        applyFilters();
+        console.log("=== Fin useEffect filtres ===");
     }, [
         filieres,
         sites,
@@ -451,7 +400,7 @@ const TableBSD = () => {
         segmentDates,
         filterPendingBSDs,
         filterFunctions,
-        filtersEnabled
+        allBSDs
     ]);
 
     // Effet pour charger les données initiales
@@ -459,10 +408,33 @@ const TableBSD = () => {
         if (entreprise_id) {
             setIsLoadingInitialData(true);
             setIsLoadingFullData(false);
-            setFiltersEnabled(false);
-            fetchAndFilterBSDs();
+            fetchBSDs();
         }
     }, [entreprise_id]);
+
+    // Effet pour charger plus de données quand nécessaire
+    useEffect(() => {
+        const shouldLoadMore = displayedBSDs.length < 25 && !isLoadingMore && !loadingBSDs && hasMore;
+        
+        if (shouldLoadMore) {
+            console.log('Chargement de plus de données...', {
+                displayedCount: displayedBSDs.length,
+                hasMore,
+                isLoadingMore,
+                loadingBSDs,
+                lastLoadedId,
+                totalCount: totalBSDsCount,
+                allBSDsCount: allBSDs.length
+            });
+            setIsLoadingMore(true);
+            fetchBSDs(true);
+        } else if (!hasMore) {
+            console.log('Arrêt du chargement progressif - Plus de données à charger', {
+                displayedCount: displayedBSDs.length,
+                totalCount: totalBSDsCount
+            });
+        }
+    }, [displayedBSDs.length, hasMore, isLoadingMore, loadingBSDs, lastLoadedId, totalBSDsCount, allBSDs]);
 
     useEffect(() => {
         // Exécution immédiate
@@ -870,7 +842,7 @@ const TableBSD = () => {
     return (
         <>
             <div className="overflow-x-auto">
-                {isPartialData && (
+                {(isPartialData && false) && (
                     <div className="bg-blue-50 p-2 mb-4 rounded-md text-sm text-blue-700 flex items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -878,6 +850,12 @@ const TableBSD = () => {
                         Chargement rapide en cours... Affichage des {displayedBSDs.length} premiers BSDs sur un total de {totalBSDsCount}. Les filtres seront activés une fois toutes les données chargées.
                     </div>
                 )}
+                {/*<p>ici BSD displayd: {displayedBSDs.length}</p>
+                <p>Total bsd dans la base: {totalBSDsCount}</p>
+                <p>totalBSDsCount chargé en local: {allBSDs?.length}</p>
+                <p>allFilteredBSDs: {allFilteredBSDs.length}</p>
+                <p>displayedBSDs contenu: {JSON.stringify(displayedBSDs.map(bsd => bsd.id))}</p>
+                <p>est en train de load plus :{isLoadingMore.toString()} : 25: {(displayedBSDs.length < 25).toString()} && hasmore : {hasMore?.toString()} && loadingmore{(!isLoadingMore)?.toString()} && loadingbsd {(!loadingBSDs)?.toString()}</p>*/}
                 <table style={{ width: '100%', borderCollapse: 'collapse' }} className="table-fixed">
                     <thead>
                         <tr style={{ backgroundColor: 'white' }}>
@@ -901,8 +879,8 @@ const TableBSD = () => {
                                 </td>
                             </tr>
                         ) : displayedBSDs.length > 0 ? (
-                            displayedBSDs.map((bsd) => (
-                            <tr key={bsd.id} style={{ borderBottom: '1px solid #ddd' }} 
+                            displayedBSDs.map((bsd, index) => (
+                            <tr key={`${bsd.id}-${index}`} style={{ borderBottom: '1px solid #ddd' }} 
                                 className={`${bsd.status_track_dechets === "Ligne créée automatiquement" ? 
                                     "bg-[var(--gray-light)]" : 
                                     bsd.status_track_dechets === "Ligne demandée" ? 
@@ -1213,6 +1191,10 @@ const TableBSD = () => {
                                                                     e.stopPropagation();
                                                                     handleCancelCollecte(bsd).then(() => {
                                                                         setModalReload(!modalReload);
+                                                                        invalidateCache();
+                                                                        setAllBSDs(prev => prev.filter(prevBsd => prevBsd.id !== bsd.id));
+                                                                        setAllFilteredBSDs(prev => prev.filter(prevBsd => prevBsd.id !== bsd.id));
+                                                                        setDisplayedBSDs(prev => prev.filter(prevBsd => prevBsd.id !== bsd.id));
                                                                     });
                                                             }}
                                                         >
@@ -1255,49 +1237,20 @@ const TableBSD = () => {
                     />
                 )}
                 
-                {allFilteredBSDs.length > displayLimit && !loadingBSDs && (
+                {isLoadingMore && (
                     <div className="flex justify-center mt-4">
-                        <button
-                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                            onClick={loadMore}
-                        >
-                            Afficher 50 BSDs supplémentaires 
-                            ({displayedBSDs.length} sur {allFilteredBSDs.length})
-                            {isPartialData && totalBSDsCount > allFilteredBSDs.length && (
-                                <span className="ml-1 text-xs">
-                                    (Total en base: {totalBSDsCount})
-                                </span>
-                            )}
-                        </button>
+                        <div className="loading loading-spinner loading-md"></div>
                     </div>
                 )}
                 
-                {/* Si on a moins de BSDs filtrés que le total mais qu'on a fini de charger, afficher un message */}
-                {!isPartialData && !loadingBSDs && allFilteredBSDs.length < totalBSDsCount && filtersEnabled && (
+                {!hasMore && allFilteredBSDs.length > 0 && (
                     <div className="text-center mt-4 text-sm text-gray-500">
-                        {allFilteredBSDs.length} BSDs sur {totalBSDsCount} après filtrage
+                        Tous les BSDs ont été chargés
                     </div>
                 )}
-                
-                {/* Afficher le loader uniquement lors du chargement initial, pas pendant le chargement en arrière-plan */}
-                {loadingBSDs && displayedBSDs.length === 0 && (
-                    <div className="flex justify-center mt-4">
-                        <div className="loading loading-spinner loading-lg"></div>
-                    </div>
-                )}
-                
-                {displayedBSDs.length === 0 && !loadingBSDs && (
-                    <tr>
-                        <td colSpan={5} className="text-center py-4">
-                            
-                            {isPartialData && totalBSDsCount > 0 && (
-                                <span className="ml-1">
-                                    (Chargement des {totalBSDsCount} BSDs en cours...)
-                                </span>
-                            )}
-                        </td>
-                    </tr>
-                )}
+                <div className="text-center mt-4 text-sm text-gray-500">
+                    {allFilteredBSDs.length === 0 ? "Aucun BSD disponible pour ces filtres." : "Nous n'affichons que 50 BSDs à la fois, utilisez les filtres pour en voir d'autres."}
+                </div>
                 
                 {showValidateModal && selectedBsdForValidation && (
                     <ValidateCollecte

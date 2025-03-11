@@ -14,6 +14,7 @@ import { toast } from "react-hot-toast";
 import { createRoot } from "react-dom/client";
 import InputMobile from "./InputMobile";
 import DatePicker from "react-datepicker";
+import { invalidateCache } from "@/app/utils/invalidateCache";
 
 const initialToogleData: FormInput = {
     emitter: {
@@ -229,7 +230,7 @@ const FormulaireMobile = () => {
         setOptions,
         modalType } = useModalContextNew();
     const [currentFiliere, setCurrentFiliere] = useState("");
-    const session = useSession();
+    const {entreprise_id, user_id} = useSession();
     const [ced_table, setCedTable] = useState<{ ced: string, filiere: string }[]>([]);
     const [displayAll, setDisplayAll] = useState(false);
     const [dataFilter, setDataFilter] = useState<{name: string, value: string}[]>([]);
@@ -285,21 +286,21 @@ const FormulaireMobile = () => {
 
 //Initialisation des options
 useEffect(() => {
-    if(session?.entreprise_id) {
-        getDataAutocompletionFull([], session.entreprise_id, []).then(data => {
+    if(entreprise_id) {
+        getDataAutocompletionFull([], entreprise_id, []).then(data => {
             setAllOptions(data);
             setOptions(data);
         });
     }
-}, [session]);
+}, [entreprise_id]);
 
 //Initialisation de ced_table
 useEffect(() => {
     //aller chercher la table mapping filiere
-    if(session && session.entreprise_id) {
-        getMappingTableFiliere(session.entreprise_id).then(data => setCedTable(data));
+    if(entreprise_id) {
+        getMappingTableFiliere(entreprise_id).then(data => setCedTable(data));
     }
-}, [session]);
+}, [entreprise_id]);
 
 // Ajouter un useEffect pour initialiser les données avec le site sélectionné
 useEffect(() => {
@@ -366,11 +367,11 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: 
         );
 
         // Mise à jour des options si nécessaire
-    if (session?.entreprise_id) {
+    if (entreprise_id) {
         try {
                 const [filteredOptions, allOptionsData] = await Promise.all([
-                    getDataAutocompletionFull(newDataFilter, session.entreprise_id, ced_table),
-                getDataAutocompletionFull([], session.entreprise_id, ced_table)
+                    getDataAutocompletionFull(newDataFilter, entreprise_id, ced_table),
+                    getDataAutocompletionFull([], entreprise_id, ced_table)
             ]);
 
                 setOptions(filteredOptions);
@@ -389,8 +390,8 @@ const ResetData = () => {
     setCurrentFiliere("");
     setChangedField("");
     setOtherInfos(initialOtherInfos);
-    if(session?.entreprise_id) {
-        getDataAutocompletionFull([], session.entreprise_id, []).then(data => setOptions(data));
+    if(entreprise_id) {
+        getDataAutocompletionFull([], entreprise_id, []).then(data => setOptions(data));
     }
 }
 
@@ -1182,7 +1183,7 @@ useEffect(() => {
 
                     {/* Composants de bas de page */}
                     <div className="space-y-4 mt-6">
-                        {(session?.entreprise_id && modalType !== 'create_line') && (
+                        {(entreprise_id && modalType !== 'create_line') && (
                             <div className="border-t border-gray-200 pt-4">
                                 <MailComponent 
                             params={{
@@ -1194,7 +1195,7 @@ useEffect(() => {
                                 collectionAddress: dataToogle.emitter.workSite.fullAddress,
                                 destinataire: dataToogle.transporter.company.mail,
                                 emetteur: dataToogle.emitter.company.mail,
-                                entrepriseId: session.entreprise_id,
+                                entrepriseId: entreprise_id,
                                 entrepriseName: dataToogle.emitter.company.name,
                                 wasteDescription: dataToogle.wasteDetails.name,
                                 containerCount: dataToogle.wasteDetails.packagingInfos[0].quantity,

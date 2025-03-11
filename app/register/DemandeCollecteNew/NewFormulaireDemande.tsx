@@ -16,6 +16,9 @@ import { useMailContext } from '../MailComponents/MailContext';
 import { dataFilterUpdate, getDataAutocompletionFull, getUniqueOptions, initialOtherInfos, initialToogleData, inputDependencies, isAncestor, NestedObject, preciseFilter, updateNestedValue, WasteLine } from "./NewFormulaireDemandefunctionnal";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { invalidateCache } from "@/app/utils/invalidateCache";
+import { useBSDs } from "../BSDsProvider";
+import { BSD } from "../TableBSD";
 
 
 const NewFormulaireDemande = ({setDisplayThis}: {setDisplayThis: (display: boolean) => void}) => {
@@ -49,6 +52,8 @@ const NewFormulaireDemande = ({setDisplayThis}: {setDisplayThis: (display: boole
         options,
         setOptions,
         modalType } = useModalContextNew();
+    const {setAllBSDs, setAllFilteredBSDs, setDisplayedBSDs} = useBSDs();
+    
     const [currentFiliere, setCurrentFiliere] = useState("");
     const {entreprise_id, user_id, user_email, user_contact, user_phone} = useSession();
     const [ced_table, setCedTable] = useState<{ ced: string, filiere: string }[]>([]);
@@ -603,6 +608,7 @@ useEffect(() => {
             await sendMail(); // Envoyer le mail
             await createWasteLines(); // Créer les lignes
             setModalReload(!modalReload)
+            invalidateCache(entreprise_id, user_id);
             setDisplayThis(false); // Fermer la fenêtre
             handleReset(); // Reset le formulaire
         } catch (error) {
@@ -677,11 +683,20 @@ useEffect(() => {
                 };
             }));
 
-            const { error } = await supabase
+            const { data: insertedData, error } = await supabase
                 .from('bsd')
-                .insert(linesToCreate);
+                .insert(linesToCreate)
+                .select();
 
             if (error) throw error;
+
+            setTimeout(() => {
+                setAllBSDs(prev => [...insertedData as unknown as BSD[], ...prev]);
+                setAllFilteredBSDs(prev => [...insertedData as unknown as BSD[], ...prev]);
+                setDisplayedBSDs(prev => [...insertedData as unknown as BSD[], ...prev]);
+            }, 100);
+
+            
             toast.success('Lignes créées avec succès');
         } catch (error) {
             console.error('Erreur lors de la création des lignes:', error);

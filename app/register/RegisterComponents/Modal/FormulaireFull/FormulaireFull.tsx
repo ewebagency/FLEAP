@@ -13,6 +13,7 @@ import { OtherInfos, CompleteFormInput } from "@/app/register/interface/BSD_Inte
 import { toast } from "react-hot-toast";
 import { createRoot } from "react-dom/client";
 import DatePicker from "react-datepicker";
+import { invalidateCache } from "@/app/utils/invalidateCache";
 
 const initialToogleData: FormInput = {
     emitter: {
@@ -246,7 +247,7 @@ const FormulaireFull = () => {
         setOptions,
         modalType } = useModalContextNew();
     const [currentFiliere, setCurrentFiliere] = useState("");
-    const {entreprise_id, user_email, user_contact, user_phone} = useSession();
+    const {entreprise_id, user_id, user_email, user_contact, user_phone} = useSession();
     const [ced_table, setCedTable] = useState<{ ced: string, filiere: string }[]>([]);
     const [displayAll, setDisplayAll] = useState(false);
     const [dataFilter, setDataFilter] = useState<{name: string, value: string}[]>([]);

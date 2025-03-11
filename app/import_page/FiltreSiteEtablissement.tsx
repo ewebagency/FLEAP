@@ -8,6 +8,7 @@ import { supabase } from '../database/supabaseClient';
 import Cookies from 'js-cookie';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 import { RowBSD } from '../register/interface/BSD_Interface';
+import useSWR from 'swr';
 
 interface AdditionalSite {
     siret: string;
@@ -27,9 +28,65 @@ interface SiteGroup {
     checked: boolean;
 }
 
+interface EmitterInfo {
+    company: {
+        siret: string;
+        name: string;
+    } | null;
+}
+
+// Fonction fetcher pour SWR
+const fetcherSites = async (entreprise_id: string) => {
+    console.log('Début du fetch pour entreprise_id:', entreprise_id);
+    const pageSize = 1000;
+    let allData: EmitterInfo[] = [];
+    let hasMore = true;
+    let page = 0;
+
+    while (hasMore) {
+        console.log(`Chargement de la page ${page}`);
+        const { data, error, count } = await supabase
+            .from('bsd')
+            .select('infos_json', { count: 'exact' })
+            .eq('entreprise_id', entreprise_id)
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) {
+            console.error('Erreur Supabase:', error);
+            throw error;
+        }
+        
+        if (data && data.length > 0) {
+            console.log(`${data.length} enregistrements trouvés dans la page ${page}`);
+            const validData = data
+                .filter(row => {
+                    const company = row.infos_json?.formAPI?.createFormInput?.emitter?.company;
+                    return company && typeof company === 'object' && 'siret' in company && 'name' in company;
+                })
+                .map(row => ({
+                    company: {
+                        siret: row.infos_json.formAPI.createFormInput.emitter.company.siret as string,
+                        name: row.infos_json.formAPI.createFormInput.emitter.company.name as string
+                    }
+                }));
+            
+            console.log(`Données valides trouvées: ${validData.length}`);
+            allData = [...allData, ...validData];
+            
+            hasMore = count ? allData.length < count : false;
+            page++;
+        } else {
+            console.log('Aucune donnée trouvée ou fin des données');
+            hasMore = false;
+        }
+    }
+
+    console.log(`Total des sites trouvés: ${allData.length}`);
+    return allData;
+};
+
 const FiltreSiteEtablissement = () => {
     const [etablissementsWithStatus, setEtablissementsWithStatus] = useState<Etablissement[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -45,71 +102,75 @@ const FiltreSiteEtablissement = () => {
     const [isFullDataLoaded, setIsFullDataLoaded] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-    useEffect(() => {
-        if (entreprise_id) {
-            const getAdditionnalSites = async () => {
-                try {
-                    // Utiliser l'API get_data_bsd
-                    const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}`);
-                    const { data: bsds, isPartialData } = await response.json();
-
-                    // Mettre à jour l'état de chargement complet
-                    setIsFullDataLoaded(!isPartialData);
-                    setIsInitialLoad(false);
-
-                    if (!bsds || bsds.length === 0) {
-                        console.log('Pas de BSDs trouvés');
-                        return;
-                    }
-
-                    // Créer un Map pour regrouper les sites par SIRET
-                    const siteMap = new Map();
-                    bsds.forEach((bsd:RowBSD) => {
-                        const siret = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret;
-                        const name = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.name;
-                        if (!siret) return;
-                        
-                        if (!siteMap.has(siret)) {
-                            siteMap.set(siret, new Map());
-                        }
-                        
-                        const nameCount = siteMap.get(siret);
-                        nameCount.set(name, (nameCount.get(name) || 0) + 1);
-                    });
-
-                    // Convertir le Map en tableau de sites uniques avec le nom le plus fréquent
-                    const uniqueSites = Array.from(siteMap.entries()).map(([siret, nameCount]) => {
-                        let mostFrequentName = '';
-                        let maxCount = 0;
-                        
-                        nameCount.forEach((count: number, name: string) => {
-                            if (count > maxCount) {
-                                maxCount = count;
-                                mostFrequentName = name;
-                            }
-                        });
-
-                        return {
-                            siret: siret,
-                            name: mostFrequentName
-                        };
-                    });
-
-                    setAdditionnalSites(uniqueSites);
-                } catch (error) {
-                    console.error('Erreur lors de la récupération des BSDs:', error);
-                }
-            }
-            getAdditionnalSites();
+    // Utilisation de SWR pour récupérer les données des émetteurs
+    const { data: emitterData, error: swrError, isLoading: isLoadingSWR } = useSWR(
+        entreprise_id ? ['sites', entreprise_id] : null,
+        () => fetcherSites(entreprise_id!),
+        {
+            revalidateOnFocus: false,
+            revalidateOnReconnect: false,
+            refreshInterval: 0,
+            dedupingInterval: 60000,
+            focusThrottleInterval: 60000
         }
-    }, [modalReload, entreprise_id, isFullDataLoaded]);
+    );
 
-    //On va chercher les webhook du compte track
+    // Effet pour traiter les données des émetteurs avec logs de débogage
+    useEffect(() => {
+        console.log('État du chargement:', {
+            isLoadingSWR,
+            isLoadingTrack,
+            hasEmitterData: !!emitterData,
+            emitterDataLength: emitterData?.length,
+            additionalSitesLength: additionnalSites.length,
+            etablissementsLength: etablissementsWithStatus.length
+        });
+
+        if (emitterData) {
+            // Créer un Map pour regrouper les sites par SIRET
+            const siteMap = new Map();
+            emitterData.forEach((emitter) => {
+                if (!emitter.company?.siret || !emitter.company?.name) return;
+                
+                if (!siteMap.has(emitter.company.siret)) {
+                    siteMap.set(emitter.company.siret, new Map());
+                }
+                
+                const nameCount = siteMap.get(emitter.company.siret);
+                nameCount.set(emitter.company.name, (nameCount.get(emitter.company.name) || 0) + 1);
+            });
+
+            // Convertir le Map en tableau de sites uniques avec le nom le plus fréquent
+            const uniqueSites = Array.from(siteMap.entries()).map(([siret, nameCount]) => {
+                let mostFrequentName = '';
+                let maxCount = 0;
+                
+                nameCount.forEach((count: number, name: string) => {
+                    if (count > maxCount) {
+                        maxCount = count;
+                        mostFrequentName = name;
+                    }
+                });
+
+                return {
+                    siret: siret,
+                    name: mostFrequentName
+                };
+            });
+
+            console.log('Sites uniques trouvés:', uniqueSites.length);
+            setAdditionnalSites(uniqueSites);
+            setIsInitialLoad(false);
+        }
+    }, [emitterData, isLoadingSWR]);
+
+    //On va chercher les webhook du compte track en parallèle
     useEffect(() => {
         const fetchData = async () => {
             const trackDechetsToken = Cookies.get('trackdechets_token');
             
             if (!trackDechetsToken) {
+                console.log('Pas de token TrackDéchets - skip');
                 setIsLoadingTrack(false);
                 return;
             }
@@ -118,44 +179,38 @@ const FiltreSiteEtablissement = () => {
                 setIsLoadingTrack(true);
                 const response = await fetch('/api/demande_collecte/web_hook/get_all_web_hooks_informations');
                 if (!response.ok) {
-                    setSites([]);
+                    console.log('Erreur réponse webhook');
                     return;
                 }
                 const data = await response.json();
-                setEtablissementsWithStatus(data.data);
+                console.log('Webhooks reçus:', data.data?.length || 0);
+                setEtablissementsWithStatus(data.data || []);
             } catch (err) {
-                setError(err instanceof Error ? err.message : 'An error occurred');
+                console.error('Erreur webhook:', err);
             } finally {
                 setIsLoadingTrack(false);
             }
         }
+
+        // Lancer le chargement immédiatement
         fetchData();
-
-        const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Effet pour mettre à jour les sites quand les données changent
     useEffect(() => {
-        // Sites de la BDD
-        //console.log("1. Début de l'effet de mise à jour des sites");
-        
-        // Charger les états sauvegardés d'abord
-        const savedSites = localStorage.getItem(`sites-${entreprise_id}`);
-        //console.log("2. États sauvegardés:", savedSites);
-        const savedSiteStates = savedSites ? JSON.parse(savedSites) : {};
-        //console.log("3. États parsés:", savedSiteStates);
 
-        // Fonction utilitaire pour obtenir l'état sauvegardé
+        if (!entreprise_id) {
+            console.log('[Effect 3] Pas d\'entreprise_id, retour');
+            return;
+        }
+
+        // Charger les états sauvegardés
+        const savedSites = localStorage.getItem(`sites-${entreprise_id}`);
+        const savedSiteStates = savedSites ? JSON.parse(savedSites) : {};
+
         const getSavedState = (orgId: string) => {
-            // En mode mobile, on veut que seul le premier site soit coché
             if (window.innerWidth <= 768) {
-                return false; // On mettra le premier à true après
+                return false;
             }
             return savedSiteStates[orgId]?.checked ?? true;
         };
@@ -169,6 +224,8 @@ const FiltreSiteEtablissement = () => {
             isTrackDechets: false,
             isInDb: true
         }));
+
+        
 
         const sites_autre: ContextSite = {
             orgId: '----',
@@ -191,7 +248,6 @@ const FiltreSiteEtablissement = () => {
                 isInDb: false
             }));
 
-            // Fusionner en donnant priorité aux noms de la BDD
             const mergedSites = vrai_sites.map(trackSite => {
                 const dbSite = sites_from_db.find(dbSite => dbSite.orgId === trackSite.orgId);
                 if (dbSite) {
@@ -205,7 +261,6 @@ const FiltreSiteEtablissement = () => {
                 return trackSite;
             });
 
-            // Ajouter les sites qui sont uniquement dans la BDD
             const trackDechetsSirets = new Set(vrai_sites.map(site => site.orgId));
             const uniqueDbSites = sites_from_db.filter(site => !trackDechetsSirets.has(site.orgId))
                 .map(site => ({
@@ -213,7 +268,6 @@ const FiltreSiteEtablissement = () => {
                     checked: savedSiteStates[site.orgId]?.checked ?? site.checked
                 }));
 
-            // Ajouter le site "Autres" avec son état sauvegardé
             const sitesAutre = {
                 ...sites_autre,
                 checked: savedSiteStates['----']?.checked ?? sites_autre.checked
@@ -221,12 +275,9 @@ const FiltreSiteEtablissement = () => {
 
             let allSites = [...mergedSites, ...uniqueDbSites, sitesAutre];
 
-            // En mode mobile, s'assurer qu'un seul site est sélectionné
             if (window.innerWidth <= 768) {
-                // Trouver le premier site valide (pas "Autres" et activé)
                 const firstValidSite = allSites.find(site => site.orgId !== '----' && site.activated);
                 if (firstValidSite) {
-                    // Mettre tous les sites à false
                     allSites = allSites.map(site => ({
                         ...site,
                         checked: site.orgId === firstValidSite.orgId
@@ -235,7 +286,7 @@ const FiltreSiteEtablissement = () => {
             }
 
             if (Object.keys(mappingSite).length > 0) {
-                // Créer les groupes selon le mapping
+                
                 const groups = Object.entries(mappingSite).map(([groupName, sirets]) => ({
                     name: groupName,
                     sirets: sirets,
@@ -244,29 +295,27 @@ const FiltreSiteEtablissement = () => {
 
                 setSiteGroups(groups);
 
-                // Mettre à jour les sites avec leur groupe
                 const sitesWithGroups = allSites.map(site => ({
                     ...site,
                     group: Object.entries(mappingSite).find(([_, sirets]) => sirets.includes(site.orgId))?.[0]
                 }));
 
+                
                 setSites(sitesWithGroups);
             } else {
+                
                 setSites(allSites);
             }
         } else {
-            // Si pas de connexion TrackDechets, utiliser uniquement les sites de la BDD
+            
             let sitesWithSavedStates = [...sites_from_db, sites_autre].map(site => ({
                 ...site,
                 checked: savedSiteStates[site.orgId]?.checked ?? site.checked
             }));
 
-            // En mode mobile, s'assurer qu'un seul site est sélectionné
             if (window.innerWidth <= 768) {
-                // Trouver le premier site valide (pas "Autres" et activé)
                 const firstValidSite = sitesWithSavedStates.find(site => site.orgId !== '----' && site.activated);
                 if (firstValidSite) {
-                    // Mettre tous les sites à false
                     sitesWithSavedStates = sitesWithSavedStates.map(site => ({
                         ...site,
                         checked: site.orgId === firstValidSite.orgId
@@ -276,12 +325,18 @@ const FiltreSiteEtablissement = () => {
 
             setSites(sitesWithSavedStates);
         }
-    }, [etablissementsWithStatus, additionnalSites, setSites, mappingSite, entreprise_id]);
+    }, [etablissementsWithStatus, additionnalSites, mappingSite, entreprise_id]);
 
-    // Ajout d'un useEffect pour récupérer le mapping_site
+    // Effet pour récupérer le mapping_site
     useEffect(() => {
+        
         const fetchMappingSite = async () => {
-            if (entreprise_id) {
+            if (!entreprise_id) {
+                console.log('[Effect 4] Pas d\'entreprise_id, retour');
+                return;
+            }
+            
+            try {
                 const { data, error } = await supabase
                     .from('entreprise')
                     .select('mapping_site')
@@ -289,13 +344,16 @@ const FiltreSiteEtablissement = () => {
                     .single();
 
                 if (error) {
-                    console.error('Erreur lors de la récupération du mapping_site:', error);
+                    console.error('[Effect 4] Erreur mapping_site:', error);
                     return;
                 }
 
                 if (data?.mapping_site) {
+                    
                     setMappingSite(data.mapping_site);
                 }
+            } catch (error) {
+                console.error('[Effect 4] Erreur mapping_site:', error);
             }
         };
 
@@ -454,8 +512,22 @@ const FiltreSiteEtablissement = () => {
         </div>
     );
 
-    if (isLoading && additionnalSites.length === 0) return <div className="text-sm text-gray-500 ml-2">Chargement...</div>;
-    if (error) return <div className="text-sm text-gray-500 ml-2">Erreur: {error}</div>;
+    // Mise à jour de la condition de rendu pour le chargement
+    if ((isLoadingSWR || isLoadingTrack) && additionnalSites.length === 0) {
+        console.log('Affichage du chargement - États:', { isLoadingSWR, isLoadingTrack });
+        return <div className="text-sm text-gray-500 ml-2">Chargement des sites...</div>;
+    }
+    
+    if (swrError) {
+        console.error('Erreur SWR:', swrError);
+        return <div className="text-sm text-gray-500 ml-2">Erreur lors du chargement des sites</div>;
+    }
+
+    // Ne pas afficher "Aucun site disponible" pendant le chargement
+    if (!isLoadingSWR && !isLoadingTrack && additionnalSites.length === 0 && etablissementsWithStatus.length === 0) {
+        console.log('Aucun site disponible après chargement complet');
+        return <div className="text-sm text-gray-500 ml-2">Aucun site disponible</div>;
+    }
 
     return (
         <div

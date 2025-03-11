@@ -1009,3 +1009,48 @@ export interface RowBSD {
     entreprise_id :string;
     user_id:string;
 }
+
+
+export interface FastDataSupa {
+    id: string;
+    entreprise_id: string;
+    user_id: string;
+    created_at: string;
+    status_track_dechets: string;
+    readable_id_track_dechets: string;
+    facture_infos: {
+      footer: {
+        total_ht: string;
+      };
+    };
+    infos_json: {
+      emitter: {
+        siret: string;
+        name: string;
+      };
+      recipient: {
+        siret: string;
+        name: string;
+      };
+      transporter: {
+        siret: string;
+        name: string;
+      };
+      wasteDetails: {
+        code: string;
+        name: string;
+        quantity: string;
+        processingOperation: string;
+        isDangerous: string;
+      };
+      takenOverAt: string;
+      other_infos: {
+        fillRate: string;
+      };
+    };
+    other_infos: {fillRate: string};
+    on_track_dechets: boolean;
+    created_on_fleap: string;
+    facture_treated: boolean;
+    id_track_dechets: string;
+  } 

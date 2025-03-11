@@ -12,6 +12,7 @@ import { MailProvider } from "./register/MailComponents/MailContext";
 import NotificationPoller from "./component/NotificationPoller";
 import { RecurrenceInitializer } from './register/RegisterComponents/Modal/Recurrence/RecurrenceInitializer';
 import { FiltresPersoProvider } from "./component/FiltresPerso/FiltresPersoProvider";
+import { BSDsProvider } from "./register/BSDsProvider";
 //import { SSEHandler } from './component/SSEHandler';
 
 const geistSans = localFont({
@@ -98,19 +99,21 @@ export default function RootLayout({
           <FilterProvider>
             <AccessOtherAccountProvider>
               <ModalProviderNew>
-              <MailProvider>
-                <NotificationPoller />
-                <RecurrenceInitializer />
-                {/*<SSEHandler />*/}
-                <FiltresPersoProvider>
-                <div className="flex h-screen">
-                  {showSidebar && <SideBar className_props="min-h-full" />}
-                  <main className={`flex-1 overflow-y-auto ${!showSidebar ? 'w-full' : ''}`}>
-                    {children}
-                  </main>
-                </div>
-                </FiltresPersoProvider>
-              </MailProvider>
+                <MailProvider>
+                  <NotificationPoller />
+                  <RecurrenceInitializer />
+                  {/*<SSEHandler />*/}
+                  <FiltresPersoProvider>
+                    <BSDsProvider>
+                      <div className="flex h-screen">
+                        {showSidebar && <SideBar className_props="min-h-full" />}
+                        <main className={`flex-1 overflow-y-auto ${!showSidebar ? 'w-full' : ''}`}>
+                          {children}
+                        </main>
+                      </div>
+                    </BSDsProvider>
+                  </FiltresPersoProvider>
+                </MailProvider>
               </ModalProviderNew>
             </AccessOtherAccountProvider>
           </FilterProvider>

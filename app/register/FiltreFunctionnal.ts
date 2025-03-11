@@ -30,7 +30,7 @@ interface SegmentDates {
 }
 
 const cleanCED = (ced: string): string => {
-    //if(ced === '10 12 01') console.log(ced, "10 12 01");
+    //if(ced === '10 12 01') console.log(ced, "10 12 01");
     return ced.replace(/[^\d]/g,'');
 };
 
@@ -80,7 +80,7 @@ export const filterBSDs = (
             if (endDate && createdDate > endDate) return false;
             return true;
         });
-        //console.log("2. Après filtre dates:", filtered.length);
+        console.log("2. Après filtre dates:", filtered.length);
     }
 
     // 2. Filtre des filières
@@ -126,7 +126,7 @@ export const filterBSDs = (
                 return formattedWasteCodes.some(code => selectedFiliereCEDs.has(code));
             }
         });
-        //console.log("3. Après filtre filières:", filtered.length);
+        console.log("3. Après filtre filières:", filtered.length);
     }
 
     // 3. Filtre des sites
@@ -141,14 +141,14 @@ export const filterBSDs = (
             }
             return checkedSites.includes(emitterSiret);
         });
-        //console.log("4. Après filtre sites:", filtered.length);
+        console.log("4. Après filtre sites:", filtered.length);
     }
 
     // 5. Appliquer les filtres personnalisés
     for (const filterFunction of filterFunctions) {
         filtered = filterFunction(filtered);
     }
-    //console.log("5. Après filtres personnalisés:", filtered.length);
+    console.log("5. Après filtres personnalisés - commenté pour l'instant:", filtered.length);
 
     // 6. Filtrer les BSDs en attente si nécessaire
     if (filterPendingBSDs) {
@@ -157,6 +157,9 @@ export const filterBSDs = (
         });
         //console.log("6. Après filtre BSDs en attente:", filtered.length);
     }
+
+    // Maintenir l'ordre par created_at décroissant
+    filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     return filtered;
 };

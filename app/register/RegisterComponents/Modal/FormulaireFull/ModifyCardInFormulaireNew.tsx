@@ -14,6 +14,9 @@ import { getUniqueOptions } from "./FormulaireFull";
 import { createRoot } from "react-dom/client";
 import PopUp from "./PopUp";
 import PopUpMobile from "./PopUpMobile";
+import { useBSDs } from "@/app/register/BSDsProvider";
+import { invalidateCache } from "@/app/utils/invalidateCache";
+import { BSD } from "@/app/register/TableBSD";
 
 // Ajout des types nécessaires en haut du fichier
 type NestedKeyOf<ObjectType extends object> = {
@@ -172,6 +175,7 @@ const ModifyCardInFormulaireNew = ({
 }: Props) => {
   
   const {dataToogle } = useModalContextNew();
+  const {setAllBSDs, setAllFilteredBSDs, setDisplayedBSDs} = useBSDs();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingMail, setIsSubmittingMail] = useState(false);
@@ -213,7 +217,7 @@ const ModifyCardInFormulaireNew = ({
     setModalReload, modalReload,
     setDisplayFormulaire } = useModalContextNew();
 
-  const session = useSession();
+  const {entreprise_id, user_id} = useSession();
 
   const handleLocalChange = (path: FormPath, value: string) => {
     setDataText(prevData => {
@@ -363,7 +367,7 @@ const ModifyCardInFormulaireNew = ({
 
       const conditions_pour_submit = conditionsPourSubmit(newData, true);
       if(conditions_pour_submit){
-        if(session && session?.entreprise_id && session?.user_id) {
+        if(entreprise_id && user_id) {
             console.log('Form send Data to Cloud:', newData);  
             // Créer une copie pour l'envoi sans fullAddress
             const dataToSend = { ...newData };
@@ -373,8 +377,8 @@ const ModifyCardInFormulaireNew = ({
             const nonDangereux=false;
             const result = await sendData_to_Cloud(
                 dataToSend, 
-                session?.user_id, 
-                session?.entreprise_id, 
+                user_id, 
+                entreprise_id, 
                 isDraft, 
                 nonDangereux,
                 otherInfos
@@ -502,14 +506,14 @@ const ModifyCardInFormulaireNew = ({
         delete newData.wasteDetails.analysisReferences;
     }
   
-      if(session && session?.entreprise_id && session?.user_id) {
+      if(entreprise_id && user_id) {
           // Créer une copie pour l'envoi sans fullAddress
           const dataToSend = { ...newData };
           delete dataToSend.emitter.workSite.fullAddress;
           
           const isDraft=true;
           console.log("Save en brouillon")
-          const result = await sendData_to_Cloud(dataToSend, session?.user_id, session?.entreprise_id, isDraft, false, otherInfos);
+          const result = await sendData_to_Cloud(dataToSend, user_id, entreprise_id, isDraft, false, otherInfos);
           if(result.success) {
               toast.success("Brouillon sauvegardé", result.message);
               setDisplayFormulaire(false);
@@ -581,11 +585,11 @@ const ModifyCardInFormulaireNew = ({
                 return;
             }
 
-            if (session?.user_id && session?.entreprise_id) {
+            if (user_id && entreprise_id) {
                 const result = await sendData_to_Cloud(
                     newData, 
-                    session.user_id, 
-                    session.entreprise_id, 
+                    user_id, 
+                    entreprise_id, 
                     false, // isDraft
                     true,  // nonDangereux
                     otherInfos
@@ -642,7 +646,7 @@ const ModifyCardInFormulaireNew = ({
   };
 
   const handleCreateLine = async () => {
-    if (recurrencePattern && session?.user_id && session?.entreprise_id) {
+    if (recurrencePattern && user_id && entreprise_id) {
         const willCreateRecurrence = await Swal.fire({
             title: 'Créer une récurrence ?',
             text: `Voulez-vous créer une récurrence pour cette ligne avec le pattern "${recurrencePattern.name}" ? ${recurrencePattern.endType === 'occurrences' ? `Une ligne sera créée maintenant et les ${recurrencePattern.occurrences} autres plus tard` : ''}`,
@@ -665,10 +669,31 @@ const ModifyCardInFormulaireNew = ({
         if (willCreateRecurrence.isConfirmed) {
             // Créer d'abord la ligne BSD
             const bsdId = await RecurrenceFunctions.createBSDFromTemplate(
-                session.user_id,
-                session.entreprise_id,
+                user_id,
+                entreprise_id,
                 newDataForReccurence
             );
+
+            const dataCache = {
+              id: bsdId,
+              created_at: String(new Date()),
+              infos_json: {
+                formAPI: {createFormInput: newDataForReccurence}
+              },
+              created_on_fleap: true,
+              on_track_dechets: false,
+              status_track_dechets: 'Ligne créée automatiquement',
+              id_track_dechets: 'Ligne automatique',
+              readable_id_track_dechets: 'Ligne automatique',
+              entreprise_id: entreprise_id,
+              user_id: user_id
+            } as unknown as BSD;
+            setTimeout(() => {
+              setAllBSDs(prev => [dataCache, ...prev]);
+              setAllFilteredBSDs(prev => [dataCache, ...prev]);
+              setDisplayedBSDs(prev => [dataCache, ...prev]);
+            }, 100);
+            invalidateCache(entreprise_id, user_id);
 
             if (!bsdId) {
                 toast.error("Erreur lors de la création de la ligne BSD");
@@ -682,8 +707,8 @@ const ModifyCardInFormulaireNew = ({
             };
 
             const success = await RecurrenceFunctions.createRecurrence(
-                session.user_id,
-                session.entreprise_id,
+                user_id,
+                entreprise_id,
                 updatedPattern,
                 newDataForReccurence
             );
@@ -692,7 +717,7 @@ const ModifyCardInFormulaireNew = ({
                 toast.success("Récurrence créée avec succès");
                 setDisplayFormulaire(false);
                 setModalReload(!modalReload);
-                onClose();
+                onClose();               
                 return;
             } else {
                 toast.error("Erreur lors de la création de la récurrence");
@@ -703,25 +728,40 @@ const ModifyCardInFormulaireNew = ({
 
     // Si pas de récurrence ou si l'utilisateur a choisi "Non, juste la ligne"
     const {data:newData, success} = await prepareDataToCloud(dataText, showTrader, showBroker, showEcoOrganisme, showParcelFields);
-    if(session?.user_id && session?.entreprise_id && success) {
-        const result = await supabase.from('bsd').insert({
-            user_id: session.user_id,
-            created_on_fleap: true,
-            infos_json: {
-                formAPI: {createFormInput: newData},
-            },
-            other_infos: otherInfos,
-            on_track_dechets: false,
-            status_track_dechets: 'Ligne créée',
-            id_track_dechets: 'Ligne créée',
-            readable_id_track_dechets: 'Ligne créée',
-            entreprise_id: session.entreprise_id
-        });
+    if(user_id && entreprise_id && success) {
+      const dataToInsert = {
+          user_id: user_id,
+          created_on_fleap: true,
+          infos_json: {
+              formAPI: {createFormInput: newData},
+          },
+          other_infos: otherInfos,
+          on_track_dechets: false,
+          status_track_dechets: 'Ligne créée',
+          id_track_dechets: 'Ligne créée',
+          readable_id_track_dechets: 'Ligne créée',
+          entreprise_id: entreprise_id
+        }
+        const result = await supabase.from('bsd').insert(dataToInsert).select('id, created_at').single();
+        
 
         if(result.status === 201) {
             toast.success("Ligne créée");
             setDisplayFormulaire(false);
             setModalReload(!modalReload);
+
+            invalidateCache(entreprise_id, user_id);
+            const newBSD = {
+              id: result.data?.id,
+              created_at: result.data?.created_at,
+              ...dataToInsert
+            } as unknown as BSD;
+            setTimeout(() => {
+              setAllBSDs(prev => [newBSD, ...prev]);
+              setAllFilteredBSDs(prev => [newBSD, ...prev]);
+              setDisplayedBSDs(prev => [newBSD, ...prev]);
+            }, 100);
+
             onClose();
         } else {
             toast.error("Erreur avec la création de la ligne");

@@ -7,6 +7,8 @@ import { FormInput } from "../../../interface/BSD_Interface";
 import Swal from 'sweetalert2';
 import { getMappingTableFiliere, getFiliere } from "../FormulaireFull/utils_new";
 import { OtherInfos } from "../../../interface/BSD_Interface";
+import { useBSDs } from "@/app/register/BSDsProvider";
+import { BSD } from "@/app/register/TableBSD";
 
 const LabelInput = ({ label, value, onChange, path }: { 
     label: string, 
@@ -27,6 +29,7 @@ const LabelInput = ({ label, value, onChange, path }: {
 
 const ModifyCard = () => {
     const { modalId, modalType, setModalType, setDataToogle, modalReload, setModalReload } = useModalContextNew();
+    const {setAllBSDs, setAllFilteredBSDs, setDisplayedBSDs} = useBSDs();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [localData, setLocalData] = useState<FormInput>({
         emitter: {
@@ -206,20 +209,22 @@ const ModifyCard = () => {
             console.log("dataToSend.wasteDetails.quantity : ", dataToSend.wasteDetails.quantity);
             console.log("dataToSend.recipient.company.name before submit", dataToSend.recipient);
 
+            const dataToSendJSON = {
+                user_id: session.user_id,
+                bsd_id: modalId,
+                infos_json: {
+                    formAPI: { createFormInput: dataToSend }
+                },
+                created_at: createdAt,
+                other_infos: otherInfos
+            };
+
             const response = await fetch('/api/demande_collecte/modify_bsd', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    user_id: session.user_id,
-                    bsd_id: modalId,
-                    infos_json: {
-                        formAPI: { createFormInput: dataToSend }
-                    },
-                    created_at: createdAt,
-                    other_infos: otherInfos
-                }),
+                body: JSON.stringify(dataToSendJSON),
             });
 
             const apiResult = await response.json();
@@ -227,7 +232,15 @@ const ModifyCard = () => {
                 setDataToogle(dataToSend);
                 toast.success(apiResult.message);
                 setModalType("");
+
+                setTimeout(() => {
+                    setAllBSDs(prev => prev.map(bsd => bsd.id === modalId ? {...bsd, infos_json: dataToSendJSON.infos_json} as unknown as BSD : bsd));
+                    setAllFilteredBSDs(prev => prev.map(bsd => bsd.id === modalId ? {...bsd, infos_json: dataToSendJSON.infos_json} as unknown as BSD : bsd));
+                    setDisplayedBSDs(prev => prev.map(bsd => bsd.id === modalId ? {...bsd, infos_json: dataToSendJSON.infos_json} as unknown as BSD : bsd));
+                }, 100);
+
                 setModalReload(!modalReload);
+
             } else {
                 console.log('dataToSend', dataToSend);
                 toast.error(apiResult.message || "Erreur lors de la modification");

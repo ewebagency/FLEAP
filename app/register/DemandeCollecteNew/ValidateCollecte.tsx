@@ -15,6 +15,8 @@ import Image from "next/image";
 import { isAncestor, getDataAutocompletionFull, getUniqueOptions, updateNestedValue, NestedObject, NestedArray, initialToogleData, initialOtherInfos } from "./NewFormulaireDemandefunctionnal";
 import { useMediaQuery } from 'react-responsive';
 import dynamic from 'next/dynamic';
+import { invalidateCache } from "@/app/utils/invalidateCache";
+import { useBSDs } from "../BSDsProvider";
 
 // Charger dynamiquement le composant mobile
 const ValidateCollecteMobile = dynamic(() => import('./ValidateCollecteMobile'), { ssr: false });
@@ -245,11 +247,13 @@ const ValidateCollecte = ({ onClose, bsd }: ValidateCollecteProps) => {
         modalReload,
         setModalReload
     } = useModalContextNew();
+    const {setAllBSDs, setAllFilteredBSDs, setDisplayedBSDs} = useBSDs();
     
     // Initialiser dataToogle avec les données du BSD
     const [dataToogle, setDataToogle] = useState<FormInput>(
-        bsd.infos_json.formAPI.createFormInput as unknown as FormInput
+        initialToogleData as unknown as FormInput
     );
+
     const [submitLoading, setSubmitLoading] = useState(false);
 
     // Initialiser other_infos avec les données du BSD
@@ -264,8 +268,23 @@ const ValidateCollecte = ({ onClose, bsd }: ValidateCollecteProps) => {
         }
     );
 
+    useEffect(() => {
+        const fetchBSDs = async () => {
+            const response = await supabase
+                .from('bsd')
+                .select('*')
+                .eq('id', bsd.id)
+                .single();
+            if (response.data) {
+                setDataToogle(response.data.infos_json.formAPI.createFormInput as unknown as FormInput);
+                setOtherInfos(response.data.other_infos as unknown as OtherInfos);
+            }
+        }
+        fetchBSDs();
+    }, [bsd]);
+
     const [currentFiliere, setCurrentFiliere] = useState("");
-    const session = useSession();
+    const {entreprise_id, user_id} = useSession();
     const [ced_table, setCedTable] = useState<{ ced: string, filiere: string }[]>([]);
     const [displayAll, setDisplayAll] = useState(false);
     
@@ -339,21 +358,21 @@ const ValidateCollecte = ({ onClose, bsd }: ValidateCollecteProps) => {
 
 //Initialisation des options
 useEffect(() => {
-    if(session?.entreprise_id) {
-        getDataAutocompletionFull([], session.entreprise_id, []).then(data => {
+    if(entreprise_id) {
+        getDataAutocompletionFull([], entreprise_id, []).then(data => {
             setAllOptions(data);
             setOptions(data);
         });
     }
-}, [session]);
+}, [entreprise_id]);
 
 //Initialisation de ced_table
 useEffect(() => {
     //aller chercher la table mapping filiere
-    if(session && session.entreprise_id) {
-        getMappingTableFiliere(session.entreprise_id).then(data => setCedTable(data));
+    if(entreprise_id) {
+        getMappingTableFiliere(entreprise_id).then(data => setCedTable(data));
     }
-}, [session]);
+}, [entreprise_id]);
 
 // Ajouter un useEffect pour initialiser les données avec le site sélectionné
 useEffect(() => {
@@ -468,11 +487,11 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: 
         );
 
         // Mise à jour des options si nécessaire
-    if (session?.entreprise_id) {
+    if (entreprise_id) {
         try {
                 const [filteredOptions, allOptionsData] = await Promise.all([
-                    getDataAutocompletionFull(newDataFilter, session.entreprise_id, ced_table),
-                getDataAutocompletionFull([], session.entreprise_id, ced_table)
+                    getDataAutocompletionFull(newDataFilter, entreprise_id, ced_table),
+                    getDataAutocompletionFull([], entreprise_id, ced_table)
             ]);
             
                 setOptions(filteredOptions);
@@ -491,8 +510,8 @@ const ResetData = () => {
     setCurrentFiliere("");
     setChangedField("");
     setOtherInfos(initialOtherInfos);
-    if(session?.entreprise_id) {
-        getDataAutocompletionFull([], session.entreprise_id, []).then(data => setOptions(data));
+    if(entreprise_id) {
+        getDataAutocompletionFull([], entreprise_id, []).then(data => setOptions(data));
     }
 }
 
@@ -579,7 +598,7 @@ useEffect(() => {
 // Modifier le handleTakePhoto pour stocker la photo localement
 const handleTakePhoto = async () => {
     try {
-        if (!session) {
+        if (!entreprise_id) {
             throw new Error('Vous devez être connecté pour prendre une photo');
         }
 
@@ -680,10 +699,12 @@ const onValidate = async () => {
         };
 
         // Mettre à jour le BSD dans la base de données
-        const { error } = await supabase
+        const { data: pulledUpdatedBSD, error } = await supabase
             .from('bsd')
             .update(updateData)
-            .eq('id', bsd.id);
+            .eq('id', bsd.id)
+            .select()
+            .single();
 
         if (error) {
             console.error('Erreur lors de la mise à jour:', error);
@@ -692,7 +713,18 @@ const onValidate = async () => {
         }
 
         toast.success('BSD validé avec succès');
+
+        
+        setTimeout(() => {
+            setAllBSDs(prev => prev.map(prevBSD => prevBSD.id === bsd.id ? pulledUpdatedBSD as unknown as BSD : prevBSD));
+            setAllFilteredBSDs(prev => prev.map(prevBSD => prevBSD.id === bsd.id ? pulledUpdatedBSD as unknown as BSD : prevBSD));
+            setDisplayedBSDs(prev => prev.map(prevBSD => prevBSD.id === bsd.id ? pulledUpdatedBSD as unknown as BSD : prevBSD));
+        }, 100);
+
+
+
         setModalReload(!modalReload);
+        invalidateCache(entreprise_id, user_id);
         onClose();
 
         // Nettoyer l'URL temporaire à la fermeture

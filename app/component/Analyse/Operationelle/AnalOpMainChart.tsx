@@ -34,6 +34,16 @@ const AnalOpMainChart = () => {
   const { bsds, loading, mappingTable, filieres_ou_prestataires, siretToName } = useAnalysis();
   const { filieres, segmentDates, setSegmentDates } = useFilterContext();
 
+  // Vérifier si toutes les dépendances sont initialisées
+  const isDataReady = useMemo(() => {
+    return bsds.length > 0 && 
+           mappingTable.length > 0 && 
+           filieres.length > 0 && 
+           filieres_ou_prestataires?.nom && 
+           segmentDates?.debut && 
+           segmentDates?.fin;
+  }, [bsds, mappingTable, filieres, filieres_ou_prestataires, segmentDates]);
+
   const handleDateChange = (date: Date | null, type: 'debut' | 'fin') => {
     if (date) {
         setSegmentDates({
@@ -44,6 +54,13 @@ const AnalOpMainChart = () => {
   };
 
   const filteredChartData = useMemo(() => {
+    if (!isDataReady) {
+      return {
+        labels: [],
+        datasets: []
+      };
+    }
+
     const monthLabels: string[] = [];
     const currentDate = new Date(segmentDates.debut || new Date());
     const endDate = segmentDates.fin || new Date();
@@ -61,6 +78,7 @@ const AnalOpMainChart = () => {
 
     // Initialiser les données par segment (filière ou prestataire)
     bsds.forEach(bsd => {
+      try {
       // Convertir la date PostgreSQL en objet Date
       const date = new Date(bsd.created_at);
       // Réinitialiser currentDate car il a été modifié dans la boucle while
@@ -71,14 +89,14 @@ const AnalOpMainChart = () => {
 
       let segmentKey;
       if (filieres_ou_prestataires.nom === 'prestataire') {
-        const siret = bsd.infos_json.formAPI.createFormInput.recipient.company.siret;
+          const siret = bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret;
         segmentKey = siretToName[siret] || siret;
         if (!segmentKey || segmentKey === '') {
           segmentKey = 'Non renseigné';
         }
       } else {
         segmentKey = getFiliere(
-          bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
+            bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code,
           mappingTable
         ) || 'Autres';
       }
@@ -92,12 +110,13 @@ const AnalOpMainChart = () => {
         (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
       );
       if (monthIndex >= 0 && monthIndex < monthLabels.length) {
-        const quantity = bsd.infos_json.formAPI.createFormInput.quantityReceived ? bsd.infos_json.formAPI.createFormInput.quantityReceived : bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
+          const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
+                          bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
         
-        //if(typeof quantity !== 'number')console.log("quantité", quantity, bsd.id);
-          
-        
-        quantitiesBySegment[segmentKey][monthIndex] += quantity;
+          quantitiesBySegment[segmentKey][monthIndex] += Number(quantity) || 0;
+        }
+      } catch (error) {
+        console.warn('Erreur lors du traitement d\'un BSD:', error);
       }
     });
 
