@@ -414,7 +414,7 @@ const TableBSD = () => {
 
     // Effet pour charger plus de données quand nécessaire
     useEffect(() => {
-        const shouldLoadMore = displayedBSDs.length < 25 && !isLoadingMore && !loadingBSDs && hasMore;
+        const shouldLoadMore = displayedBSDs.length < 25 && !isLoadingMore && !loadingBSDs && hasMore && !filterPendingBSDs;
         
         if (shouldLoadMore) {
             console.log('Chargement de plus de données...', {

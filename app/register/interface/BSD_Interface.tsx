@@ -861,10 +861,10 @@ receivedAt: string;
 
 signedAt?: string;
 
-quantityReceived: number;
-quantityReceivedType: string;
-quantityAccepted: number;
-quantityRefused: number;
+quantityReceived?: number;
+quantityReceivedType?: string;
+quantityAccepted?: number;
+quantityRefused?: number;
 
 processingOperationDone: string;
 processingOperationDescription: string;

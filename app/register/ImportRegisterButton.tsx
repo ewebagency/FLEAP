@@ -271,10 +271,10 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
 
                 signedAt: '',//row["dateReceptionInstallationDestination"]?.toString() || "",
 
-                quantityReceived: parseFloat(row["quantiteReceptionneeNetInstallationDestination"]?.toString() || "0"),
-                quantityReceivedType: row["quantiteEstimeeReelleReceptionInstallationDestination"]?.toString() as 'REAL'|'ESTIMATED' || 'ESTIMATED',
-                quantityAccepted: parseFloat(row["quantiteReceptionneeNetInstallationDestination"]?.toString() || "0") - parseFloat(row["quantiteRefuseeInstallationDestination"]?.toString() || "0"),
-                quantityRefused: parseFloat(row["quantiteRefuseeInstallationDestination"]?.toString() || "0"),
+                //quantityReceived: parseFloat(row["quantiteReceptionneeNetInstallationDestination"]?.toString() || "0"),
+                //quantityReceivedType: row["quantiteEstimeeReelleReceptionInstallationDestination"]?.toString() as 'REAL'|'ESTIMATED' || 'ESTIMATED',
+                //quantityAccepted: parseFloat(row["quantiteReceptionneeNetInstallationDestination"]?.toString() || "0") - parseFloat(row["quantiteRefuseeInstallationDestination"]?.toString() || "0"),
+                //quantityRefused: parseFloat(row["quantiteRefuseeInstallationDestination"]?.toString() || "0"),
                 
                 processingOperationDone: row["codeTraitementRealiseInstallationDestination"]?.toString() || "",
                 processingOperationDescription: row["qualificationTraitementInstallationDestination"]?.toString() || "",
