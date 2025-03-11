@@ -632,10 +632,15 @@ const TableBSD = () => {
     };
 
     const handleValidateLine = async (bsd: BSD) => {
+        const {data: bsdFromSupabase, error: bsdError} = await supabase.from('bsd').select('*').eq('id', bsd.id).single();
+        if(bsdError){
+            toast.error("Erreur lors de la récupération du BSD");
+            return;
+        }
         const updatedFormInput = {
-            ...bsd.infos_json.formAPI.createFormInput,
+            ...bsdFromSupabase.infos_json.formAPI.createFormInput,
             wasteDetails: {
-                ...bsd.infos_json.formAPI.createFormInput.wasteDetails,
+                ...bsdFromSupabase.infos_json.formAPI.createFormInput.wasteDetails,
                 quantity: weightInputs[bsd.id] || 0
             }
         };
@@ -645,9 +650,9 @@ const TableBSD = () => {
             .update({ 
                 status_track_dechets: 'Collecté',
                 infos_json: {
-                    ...bsd.infos_json,
+                    ...bsdFromSupabase.infos_json,
                     formAPI: {
-                        ...bsd.infos_json.formAPI,
+                        ...bsdFromSupabase.infos_json.formAPI,
                         createFormInput: updatedFormInput
                     }
                 }
@@ -660,12 +665,12 @@ const TableBSD = () => {
             setAllBSDs(prevBsds => prevBsds.map(prevBsd => 
                 prevBsd.id === bsd.id 
                     ? { 
-                        ...prevBsd, 
+                        ...bsdFromSupabase, 
                         status_track_dechets: 'Collecté',
                         infos_json: {
-                            ...prevBsd.infos_json,
+                            ...bsdFromSupabase.infos_json,
                             formAPI: {
-                                ...prevBsd.infos_json.formAPI,
+                                ...bsdFromSupabase.infos_json.formAPI,
                                 createFormInput: updatedFormInput
                             }
                         }
