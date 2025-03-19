@@ -19,14 +19,14 @@ interface SavingsSummary {
 }
 
 const OptiButton = ({ validFactures, onOptiChange }: OptiButtonProps) => {
-    // Si le bouton est désactivé, on ne rend rien
-    if (!ENABLE_OPTIMIZATION_BUTTON) return null;
-
     const [isLoading, setIsLoading] = useState(false);
     const [optiActivated, setOptiActivated] = useState(false);
     const [optiFactures, setOptiFactures] = useState<Facture[]>([]);
     const [showDetails, setShowDetails] = useState(false);
     const [savingsSummary, setSavingsSummary] = useState<SavingsSummary>({});
+
+    // Si le bouton est désactivé, on ne rend rien
+    if (!ENABLE_OPTIMIZATION_BUTTON) return null;
 
     const calculateSavings = (original: Facture[], optimized: Facture[]) => {
         const summary: SavingsSummary = {};
