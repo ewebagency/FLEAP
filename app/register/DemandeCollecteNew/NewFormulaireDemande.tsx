@@ -382,16 +382,29 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement | HTMLInputEl
 
         if (field === 'name') {
             newLines[index].wasteDetails.name = value;
-            // Chercher le code CED correspondant
-            const matchingOption = options.find(opt => 
+            // Filtrer les options sur le nom du déchet
+            const filteredByWasteName = allOptions.filter(opt => 
                 opt.json_row?.wasteDetails?.name === value
             );
-            if (matchingOption?.json_row?.wasteDetails?.code) {
-                newLines[index].wasteDetails.code = matchingOption.json_row.wasteDetails.code;
-                // Mettre à jour la filière aussi
-                const newFiliere = getFiliere(matchingOption.json_row.wasteDetails.code, ced_table);
-                if (newFiliere) {
-                    newLines[index].filiere = newFiliere;
+            
+            // Si on a des options filtrées, prendre la plus fréquente
+            if (filteredByWasteName.length > 0) {
+                const mostFrequentCode = filteredByWasteName.reduce((acc, curr) => {
+                    const code = curr.json_row?.wasteDetails?.code;
+                    if (!code) return acc;
+                    acc[code] = (acc[code] || 0) + 1;
+                    return acc;
+                }, {} as Record<string, number>);
+
+                const mostFrequent = Object.entries(mostFrequentCode)
+                    .sort(([,a], [,b]) => b - a)[0];
+
+                if (mostFrequent) {
+                    newLines[index].wasteDetails.code = mostFrequent[0];
+                    const newFiliere = getFiliere(mostFrequent[0], ced_table);
+                    if (newFiliere) {
+                        newLines[index].filiere = newFiliere;
+                    }
                 }
             }
         } else if (field === 'code') {
@@ -407,18 +420,37 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement | HTMLInputEl
             const subField = parts[3]; // Utiliser parts[3] au lieu de subField
             
             if (subField === 'containerDescription') {
-                // Chercher les valeurs correspondantes dans les options
-                const matchingOption = options.find(opt => 
+                // Filtrer les options sur le type de contenant
+                const filteredByContainer = allOptions.filter(opt => 
                     opt.other_infos?.containerDescription === value
                 );
                 
-                // Mettre à jour le volume et l'unité si disponibles
-                if (matchingOption?.other_infos) {
+                // Si on a des options filtrées, prendre les valeurs les plus fréquentes
+                if (filteredByContainer.length > 0) {
+                    const mostFrequentVolume = filteredByContainer.reduce((acc, curr) => {
+                        const volume = curr.other_infos?.volume;
+                        if (!volume) return acc;
+                        acc[volume] = (acc[volume] || 0) + 1;
+                        return acc;
+                    }, {} as Record<string, number>);
+
+                    const mostFrequentUnit = filteredByContainer.reduce((acc, curr) => {
+                        const unit = curr.other_infos?.volumeUnit;
+                        if (!unit) return acc;
+                        acc[unit] = (acc[unit] || 0) + 1;
+                        return acc;
+                    }, {} as Record<string, number>);
+
+                    const mostFrequentVolumeValue = Object.entries(mostFrequentVolume)
+                        .sort(([,a], [,b]) => b - a)[0]?.[0];
+                    const mostFrequentUnitValue = Object.entries(mostFrequentUnit)
+                        .sort(([,a], [,b]) => b - a)[0]?.[0];
+
                     newLines[index].other_infos = {
                         ...newLines[index].other_infos,
                         containerDescription: value,
-                        volume: matchingOption.other_infos.volume || newLines[index].other_infos.volume || '',
-                        volumeUnit: matchingOption.other_infos.volumeUnit || newLines[index].other_infos.volumeUnit || ''
+                        volume: mostFrequentVolumeValue || newLines[index].other_infos.volume || '',
+                        volumeUnit: mostFrequentUnitValue || newLines[index].other_infos.volumeUnit || ''
                     };
                 } else {
                     newLines[index].other_infos = {
@@ -500,19 +532,65 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement | HTMLInputEl
                     if (filteredOptions.length === 1) {
                         const option = filteredOptions[0];
                         if (field === 'name' && option.json_row?.wasteDetails?.code) {
-                            newLines[index].wasteDetails.code = option.json_row.wasteDetails.code;
-                            const newFiliere = getFiliere(option.json_row.wasteDetails.code, ced_table);
-                            if (newFiliere) {
-                                newLines[index].filiere = newFiliere;
+                            // Filtrer les options sur le nom du déchet
+                            const filteredByWasteName = allOptionsData.filter(opt => 
+                                opt.json_row?.wasteDetails?.name === value
+                            );
+                            
+                            // Si on a des options filtrées, prendre la plus fréquente
+                            if (filteredByWasteName.length > 0) {
+                                const mostFrequentCode = filteredByWasteName.reduce((acc, curr) => {
+                                    const code = curr.json_row?.wasteDetails?.code;
+                                    if (!code) return acc;
+                                    acc[code] = (acc[code] || 0) + 1;
+                                    return acc;
+                                }, {} as Record<string, number>);
+
+                                const mostFrequent = Object.entries(mostFrequentCode)
+                                    .sort(([,a], [,b]) => b - a)[0];
+
+                                if (mostFrequent) {
+                                    newLines[index].wasteDetails.code = mostFrequent[0];
+                                    const newFiliere = getFiliere(mostFrequent[0], ced_table);
+                                    if (newFiliere) {
+                                        newLines[index].filiere = newFiliere;
+                                    }
+                                }
                             }
                         } else if (field === 'other_infos' && parts[3] === 'containerDescription' && option.other_infos) {
-                            // Autocomplétion pour le contenant
-                            newLines[index].other_infos = {
-                                ...newLines[index].other_infos,
-                                containerDescription: value,
-                                volume: option.other_infos.volume || newLines[index].other_infos.volume || '',
-                                volumeUnit: option.other_infos.volumeUnit || newLines[index].other_infos.volumeUnit || ''
-                            };
+                            // Filtrer les options sur le type de contenant
+                            const filteredByContainer = allOptionsData.filter(opt => 
+                                opt.other_infos?.containerDescription === value
+                            );
+                            
+                            // Si on a des options filtrées, prendre les valeurs les plus fréquentes
+                            if (filteredByContainer.length > 0) {
+                                const mostFrequentVolume = filteredByContainer.reduce((acc, curr) => {
+                                    const volume = curr.other_infos?.volume;
+                                    if (!volume) return acc;
+                                    acc[volume] = (acc[volume] || 0) + 1;
+                                    return acc;
+                                }, {} as Record<string, number>);
+
+                                const mostFrequentUnit = filteredByContainer.reduce((acc, curr) => {
+                                    const unit = curr.other_infos?.volumeUnit;
+                                    if (!unit) return acc;
+                                    acc[unit] = (acc[unit] || 0) + 1;
+                                    return acc;
+                                }, {} as Record<string, number>);
+
+                                const mostFrequentVolumeValue = Object.entries(mostFrequentVolume)
+                                    .sort(([,a], [,b]) => b - a)[0]?.[0];
+                                const mostFrequentUnitValue = Object.entries(mostFrequentUnit)
+                                    .sort(([,a], [,b]) => b - a)[0]?.[0];
+
+                                newLines[index].other_infos = {
+                                    ...newLines[index].other_infos,
+                                    containerDescription: value,
+                                    volume: mostFrequentVolumeValue || newLines[index].other_infos.volume || '',
+                                    volumeUnit: mostFrequentUnitValue || newLines[index].other_infos.volumeUnit || ''
+                                };
+                            }
                         }
                         setWasteLines(newLines);
                     }
@@ -576,7 +654,15 @@ useEffect(() => {
                         allOptions,
                         newData,
                         config.parent,
-                        childField
+                        childField,
+                        // Liste des champs qui doivent utiliser le filtrage uniquement sur le parent direct
+                        [
+                            'emitter.company.siret', 'wasteDetails.code', 'wasteDetails.isSubjectToADR', 'wasteDetails.onuCode', 'wasteDetails.consistence',
+                            'other_infos.volume', 'other_infos.volumeUnit', 
+                            'transporter.company.siret', 'recipient.company.siret',
+                            'recipient.company.contact', 'recipient.company.mail', 'recipient.company.phone',
+                            'transporter.company.contact', 'transporter.company.mail', 'transporter.company.phone'
+                        ].includes(childField)
                     );
                     
                     if (suggestedValue) {

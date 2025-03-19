@@ -455,30 +455,48 @@ const handleOtherInfosChange = async (updates: Partial<{
 
                 // Si le champ changé est containerDescription, mettre à jour volume et volumeUnit
                 if (changedFieldName === 'containerDescription') {
-                    const suggestedVolume = preciseFilter(
-                        allOptionsData,
-                        dataToogle,
-                        ['other_infos.containerDescription'],
-                        'other_infos.volume'
-                    );
-                    const suggestedUnit = preciseFilter(
-                        allOptionsData,
-                        dataToogle,
-                        ['other_infos.containerDescription'],
-                        'other_infos.volumeUnit'
+                    // Filtrer les options sur le containerDescription
+                    const filteredByContainer = allOptionsData.filter(opt => 
+                        opt.other_infos?.containerDescription === fieldValue
                     );
 
-                    if (suggestedVolume) {
-                        setOtherInfos(prev => ({
-                            ...prev,
-                            volume: suggestedVolume
-                        }));
-                    }
-                    if (suggestedUnit) {
-                        setOtherInfos(prev => ({
-                            ...prev,
-                            volumeUnit: suggestedUnit
-                        }));
+                    if (filteredByContainer.length > 0) {
+                        // Calculer les valeurs les plus fréquentes pour volume et volumeUnit
+                        const volumeCounts = filteredByContainer.reduce((acc, opt) => {
+                            const volume = opt.other_infos?.volume;
+                            if (volume) {
+                                acc[volume] = (acc[volume] || 0) + 1;
+                            }
+                            return acc;
+                        }, {} as Record<string, number>);
+
+                        const volumeUnitCounts = filteredByContainer.reduce((acc, opt) => {
+                            const unit = opt.other_infos?.volumeUnit;
+                            if (unit) {
+                                acc[unit] = (acc[unit] || 0) + 1;
+                            }
+                            return acc;
+                        }, {} as Record<string, number>);
+
+                        // Trouver les valeurs les plus fréquentes
+                        const mostFrequentVolume = Object.entries(volumeCounts)
+                            .sort(([,a], [,b]) => b - a)[0]?.[0];
+                        const mostFrequentUnit = Object.entries(volumeUnitCounts)
+                            .sort(([,a], [,b]) => b - a)[0]?.[0];
+
+                        // Mettre à jour les valeurs si elles existent
+                        if (mostFrequentVolume) {
+                            setOtherInfos(prev => ({
+                                ...prev,
+                                volume: mostFrequentVolume
+                            }));
+                        }
+                        if (mostFrequentUnit) {
+                            setOtherInfos(prev => ({
+                                ...prev,
+                                volumeUnit: mostFrequentUnit
+                            }));
+                        }
                     }
                 }
             } catch (error) {

@@ -13,6 +13,9 @@ import { Chart } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Context } from 'chartjs-plugin-datalabels';
 
+// Flag pour activer/désactiver l'échelle fixe
+const ENABLE_FIXED_SCALE = false;
+
 interface Props {
     factures: Facture[];
     entreprise_id: string;
@@ -21,6 +24,8 @@ interface Props {
 const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
     const { filieres, segmentDates, setSegmentDates } = useFilterContext();
+    const [maxScale, setMaxScale] = useState<number | null>(null);
+    const [minScale, setMinScale] = useState<number | null>(null);
     
     const handleDateChange = (date: Date | null, type: 'debut' | 'fin') => {
         if (date) {
@@ -136,11 +141,31 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             })
         ];
 
+        // Calculate min and max values for the first time
+        if (ENABLE_FIXED_SCALE && (minScale === null || maxScale === null)) {
+            let allValues: number[] = [];
+            Object.values(positiveAmountsByFiliere).forEach(data => {
+                allValues = [...allValues, ...data];
+            });
+            Object.values(negativeAmountsByFiliere).forEach(data => {
+                allValues = [...allValues, ...data.map(v => -v)];
+            });
+            
+            if (allValues.length > 0) {
+                const maxValue = Math.max(...allValues);
+                const minValue = Math.min(...allValues);
+                // Add 10% padding to the scales
+                const arrondi = 100;
+                setMaxScale(Math.round(maxValue * 2 / arrondi) * arrondi);
+                setMinScale(Math.round(minValue * 1.5 / arrondi) * arrondi);
+            }
+        }
+
         return {
             labels: monthLabels,
             datasets: datasets
         };
-    }, [factures, mappingTable, filieres, segmentDates]);
+    }, [factures, mappingTable, filieres, segmentDates, maxScale, minScale]);
 
     if (!mappingTable.length) {
         return <div className="text-center text-gray-500">Chargement des données...</div>;
@@ -304,7 +329,9 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
         },
         scales: {
             y: {
-                beginAtZero: true,
+                beginAtZero: false,
+                min: ENABLE_FIXED_SCALE ? minScale || undefined : undefined,
+                max: ENABLE_FIXED_SCALE ? maxScale || undefined : undefined,
                 title: {
                     display: true,
                     text: 'Euros'

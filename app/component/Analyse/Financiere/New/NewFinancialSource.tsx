@@ -9,6 +9,7 @@ import NewTableFinancial from "./NewTableFinancial";
 import NewBordereauxFinancial from "./NewBordereauxFinancial";
 import { useFilterContext } from '@/app/FilterContext';
 import { getFiliere, getMappingTableFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
+import OptiButton from "../../../Analyse/Optimisation/OptiButton";
 
 const NewFinancialSource = () => {
     const session = useSession() as SessionMore;
@@ -17,6 +18,8 @@ const NewFinancialSource = () => {
     const [factures, setFactures] = useState<Facture[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
+    const [optiFactures, setOptiFactures] = useState<Facture[]>([]);
+    const [isOptiActive, setIsOptiActive] = useState(false);
     
     useEffect(() => {
         if (!session?.entreprise_id) return;
@@ -193,28 +196,42 @@ const NewFinancialSource = () => {
         };
     }).filter(facture => facture.infos_json.departs.length > 0);
 
+    const handleOptiChange = (optiActivated: boolean, optimizedFactures: Facture[]) => {
+        setIsOptiActive(optiActivated);
+        setOptiFactures(optimizedFactures);
+    };
+
     if (isLoading) {
         return <div className="flex justify-center items-center p-4">
             <div className="text-gray-500">Chargement des données...</div>
         </div>;
     }
 
+    const displayFactures = isOptiActive ? optiFactures : validFactures;
+
     return (
         <div>
             {entreprise_id && <div className="space-y-4 p-2">
-                <NewBordereauxFinancial factures={validFactures} />
+                <div className="flex justify-between items-center">
+                    <div className="flex-grow">
+                        <NewBordereauxFinancial factures={displayFactures} />
+                    </div>
+                    <div className="ml-4">
+                        <OptiButton validFactures={validFactures} onOptiChange={handleOptiChange} />
+                    </div>
+                </div>
                 <div className="bg-white rounded-lg">
-                    <NewMainFinancialChart factures={validFactures} entreprise_id={entreprise_id} />
+                    <NewMainFinancialChart factures={displayFactures} entreprise_id={entreprise_id} />
                 </div>
                 <div className="flex flex-row justify-between gap-2">
                     <div className="bg-white rounded-lg w-[60%]">
-                        <NewTableFinancial factures={validFactures} entreprise_id={entreprise_id} />
+                        <NewTableFinancial factures={displayFactures} entreprise_id={entreprise_id} />
                     </div>
                     <div className="bg-white rounded-lg w-[40%]">
                         <div className="p-2">
                             <h2 className="text-xs text-gray-500 font-thin">Répartition par filière</h2>
                         </div>
-                        <NewPieFinancialChart factures={validFactures} entreprise_id={entreprise_id} />
+                        <NewPieFinancialChart factures={displayFactures} entreprise_id={entreprise_id} />
                     </div>
                 </div>
             </div>}

@@ -391,25 +391,43 @@ export const preciseFilter = (
     allOptions: {json_row: FormInput, other_infos?: OtherInfos}[], 
     alreadyChosenData: FormInput, 
     fieldsForFilter: string[], 
-    interestField: string
+    interestField: string,
+    doNotUseDataFilter?: boolean
 ): string => {
     try {
-        // 1. Filtrer les options qui correspondent aux champs déjà remplis
-        const filteredOptions = allOptions.filter(option => {
-            return fieldsForFilter.every(field => {
-                const value = field.split('.').reduce<unknown>((obj, key) => 
+        // 1. Filtrer les options selon les champs déjà remplis
+        const filteredOptions = doNotUseDataFilter 
+            ? allOptions.filter(option => {
+                // Ne filtrer que sur le champ parent direct de filter_dependencies
+                const parentField = fieldsForFilter[0]; // Le premier champ parent est celui qui déclenche l'autocomplétion
+                const value = parentField.split('.').reduce<unknown>((obj, key) => 
                     typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
                     option.json_row as unknown as Record<string, unknown>
                 );
-                const chosenValue = field.split('.').reduce<unknown>((obj, key) => 
+                const chosenValue = parentField.split('.').reduce<unknown>((obj, key) => 
                     typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
                     alreadyChosenData as unknown as Record<string, unknown>
                 );
                 
                 if (!chosenValue) return true;
                 return value === chosenValue;
+            })
+            : allOptions.filter(option => {
+                // Comportement actuel : filtrer sur tous les champs parents
+                return fieldsForFilter.every(field => {
+                    const value = field.split('.').reduce<unknown>((obj, key) => 
+                        typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                        option.json_row as unknown as Record<string, unknown>
+                    );
+                    const chosenValue = field.split('.').reduce<unknown>((obj, key) => 
+                        typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                        alreadyChosenData as unknown as Record<string, unknown>
+                    );
+                    
+                    if (!chosenValue) return true;
+                    return value === chosenValue;
+                });
             });
-        });
 
         // 2. Si aucune option ne correspond, retourner une chaîne vide
         if (filteredOptions.length === 0) return '';

@@ -2,7 +2,7 @@
 import { Doughnut } from 'react-chartjs-2';
 import { Facture, ChartData } from '../types';
 import { Chart as ChartJS, TooltipItem, LegendItem } from 'chart.js';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { tailwindToRgb } from '../../MetaComponent/Colours';
 import { Filiere, useFilterContext } from '@/app/FilterContext';
@@ -24,47 +24,57 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
         fetchMappingTable();
     }, [entreprise_id]);
 
-    // Group amounts by filière, separating costs and revenues
-    const { costs, revenues } = factures.reduce((acc: { 
-        costs: { [key: string]: number }, 
-        revenues: { [key: string]: number }
-    }, facture) => {
-        const departsCount = facture.infos_json.departs.length;
-        const montantParDepart = facture.infos_json.footer.total_ht / departsCount;
+    // Memoize the costs and revenues calculations
+    const { costs, revenues } = useMemo(() => {
+        return factures.reduce((acc: { 
+            costs: { [key: string]: number }, 
+            revenues: { [key: string]: number }
+        }, facture) => {
+            const departsCount = facture.infos_json.departs.length;
+            const montantParDepart = facture.infos_json.footer.total_ht / departsCount;
 
-        facture.infos_json.departs.forEach(depart => {
-            const cleanedCed = depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
-            const filiere = mappingTable.find(m => m.ced.replace(' ', '').replace('*', '') === cleanedCed)?.filiere || 'Autres';
+            facture.infos_json.departs.forEach(depart => {
+                const cleanedCed = depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
+                const filiere = mappingTable.find(m => m.ced.replace(' ', '').replace('*', '') === cleanedCed)?.filiere || 'Autres';
+                
+                if (montantParDepart < 0) {
+                    if (!acc.costs[filiere]) acc.costs[filiere] = 0;
+                    acc.costs[filiere] += Math.abs(montantParDepart);
+                } else {
+                    if (!acc.revenues[filiere]) acc.revenues[filiere] = 0;
+                    acc.revenues[filiere] += montantParDepart;
+                }
+            });
             
-            if (montantParDepart < 0) {
-                if (!acc.costs[filiere]) acc.costs[filiere] = 0;
-                acc.costs[filiere] += Math.abs(montantParDepart);
-            } else {
-                if (!acc.revenues[filiere]) acc.revenues[filiere] = 0;
-                acc.revenues[filiere] += montantParDepart;
-            }
-        });
-        
-        return acc;
-    }, { costs: {}, revenues: {} });
+            return acc;
+        }, { costs: {}, revenues: {} });
+    }, [factures, mappingTable]); // Add dependencies
 
-    const getChartData = (data: {[key: string]: number}): ChartData => {
-        const colors = Object.keys(data).map(filiere => {
-            const filiereColor = filieres.find(f => f.name === filiere)?.color || '#000000';
-            return tailwindToRgb(filiereColor);
-        });
+    // Memoize the chart data generation
+    const chartData = useMemo(() => {
+        const getChartData = (data: {[key: string]: number}): ChartData => {
+            const colors = Object.keys(data).map(filiere => {
+                const filiereColor = filieres.find(f => f.name === filiere)?.color || '#000000';
+                return tailwindToRgb(filiereColor);
+            });
 
-        const total = Object.values(data).reduce((sum, value) => sum + value, 0);
+            const total = Object.values(data).reduce((sum, value) => sum + value, 0);
+
+            return {
+                labels: Object.keys(data),
+                datasets: [{
+                    label: 'Montant',
+                    data: Object.values(data),
+                    backgroundColor: colors,
+                }]
+            };
+        };
 
         return {
-            labels: Object.keys(data),
-            datasets: [{
-                label: 'Montant',
-                data: Object.values(data),
-                backgroundColor: colors,
-            }]
+            costs: getChartData(costs),
+            revenues: getChartData(revenues)
         };
-    };
+    }, [costs, revenues, filieres]);
 
     // Plugin pour afficher le titre au centre
     const centerTextPlugin = (title: string) => {
@@ -157,7 +167,7 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
             <div className="flex flex-col">
                 <div className="h-[200px] relative">
                     <Doughnut 
-                        data={getChartData(revenues)}
+                        data={chartData.revenues}
                         options={getOptions('Coûts')}
                         plugins={[centerTextPlugin('Coûts')]}
                     />
@@ -167,7 +177,7 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
             <div className="flex flex-col">
                 <div className="h-[200px] relative">
                     <Doughnut 
-                        data={getChartData(costs)}
+                        data={chartData.costs}
                         options={getOptions('Revenus')}
                         plugins={[centerTextPlugin('Revenus')]}
                     />
