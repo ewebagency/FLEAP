@@ -138,9 +138,8 @@ const DisplayCard = () => {
                                 {otherInfos?.volume && (
                                     <div className="bg-indigo-50 p-3 rounded border border-indigo-100 mt-4">
                                         <div className="flex justify-start items-center space-x-2">
-
                                             <h3 className="font-semibold text-indigo-800 mb-2">Informations contenant</h3>
-                                            <p className="text-sm text-gray-600 mb-2">- N&apos;est pas sur TrackDéchets</p>
+                                            <p className="text-sm text-gray-600 mb-2 hidden">- N&apos;est pas sur TrackDéchets</p>
                                         </div>
                                         <LabelValue 
                                             label="Infos supp." 
@@ -150,7 +149,19 @@ const DisplayCard = () => {
                                             label="Volume" 
                                             value={`${otherInfos.volume} ${otherInfos.volumeUnit}`} 
                                         />
+                                    </div>
+                                )}
 
+                                {/* Section des commentaires */}
+                                {otherInfos?.comments && (
+                                    <div className="bg-teal-50 p-3 rounded border border-teal-100 mt-4">
+                                        <div className="flex justify-start items-center space-x-2">
+                                            <h3 className="font-semibold text-teal-800 mb-2">Commentaires</h3>
+                                            <p className="text-sm text-gray-600 mb-2 hidden">- Cette partie n&apos;est pas sur TrackDéchets</p>
+                                        </div>
+                                        <div className="mt-2">
+                                            <p className="text-gray-700 whitespace-pre-wrap">{otherInfos.comments}</p>
+                                        </div>
                                     </div>
                                 )}
 

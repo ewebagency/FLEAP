@@ -37,14 +37,14 @@ interface EmitterInfo {
 
 // Fonction fetcher pour SWR
 const fetcherSites = async (entreprise_id: string) => {
-    console.log('Début du fetch pour entreprise_id:', entreprise_id);
+    //console.log('Début du fetch pour entreprise_id:', entreprise_id);
     const pageSize = 1000;
     let allData: EmitterInfo[] = [];
     let hasMore = true;
     let page = 0;
 
     while (hasMore) {
-        console.log(`Chargement de la page ${page}`);
+        //console.log(`Chargement de la page ${page}`);
         const { data, error, count } = await supabase
             .from('bsd')
             .select('infos_json', { count: 'exact' })
@@ -57,7 +57,7 @@ const fetcherSites = async (entreprise_id: string) => {
         }
         
         if (data && data.length > 0) {
-            console.log(`${data.length} enregistrements trouvés dans la page ${page}`);
+            //console.log(`${data.length} enregistrements trouvés dans la page ${page}`);
             const validData = data
                 .filter(row => {
                     const company = row.infos_json?.formAPI?.createFormInput?.emitter?.company;
@@ -70,18 +70,18 @@ const fetcherSites = async (entreprise_id: string) => {
                     }
                 }));
             
-            console.log(`Données valides trouvées: ${validData.length}`);
+            //console.log(`Données valides trouvées: ${validData.length}`);
             allData = [...allData, ...validData];
             
             hasMore = count ? allData.length < count : false;
             page++;
         } else {
-            console.log('Aucune donnée trouvée ou fin des données');
+            //console.log('Aucune donnée trouvée ou fin des données');
             hasMore = false;
         }
     }
 
-    console.log(`Total des sites trouvés: ${allData.length}`);
+    //console.log(`Total des sites trouvés: ${allData.length}`);
     return allData;
 };
 
@@ -117,14 +117,14 @@ const FiltreSiteEtablissement = () => {
 
     // Effet pour traiter les données des émetteurs avec logs de débogage
     useEffect(() => {
-        console.log('État du chargement:', {
-            isLoadingSWR,
-            isLoadingTrack,
-            hasEmitterData: !!emitterData,
-            emitterDataLength: emitterData?.length,
-            additionalSitesLength: additionnalSites.length,
-            etablissementsLength: etablissementsWithStatus.length
-        });
+        //console.log('État du chargement:', {
+        //    isLoadingSWR,
+        //    isLoadingTrack,
+        //    hasEmitterData: !!emitterData,
+        //    emitterDataLength: emitterData?.length,
+        //    additionalSitesLength: additionnalSites.length,
+        //    etablissementsLength: etablissementsWithStatus.length
+        //});
 
         if (emitterData) {
             // Créer un Map pour regrouper les sites par SIRET
@@ -158,7 +158,7 @@ const FiltreSiteEtablissement = () => {
                 };
             });
 
-            console.log('Sites uniques trouvés:', uniqueSites.length);
+            //console.log('Sites uniques trouvés:', uniqueSites.length);
             setAdditionnalSites(uniqueSites);
             setIsInitialLoad(false);
         }
@@ -170,7 +170,7 @@ const FiltreSiteEtablissement = () => {
             const trackDechetsToken = Cookies.get('trackdechets_token');
             
             if (!trackDechetsToken) {
-                console.log('Pas de token TrackDéchets - skip');
+                //console.log('Pas de token TrackDéchets - skip');
                 setIsLoadingTrack(false);
                 return;
             }
@@ -179,14 +179,14 @@ const FiltreSiteEtablissement = () => {
                 setIsLoadingTrack(true);
                 const response = await fetch('/api/demande_collecte/web_hook/get_all_web_hooks_informations');
                 if (!response.ok) {
-                    console.log('Erreur réponse webhook');
+                    //console.log('Erreur réponse webhook');
                     return;
                 }
                 const data = await response.json();
-                console.log('Webhooks reçus:', data.data?.length || 0);
+                //console.log('Webhooks reçus:', data.data?.length || 0);
                 setEtablissementsWithStatus(data.data || []);
             } catch (err) {
-                console.error('Erreur webhook:', err);
+                //console.error('Erreur webhook:', err);
             } finally {
                 setIsLoadingTrack(false);
             }
@@ -200,7 +200,7 @@ const FiltreSiteEtablissement = () => {
     useEffect(() => {
 
         if (!entreprise_id) {
-            console.log('[Effect 3] Pas d\'entreprise_id, retour');
+            //console.log('[Effect 3] Pas d\'entreprise_id, retour');
             return;
         }
 
@@ -332,7 +332,7 @@ const FiltreSiteEtablissement = () => {
         
         const fetchMappingSite = async () => {
             if (!entreprise_id) {
-                console.log('[Effect 4] Pas d\'entreprise_id, retour');
+                //console.log('[Effect 4] Pas d\'entreprise_id, retour');
                 return;
             }
             
@@ -344,7 +344,7 @@ const FiltreSiteEtablissement = () => {
                     .single();
 
                 if (error) {
-                    console.error('[Effect 4] Erreur mapping_site:', error);
+                    //console.error('[Effect 4] Erreur mapping_site:', error);
                     return;
                 }
 
@@ -353,7 +353,7 @@ const FiltreSiteEtablissement = () => {
                     setMappingSite(data.mapping_site);
                 }
             } catch (error) {
-                console.error('[Effect 4] Erreur mapping_site:', error);
+                //console.error('[Effect 4] Erreur mapping_site:', error);
             }
         };
 
@@ -514,18 +514,18 @@ const FiltreSiteEtablissement = () => {
 
     // Mise à jour de la condition de rendu pour le chargement
     if ((isLoadingSWR || isLoadingTrack) && additionnalSites.length === 0) {
-        console.log('Affichage du chargement - États:', { isLoadingSWR, isLoadingTrack });
+        //console.log('Affichage du chargement - États:', { isLoadingSWR, isLoadingTrack });
         return <div className="text-sm text-gray-500 ml-2">Chargement des sites...</div>;
     }
     
     if (swrError) {
-        console.error('Erreur SWR:', swrError);
+        //console.error('Erreur SWR:', swrError);
         return <div className="text-sm text-gray-500 ml-2">Erreur lors du chargement des sites</div>;
     }
 
     // Ne pas afficher "Aucun site disponible" pendant le chargement
     if (!isLoadingSWR && !isLoadingTrack && additionnalSites.length === 0 && etablissementsWithStatus.length === 0) {
-        console.log('Aucun site disponible après chargement complet');
+        //console.log('Aucun site disponible après chargement complet');
         return <div className="text-sm text-gray-500 ml-2">Aucun site disponible</div>;
     }
 

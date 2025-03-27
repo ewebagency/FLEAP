@@ -993,7 +993,8 @@ export interface OtherInfos {
     automaticMode?: boolean;
     containerDescription: string;      
     recipientEmail?: string;
-  }
+    comments?: string;
+}
 
 export interface CompleteFormInput{
     other_infos?: OtherInfos;

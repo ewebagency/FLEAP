@@ -25,7 +25,14 @@ interface EmailParams {
             city: string;
         };
     };
+    adminEmail: string;
     destinataire: string;
+    mention: {
+        toMentionned: boolean;
+        mentionType: string;
+        mentionCompany: string;
+        mentionAddress: string;
+    };
     entrepriseId: string;
     entrepriseName: string;
     entrepriseGlobalName: string;
@@ -73,24 +80,33 @@ const emailTemplate: EmailTemplate = {
         return `Bonjour,
 Je souhaite organiser des collectes de déchets pour ${params.entrepriseName} ${collectAddress ? `à l'adresse suivante : ${collectAddress}` : ''}.
 
+
 Voici la liste des collectes attendues :
 ${Object.entries(wastesByDate).map(([date, lines]) => `
 ${date === 'Dès que possible' ? 'Dès que possible' : `Le ${date.split('-')[2]}/${date.split('-')[1]}/${date.split('-')[0]}`}
 ${lines.map(line => {
-    const container = line.container + (line.volume ? ` - ${line.volume} ${line.volumeUnit}` : '');
+    const container = line.container; //+ (line.volume ? ` - ${line.volume} ${line.volumeUnit}` : '');
     return `• 1 ${container} ${line.description ? `de ${line.description}` : ''} ${line.code ? `(${line.code})` : ''}`;
 }).join('\n')}`).join('\n')}
 
+${params.mention.toMentionned ? (
+    params.mention.mentionType === 'recipient' ? `L’installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+                                                : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
+) : ''}
+
+
 Merci de me confirmer la prise en charge de toutes les demandes de collecte ci-dessus.
 
-Merci et bonne journée,
+
+Cordialement,
 
 ${params.emitter.contact}
 ${params.entrepriseGlobalName}
 ${params.emitter.phone ? `Tél : ${params.emitter.phone}` : ''}
 ${params.emitter.email ? `Email : ${params.emitter.email}` : ''}
 
-Email envoyé depuis FLEAP`;
+Email envoyé depuis FLEAP
+Merci de « Répondre à tous » pour la confirmation`;
     }
 };
 
@@ -113,9 +129,9 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
         setTo(params.destinataire || '');
         setReplyTo(params.emitter.email || '');
         if (params.emitter.email && !ccList.includes(params.emitter.email)) {
-            setCcList([...ccList, params.emitter.email]);
+            setCcList(Array.from(new Set([...ccList, params.adminEmail])));
         }
-    }, [params.destinataire, params.emitter.email]);
+    }, [params.destinataire, params.adminEmail]);
 
     useEffect(() => {
         onUpdateRecipientEmail(to);
@@ -161,7 +177,7 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
                 },
                 body: JSON.stringify({
                     to,
-                    cc: ccList.join(','),
+                    cc: [...ccList, "contact.prestataire.fleap@gmail.com"].join(','),
                     replyTo,
                     subject,
                     text: emailBody

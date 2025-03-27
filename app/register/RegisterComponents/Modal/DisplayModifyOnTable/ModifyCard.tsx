@@ -92,6 +92,7 @@ const ModifyCard = () => {
         volume: "",
         volumeUnit: "",
         fillRate: "",
+        comments: "",
     });
     const [createdAt, setCreatedAt] = useState<string>("");
 
@@ -114,6 +115,7 @@ const ModifyCard = () => {
                 volume: "",
                 volumeUnit: "",
                 fillRate: "",
+                comments: "",
             });
         }
     }
@@ -555,7 +557,7 @@ const ModifyCard = () => {
                 <div className="bg-indigo-50 p-3 rounded border border-indigo-100 mt-4">
                     <div className="flex justify-start items-center space-x-2">
                         <h3 className="font-semibold text-indigo-800 mb-2">Informations contenant</h3>
-                        <p className="text-sm text-gray-600 mb-2">- Cette partie n&apos;est pas sur TrackDéchets</p>
+                        <p className="text-sm text-gray-600 mb-2 hidden">- Cette partie n&apos;est pas sur TrackDéchets</p>
                     </div>
                     <div className="space-y-2 mr-4">
                         <LabelInput 
@@ -592,10 +594,30 @@ const ModifyCard = () => {
                             path="volumeUnit"
                         />
                     </div>
+                </div>
 
+                {/* Section des commentaires */}
+                <div className="bg-teal-50 p-3 rounded border border-teal-100 mt-4">
+                    <div className="flex justify-start items-center space-x-2">
+                        <h3 className="font-semibold text-teal-800 mb-2">Commentaires</h3>
+                        <p className="text-sm text-gray-600 mb-2 hidden">- Cette partie n&apos;est pas sur TrackDéchets</p>
+                    </div>
+                    <div className="space-y-2 mr-4">
+                        <LabelInput 
+                            label="Commentaires"
+                            value={otherInfos.comments || ""}
+                            onChange={(_, value) => {
+                                setOtherInfos((prev: OtherInfos) => ({
+                                    ...prev,
+                                    comments: value
+                                }));
+                            }}
+                            path="comments"
+                        />
                     </div>
                 </div>
 
+                </div>
 
                 </div>
 

@@ -206,7 +206,7 @@ const TableBSD = () => {
 
             if (!data.webhooks) {
                 // Créer le webhook si aucun n'existe
-                //console.log('Création du webhook en client side');
+                console.log('Création du webhook en client side');
                 await fetch('/api/demande_collecte/web_hook/create_a_web_hook', {
                     method: 'POST',
                     body: JSON.stringify({
@@ -289,20 +289,20 @@ const TableBSD = () => {
             }
             
             const url = `/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}${shouldFastLoad ? '&fastLoad=true' : ''}${loadMore && lastLoadedId ? `&lastId=${lastLoadedId}` : ''}`;
-            console.log('Fetching BSDs from:', url);
+            //console.log('Fetching BSDs from:', url);
             const response = await fetch(url);
             const result = await response.json();
             
-            console.log('Received BSDs response:', {
-                count: result.data.length,
-                hasMore: result.hasMore,
-                totalCount: result.totalCount,
-                fullResponse: result
-            });
+            //console.log('Received BSDs response:', {
+            //    count: result.data.length,
+            //    hasMore: result.hasMore,
+            //    totalCount: result.totalCount,
+            //    fullResponse: result
+            //});
             
             setIsPartialData(result.isPartialData);
             const newHasMore = result.hasMore === undefined ? true : result.hasMore;
-            console.log('Setting hasMore to:', newHasMore);
+            //console.log('Setting hasMore to:', newHasMore);
             setHasMore(newHasMore);
             
             if (result.totalCount) {
@@ -352,8 +352,8 @@ const TableBSD = () => {
     };
 
     const applyFilters = () => {
-        console.log("=== Début applyFilters ===");
-        console.log("Nombre de BSDs avant filtrage:", allBSDs?.length);
+        //console.log("=== Début applyFilters ===");
+        //console.log("Nombre de BSDs avant filtrage:", allBSDs?.length);
         
         if (allBSDs?.length > 0) {
             const filteredData = filterBSDs(
@@ -367,19 +367,19 @@ const TableBSD = () => {
                 filterPendingBSDs
             );
             
-            console.log("Nombre de BSDs après filtrage (filteredData):", filteredData.length);
+            //console.log("Nombre de BSDs après filtrage (filteredData):", filteredData.length);
             setAllFilteredBSDs(filteredData);
             setDisplayLimit(50);
             const newDisplayedBSDs = filteredData.slice(0, 50);
-            console.log("Nombre de BSDs à afficher (newDisplayedBSDs):", newDisplayedBSDs.length);
+            //console.log("Nombre de BSDs à afficher (newDisplayedBSDs):", newDisplayedBSDs.length);
             setDisplayedBSDs(newDisplayedBSDs);
         }
-        console.log("=== Fin applyFilters ===");
+        //console.log("=== Fin applyFilters ===");
     };
 
     // Effet pour les changements de filtres
     useEffect(() => {
-        console.log("=== Début useEffect filtres ===");
+        //console.log("=== Début useEffect filtres ===");
         const hasActiveFilters = 
             filieres.length > 0 || 
             sites.length > 0 || 
@@ -389,10 +389,10 @@ const TableBSD = () => {
             filterPendingBSDs ||
             (filterFunctions && Object.keys(filterFunctions).length > 0);
         
-        console.log("Filtres actifs:", hasActiveFilters);
+        //console.log("Filtres actifs:", hasActiveFilters);
         setFiltersEnabled(hasActiveFilters);
         applyFilters();
-        console.log("=== Fin useEffect filtres ===");
+        //console.log("=== Fin useEffect filtres ===");
     }, [
         filieres,
         sites,
@@ -417,22 +417,22 @@ const TableBSD = () => {
         const shouldLoadMore = displayedBSDs.length < 25 && !isLoadingMore && !loadingBSDs && hasMore && !filterPendingBSDs;
         
         if (shouldLoadMore) {
-            console.log('Chargement de plus de données...', {
-                displayedCount: displayedBSDs.length,
-                hasMore,
-                isLoadingMore,
-                loadingBSDs,
-                lastLoadedId,
-                totalCount: totalBSDsCount,
-                allBSDsCount: allBSDs.length
-            });
+            //console.log('Chargement de plus de données...', {
+            //    displayedCount: displayedBSDs.length,
+            //    hasMore,
+            //    isLoadingMore,
+            //    loadingBSDs,
+            //    lastLoadedId,
+            //    totalCount: totalBSDsCount,
+            //    allBSDsCount: allBSDs.length
+            //});
             setIsLoadingMore(true);
             fetchBSDs(true);
         } else if (!hasMore) {
-            console.log('Arrêt du chargement progressif - Plus de données à charger', {
-                displayedCount: displayedBSDs.length,
-                totalCount: totalBSDsCount
-            });
+            //console.log('Arrêt du chargement progressif - Plus de données à charger', {
+            //    displayedCount: displayedBSDs.length,
+            //    totalCount: totalBSDsCount
+            //});
         }
     }, [displayedBSDs.length, hasMore, isLoadingMore, loadingBSDs, lastLoadedId, totalBSDsCount, allBSDs]);
 

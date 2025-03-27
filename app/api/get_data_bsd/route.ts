@@ -24,6 +24,9 @@ interface FastDataSupa {
                     siret: string;
                     name: string;
                   }
+                  workSite: {
+                    name: string;
+                  };
                 };
                 recipient: {
                   processingOperation: string;                  
@@ -80,6 +83,9 @@ interface SupabaseFlatResponse {
         company: {
             orgId: string;
             siret: string;
+            name: string;
+        };
+        workSite: {
             name: string;
         };
     };
@@ -247,7 +253,8 @@ export async function GET(request: Request) {
                 siret: item.emitter.company.siret,
                 orgId: item.emitter.company.orgId,
                 name: item.emitter.company.name
-              }
+              },
+              workSite: item.emitter.workSite
             },
             recipient: {
               company: {

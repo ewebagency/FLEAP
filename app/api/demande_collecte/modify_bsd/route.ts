@@ -125,7 +125,7 @@ export async function POST(request: Request) {
                 .from('bsd')
                 .update(updateData)
                 .eq('id', bsd_id)
-                .eq('user_id', user_id);
+                //.eq('user_id', user_id);
 
             if (supabaseError) {
                 throw new Error(supabaseError.message);
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
                 .from('bsd')
                 .update(updateData)
                 .eq('id', bsd_id)
-                .eq('user_id', user_id);
+                //.eq('user_id', user_id);
 
             if (supabaseError) {
                 throw new Error(supabaseError.message);

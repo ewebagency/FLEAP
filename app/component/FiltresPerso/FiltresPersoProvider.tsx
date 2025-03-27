@@ -7,6 +7,7 @@ import { useSession } from '../SessionProvider';
 import { BSDD_TrackDechets } from '@/app/register/interface/BSD_Interface';
 import { BSD } from '@/app/analysis/AnalysisProvider';
 import { CommonBSD } from "@/app/register/FiltreFunctionnal";
+import { supabase } from '@/app/database/supabaseClient';
 
 export type TYPE_table_bsd = CommonBSD;
 
@@ -28,6 +29,35 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [filterFunctions, setFilterFunctions] = useState<FilterFunction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const {entreprise_id, user_id} = useSession();
+  const [mappingCodeTraitement, setMappingCodeTraitement] = useState<Record<string, string[]>>({});
+
+  // Fonction pour récupérer le mapping_code_traitement
+  useEffect(() => {
+    const fetchMappingCodeTraitement = async () => {
+      if (!entreprise_id) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('entreprise')
+          .select('mapping_code_traitement')
+          .eq('id', entreprise_id)
+          .single();
+
+        if (error) {
+          console.error('Erreur mapping_code_traitement:', error);
+          return;
+        }
+
+        if (data?.mapping_code_traitement) {
+          setMappingCodeTraitement(data.mapping_code_traitement);
+        }
+      } catch (error) {
+        console.error('Erreur mapping_code_traitement:', error);
+      }
+    };
+
+    fetchMappingCodeTraitement();
+  }, [entreprise_id]);
 
   // Fonction pour calculer le nom le plus fréquent pour un SIRET donné
   const calculateMostFrequentName = (data: TYPE_table_bsd[], field: string, siret: string): string => {
@@ -269,7 +299,8 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
         updateAllFilterValues,
         clearFilters,
         applyFilters,
-        isLoading
+        isLoading,
+        mappingCodeTraitement
       }}
     >
       {children}

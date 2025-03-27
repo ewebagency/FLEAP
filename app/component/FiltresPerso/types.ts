@@ -35,9 +35,15 @@ export type FilterContextType = {
   clearFilters: () => void;
   applyFilters: (data: TYPE_table_bsd[]) => TYPE_table_bsd[];
   isLoading: boolean;
+  mappingCodeTraitement: Record<string, string[]>;
 };
 
 export const FILTER_FIELDS: FilterField[] = [
+  {
+    label: "Point de collecte",
+    supabase_column: "infos_json",
+    json_path: "formAPI.createFormInput.emitter.workSite.name"
+  },
   {
     label: "Déchet Dangereux",
     supabase_column: "infos_json",

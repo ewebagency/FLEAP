@@ -65,7 +65,8 @@ const NewFormulaireDemande = ({setDisplayThis}: {setDisplayThis: (display: boole
     const { sites } = useFilterContext();
     const [provider, setProvider] = useState<'transporter' | 'recipient'>('transporter');
     const [entreprise_global_name, setEntrepriseGlobalName] = useState<string>("");
-
+    const [mention, setMention] = useState<boolean>(false);
+    
     useEffect(() => {
         if(entreprise_id) {
             const getEntrepriseGlobalName = async () => {
@@ -624,11 +625,74 @@ const handleOtherInfosChange = (updates: Partial<{
     }));
 };
 
-// Modifier le useEffect pour prendre en compte l'état de désactivation
+interface WorkSiteData {
+    name: string;
+    fullAddress: string;
+    address: string;
+    postalCode: string;
+    city: string;
+}
+
+const autoCompleteWorkSite = (currentDataToogle: FormInput, allOptions: {json_row: FormInput, other_infos?: OtherInfos}[]): WorkSiteData | null => {
+    // Trouver les options qui correspondent au site sélectionné
+    const matchingOptions = allOptions.filter(option => 
+        option.json_row.emitter.company.name === currentDataToogle.emitter.company.name &&
+        option.json_row.emitter.company.siret === currentDataToogle.emitter.company.siret
+    );
+
+    if (matchingOptions.length === 0) return null;
+
+    // Compter les occurrences de chaque point de collecte
+    const workSiteCounts = matchingOptions.reduce((acc, option) => {
+        const key = JSON.stringify({
+            name: option.json_row.emitter.workSite.name || '',
+            fullAddress: option.json_row.emitter.workSite.fullAddress || '',
+            address: option.json_row.emitter.workSite.address || '',
+            postalCode: option.json_row.emitter.workSite.postalCode || '',
+            city: option.json_row.emitter.workSite.city || ''
+        });
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+    }, {} as {[key: string]: number});
+
+    // Trouver le point de collecte le plus fréquent
+    let mostFrequentWorkSite: WorkSiteData | null = null;
+    let maxCount = 0;
+
+    Object.entries(workSiteCounts).forEach(([key, count]) => {
+        if (count > maxCount) {
+            maxCount = count;
+            mostFrequentWorkSite = JSON.parse(key) as WorkSiteData;
+        }
+    });
+
+    return mostFrequentWorkSite;
+};
+
+// Modifier le useEffect pour l'autocomplétion
 useEffect(() => {
     // Ne pas exécuter l'autocomplétion si elle est désactivée
     if (disableAutocompletion) {
         return;
+    }
+
+    // Vérifier si le site est sélectionné mais pas le point de collecte
+    if (dataToogle.emitter.company.name && dataToogle.emitter.company.siret && 
+        (!dataToogle.emitter.workSite.name || !dataToogle.emitter.workSite.fullAddress)) {
+        const suggestedWorkSite = autoCompleteWorkSite(dataToogle, allOptions);
+        if (suggestedWorkSite) {
+            const newData = { ...dataToogle };
+            newData.emitter.workSite = {
+                ...newData.emitter.workSite,
+                name: suggestedWorkSite.name,
+                fullAddress: suggestedWorkSite.address + ' ' + suggestedWorkSite.postalCode + ' ' + suggestedWorkSite.city,
+                address: suggestedWorkSite.address,
+                postalCode: suggestedWorkSite.postalCode,
+                city: suggestedWorkSite.city
+            };
+            setDataToogle(newData);
+            return;
+        }
     }
 
     Object.entries(filter_dependencies).forEach(([key, config]) => {
@@ -654,15 +718,7 @@ useEffect(() => {
                         allOptions,
                         newData,
                         config.parent,
-                        childField,
-                        // Liste des champs qui doivent utiliser le filtrage uniquement sur le parent direct
-                        [
-                            'emitter.company.siret', 'wasteDetails.code', 'wasteDetails.isSubjectToADR', 'wasteDetails.onuCode', 'wasteDetails.consistence',
-                            'other_infos.volume', 'other_infos.volumeUnit', 
-                            'transporter.company.siret', 'recipient.company.siret',
-                            'recipient.company.contact', 'recipient.company.mail', 'recipient.company.phone',
-                            'transporter.company.contact', 'transporter.company.mail', 'transporter.company.phone'
-                        ].includes(childField)
+                        childField
                     );
                     
                     if (suggestedValue) {
@@ -844,7 +900,7 @@ useEffect(() => {
                                         value={dataToogle.emitter.company.siret}
                                         onChange={handleChange}
                                         enableText={true}
-                                        display={displayAll || shouldDisplayField("emitter.company.siret", changedField)}
+                                        display={false && (displayAll || shouldDisplayField("emitter.company.siret", changedField))}
                                         onMobile={true}
                                         hideIndicators={true}
                                     />
@@ -886,7 +942,7 @@ useEffect(() => {
                                             value={`${formatText(dataToogle.emitter.workSite.infos ?? "")}`}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={displayAll || (shouldDisplayField("emitter.workSite.infos", changedField) && false)}
+                                            display={false && (displayAll || (shouldDisplayField("emitter.workSite.infos", changedField) && false))}
                                             onMobile={true}
                                             hideIndicators={true}
                                         />
@@ -934,7 +990,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.siret}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={displayAll || shouldDisplayField("emitter.company.siret", changedField)}
+                                            display={false && (displayAll || shouldDisplayField("emitter.company.siret", changedField))}
                                             onMobile={true}
                                             hideIndicators={true}
                                         />
@@ -948,7 +1004,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.siret}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={displayAll || shouldDisplayField("emitter.company.siret", changedField)}
+                                            display={false && (displayAll || shouldDisplayField("emitter.company.siret", changedField))}
                                         />
                                     )}
                                 </div>
@@ -985,7 +1041,7 @@ useEffect(() => {
                                         value={`${formatText(dataToogle.emitter.workSite.infos ?? "")}`}
                                         onChange={handleChange}
                                         enableText={true}
-                                        display={displayAll || (shouldDisplayField("emitter.workSite.infos", changedField) && false)}
+                                        display={false && (displayAll || (shouldDisplayField("emitter.workSite.infos", changedField) && false))}
                                     />
                                 </div>
                             </div>                            
@@ -1048,7 +1104,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.phone}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={(displayAll || (shouldDisplayField('emitter.company.phone', changedField) && false))}
+                                            display={false && (displayAll || (shouldDisplayField('emitter.company.phone', changedField) && false))}
                                         />
                                     )}
                                     {isMobile ? (
@@ -1094,7 +1150,7 @@ useEffect(() => {
                                                 <div className="space-y-1">
                                                     {/* Desktop view */}
                                                     <div className="hidden md:block">
-                                                        <div className="ml-[52px]">
+                                                        <div className="ml-[0px] flex justify-start gap-4">
                                                             <InputFull
                                                                 titre="Transporteur"
                                                                 placeholder="Sélectionner un transporteur"
@@ -1108,6 +1164,19 @@ useEffect(() => {
                                                                 enableText={true}
                                                                 stylePrimary={true}
                                                             />
+                                                            <InputFull
+                                                                titre="Email"
+                                                                placeholder="Email"
+                                                                options={getUniqueOptions(options, allOptions,
+                                                                    opt => opt.json_row.transporter.company.mail
+                                                                )}
+                                                                width={40}
+                                                                name="transporter.company.mail"
+                                                                value={dataToogle.transporter.company.mail}
+                                                                onChange={handleChange}
+                                                                enableText={true}
+                                                                display={displayAll || shouldDisplayField('transporter.company.mail', changedField)}
+                                                            />                                                                 
                                                         </div>
                                                         
                                                         {(displayAll || shouldDisplayField('transporter.company.siret', changedField)) && (
@@ -1124,20 +1193,9 @@ useEffect(() => {
                                                                         value={dataToogle.transporter.company.siret}
                                                                         onChange={handleChange}
                                                                         enableText={true}
+                                                                        display={false && (displayAll || shouldDisplayField('transporter.company.siret', changedField))}
                                                                     />
-                                                                    <InputFull
-                                                                        titre="Email"
-                                                                        placeholder="Email"
-                                                                        options={getUniqueOptions(options, allOptions,
-                                                                            opt => opt.json_row.transporter.company.mail
-                                                                        )}
-                                                                        width={40}
-                                                                        name="transporter.company.mail"
-                                                                        value={dataToogle.transporter.company.mail}
-                                                                        onChange={handleChange}
-                                                                        enableText={true}
-                                                                        display={displayAll || shouldDisplayField('transporter.company.mail', changedField)}
-                                                                    />                                                                    
+                                                                
                                                                 </div>
                                                                 <div className="flex justify-between gap-4">
                                                                     <InputFull
@@ -1231,7 +1289,7 @@ useEffect(() => {
                                                                 value={dataToogle.transporter.company.siret}
                                                                 onChange={handleChange}
                                                                 enableText={true}
-                                                                display={displayAll || shouldDisplayField('transporter.company.siret', changedField)}
+                                                                display={false && (displayAll || shouldDisplayField('transporter.company.siret', changedField))}
                                                                 onMobile={true}
                                                                 hideIndicators={false}
                                                             />             
@@ -1326,7 +1384,7 @@ useEffect(() => {
                                                 <div className="space-y-1">
                                                     {/* Desktop view */}
                                                     <div className="hidden md:block">
-                                                        <div className="ml-[52px]">
+                                                        <div className="ml-[0px] flex justify-start gap-4">
                                                             <InputFull
                                                                 titre="Destinataire"
                                                                 placeholder="Sélectionner un destinataire"
@@ -1340,6 +1398,18 @@ useEffect(() => {
                                                                 enableText={true}
                                                                 stylePrimary={true}
                                                             />
+                                                            <InputFull
+                                                                titre="Email"
+                                                                placeholder="Email"
+                                                                options={getUniqueOptions(options, allOptions,
+                                                                    opt => opt.json_row.recipient.company.mail
+                                                                )}
+                                                                width={40}
+                                                                name="recipient.company.mail"
+                                                                value={dataToogle.recipient.company.mail}
+                                                                onChange={handleChange}
+                                                                enableText={true}
+                                                            />                                                            
                                                         </div>
                                                         {(displayAll || shouldDisplayField('recipient.company.siret', changedField)) && (
                                                             <>
@@ -1355,19 +1425,9 @@ useEffect(() => {
                                                                         value={dataToogle.recipient.company.siret}
                                                                         onChange={handleChange}
                                                                         enableText={true}
+                                                                        display={false && (displayAll || shouldDisplayField('recipient.company.siret', changedField))}
                                                                     />
-                                                                    <InputFull
-                                                                        titre="Email"
-                                                                        placeholder="Email"
-                                                                        options={getUniqueOptions(options, allOptions,
-                                                                            opt => opt.json_row.recipient.company.mail
-                                                                        )}
-                                                                        width={40}
-                                                                        name="recipient.company.mail"
-                                                                        value={dataToogle.recipient.company.mail}
-                                                                        onChange={handleChange}
-                                                                        enableText={true}
-                                                                    />
+
                                                                 </div>
                                                                 <div className="flex justify-between gap-4">
                                                                     <InputFull
@@ -1461,7 +1521,7 @@ useEffect(() => {
                                                                 value={dataToogle.recipient.company.siret}
                                                                 onChange={handleChange}
                                                                 enableText={true}
-                                                                display={displayAll || shouldDisplayField('recipient.company.siret', changedField)}
+                                                                display={false && (displayAll || shouldDisplayField('recipient.company.siret', changedField))}
                                                                 onMobile={true}
                                                                 hideIndicators={false}
                                                             />    
@@ -1573,6 +1633,102 @@ useEffect(() => {
                                             />
                                             <span className="ml-2 text-sm">Destinataire</span>
                                         </label>
+                                    </div>
+                                </div>
+
+                                {/* Mention */}
+                                <div className="w-full mt-6 relative">
+                                    <div className={`transition-opacity duration-200 ${mention ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+                                        {provider === 'transporter' && (
+                                            <>
+                                                {/* Desktop version */}
+                                                <div className="hidden md:block space-y-1">
+                                                    <InputFull
+                                                        titre="Destinataire"
+                                                        placeholder="Sélectionner un destinataire"
+                                                        options={getUniqueOptions(options, allOptions,
+                                                            opt => opt.json_row.recipient.company.name
+                                                        )}
+                                                        width={40}
+                                                        name="recipient.company.name"
+                                                        value={dataToogle.recipient.company.name}
+                                                        onChange={handleChange}
+                                                        enableText={true}
+                                                        stylePrimary={true}
+                                                    />
+                                                </div>
+                                                {/* Mobile version */}
+                                                <div className="md:hidden space-y-1">
+                                                    <InputMobile
+                                                        titre=""
+                                                        placeholder="Destinataire"
+                                                        options={getUniqueOptions(options, allOptions,
+                                                            opt => opt.json_row.recipient.company.name
+                                                        )}
+                                                        width={41}
+                                                        name="recipient.company.name"
+                                                        value={dataToogle.recipient.company.name}
+                                                        onChange={handleChange}
+                                                        enableText={true}
+                                                        stylePrimary={true}
+                                                        onMobile={true}
+                                                        hideIndicators={false}
+                                                    />
+                                                </div>
+                                            </>
+                                        )}
+                                        {provider === 'recipient' && (
+                                            <>
+                                                {/* Desktop version */}
+                                                <div className="hidden md:block space-y-1">
+                                                    <InputFull
+                                                        titre="Transporteur"
+                                                        placeholder="Sélectionner un transporteur"
+                                                        options={getUniqueOptions(options, allOptions,
+                                                            opt => opt.json_row.transporter.company.name
+                                                        )}
+                                                        width={40}
+                                                        name="transporter.company.name"
+                                                        value={dataToogle.transporter.company.name}
+                                                        onChange={handleChange}
+                                                        enableText={true}
+                                                        stylePrimary={true}
+                                                    />
+                                                </div>
+                                                {/* Mobile version */}
+                                                <div className="md:hidden space-y-1">
+                                                    <InputMobile
+                                                        titre=""
+                                                        placeholder="Transporteur"
+                                                        options={getUniqueOptions(options, allOptions,
+                                                            opt => opt.json_row.transporter.company.name
+                                                        )}
+                                                        width={41}
+                                                        name="transporter.company.name"
+                                                        value={dataToogle.transporter.company.name}
+                                                        onChange={handleChange}
+                                                        enableText={true}
+                                                        stylePrimary={true}
+                                                        onMobile={true}
+                                                        hideIndicators={false}
+                                                    />
+                                                </div>
+                                            </>
+                                        )}                                        
+                                    </div>                                
+
+                                    <div className="absolute top-0 right-0 md:top-0 -top-[30px]">
+                                        <button
+                                            type="button"
+                                            onClick={() => setMention(!mention)}
+                                            className={`text-xs h-[25px] w-[180px] bg-[var(--green-medium)] rounded-md px-2 text-white font-thin hover:bg-[var(--green-dark)] transition-colors ${mention ? 'bg-red-700 hover:bg-red-800' : ''}`}
+                                        >
+                                            {provider === 'transporter' ? (
+                                                mention ? 'Destinataire mentionné' : 'Mentionner le destinataire'
+                                            ) : (
+                                                mention ? 'Transporteur mentionné' : 'Mentionner le transporteur'
+                                            )}
+                                        </button>     
                                     </div>
                                 </div>
                             </div>
@@ -1918,9 +2074,16 @@ useEffect(() => {
                                                 city: dataToogle.emitter.workSite.city || ''
                                             }
                                         },
+                                        adminEmail: getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.mail).filteredOptions[0] || '',
                                         destinataire: provider === 'transporter' 
                                             ? dataToogle.transporter?.company?.mail || ''
                                             : dataToogle.recipient?.company?.mail || '',
+                                        mention : {
+                                            toMentionned: mention,
+                                            mentionType: provider === 'transporter' ? 'recipient' : 'transporter',
+                                            mentionCompany: provider === 'transporter' ? dataToogle.recipient?.company?.name : dataToogle.transporter?.company?.name,
+                                            mentionAddress: provider === 'transporter' ? dataToogle.recipient?.company?.address : dataToogle.transporter?.company?.address,
+                                        },
                                         entrepriseId: entreprise_id,
                                         entrepriseName: dataToogle.emitter.company.name || '',
                                         entrepriseGlobalName : entreprise_global_name || '',
