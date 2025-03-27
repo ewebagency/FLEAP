@@ -691,6 +691,7 @@ useEffect(() => {
                 city: suggestedWorkSite.city
             };
             setDataToogle(newData);
+            setChangedField('emitter.workSite.fullAddress');
             return;
         }
     }
@@ -1062,7 +1063,7 @@ useEffect(() => {
                                             onChange={handleChange}
                                             enableText={true}
                                             stylePrimary={true}
-                                            display={(displayAll || (shouldDisplayField("emitter.company.workSite.fullAddress", changedField) && false))}
+                                            display={displayAll}
                                             onMobile={true}
                                             hideIndicators={true}
                                         />
@@ -1077,7 +1078,7 @@ useEffect(() => {
                                             onChange={handleChange}
                                             enableText={true}
                                             stylePrimary={true}
-                                            display={(displayAll || (shouldDisplayField('emitter.company.workSite.fullAddress', changedField) && false))}
+                                            display={displayAll}
                                         />
                                     )}
                                     {isMobile ? (
@@ -1090,7 +1091,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.phone}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={(displayAll || (shouldDisplayField('emitter.company.phone', changedField) && false))}
+                                            display={displayAll}
                                             onMobile={true}
                                             hideIndicators={true}
                                         />
@@ -1117,7 +1118,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.mail}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={(displayAll || (shouldDisplayField('emitter.company.mail', changedField) && false))}
+                                            display={displayAll}
                                             onMobile={true}
                                             hideIndicators={true}
                                         />
@@ -1131,7 +1132,7 @@ useEffect(() => {
                                             value={dataToogle.emitter.company.mail}
                                             onChange={handleChange}
                                             enableText={true}
-                                            display={(displayAll || (shouldDisplayField('emitter.company.mail', changedField) && false))}
+                                            display={displayAll}
                                         />
                                     )}
                                 </div>
@@ -1614,7 +1615,7 @@ useEffect(() => {
                                     </div>
 
                                     {/* Boutons de sélection*/}
-                                    <div className={`flex space-x-4 mb-4 ${isMobile ? 'mt-3 ml-4' : ''}`}>
+                                    <div className={`flex space-x-4 mb-4 ${isMobile ? 'mt-3 ml-4' : 'position relative top-[-20px] mt-[-15px]'}`}>
                                         <label className="flex items-center">
                                             <input
                                                 type="radio"
