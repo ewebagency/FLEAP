@@ -4,6 +4,7 @@ import { supabase } from '@/app/database/supabaseClient';
 import { SessionMore, useSession } from '../../component/SessionProvider';
 import { useImport } from './ImportContext';
 import BoxIcon from '@/app/component/BoxIconWrapper';
+import { handleExcelUpload } from './ImportExcel';
 
 const sanitizeFileName = (fileName: string): string => {
     return fileName
@@ -14,6 +15,7 @@ const sanitizeFileName = (fileName: string): string => {
 const ImportPDF = () => {
     const [loading, setLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
+    const [selectedFileType, setSelectedFileType] = useState<'pdf' | 'excel'>('pdf');
     const session = useSession() as SessionMore;
     const user_id = session?.user_id;
     const entreprise_id = session?.entreprise_id;
@@ -23,11 +25,23 @@ const ImportPDF = () => {
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
         if (files) {
-            const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
-            if (pdfFiles.length > 0) {
-                handleFilesUpload(pdfFiles);
-            } else {
-                alert("Veuillez sélectionner des fichiers PDF.");
+            if (selectedFileType === 'pdf') {
+                const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
+                if (pdfFiles.length > 0) {
+                    handleFilesUpload(pdfFiles);
+                } else {
+                    alert("Veuillez sélectionner des fichiers PDF.");
+                }
+            } else if (selectedFileType === 'excel') {
+                const excelFiles = Array.from(files).filter(file => 
+                    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                    file.type === 'application/vnd.ms-excel'
+                );
+                if (excelFiles.length > 0) {
+                    handleFilesUpload(excelFiles);
+                } else {
+                    alert("Veuillez sélectionner des fichiers Excel.");
+                }
             }
         }
         if (event.target) {
@@ -38,23 +52,35 @@ const ImportPDF = () => {
     const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault();
         event.stopPropagation();
-        const files = Array.from(event.dataTransfer.files).filter(file => file.type === 'application/pdf');
-        if (files.length > 0) {
-            handleFilesUpload(files);
-        } else {
-            alert("Veuillez déposer des fichiers PDF.");
+        const files = Array.from(event.dataTransfer.files);
+        if (selectedFileType === 'pdf') {
+            const pdfFiles = files.filter(file => file.type === 'application/pdf');
+            if (pdfFiles.length > 0) {
+                handleFilesUpload(pdfFiles);
+            } else {
+                alert("Veuillez déposer des fichiers PDF.");
+            }
+        } else if (selectedFileType === 'excel') {
+            const excelFiles = files.filter(file => 
+                file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                file.type === 'application/vnd.ms-excel'
+            );
+            if (excelFiles.length > 0) {
+                handleFilesUpload(excelFiles);
+            } else {
+                alert("Veuillez déposer des fichiers Excel.");
+            }
         }
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
-    }, []);
+    }, [selectedFileType]);
 
     const handleFilesUpload = async (files: File[]) => {
         if (!user_id) {
             alert("Veuillez vous connecter pour importer des fichiers.");
             return;
         }
-        const entreprise_id = session?.entreprise_id;
         if (!entreprise_id) {
             alert("Vous devez être associé à une entreprise pour importer des fichiers.");
             return;
@@ -63,7 +89,12 @@ const ImportPDF = () => {
         setLoading(true);
         const uploadPromises = files.map(async (file) => {
             try {
-                if (file.size > 50 * 1024 * 1024) { // 50MB limite
+                if (selectedFileType === 'excel') {
+                    return await handleExcelUpload(file, user_id, entreprise_id);
+                }
+
+                // Traitement PDF existant
+                if (file.size > 50 * 1024 * 1024) {
                     return { 
                         success: false, 
                         file: file.name, 
@@ -75,8 +106,8 @@ const ImportPDF = () => {
                 const sanitizedName = sanitizeFileName(file.name);
                 const filePath = `${sanitizedName}_${Date.now()}_${user_id}`;
 
-                const fileType = await getFileType(file);
-                if (!fileType.isPDF) {
+                const fileTypeCheck = await getFileType(file);
+                if (!fileTypeCheck.isPDF) {
                     return { 
                         success: false, 
                         file: file.name, 
@@ -99,8 +130,6 @@ const ImportPDF = () => {
                 setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
 
                 const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2);
-                console.log("entreprise_id", entreprise_id);
-                console.log("user_id", user_id);
                 const { error: insertError } = await supabase
                     .from('pdf_infos')
                     .insert([{
@@ -130,7 +159,6 @@ const ImportPDF = () => {
 
         const results = await Promise.all(uploadPromises);
 
-        // Afficher les résultats
         results.forEach(result => {
             if (result.success) {
                 console.log(`${result.file} importé avec succès`);
@@ -158,18 +186,25 @@ const ImportPDF = () => {
                     ) : (
                         <div className="flex items-center gap-2">
                             <BoxIcon color='white' name='import' />
-                            <p>Sélectionner des fichiers PDF</p>
+                            <p>Sélectionner des fichiers {selectedFileType === 'pdf' ? 'PDF' : 'Excel'}</p>
                         </div>
                     )}
                     <input 
                         ref={fileInputRef}
                         type="file" 
-                        accept="application/pdf" 
+                        accept={selectedFileType === 'pdf' ? "application/pdf" : ".xlsx,.xls"}
                         onChange={handleFileChange} 
                         className="hidden"
-                        multiple // Permet la sélection multiple
+                        multiple
                     />
                 </label>
+                <button
+                    onClick={() => setSelectedFileType(prev => prev === 'pdf' ? 'excel' : 'pdf')}
+                    className="mt-2 text-sm text-gray-600 hover:text-gray-800 flex items-center gap-2 mx-auto"
+                >
+                    <BoxIcon color='var(--green-medium)' name={selectedFileType === 'pdf' ? 'file-excel' : 'file-pdf'} />
+                    <span>Changer pour {selectedFileType === 'pdf' ? 'Excel' : 'PDF'}</span>
+                </button>
             </div>
             {loading && (
                 <div className="w-full max-w-md mt-4">

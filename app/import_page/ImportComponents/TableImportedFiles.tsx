@@ -49,6 +49,22 @@ interface ProviderJSON {
     is_destination: boolean;
 }
 
+const ExcelIcon = () => (
+    <svg 
+        width="25" 
+        height="25" 
+        viewBox="0 0 512 512" 
+        fill="none" 
+        xmlns="http://www.w3.org/2000/svg"
+    >
+        <g>
+            <polygon points="339.7,6 339.7,112.8 448.3,112.8" fill="#217346"/>
+            <path d="M367.6,338.6L367.6,338.6c0-49.1-39.8-88.9-88.9-88.9h-215v177.8h215C327.8,427.5,367.6,387.7,367.6,338.6z M157,384.4l-19-32.9l-19,32.9h-17.3l27.5-44.1l-26.9-43.4h17.2l18.3,32.3l18.4-32.3h17.3l-26.9,43.4l27.9,44.1H157z M241.6,384.4H186v-87.5h14.6v75.8h41V384.4z M250.8,358.6l0.1-0.4H265c0,5.2,1.8,9.2,5.4,11.9c3.6,2.7,8,4,13.2,4c5.2,0,9.2-1.1,12-3.3c2.9-2.2,4.3-5.1,4.3-8.9c0-3.6-1.3-6.6-3.9-9c-2.6-2.3-7.2-4.4-13.7-6.2c-9.4-2.6-16.7-6-21.8-10.2c-5.1-4.2-7.7-9.7-7.7-16.6c0-7,2.8-12.9,8.4-17.4c5.6-4.6,12.8-6.8,21.6-6.8c9.5,0,17,2.5,22.7,7.6c5.7,5.1,8.4,11.3,8.2,18.8l-0.1,0.4h-14.1c0-4.6-1.5-8.3-4.6-11c-3.1-2.7-7.1-4.1-12.2-4.1c-4.9,0-8.7,1.2-11.4,3.5c-2.7,2.3-4,5.3-4,9c0,3.4,1.5,6.1,4.4,8.3c2.9,2.2,7.8,4.3,14.5,6.2c9.2,2.6,16.2,6.1,21,10.5c4.8,4.4,7.2,10.1,7.2,17c0,7.3-2.8,13-8.5,17.4c-5.7,4.3-13.2,6.5-22.4,6.5c-8.9,0-16.6-2.4-23.3-7.1C253.8,373.8,250.6,367.2,250.8,358.6z" fill="#217346"/>
+            <path d="M327.7,6.3H81v231.3h197.7c55.6,0,100.9,45.3,100.9,100.9c0,55.6-45.3,100.9-100.9,100.9H81V506h366.6l0.6-381.2H327.7V6.3z" fill="#217346"/>
+        </g>
+    </svg>
+);
+
 const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDelete }) => {
     const [openMenuId, setOpenMenuId] = useState<number | null>(null);
     const session = useSession();
@@ -133,10 +149,17 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                     </tr>
                 </thead>
                 <tbody>
-                    {[...pdfInfos].reverse().slice(0, 10*numberPage).map((pdf) => (
+                    {[...pdfInfos]
+                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                        .slice(0, 10*numberPage)
+                        .map((pdf) => (
                         <tr key={pdf.id} style={{ borderBottom: '1px solid #ddd' }}>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle mt-1">
-                                <BoxIcon name='file-pdf' color='red' type='solid' />
+                                {pdf.document_type === 'excel' ? (
+                                    <ExcelIcon />
+                                ) : (
+                                    <BoxIcon name='file-pdf' color='red' type='solid' />
+                                )}
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 {pdf.status === 'unread' ? <span className="px-2 py-1 rounded-full font-semibold text-orange-600 text-xs">
@@ -161,10 +184,12 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                 </div>
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
-                                <SelectDocumentType 
-                                    pdf_id={pdf.id} 
-                                    initialType={pdf.document_type} 
-                                />
+                                {pdf.document_type !== 'excel' && (
+                                    <SelectDocumentType 
+                                        pdf_id={pdf.id} 
+                                        initialType={pdf.document_type} 
+                                    />
+                                )}
                             </td>
                             {/*<td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <SelectSite 
@@ -185,13 +210,15 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                             </td>*/}
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <div className="flex items-center justify-end gap-2">
-                                    <button 
-                                        onClick={() => handleOpenPdf(pdf)}
-                                        disabled={loadingUrls[pdf.id]}
-                                        className="px-3 py-1.5 border border-[var(--green-medium)] text-[var(--green-medium)] rounded-md text-xs hover:bg-green-50 w-[100px] text-center disabled:opacity-50"
-                                    >
-                                        {loadingUrls[pdf.id] ? 'Chargement...' : 'Ouvrir'}
-                                    </button>
+                                    {pdf.document_type !== 'excel' && (
+                                        <button 
+                                            onClick={() => handleOpenPdf(pdf)}
+                                            disabled={loadingUrls[pdf.id]}
+                                            className="px-3 py-1.5 border border-[var(--green-medium)] text-[var(--green-medium)] rounded-md text-xs hover:bg-green-50 w-[100px] text-center disabled:opacity-50"
+                                        >
+                                            {loadingUrls[pdf.id] ? 'Chargement...' : 'Ouvrir'}
+                                        </button>
+                                    )}
                                     <div className="relative">
                                         <button 
                                             className="px-1 py-1 text-gray-600 rounded-md hover:bg-gray-100 mt-0.5 h-8"
@@ -220,7 +247,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             </div>
                                         )}
                                     </div>
-                                    {cofounders_permission(session?.user_id) && 
+                                    {cofounders_permission(session?.user_id) && pdf.document_type !== 'excel' && 
                                         <ExtractData 
                                             pdf_id={pdf.id} 
                                             pdf_path={pdf.name_pdf_in_bucket} 

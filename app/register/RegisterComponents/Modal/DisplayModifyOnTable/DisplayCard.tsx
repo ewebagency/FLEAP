@@ -6,11 +6,26 @@ import { useSession } from "@/app/component/SessionProvider";
 import { getMappingTableFiliere, getFiliere } from "../FormulaireFull/utils_new";
 import { OtherInfos } from "../../../interface/BSD_Interface";
 import Image from 'next/image';
+import BoxIcon from '@/app/component/BoxIconWrapper';
+
+interface PdfInfo {
+    id: number;
+    name_pdf: string;
+    name_pdf_in_bucket: string;
+    created_at: string;
+    status: string;
+    document_type?: string;
+    url?: string;
+    file_size?: number;
+}
 
 const DisplayCard = () => {
     const { modalId, modalType, setModalType, modalReload } = useModalContextNew();
     const [bsd, setBSD] = useState<BSDD_TrackDechets & { photo?: string } | null>(null);
     const [otherInfos, setOtherInfos] = useState<OtherInfos | null>(null);
+    const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
+    const [loadingUrls, setLoadingUrls] = useState<Record<number, boolean>>({});
+    const [pdfUrls, setPdfUrls] = useState<Record<number, string>>({});
     const session = useSession();
     const [filiere, setFiliere] = useState<string>("");
 
@@ -29,10 +44,52 @@ const DisplayCard = () => {
                 photo: result.data.photo
             });
             setOtherInfos(result.data.other_infos);
+            
+            // Récupérer les PDFs liés
+            console.log("result.data.pdfs_ids:", result.data.pdf_ids);
+            if (result.data.pdf_ids && result.data.pdf_ids.length > 0) {
+                const { data: pdfsData, error: pdfsError } = await supabase
+                    .from('pdf_infos')
+                    .select('*')
+                    .in('id', result.data.pdf_ids);
+
+                if (pdfsError) {
+                    console.error("Erreur lors de la récupération des PDFs:", pdfsError);
+                } else if (pdfsData) {
+                    setPdfInfos(pdfsData);
+                }
+            }
         } else {
             console.error("Pas de BSD trouvé pour l'ID:", modalId);
         }
     }
+
+    const handleOpenPdf = async (pdf: PdfInfo) => {
+        if (pdfUrls[pdf.id]) {
+            window.open(pdfUrls[pdf.id], '_blank');
+            return;
+        }
+
+        try {
+            setLoadingUrls(prev => ({ ...prev, [pdf.id]: true }));
+            
+            const { data: urlData } = await supabase
+                .storage
+                .from('pdfs_bucket')
+                .createSignedUrl(pdf.name_pdf_in_bucket, 3600);
+
+            if (!urlData?.signedUrl) {
+                throw new Error('URL non générée');
+            }
+
+            setPdfUrls(prev => ({ ...prev, [pdf.id]: urlData.signedUrl }));
+            window.open(urlData.signedUrl, '_blank');
+        } catch (error) {
+            console.error("Erreur lors de la récupération de l'URL:", error);
+        } finally {
+            setLoadingUrls(prev => ({ ...prev, [pdf.id]: false }));
+        }
+    };
 
     useEffect(() => {
         //console.log("modalId:", modalId);
@@ -94,7 +151,7 @@ const DisplayCard = () => {
                                 </div>
                             </div>
                             <button 
-                                onClick={() => setModalType("")} 
+                                onClick={() => {setModalType(""); setPdfInfos([]); setPdfUrls({}); setLoadingUrls({});}} 
                                 className="text-gray-500 hover:text-gray-700 p-2"
                             >
                                 ✕
@@ -161,6 +218,30 @@ const DisplayCard = () => {
                                         </div>
                                         <div className="mt-2">
                                             <p className="text-gray-700 whitespace-pre-wrap">{otherInfos.comments}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Section des PDFs liés */}
+                                {pdfInfos.length > 0 && (
+                                    <div className="bg-pink-50 p-3 rounded border border-pink-100 mt-4">
+                                        <h3 className="font-semibold text-pink-800 mb-2">PDFs liés</h3>
+                                        <div className="space-y-2">
+                                            {pdfInfos.map((pdf) => (
+                                                <div key={pdf.id} className="flex items-center justify-between p-2 bg-white rounded hover:bg-pink-50 transition-colors">
+                                                    <div className="flex items-center space-x-2">
+                                                        <BoxIcon name='file-pdf' color='red' type='solid' />
+                                                        <span className="text-sm text-gray-700">{pdf.name_pdf}</span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleOpenPdf(pdf)}
+                                                        disabled={loadingUrls[pdf.id]}
+                                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                                    >
+                                                        {loadingUrls[pdf.id] ? 'Chargement...' : 'Ouvrir'}
+                                                    </button>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 )}
