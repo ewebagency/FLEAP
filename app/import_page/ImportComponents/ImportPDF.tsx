@@ -5,6 +5,7 @@ import { SessionMore, useSession } from '../../component/SessionProvider';
 import { useImport } from './ImportContext';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 import { handleExcelUpload } from './ImportExcel';
+import {ExcelIcon} from './TableImportedFiles';
 
 const sanitizeFileName = (fileName: string): string => {
     return fileName
@@ -16,11 +17,27 @@ const ImportPDF = () => {
     const [loading, setLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
     const [selectedFileType, setSelectedFileType] = useState<'pdf' | 'excel'>('pdf');
+    const [showFileTypeMenu, setShowFileTypeMenu] = useState(false);
     const session = useSession() as SessionMore;
     const user_id = session?.user_id;
     const entreprise_id = session?.entreprise_id;
     const { triggerReload } = useImport();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    // Fermer le menu si on clique en dehors
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setShowFileTypeMenu(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
@@ -180,31 +197,60 @@ const ImportPDF = () => {
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
             >
-                <label className="btn bg-[var(--green-medium)] hover:bg-[var(--green-dark)] text-white h-8 px-2 flex items-center mx-auto max-w-[400px]">
-                    {loading ? (
+                {loading ? (
+                    <label className="btn bg-[var(--green-medium)] hover:bg-[var(--green-dark)] text-white h-8 px-2 flex items-center mx-auto max-w-[400px]">
                         <span className="loader"></span>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <BoxIcon color='white' name='import' />
-                            <p>Sélectionner des fichiers {selectedFileType === 'pdf' ? 'PDF' : 'Excel'}</p>
-                        </div>
-                    )}
-                    <input 
-                        ref={fileInputRef}
-                        type="file" 
-                        accept={selectedFileType === 'pdf' ? "application/pdf" : ".xlsx,.xls"}
-                        onChange={handleFileChange} 
-                        className="hidden"
-                        multiple
-                    />
-                </label>
-                <button
-                    onClick={() => setSelectedFileType(prev => prev === 'pdf' ? 'excel' : 'pdf')}
-                    className="mt-2 text-sm text-gray-600 hover:text-gray-800 flex items-center gap-2 mx-auto"
-                >
-                    <BoxIcon color='var(--green-medium)' name={selectedFileType === 'pdf' ? 'file-excel' : 'file-pdf'} />
-                    <span>Changer pour {selectedFileType === 'pdf' ? 'Excel' : 'PDF'}</span>
-                </button>
+                    </label>
+                ) : (
+                    <div className="relative">
+                        <button 
+                            onClick={() => setShowFileTypeMenu(!showFileTypeMenu)}
+                            className="btn bg-[var(--green-medium)] hover:bg-[var(--green-dark)] text-white h-8 px-2 flex items-center mx-auto max-w-[400px]"
+                        >
+                            <div className="flex items-center gap-2">
+                                <BoxIcon color='white' name='import' />
+                                <p>Sélectionner des fichiers</p>
+                            </div>
+                        </button>
+                        <input 
+                            ref={fileInputRef}
+                            type="file" 
+                            accept=".pdf,.xlsx,.xls"
+                            onChange={handleFileChange} 
+                            className="hidden"
+                            multiple
+                        />
+                        {showFileTypeMenu && (
+                            <div 
+                                ref={menuRef}
+                                className="absolute left-1/2 transform -translate-x-1/2 mt-2 bg-white rounded-md shadow-lg z-50 py-2 w-40"
+                            >
+                                <button
+                                    onClick={() => {
+                                        setSelectedFileType('pdf');
+                                        setShowFileTypeMenu(false);
+                                        fileInputRef.current?.click();
+                                    }}
+                                    className="w-full px-2 py-1 text-sm text-gray-700 hover:bg-red-50 flex items-center gap-2"
+                                >
+                                    <BoxIcon color='red' name='file-pdf' type='solid' />
+                                    <span className='ml-2'>PDF</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setSelectedFileType('excel');
+                                        setShowFileTypeMenu(false);
+                                        fileInputRef.current?.click();
+                                    }}
+                                    className="w-full px-2 py-1 text-sm text-gray-700 hover:bg-green-50 flex items-center gap-2"
+                                >
+                                    <ExcelIcon />
+                                    <span className='ml-2'>Excel</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
             {loading && (
                 <div className="w-full max-w-md mt-4">

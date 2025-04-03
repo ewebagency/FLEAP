@@ -49,7 +49,7 @@ interface ProviderJSON {
     is_destination: boolean;
 }
 
-const ExcelIcon = () => (
+export const ExcelIcon = () => (
     <svg 
         width="25" 
         height="25" 
@@ -162,11 +162,19 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                 )}
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
-                                {pdf.status === 'unread' ? <span className="px-2 py-1 rounded-full font-semibold text-orange-600 text-xs">
-                                    En cours..
-                                </span> : <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
-                                    Extraction terminée
-                                </span>}
+                                {pdf.status === 'unread' ? (
+                                    <span className="px-2 py-1 rounded-full font-semibold text-orange-600 text-xs">
+                                        En cours
+                                    </span>
+                                ) : pdf.status === 'linked' ? (
+                                    <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
+                                        Document affilié
+                                    </span>
+                                ) : (
+                                    <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
+                                        Extraction terminée
+                                    </span>
+                                )}
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <div className="text-xs font-medium truncate pr-4" title={pdf.name_pdf}>
