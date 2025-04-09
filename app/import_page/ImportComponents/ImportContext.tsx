@@ -4,19 +4,27 @@ import React, { createContext, useContext, useState } from 'react';
 interface ImportContextType {
     importReload: boolean;
     triggerReload: () => void;
+    documentTypeFilter: string | null;
+    setDocumentTypeFilter: (filter: string | null) => void;
 }
 
 const ImportContext = createContext<ImportContextType | undefined>(undefined);
 
 export const ImportProvider = ({ children }: { children: React.ReactNode }) => {
     const [importReload, setImportReload] = useState(false);
+    const [documentTypeFilter, setDocumentTypeFilter] = useState<string | null>(null);
 
     const triggerReload = () => {
         setImportReload(prev => !prev);
     };
 
     return (
-        <ImportContext.Provider value={{ importReload, triggerReload }}>
+        <ImportContext.Provider value={{ 
+            importReload, 
+            triggerReload,
+            documentTypeFilter,
+            setDocumentTypeFilter
+        }}>
             {children}
         </ImportContext.Provider>
     );

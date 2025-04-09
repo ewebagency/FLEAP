@@ -13,7 +13,7 @@ const TableImportedFilesFunctional: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const { entreprise_id } = useSession();
-    const { importReload } = useImport();
+    const { importReload, documentTypeFilter } = useImport();
 
     const fetchPdfInfos = useCallback(async () => {
         if (!entreprise_id) {
@@ -69,6 +69,13 @@ const TableImportedFilesFunctional: React.FC = () => {
         }
     };
 
+    // Filter pdfInfos based on documentTypeFilter
+    const filteredPdfInfos = documentTypeFilter 
+        ? documentTypeFilter === 'null'
+            ? pdfInfos.filter(pdf => pdf.document_type === null || pdf.document_type === undefined)
+            : pdfInfos.filter(pdf => pdf.document_type === documentTypeFilter)
+        : pdfInfos;
+
     if (loading && !entreprise_id) {
         return <div className="flex justify-center p-4">
             <div className="loading loading-spinner loading-lg"></div>
@@ -95,7 +102,7 @@ const TableImportedFilesFunctional: React.FC = () => {
 
     return (
         <div>
-            <TableImportedFiles pdfInfos={pdfInfos} onDelete={handleDelete} />
+            <TableImportedFiles pdfInfos={filteredPdfInfos} onDelete={handleDelete} />
         </div>
     );
 };

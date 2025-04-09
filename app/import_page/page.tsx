@@ -4,6 +4,7 @@ import BandeauAPI from "./BandeauAPI";
 import TableImportedFilesFunctional from "./ImportComponents/TableImportedFilesFunctional";
 import { ImportProvider } from "./ImportComponents/ImportContext";
 import ButtonImportFacture from "./FactureImport/ButtonImportFacture";
+import ImportsFiltre from "./ImportComponents/ImportsFiltre";
 
 const ImportPage = () => {
 
@@ -20,9 +21,10 @@ const ImportPage = () => {
                 
                 <ImportPDF/>
 
-                
-                <div className="text-sm text-gray-500 mt-4 font-medium">Documents importés</div>
-                
+                <div className="flex flex-row justify-start items-end gap-4 my-3">
+                    <div className="text-sm text-gray-500 font-medium">Documents importés</div>
+                    <ImportsFiltre />
+                </div>
 
                 <div>
                     <TableImportedFilesFunctional/>  

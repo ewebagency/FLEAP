@@ -9,7 +9,7 @@ import NewDemandeMailButon from '../DemandeCollecteNew/NewDemandeMailButton';
 import { RowBSD } from "../interface/BSD_Interface";
 
 
-export const ListStatusEnAttente = ['AWAITING_GROUP','Ligne créée automatiquement', 'Ligne demandée', 'SIGNED_BY_PRODUCER', 'Collecte demandée', 'NO_TRACEABILITY', 'REFUSED', 'CANCELED'];
+export const ListStatusEnAttente = ['Ligne créée automatiquement', 'Ligne demandée', 'Collecte demandée', 'REFUSED', 'CANCELED'];
 
 const BordereauxRegister = () => {
     const session = useSession();

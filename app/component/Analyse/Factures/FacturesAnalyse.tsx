@@ -27,7 +27,9 @@ const FacturesAnalyse = ({ active }: { active: boolean }) => {
         const { data, error } = await supabase
             .from('pdf_infos')
             .select('*')
-            .eq('entreprise_id', entreprise_id);
+            .eq('entreprise_id', entreprise_id)
+            .eq('document_type', 'facture')
+            .order('created_at', { ascending: false });
 
         if (error) {
             console.error("Erreur lors de la récupération des PDFs:", error);
