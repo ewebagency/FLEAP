@@ -66,6 +66,7 @@ const NewFormulaireDemande = ({setDisplayThis}: {setDisplayThis: (display: boole
     const [provider, setProvider] = useState<'transporter' | 'recipient'>('transporter');
     const [entreprise_global_name, setEntrepriseGlobalName] = useState<string>("");
     const [mention, setMention] = useState<boolean>(false);
+    const [userSiteAccess, setUserSiteAccess] = useState<string[]>([]);
     
     useEffect(() => {
         if(entreprise_id) {
@@ -159,6 +160,147 @@ const NewFormulaireDemande = ({setDisplayThis}: {setDisplayThis: (display: boole
         
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
+
+    // Ajouter après les autres useEffect
+    useEffect(() => {
+        const fetchUserSiteAccess = async () => {
+            if (!user_id) {
+                console.log('Pas de user_id, impossible de récupérer les accès aux sites');
+                return;
+            }
+            
+            try {
+                console.log('Récupération des accès aux sites pour user_id:', user_id);
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('site_access')
+                    .eq('user_id', user_id)
+                    .single();
+
+                if (error) {
+                    console.error('Erreur lors de la récupération des accès aux sites:', error);
+                    return;
+                }
+
+                console.log('Données récupérées de la table profiles:', data);
+                if (data?.site_access && Array.isArray(data.site_access)) {
+                    console.log('Liste des sirets autorisés:', data.site_access);
+                    setUserSiteAccess(data.site_access);
+                } else {
+                    console.log('Pas de liste de sirets autorisés trouvée');
+                }
+            } catch (error) {
+                console.error('Erreur lors de la récupération des accès aux sites:', error);
+            }
+        };
+
+        fetchUserSiteAccess();
+    }, [user_id]);
+
+    // Modifier la fonction getUniqueOptions pour utiliser des types spécifiques
+    const getUniqueOptions = (
+        options: CompleteFormInput[], 
+        allOptions: CompleteFormInput[], 
+        getValue: (opt: CompleteFormInput) => string | undefined, 
+        siteAccess?: string[]
+    ) => {
+        // Filtrer d'abord par les sites autorisés si siteAccess est fourni
+        let filteredOptions = options;
+        let remainingOptions = allOptions;
+
+        if (siteAccess && siteAccess.length > 0) {
+            // Séparer les options en deux groupes : autorisées et non autorisées
+            const authorizedSirets = new Set(siteAccess);
+            
+            // Options autorisées
+            filteredOptions = options.filter(opt => {
+                const siteSiret = opt.json_row?.emitter?.company?.siret;
+                return siteSiret ? authorizedSirets.has(siteSiret) : false;
+            });
+
+            // Options non autorisées (en excluant celles qui sont déjà dans filteredOptions)
+            remainingOptions = allOptions.filter(opt => {
+                const siteSiret = opt.json_row?.emitter?.company?.siret;
+                return !siteSiret || !authorizedSirets.has(siteSiret);
+            });
+        }
+
+        // Appliquer la logique de getValue et dédupliquer pour les options filtrées
+        const uniqueFilteredValues = new Set<string>();
+        const filteredResult = filteredOptions
+            .map(opt => {
+                const value = getValue(opt);
+                if (value && !uniqueFilteredValues.has(value)) {
+                    uniqueFilteredValues.add(value);
+                    return value;
+                }
+                return undefined;
+            })
+            .filter((value): value is string => value !== undefined);
+
+        // Appliquer la logique de getValue et dédupliquer pour les options restantes
+        const uniqueRemainingValues = new Set<string>();
+        const remainingResult = remainingOptions
+            .map(opt => {
+                const value = getValue(opt);
+                if (value && !uniqueRemainingValues.has(value) && !uniqueFilteredValues.has(value)) {
+                    uniqueRemainingValues.add(value);
+                    return value;
+                }
+                return undefined;
+            })
+            .filter((value): value is string => value !== undefined);
+
+        return {
+            filteredOptions: filteredResult,
+            allOptions: remainingResult
+        };
+    };
+
+    // Modifier le useEffect pour l'autocomplétion automatique
+    useEffect(() => {
+        console.log('useEffect autocomplétion - allOptions:', allOptions.length);
+        console.log('useEffect autocomplétion - userSiteAccess:', userSiteAccess);
+        
+        if (allOptions.length > 0 && userSiteAccess.length > 0) {
+            // Utiliser getUniqueOptions pour obtenir les sites autorisés unifiés
+            const { filteredOptions: uniqueSites } = getUniqueOptions(
+                allOptions,
+                allOptions,
+                opt => opt.json_row?.emitter?.company?.siret,
+                userSiteAccess
+            );
+
+            console.log('Sites autorisés unifiés:', uniqueSites);
+            
+            // Si un seul site est disponible, faire l'autocomplétion automatique
+            if (uniqueSites.length === 1) {
+                const siteSiret = uniqueSites[0];
+                const site = allOptions.find(opt => opt.json_row?.emitter?.company?.siret === siteSiret);
+                
+                if (site) {
+                    console.log('Autocomplétion avec le site:', site.json_row.emitter.company.name);
+                    
+                    // Mettre à jour les données
+                    setDataToogle(prev => {
+                        const newData = {
+                            ...prev,
+                            emitter: {
+                                ...prev.emitter,
+                                company: {
+                                    ...prev.emitter.company,
+                                    name: site.json_row.emitter.company.name,
+                                    siret: site.json_row.emitter.company.siret
+                                }
+                            }
+                        };
+                        console.log('Nouvelles données après autocomplétion:', newData);
+                        return newData;
+                    });
+                }
+            }
+        }
+    }, [allOptions, userSiteAccess]);
 
     // Fonction pour ajouter une nouvelle ligne
     const addWasteLine = () => {
@@ -879,10 +1021,11 @@ useEffect(() => {
                             <div className="mt-0 flex flex-col justify-between gap-1 ml-2">
                                 {/*Site*/}
                                 <div className="space-y-1">
+                                    {isMobile ? (
                                     <InputMobile
                                         titre="Site"
                                         placeholder="Sélectionner un site"
-                                        options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.name)}
+                                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.name, userSiteAccess)}
                                         width={30}
                                         name="emitter.company.name"
                                         value={dataToogle.emitter.company.name}
@@ -892,10 +1035,24 @@ useEffect(() => {
                                         onMobile={true}
                                         hideIndicators={true}
                                     />
+                                    ) : (
+                                        <InputFull
+                                            titre="Site"
+                                            placeholder="Sélectionner un site"
+                                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.name, userSiteAccess)}
+                                            width={40}
+                                            name="emitter.company.name"
+                                            value={dataToogle.emitter.company.name}
+                                            onChange={handleChange}
+                                            enableText={true}
+                                            stylePrimary={true}
+                                        />
+                                    )}
+                                    {isMobile ? (
                                     <InputMobile
                                         titre="Siret"
                                         placeholder="Siret"
-                                        options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.siret)}
+                                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.siret, userSiteAccess)}
                                         width={30}
                                         name="emitter.company.siret"
                                         value={dataToogle.emitter.company.siret}
@@ -905,6 +1062,19 @@ useEffect(() => {
                                         onMobile={true}
                                         hideIndicators={true}
                                     />
+                                    ) : (
+                                        <InputFull
+                                            titre="Siret"
+                                            placeholder="Siret"
+                                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.siret, userSiteAccess)}
+                                            width={40}
+                                            name="emitter.company.siret"
+                                            value={dataToogle.emitter.company.siret}
+                                            onChange={handleChange}
+                                            enableText={true}
+                                            display={false && (displayAll || shouldDisplayField("emitter.company.siret", changedField))}
+                                        />
+                                    )}
                                 </div>
                                 {/*Point de Collecte*/}
                                 <div className="space-y-1">
@@ -958,7 +1128,7 @@ useEffect(() => {
                                         <InputMobile
                                             titre="Site"
                                             placeholder="Sélectionner un site"
-                                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.name)}
+                                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.name, userSiteAccess)}
                                             width={30}
                                             name="emitter.company.name"
                                             value={dataToogle.emitter.company.name}
@@ -972,7 +1142,7 @@ useEffect(() => {
                                         <InputFull
                                             titre="Site"
                                             placeholder="Sélectionner un site"
-                                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.name)}
+                                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.name, userSiteAccess)}
                                             width={40}
                                             name="emitter.company.name"
                                             value={dataToogle.emitter.company.name}
@@ -985,7 +1155,7 @@ useEffect(() => {
                                         <InputMobile
                                             titre="Siret"
                                             placeholder="Siret"
-                                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.siret)}
+                                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.siret, userSiteAccess)}
                                             width={30}
                                             name="emitter.company.siret"
                                             value={dataToogle.emitter.company.siret}
@@ -999,7 +1169,7 @@ useEffect(() => {
                                         <InputFull
                                             titre="Siret"
                                             placeholder="Siret"
-                                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.siret)}
+                                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.siret, userSiteAccess)}
                                             width={40}
                                             name="emitter.company.siret"
                                             value={dataToogle.emitter.company.siret}

@@ -244,9 +244,9 @@ export function replaceLastOccurrence(str: string, search: string, replacement: 
 export const getUniqueOptions = (
     filteredOptions: CompleteFormInput[], 
     allOptions: CompleteFormInput[],
-    selector: (opt: CompleteFormInput) => string | undefined
+    selector: (opt: CompleteFormInput) => string | undefined,
+    userSiteAccess?: string[]
 ) => {
-
     // S'assurer que les valeurs undefined sont filtrées
     const filtered = Array.from(new Set(
         filteredOptions.map(selector).filter((value): value is string => 
@@ -259,7 +259,34 @@ export const getUniqueOptions = (
             value !== undefined && value !== null && value !== ''
         )
     )); 
-    
+
+    // Si on a des accès aux sites et que le sélecteur est pour un champ de site, on filtre
+    if (userSiteAccess && userSiteAccess.length > 0 && selector.toString().includes('emitter.company')) {
+        const filteredWithAccess = filtered.filter(value => {
+            // Trouver l'option correspondante
+            const option = allOptions.find(opt => selector(opt) === value);
+            if (!option) return false;
+            
+            // Vérifier si le siret du site est dans les accès
+            const siteSiret = option.json_row.emitter?.company?.siret;
+            return siteSiret ? userSiteAccess.includes(siteSiret) : false;
+        });
+
+        const allWithAccess = all.filter(value => {
+            // Trouver l'option correspondante
+            const option = allOptions.find(opt => selector(opt) === value);
+            if (!option) return false;
+            
+            // Vérifier si le siret du site est dans les accès
+            const siteSiret = option.json_row.emitter?.company?.siret;
+            return siteSiret ? userSiteAccess.includes(siteSiret) : false;
+        });
+
+        return {
+            filteredOptions: filteredWithAccess,
+            allOptions: allWithAccess.filter(opt => !filteredWithAccess.includes(opt))
+        };
+    }
 
     return {
         filteredOptions: filtered,

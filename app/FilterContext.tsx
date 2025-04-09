@@ -110,6 +110,8 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
                 `sites-${session.entreprise_id}`,
                 JSON.stringify(siteStates)
             );
+            
+            //console.log('Sites sauvegardés dans le localStorage:', siteStates);
         }
 
         return newSites;
@@ -150,6 +152,7 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
       const savedSites = localStorage.getItem(`sites-${session.entreprise_id}`);
       if (savedSites) {
         const savedSiteStates = JSON.parse(savedSites);
+        //console.log('Sites chargés depuis le localStorage:', savedSiteStates);
         setSites(prevSites => 
           prevSites.map(site => ({
             ...site,

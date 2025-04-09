@@ -101,6 +101,7 @@ const FiltreSiteEtablissement = () => {
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
     const [isFullDataLoaded, setIsFullDataLoaded] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const [userSiteAccess, setUserSiteAccess] = useState<string[]>([]);
 
     // Utilisation de SWR pour récupérer les données des émetteurs
     const { data: emitterData, error: swrError, isLoading: isLoadingSWR } = useSWR(
@@ -196,8 +197,45 @@ const FiltreSiteEtablissement = () => {
         fetchData();
     }, []);
 
+    // Effet pour récupérer les données de la colonne site_access de la table profiles
+    useEffect(() => {
+        const fetchUserSiteAccess = async () => {
+            if (!user_id) {
+                console.log('Pas de user_id, impossible de récupérer les accès aux sites');
+                return;
+            }
+            
+            try {
+                console.log('Récupération des accès aux sites pour user_id:', user_id);
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('site_access')
+                    .eq('user_id', user_id)
+                    .single();
+
+                if (error) {
+                    console.error('Erreur lors de la récupération des accès aux sites:', error);
+                    return;
+                }
+
+                console.log('Données récupérées de la table profiles:', data);
+                if (data?.site_access && Array.isArray(data.site_access)) {
+                    console.log('Liste des sirets autorisés:', data.site_access);
+                    setUserSiteAccess(data.site_access);
+                } else {
+                    console.log('Pas de liste de sirets autorisés trouvée');
+                }
+            } catch (error) {
+                console.error('Erreur lors de la récupération des accès aux sites:', error);
+            }
+        };
+
+        fetchUserSiteAccess();
+    }, [user_id]);
+
     // Effet pour mettre à jour les sites quand les données changent
     useEffect(() => {
+        console.log('État actuel de userSiteAccess:', userSiteAccess);
 
         if (!entreprise_id) {
             //console.log('[Effect 3] Pas d\'entreprise_id, retour');
@@ -208,22 +246,68 @@ const FiltreSiteEtablissement = () => {
         const savedSites = localStorage.getItem(`sites-${entreprise_id}`);
         const savedSiteStates = savedSites ? JSON.parse(savedSites) : {};
 
+        // Si l'utilisateur a des accès aux sites définis dans Supabase, on écrase les données du localStorage
+        if (userSiteAccess.length > 0) {
+            console.log('Écrasement des données du localStorage par les données de Supabase');
+            
+            // Créer un nouvel objet pour stocker les états des sites
+            const newSavedSiteStates: { [key: string]: { checked: boolean } } = {};
+            
+            // On garde le site "Autres" du localStorage
+            if (savedSiteStates['----']) {
+                newSavedSiteStates['----'] = savedSiteStates['----'];
+            } else {
+                newSavedSiteStates['----'] = { checked: true };
+            }
+            
+            // On ajoute les sites autorisés
+            userSiteAccess.forEach(siret => {
+                newSavedSiteStates[siret] = { checked: true };
+            });
+            
+            // On sauvegarde dans le localStorage
+            localStorage.setItem(
+                `sites-${entreprise_id}`,
+                JSON.stringify(newSavedSiteStates)
+            );
+            
+            console.log('Nouvelles données sauvegardées dans le localStorage:', newSavedSiteStates);
+        }
+
         const getSavedState = (orgId: string) => {
             if (window.innerWidth <= 768) {
                 return false;
             }
+            
+            // Si l'utilisateur a des accès aux sites définis dans Supabase, on les utilise
+            if (userSiteAccess.length > 0) {
+                // Le site "Autres" est toujours accessible
+                if (orgId === '----') {
+                    return savedSiteStates[orgId]?.checked ?? true;
+                }
+                // Pour les autres sites, on vérifie s'ils sont dans la liste des accès
+                const isIncluded = userSiteAccess.includes(orgId);
+                console.log(`Site ${orgId} est ${isIncluded ? 'autorisé' : 'non autorisé'}`);
+                return isIncluded;
+            }
+            
+            // Sinon, on utilise les données du localStorage
             return savedSiteStates[orgId]?.checked ?? true;
         };
 
-        const sites_from_db: ContextSite[] = additionnalSites.map(site => ({
-            orgId: site.siret,
-            name: site.name,
-            givenName: '',
-            checked: getSavedState(site.siret),
-            activated: true,
-            isTrackDechets: false,
-            isInDb: true
-        }));
+        const sites_from_db: ContextSite[] = additionnalSites.map(site => {
+            const isChecked = getSavedState(site.siret);
+            console.log(`Site DB ${site.siret} (${site.name}) est ${isChecked ? 'coché' : 'décoché'}`);
+            return {
+                orgId: site.siret,
+                name: site.name,
+                givenName: '',
+                checked: isChecked,
+                activated: true,
+                isTrackDechets: false,
+                isInDb: true
+            };
+        });
 
         
 
@@ -238,19 +322,24 @@ const FiltreSiteEtablissement = () => {
         };
 
         if (etablissementsWithStatus.length > 0) {
-            const vrai_sites: ContextSite[] = etablissementsWithStatus.map((etablissement: Etablissement) => ({
-                orgId: etablissement.orgId,
-                name: etablissement.name,
-                givenName: etablissement.givenName,
-                checked: getSavedState(etablissement.orgId),
-                activated: etablissement.activated,
-                isTrackDechets: true,
-                isInDb: false
-            }));
+            const vrai_sites: ContextSite[] = etablissementsWithStatus.map((etablissement: Etablissement) => {
+                const isChecked = getSavedState(etablissement.orgId);
+                console.log(`Site TrackDéchets ${etablissement.orgId} (${etablissement.name}) est ${isChecked ? 'coché' : 'décoché'}`);
+                return {
+                    orgId: etablissement.orgId,
+                    name: etablissement.name,
+                    givenName: etablissement.givenName,
+                    checked: isChecked,
+                    activated: etablissement.activated,
+                    isTrackDechets: true,
+                    isInDb: false
+                };
+            });
 
             const mergedSites = vrai_sites.map(trackSite => {
                 const dbSite = sites_from_db.find(dbSite => dbSite.orgId === trackSite.orgId);
                 if (dbSite) {
+                    console.log(`Site fusionné ${trackSite.orgId} (${dbSite.name}) est ${trackSite.checked ? 'coché' : 'décoché'}`);
                     return {
                         ...trackSite,
                         name: dbSite.name,
@@ -263,17 +352,43 @@ const FiltreSiteEtablissement = () => {
 
             const trackDechetsSirets = new Set(vrai_sites.map(site => site.orgId));
             const uniqueDbSites = sites_from_db.filter(site => !trackDechetsSirets.has(site.orgId))
-                .map(site => ({
-                    ...site,
-                    checked: savedSiteStates[site.orgId]?.checked ?? site.checked
-                }));
+                .map(site => {
+                    const isChecked = savedSiteStates[site.orgId]?.checked ?? site.checked;
+                    console.log(`Site unique DB ${site.orgId} (${site.name}) est ${isChecked ? 'coché' : 'décoché'}`);
+                    return {
+                        ...site,
+                        checked: isChecked
+                    };
+                });
 
             const sitesAutre = {
                 ...sites_autre,
                 checked: savedSiteStates['----']?.checked ?? sites_autre.checked
             };
+            console.log(`Site Autres est ${sitesAutre.checked ? 'coché' : 'décoché'}`);
 
             let allSites = [...mergedSites, ...uniqueDbSites, sitesAutre];
+            console.log('Nombre total de sites:', allSites.length);
+            console.log('Sites cochés:', allSites.filter(site => site.checked).length);
+
+            // Si l'utilisateur a des accès aux sites définis dans Supabase, on s'assure que seuls les sites autorisés sont cochés
+            if (userSiteAccess.length > 0) {
+                console.log('Filtrage des sites selon les accès Supabase');
+                allSites = allSites.map(site => {
+                    // Le site "Autres" est toujours accessible
+                    if (site.orgId === '----') {
+                        return site;
+                    }
+                    // Pour les autres sites, on vérifie s'ils sont dans la liste des accès
+                    const isIncluded = userSiteAccess.includes(site.orgId);
+                    console.log(`Site ${site.orgId} (${site.name}) est ${isIncluded ? 'autorisé' : 'non autorisé'}`);
+                    return {
+                        ...site,
+                        checked: isIncluded
+                    };
+                });
+                console.log('Sites cochés après filtrage:', allSites.filter(site => site.checked).length);
+            }
 
             if (window.innerWidth <= 768) {
                 const firstValidSite = allSites.find(site => site.orgId !== '----' && site.activated);
@@ -300,6 +415,20 @@ const FiltreSiteEtablissement = () => {
                     group: Object.entries(mappingSite).find(([_, sirets]) => sirets.includes(site.orgId))?.[0]
                 }));
 
+                // Si l'utilisateur a des accès aux sites définis dans Supabase, on s'assure que les groupes sont correctement cochés
+                if (userSiteAccess.length > 0) {
+                    console.log('Mise à jour des groupes selon les accès Supabase');
+                    const updatedGroups = groups.map(group => {
+                        // Un groupe est coché si au moins un de ses sites est autorisé
+                        const hasAuthorizedSite = group.sirets.some(siret => userSiteAccess.includes(siret));
+                        console.log(`Groupe ${group.name} est ${hasAuthorizedSite ? 'autorisé' : 'non autorisé'}`);
+                        return {
+                            ...group,
+                            checked: hasAuthorizedSite
+                        };
+                    });
+                    setSiteGroups(updatedGroups);
+                }
                 
                 setSites(sitesWithGroups);
             } else {
@@ -308,10 +437,14 @@ const FiltreSiteEtablissement = () => {
             }
         } else {
             
-            let sitesWithSavedStates = [...sites_from_db, sites_autre].map(site => ({
-                ...site,
-                checked: savedSiteStates[site.orgId]?.checked ?? site.checked
-            }));
+            let sitesWithSavedStates = [...sites_from_db, sites_autre].map(site => {
+                const isChecked = getSavedState(site.orgId);
+                console.log(`Site sans TrackDéchets ${site.orgId} (${site.name}) est ${isChecked ? 'coché' : 'décoché'}`);
+                return {
+                    ...site,
+                    checked: isChecked
+                };
+            });
 
             if (window.innerWidth <= 768) {
                 const firstValidSite = sitesWithSavedStates.find(site => site.orgId !== '----' && site.activated);
@@ -321,6 +454,28 @@ const FiltreSiteEtablissement = () => {
                         checked: site.orgId === firstValidSite.orgId
                     }));
                 }
+            }
+
+            console.log('Nombre total de sites (sans TrackDéchets):', sitesWithSavedStates.length);
+            console.log('Sites cochés (sans TrackDéchets):', sitesWithSavedStates.filter(site => site.checked).length);
+
+            // Si l'utilisateur a des accès aux sites définis dans Supabase, on s'assure que seuls les sites autorisés sont cochés
+            if (userSiteAccess.length > 0) {
+                console.log('Filtrage des sites sans TrackDéchets selon les accès Supabase');
+                sitesWithSavedStates = sitesWithSavedStates.map(site => {
+                    // Le site "Autres" est toujours accessible
+                    if (site.orgId === '----') {
+                        return site;
+                    }
+                    // Pour les autres sites, on vérifie s'ils sont dans la liste des accès
+                    const isIncluded = userSiteAccess.includes(site.orgId);
+                    console.log(`Site sans TrackDéchets ${site.orgId} (${site.name}) est ${isIncluded ? 'autorisé' : 'non autorisé'}`);
+                    return {
+                        ...site,
+                        checked: isIncluded
+                    };
+                });
+                console.log('Sites cochés après filtrage (sans TrackDéchets):', sitesWithSavedStates.filter(site => site.checked).length);
             }
 
             setSites(sitesWithSavedStates);
@@ -363,8 +518,11 @@ const FiltreSiteEtablissement = () => {
     // Fonction pour vérifier si tous les sites d'un groupe sont cochés
     const isGroupChecked = (groupName: string) => {
         const groupSirets = mappingSite[groupName] || [];
-        return sites.filter(site => groupSirets.includes(site.orgId))
-                   .every(site => site.checked);
+        // Ne prendre en compte que les sites visibles (cochés ou "Autres")
+        const visibleSites = sites.filter(site => 
+            groupSirets.includes(site.orgId) && (site.checked || site.orgId === '----')
+        );
+        return visibleSites.length > 0 && visibleSites.every(site => site.checked);
     };
 
     // Simplifier handleSiteToggle car la persistance est gérée dans le contexte
@@ -379,6 +537,12 @@ const FiltreSiteEtablissement = () => {
         const isCurrentlyChecked = isGroupChecked(groupName);
         const groupSirets = mappingSite[groupName] || [];
         
+        // Prendre en compte tous les sites du groupe, pas seulement ceux qui sont déjà cochés
+        const allSiretsInGroup = groupSirets.filter(siret => {
+            const site = sites.find(s => s.orgId === siret);
+            return site !== undefined; // Vérifier seulement si le site existe
+        });
+        
         if (window.innerWidth <= 768) {
             sites.forEach(site => {
                 if (site.checked) {
@@ -386,12 +550,12 @@ const FiltreSiteEtablissement = () => {
                 }
             });
             
-            const firstSite = sites.find(s => groupSirets.includes(s.orgId));
+            const firstSite = sites.find(s => allSiretsInGroup.includes(s.orgId));
             if (firstSite) {
                 handleSiteToggle(firstSite.orgId);
             }
         } else {
-            groupSirets.forEach(siret => {
+            allSiretsInGroup.forEach(siret => {
                 const site = sites.find(s => s.orgId === siret);
                 if (site && site.checked !== !isCurrentlyChecked) {
                     handleSiteToggle(siret);
@@ -411,12 +575,29 @@ const FiltreSiteEtablissement = () => {
 
     // Organiser les sites par groupe
     const renderSites = () => {
+        // Filtrer les sites en fonction de site_access si ce n'est pas vide
+        // et s'assurer que les sites non autorisés sont décochés
+        const filteredSites = userSiteAccess.length > 0 
+            ? sites.filter(site => site.orgId === '----' || userSiteAccess.includes(site.orgId))
+                .map(site => {
+                    // Si le site n'est pas dans userSiteAccess et n'est pas "Autres", le décocher
+                    if (site.orgId !== '----' && !userSiteAccess.includes(site.orgId)) {
+                        return { ...site, checked: false };
+                    }
+                    return site;
+                })
+            : sites;
+
         if (!mappingSite || Object.keys(mappingSite).length === 0) {
-            return sites.map(site => renderSite(site));
+            // Afficher les sites filtrés
+            return filteredSites.map(site => renderSite(site));
         }
 
         const groupedContent = Object.entries(mappingSite).map(([groupName, groupSirets]) => {
-            const sitesInGroup = sites.filter(site => groupSirets.includes(site.orgId));
+            // Filtrer les sites du groupe en fonction de site_access
+            const sitesInGroup = filteredSites.filter(site => 
+                groupSirets.includes(site.orgId)
+            );
             
             if (sitesInGroup.length === 0) return null;
 
@@ -454,7 +635,7 @@ const FiltreSiteEtablissement = () => {
         });
 
         // Récupérer les sites qui ne sont pas dans des groupes
-        const ungroupedSites = sites.filter(site => 
+        const ungroupedSites = filteredSites.filter(site => 
             !Object.values(mappingSite).flat().includes(site.orgId)
         );
 
