@@ -2235,7 +2235,7 @@ useEffect(() => {
                                             name: dataToogle.emitter.company.name || '',
                                             contact: dataToogle.emitter.company.contact || '',
                                             phone: dataToogle.emitter.company.phone || '',
-                                            email: dataToogle.emitter.company.mail || '',
+                                            email: String(user_email) || '',//dataToogle.emitter.company.mail || '',
                                             address: dataToogle.emitter.company.address || '',
                                             workSite: {
                                                 name: dataToogle.emitter.workSite.name || '',
