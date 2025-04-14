@@ -16,6 +16,9 @@ const AnalOpTable = () => {
                 fillRateCount: number;
                 weightedFillRateSum: number;
                 weightWithFillRate: number;
+                pricePerVolume: number[];
+                pricePerTon: number[];
+                pricePerCollection: number[];
             }
         } = {};
 
@@ -39,7 +42,10 @@ const AnalOpTable = () => {
                     fillRateSum: 0,
                     fillRateCount: 0,
                     weightedFillRateSum: 0,
-                    weightWithFillRate: 0
+                    weightWithFillRate: 0,
+                    pricePerVolume: [],
+                    pricePerTon: [],
+                    pricePerCollection: []
                 };
             }
 
@@ -63,6 +69,38 @@ const AnalOpTable = () => {
                 stats[segmentKey].fillRateSum += fillRate;
                 stats[segmentKey].fillRateCount += 1;
             }
+
+            // Calculer les différents prix
+            if (bsd.facture_infos?.footer?.total_ht) {
+                const totalHT = Number(bsd.facture_infos.footer.total_ht);
+                
+                // Prix au volume
+                if (bsd.other_infos?.volume && bsd.other_infos?.volumeUnit) {
+                    let volume = Number(bsd.other_infos.volume);
+                    
+                    // Convertir en m³ si l'unité est en L
+                    if (bsd.other_infos.volumeUnit === 'L') {
+                        volume = volume / 1000; // Conversion de L en m³
+                    }
+                    
+                    const fillRate = bsd.other_infos?.fillRate ? Number(bsd.other_infos.fillRate) / 100 : 1;
+                    const effectiveVolume = volume * fillRate;
+                    
+                    if (effectiveVolume > 0) {
+                        const pricePerVolume = totalHT / effectiveVolume;
+                        stats[segmentKey].pricePerVolume.push(pricePerVolume);
+                    }
+                }
+
+                // Prix à la tonne
+                if (quantity > 0) {
+                    const pricePerTon = totalHT / quantity;
+                    stats[segmentKey].pricePerTon.push(pricePerTon);
+                }
+
+                // Prix par collecte
+                stats[segmentKey].pricePerCollection.push(totalHT);
+            }
         });
 
         // Calculer les totaux
@@ -83,6 +121,16 @@ const AnalOpTable = () => {
         return { stats, totals };
     }, [bsds, mappingTable, filieres_ou_prestataires, siretToName]);
 
+    const calculateMedian = (arr: number[]) => {
+        if (arr.length === 0) return 0;
+        const sorted = [...arr].sort((a, b) => a - b);
+        const middle = Math.floor(sorted.length / 2);
+        if (sorted.length % 2 === 0) {
+            return (sorted[middle - 1] + sorted[middle]) / 2;
+        }
+        return sorted[middle];
+    };
+
     return (
         <div className="flex-1 p-4 bg-white rounded-lg">
             <div className="text-gray-500 text-xs mb-2">
@@ -96,9 +144,12 @@ const AnalOpTable = () => {
                                 {filieres_ou_prestataires.nom === 'prestataire' ? 'Prestataire' : 'Filière'}
                             </th>
                             <th className="px-2 py-1 text-right font-bold">Tonnage</th>
-                            <th className="px-2 py-1 text-right font-bold">Remplissage moyen</th>
-                            <th className="px-2 py-1 text-right font-bold">Nombre de collectes</th>
-                            <th className="px-2 py-1 text-right font-bold">Déclassements</th>
+                            <th className="px-2 py-1 text-right font-bold">Remplissage</th>
+                            <th className="px-2 py-1 text-right font-bold">Collectes</th>
+                            <th className="px-2 py-1 text-right font-bold">Déclassés</th>
+                            {/*<th className="px-2 py-1 text-right font-bold">(€/m³)</th>*/}
+                            <th className="px-2 py-1 text-right font-bold">(€/tonne)</th>
+                            {/*<th className="px-2 py-1 text-right font-bold">(€/collecte)</th>*/}
                         </tr>
                     </thead>
                     <tbody>
@@ -125,6 +176,21 @@ const AnalOpTable = () => {
                                     <td className="px-2 py-1 text-right">
                                         0
                                     </td>
+                                    {/*<td className="px-2 py-1 text-right">
+                                        {data.pricePerVolume.length > 0 
+                                            ? `${calculateMedian(data.pricePerVolume).toFixed(1)}`
+                                            : '-'}
+                                    </td>*/}
+                                    <td className="px-2 py-1 text-right">
+                                        {data.pricePerTon.length > 0 
+                                            ? `${calculateMedian(data.pricePerTon).toFixed(1)}`
+                                            : '-'}
+                                    </td>
+                                    {/*<td className="px-2 py-1 text-right">
+                                        {data.pricePerCollection.length > 0 
+                                            ? `${calculateMedian(data.pricePerCollection).toFixed(1)}`
+                                            : '-'}
+                                    </td>*/}
                                 </tr>
                             ))}
                     </tbody>
@@ -145,6 +211,15 @@ const AnalOpTable = () => {
                             <td className="px-2 py-1 text-right font-bold">
                                 0
                             </td>
+                            {/*<td className="px-2 py-1 text-right font-bold">
+                                -
+                            </td>*/}
+                            <td className="px-2 py-1 text-right font-bold">
+                                -
+                            </td>
+                            {/*<td className="px-2 py-1 text-right font-bold">
+                                -
+                            </td>*/}
                         </tr>
                     </tfoot>
                 </table>

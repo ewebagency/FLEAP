@@ -84,6 +84,7 @@ interface SupabaseBSD {
     created_on_fleap: string;
     facture_treated: boolean;
     id_track_dechets: string;
+    other_infos: { fillRate: string, volume: string, volumeUnit: string, containerDescription: string };
 }
 
 export const AnalysisProvider = ({ children }: { children: React.ReactNode }) => {
@@ -153,7 +154,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
                         infos_json->formAPI->createFormInput->transporter,
                         infos_json->formAPI->createFormInput->wasteDetails,
                         infos_json->formAPI->createFormInput->>takenOverAt,
-                        infos_json->formAPI->createFormInput->other_infos->>fillRate,
+                        other_infos,
                         on_track_dechets,
                         created_on_fleap,
                         facture_treated,
@@ -234,12 +235,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
                         created_on_fleap: item.created_on_fleap,
                         facture_treated: item.facture_treated,
                         id_track_dechets: item.id_track_dechets,
-                        other_infos: {
-                            fillRate: item.fillRate,
-                            volume: "",
-                            volumeUnit: "",
-                            containerDescription: ""
-                        }
+                        other_infos: item.other_infos
                     };
                     return bsd as unknown as CommonBSD;
                 });

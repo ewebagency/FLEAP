@@ -90,7 +90,7 @@ ${lines.map(line => {
 }).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
-    params.mention.mentionType === 'recipient' ? `L’installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 
@@ -128,8 +128,9 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
     useEffect(() => {
         setTo(params.destinataire || '');
         setReplyTo(params.emitter.email || '');
-        if (params.emitter.email && !ccList.includes(params.emitter.email)) {
-            setCcList(Array.from(new Set([...ccList, params.adminEmail])));
+        if (params.emitter.email) {
+            const emails = [params.emitter.email, params.adminEmail].filter(email => email && email.trim() !== '');
+            setCcList(Array.from(new Set([...ccList, ...emails])));
         }
     }, [params.destinataire, params.adminEmail]);
 
@@ -158,7 +159,7 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
     }, [to, replyTo, subject, emailBody]);
 
     const handleAddCc = () => {
-        if (cc && !ccList.includes(cc)) {
+        if (cc && !ccList.includes(cc) && cc!="") {
             setCcList([...ccList, cc]);
             setCc('');
         }
@@ -223,7 +224,6 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
                                 onChange={(e) => setTo(e.target.value)}
                             />
                         </div>
-
                         <div>
                             <div className="flex items-center gap-2">
                                 <label className="text-sm text-gray-600 w-16 md:w-24">Cc:</label>

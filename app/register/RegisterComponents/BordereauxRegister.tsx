@@ -59,11 +59,20 @@ const BordereauxRegister = () => {
                     ${filterPendingBSDs ? 'border-2 border-[var(--green-medium)]' : 'border border-gray-200'}`}
                 >
                     <div className="flex-grow">
-                        {/*<BoutonOpenModal />*/}
                         <NewDemandeMailButon/>
                     </div>
+                    <div className="border border-[var(--green-medium)] rounded-lg ml-2">
+                        <button className={`text-center py-1.5 px-2 rounded-lg ${filterPendingBSDs ? 'text-white bg-[var(--green-medium)]' : 'text-gray-600 bg-gray-50 hover:bg-white'}`} 
+                                onClick={() => setFilterPendingBSDs(!filterPendingBSDs)}>
+                            <div className="text-xl font-bold hidden">{stats.pending}</div>
+                            <div className={`text-xs`}>
+                                En attente
+                            </div>
+                            <div className={`text-xs`}>de collecte</div>
+                        </button>
+                    </div>
                 </div>
-                </div>
+            </div>
 
             {/* Version Desktop */}
             <div className="hidden md:block bg-gray-100 p-2 rounded-lg shadow-sm mb-2">
