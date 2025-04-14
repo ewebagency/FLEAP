@@ -77,12 +77,12 @@ export default function UserSettings() {
                        className={`tab border-0 ${activeTab === 'tab_permissions' ? 'border-b-4 border-green-500' : ''}`}
                        onClick={() => handleTabClick('tab_permissions')}>
                        Permissions
-                    </a>*/}
+                    </a>
                     <a role="tab" 
                        className={`tab border-0 ${activeTab === 'tab_parametrage' ? 'border-b-4 border-green-500' : ''}`}
                        onClick={() => handleTabClick('tab_parametrage')}>
                        Paramétrage
-                    </a>
+                    </a>*/}
                 </div>
 
                 {activeTab === 'tab_personal' && <PersonalTab email={email} currentProfile={currentProfile} />}
