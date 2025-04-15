@@ -555,11 +555,11 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                                                 </td>
                                                 {dataset.data.map((value, valueIndex) => (
                                                     <td key={valueIndex} className="px-6 py-2 whitespace-nowrap text-gray-500">
-                                                        {Math.abs(value).toLocaleString('fr-FR')} €
+                                                        {dataset.stack === 'positive' ? '-' : ''}{Math.abs(value).toLocaleString('fr-FR')} €
                                                     </td>
                                                 ))}
                                                 <td className="px-6 py-1 whitespace-nowrap font-medium text-gray-900">
-                                                    {Math.abs(dataset.data.reduce((sum, val) => sum + val, 0)).toLocaleString('fr-FR')} €
+                                                    {dataset.stack === 'positive' ? '-' : ''}{Math.abs(dataset.data.reduce((sum, val) => sum + val, 0)).toLocaleString('fr-FR')} €
                                                 </td>
                                             </tr>
                                         ))}
@@ -571,14 +571,17 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                                                 );
                                                 return (
                                                     <td key={index} className="px-6 py-2 whitespace-nowrap text-gray-900">
-                                                        {Math.abs(total).toLocaleString('fr-FR')} €
+                                                        {total < 0 ? '-' : ''}{Math.abs(total).toLocaleString('fr-FR')} €
                                                     </td>
                                                 );
                                             })}
                                             <td className="px-6 py-1 whitespace-nowrap text-gray-900">
-                                                {Math.abs(aggregatedData.datasets.reduce(
-                                                    (sum, dataset) => sum + dataset.data.reduce((s, v) => s + v, 0), 0
-                                                )).toLocaleString('fr-FR')} €
+                                                {(() => {
+                                                    const finalTotal = aggregatedData.datasets.reduce(
+                                                        (sum, dataset) => sum + dataset.data.reduce((s, v) => s + v, 0), 0
+                                                    );
+                                                    return finalTotal < 0 ? `-${Math.abs(finalTotal).toLocaleString('fr-FR')} €` : `${Math.abs(finalTotal).toLocaleString('fr-FR')} €`;
+                                                })()}
                                             </td>
                                         </tr>
                                     </tbody>
