@@ -14,6 +14,7 @@ import { toast } from "react-hot-toast";
 import { createRoot } from "react-dom/client";
 import DatePicker from "react-datepicker";
 import { invalidateCache } from "@/app/utils/invalidateCache";
+import { typeTraitement } from "@/app/component/Analyse/Environnementale/codeTraitement";
 
 const initialToogleData: FormInput = {
     emitter: {
@@ -1143,11 +1144,20 @@ useEffect(() => {
                                 <InputFull
                                     titre="Opération d'élimination"
                                     placeholder="Opération d'élimination"
-                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.processingOperation || '')}
+                                    options={{
+                                        filteredOptions: [],
+                                        allOptions: Object.entries(typeTraitement).flatMap(([group, codes]) => 
+                                            codes.map(code => `${group} - ${code}`)
+                                        )
+                                    }}
                                     width={40}
                                     name="recipient.processingOperation"
                                     value={dataToogle.recipient.processingOperation || ''}
-                                    onChange={handleChange}
+                                    onChange={(e) => {
+                                        const value = typeof e === 'object' && 'target' in e ? e.target.value : e;
+                                        const code = value.split(' - ')[1] || '';
+                                        handleChange({ target: { name: 'recipient.processingOperation', value: code } });
+                                    }}
                                     enableText={false}
                                     display={displayAll || shouldDisplayField("recipient.processingOperation", changedField)}
                                 />

@@ -11,6 +11,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { TooltipItem as ChartTooltipItem, Chart as ChartJS, ChartOptions, ChartDataset, ScaleOptionsByType, Scale, ScaleType } from 'chart.js';
 import { Context } from 'chartjs-plugin-datalabels';
+import { typeTraitement } from './codeTraitement';
 
 const { Bar } = DynamicCharts;
 
@@ -20,14 +21,18 @@ interface LocalChartData {
         label: string;
         data: number[];
         backgroundColor: string;
-        borderColor: string;
-        borderWidth: number;
     }[];
+}
+
+interface TreatmentDetail {
+    tonnage: number;
+    carbon: number;
 }
 
 interface TreatmentStats {
     tonnage: number;
     carbon: number;
+    details: Map<string, TreatmentDetail>;
 }
 
 interface DatasetWithLabel extends ChartDataset<'bar'> {
@@ -70,40 +75,14 @@ export const treatmentLabels = {
   
 
 const treatmentColors = {
-    // Codes R (Valorisation) - Dégradés de vert/bleu
-    'R0': 'rgba(34, 197, 94, 0.8)',  // Vert vif (Réutilisation)
-    'R1': 'rgba(16, 185, 129, 0.8)', // Vert émeraude
-    'R2': 'rgba(20, 184, 166, 0.8)', // Vert teal
-    'R3': 'rgba(6, 182, 212, 0.8)',  // Cyan
-    'R4': 'rgba(14, 165, 233, 0.8)', // Bleu ciel
-    'R5': 'rgba(59, 130, 246, 0.8)', // Bleu
-    'R6': 'rgba(99, 102, 241, 0.8)', // Indigo
-    'R7': 'rgba(139, 92, 246, 0.8)', // Violet
-    'R8': 'rgba(168, 85, 247, 0.8)', // Violet foncé
-    'R9': 'rgba(192, 132, 252, 0.8)',// Violet clair
-    'R10': 'rgba(216, 180, 254, 0.8)',// Violet très clair
-    'R11': 'rgba(147, 197, 253, 0.8)',// Bleu clair
-    'R12': 'rgba(186, 230, 253, 0.8)',// Bleu très clair
-    'R13': 'rgba(125, 211, 252, 0.8)',// Bleu azur
-
-    // Codes D (Élimination) - Dégradés de orange/rouge
-    'D1': 'rgba(244, 63, 94, 0.8)',  // Rouge rose
-    'D2': 'rgba(251, 113, 133, 0.8)',// Rose
-    'D3': 'rgba(253, 164, 175, 0.8)',// Rose clair
-    'D4': 'rgba(249, 115, 22, 0.8)', // Orange
-    'D5': 'rgba(234, 88, 12, 0.8)',  // Orange foncé
-    'D6': 'rgba(249, 168, 212, 0.8)',// Rose pâle
-    'D7': 'rgba(236, 72, 153, 0.8)', // Rose vif
-    'D8': 'rgba(244, 114, 182, 0.8)',// Rose moyen
-    'D9': 'rgba(251, 207, 232, 0.8)',// Rose très clair
-    'D10': 'rgba(225, 29, 72, 0.8)', // Rouge vif
-    'D11': 'rgba(248, 113, 113, 0.8)',// Rouge clair
-    'D12': 'rgba(239, 68, 68, 0.8)', // Rouge
-    'D13': 'rgba(252, 165, 165, 0.8)',// Rouge pâle
-    'D14': 'rgba(254, 202, 202, 0.8)',// Rouge très pâle
-    'D15': 'rgba(220, 38, 38, 0.8)', // Rouge foncé
-
-    // Autre
+    // Catégories de traitement
+    'Élimination': 'rgba(244, 63, 94, 0.8)',  // Rouge
+    'Valorisation énergétique': 'rgba(34, 197, 94, 0.8)',  // Vert
+    'Valorisation matière': 'rgba(59, 130, 246, 0.8)',  // Bleu
+    'Préparation à la valorisation': 'rgba(168, 85, 247, 0.8)',  // Violet
+    'Réutilisation': 'rgba(249, 115, 22, 0.8)',  // Orange
+    'Réemploi': 'rgba(139, 92, 246, 0.8)',  // Violet foncé
+    'Inconnu': 'rgba(156, 163, 175, 0.8)',  // Gris
     'default': 'rgba(156, 163, 175, 0.8)' // Gris
 };
 
@@ -241,9 +220,7 @@ const EnvBarChart = () => {
             return {
                 label: segment,
                 data: data,
-                borderColor: color,
-                backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.8)'),
-                borderWidth: 1
+                backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.8)')
             };
         });
 
@@ -252,29 +229,48 @@ const EnvBarChart = () => {
             datasets: monthlyDatasets
         });
 
-        // Nouvelle structure pour les données de traitement
-        const treatmentStats = new Map<string, {
-            tonnage: number;
-            carbon: number;
-        }>();
+        // Nouvelle structure pour les données de traitement par catégorie
+        const treatmentStats = new Map<string, TreatmentStats>();
 
-        // Calculer les totaux par méthode de traitement
+        // Calculer les totaux par catégorie de traitement
         bsds.forEach((bsd) => {
             const date = new Date(bsd.created_at);
             if (segmentDates.debut && segmentDates.fin && (date < segmentDates.debut || date > segmentDates.fin)) return;
 
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? bsd.infos_json?.formAPI?.createFormInput?.quantityReceived : bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
-            const processingOperation = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || 'default';
+            const processingOperation = (bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || '').trim();
             const cedCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
 
-            if (!treatmentStats.has(processingOperation)) {
-                treatmentStats.set(processingOperation, { tonnage: 0, carbon: 0 });
+            // Trouver la catégorie du traitement
+            let category = 'Inconnu';
+            for (const [cat, codes] of Object.entries(typeTraitement)) {
+                if (codes.includes(processingOperation)) {
+                    category = cat;
+                    break;
+                }
             }
 
-            const stats = treatmentStats.get(processingOperation)!;
+            if (!treatmentStats.has(category)) {
+                treatmentStats.set(category, { 
+                    tonnage: 0, 
+                    carbon: 0,
+                    details: new Map()
+                });
+            }
+
+            const stats = treatmentStats.get(category)!;
             try {
+                const carbonEmission = parseFloat(estimerCarbone(cedCode, processingOperation, quantity));
                 stats.tonnage += Number(quantity) || 0;
-                stats.carbon += parseFloat(estimerCarbone(cedCode, processingOperation, quantity));
+                stats.carbon += carbonEmission;
+
+                // Stocker les détails par code de traitement
+                if (!stats.details.has(processingOperation)) {
+                    stats.details.set(processingOperation, { tonnage: 0, carbon: 0 });
+                }
+                const detail = stats.details.get(processingOperation)!;
+                detail.tonnage += Number(quantity) || 0;
+                detail.carbon += carbonEmission;
             } catch (error) {
                 console.warn('Erreur de calcul pour le BSD:', error);
             }
@@ -295,31 +291,23 @@ const EnvBarChart = () => {
             currentMonthCarbon: Number(currentMonthCarbon) || 0
         });
 
-        // Trier par tonnage
-        const sorted = Array.from(treatmentStats.entries())
-            .sort((a, b) => b[1].tonnage - a[1].tonnage);
-
-        setSortedTreatments(sorted);
-
         // Modifier la création des datasets pour le graphique des traitements
         setTreatmentData({
             labels: ['Tonnage', 'Équivalent CO₂'],
-            datasets: sorted
-                .filter(([code, stats]) => stats.tonnage > 0 || stats.carbon > 0) // Filtrer les traitements vides
-                .map(([code, stats]) => {
-                    const cleanCode = code.replaceAll(' ', '');
-                    return {
-                        label: treatmentLabels[cleanCode as keyof typeof treatmentLabels] || code,
-                        data: [
-                            totalTonnage > 0 ? (stats.tonnage / totalTonnage * 100) : 0,
-                            totalCarbon > 0 ? (stats.carbon / totalCarbon * 100) : 0
-                        ],
-                        backgroundColor: treatmentColors[cleanCode as keyof typeof treatmentColors] || treatmentColors.default,
-                        borderColor: treatmentColors[cleanCode as keyof typeof treatmentColors] || treatmentColors.default,
-                        borderWidth: 1
-                    };
-                })
+            datasets: Array.from(treatmentStats.entries())
+                .filter(([_, stats]) => stats.tonnage > 0 || stats.carbon > 0)
+                .map(([category, stats]) => ({
+                    label: category,
+                    data: [
+                        totalTonnage > 0 ? (stats.tonnage / totalTonnage * 100) : 0,
+                        totalCarbon > 0 ? (stats.carbon / totalCarbon * 100) : 0
+                    ],
+                    backgroundColor: treatmentColors[category as keyof typeof treatmentColors] || treatmentColors.default
+                }))
         });
+
+        // Stocker les détails pour le tooltip
+        setSortedTreatments(Array.from(treatmentStats.entries()));
 
     }, [bsds, mappingTable, filieres_ou_prestataires, filieres, siretToName, segmentDates]);
 
@@ -425,7 +413,8 @@ const EnvBarChart = () => {
         },
         elements: {
             bar: {
-                borderRadius: 4
+                borderRadius: 4,
+                borderWidth: 0
             }
         }
     };
@@ -440,7 +429,7 @@ const EnvBarChart = () => {
             },
             title: {
                 display: true,
-                text: 'Répartition par méthode de traitement',
+                text: 'Répartition par catégorie de traitement',
                 color: 'gray',
                 font: {
                     size: 14,
@@ -451,16 +440,25 @@ const EnvBarChart = () => {
             tooltip: {
                 callbacks: {
                     label(tooltipItem: ChartTooltipItem<'bar'>) {
-                        const stats = sortedTreatments.find(([code]) => 
-                            treatmentLabels[code.replaceAll(' ', '') as keyof typeof treatmentLabels] === tooltipItem.dataset.label
-                        )?.[1];
+                        const category = tooltipItem.dataset.label;
+                        const stats = sortedTreatments.find(([cat]) => cat === category)?.[1];
                         
                         if (stats) {
-                            const value = Number(tooltipItem.raw).toFixed(1);
                             const absolute = tooltipItem.dataIndex === 0 
                                 ? `${stats.tonnage.toFixed(2)} T` 
                                 : `${stats.carbon.toFixed(2)} T CO₂`;
-                            return `${tooltipItem.dataset.label}: ${value}% (${absolute})`;
+                            
+                            // Construire le détail des codes de traitement en colonnes verticales
+                            const details = Array.from(stats.details.entries())
+                                .sort((a: [string, TreatmentDetail], b: [string, TreatmentDetail]) => b[1].tonnage - a[1].tonnage)
+                                .map(([code, detail]: [string, TreatmentDetail]) => {
+                                    const percentage = tooltipItem.dataIndex === 0
+                                        ? (detail.tonnage / stats.tonnage * 100).toFixed(1)
+                                        : (detail.carbon / stats.carbon * 100).toFixed(1);
+                                    return `${code}: ${percentage}%`;
+                                });
+                            
+                            return [`${category} (${absolute})`, ...details];
                         }
                         return tooltipItem.dataset.label;
                     }
@@ -469,28 +467,20 @@ const EnvBarChart = () => {
             datalabels: {
                 display(context: Context) {
                     const value = Number(context.dataset.data[context.dataIndex]);
-                    return value > 3;
+                    return value > 20; // Afficher le label si la valeur est supérieure à 20%
                 },
-                    color: 'white',
-                    font: {
-                        weight: 'bold',
-                        size: 11
-                    },
+                color: 'white',
+                font: {
+                    weight: 'bold',
+                    size: 11
+                },
                 formatter: function(value: number, context: Context) {
-                    const dataset = context.dataset as DatasetWithLabel;
-                    const code = Object.entries(treatmentLabels).find(
-                        ([_, label]) => label === dataset.label
-                    )?.[0] || '';
-                    if (code === 'default') {
-                        return `Vide - ${value.toFixed(1)}%`;
-                    } else {
-                        return value > 10 ? `${code} - ${value.toFixed(1)}%` : '';
-                    }
+                    return value > 20 ? `${context.dataset.label} (${value.toFixed(1)}%)` : '';
                 },
                 align: 'center',
                 anchor: 'center',
                 clamp: true
-                }
+            }
         },
         scales: {
             x: {
@@ -514,14 +504,15 @@ const EnvBarChart = () => {
         },
         elements: {
             bar: {
-                borderRadius: 4
+                borderRadius: 4,
+                borderWidth: 0
             }
         }
     };
 
     return (
         <div className="space-y-4">
-            <div className="w-full h-[300px] bg-white rounded-lg shadow p-2 relative">
+            <div className="w-full h-[300px] bg-white rounded-lg p-2 relative">
                 <div className="absolute top-3 right-6 z-10 flex items-center space-x-2">
                 <div className="flex items-center space-x-2">
                     <button
@@ -631,7 +622,7 @@ const EnvBarChart = () => {
                     </div>
                 )}
             </div>
-            <div className="w-full h-[250px] bg-white rounded-lg shadow p-2 relative">
+            <div className="w-full h-[250px] bg-white rounded-lg p-2 relative">
                 {treatmentData.labels.length > 0 ? (
                     <Bar data={treatmentData} options={treatmentOptions} plugins={[ChartDataLabels]} height={300}/>
                 ) : (

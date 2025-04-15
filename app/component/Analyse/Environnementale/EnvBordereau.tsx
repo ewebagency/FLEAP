@@ -2,6 +2,7 @@ import React from 'react';
 import { useAnalysis } from '../../../analysis/AnalysisProvider';
 import { estimerCarbone } from './environnement_utils';
 import TauxRecyclage from './TauxRecyclage';
+import TauxValorisation from './TauxValorisation';
 const COMPARISONS = [
     {
         threshold: 1000,
@@ -126,11 +127,12 @@ const EnvBordereau = () => {
                 </div>
             </div>
             <div className="flex justify-end items-center gap-6">
-                <div className="flex items-start gap-2 text-gray-500 w-[200px]">
+                <div className="flex items-start gap-2 text-gray-500 w-[400px]">
                     <div className="text-3xl">{comparison.emoji}</div>
                     <div className="text-sm">{comparison.text}</div>
                 </div>
-                <TauxRecyclage />
+                {/*<TauxRecyclage />*/}
+                <TauxValorisation />
             </div>
         </div>
     );

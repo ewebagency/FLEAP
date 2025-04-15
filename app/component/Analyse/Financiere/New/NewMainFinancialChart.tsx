@@ -26,6 +26,8 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
     const { filieres, segmentDates, setSegmentDates } = useFilterContext();
     const [maxScale, setMaxScale] = useState<number | null>(null);
     const [minScale, setMinScale] = useState<number | null>(null);
+    const [viewType, setViewType] = useState<'chart' | 'table'>('chart');
+    const [aggregation, setAggregation] = useState<'month' | 'year'>('month');
     
     const handleDateChange = (date: Date | null, type: 'debut' | 'fin') => {
         if (date) {
@@ -166,6 +168,37 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             datasets: datasets
         };
     }, [factures, mappingTable, filieres, segmentDates, maxScale, minScale]);
+
+    const aggregatedData = useMemo(() => {
+        if (!filteredChartData?.labels.length) return filteredChartData;
+
+        if (aggregation === 'month') return filteredChartData;
+
+        // Agréger par année
+        const yearLabels = Array.from(new Set(
+            filteredChartData.labels.map(label => label.split(' ')[1])
+        )).sort();
+
+        const yearData = filteredChartData.datasets.map(dataset => {
+            const yearlyData = yearLabels.map(year => {
+                const monthIndices = filteredChartData.labels
+                    .map((label, index) => label.split(' ')[1] === year ? index : -1)
+                    .filter(index => index !== -1);
+                
+                return monthIndices.reduce((sum, index) => sum + dataset.data[index], 0);
+            });
+
+            return {
+                ...dataset,
+                data: yearlyData
+            };
+        });
+
+        return {
+            labels: yearLabels,
+            datasets: yearData
+        };
+    }, [filteredChartData, aggregation]);
 
     if (!mappingTable.length) {
         return <div className="text-center text-gray-500">Chargement des données...</div>;
@@ -352,6 +385,54 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
     return (
         <div className="mt-4">
             <div className="bg-white rounded-lg relative">
+                <div className="absolute top-1 left-16 z-10">
+                    <button
+                        onClick={() => setViewType(viewType === 'chart' ? 'table' : 'chart')}
+                        className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded flex items-center space-x-2"
+                    >
+                        {viewType === 'chart' ? (
+                            <>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M2 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V4zM8 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1H9a1 1 0 01-1-1V4zM15 3a1 1 0 00-1 1v12a1 1 0 001 1h2a1 1 0 001-1V4a1 1 0 00-1-1h-2z" />
+                                </svg>
+                                <span className="text-xs">Vue Tableau</span>
+                            </>
+                        ) : (
+                            <>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1v-6zM8 7a1 1 0 011-1h2a1 1 0 011 1v10a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM15 4a1 1 0 00-1 1v12a1 1 0 001 1h2a1 1 0 001-1V5a1 1 0 00-1-1h-2z" />
+                                </svg>
+                                <span className="text-xs">Vue Graphique</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+
+                {viewType === 'table' && (
+                    <div className="absolute top-1 left-56 z-10">
+                        <button
+                            onClick={() => setAggregation(aggregation === 'month' ? 'year' : 'month')}
+                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded flex items-center space-x-2"
+                        >
+                            {aggregation === 'month' ? (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="text-xs">Vue Annuelle</span>
+                                </>
+                            ) : (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="text-xs">Vue Mensuelle</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                )}
+
                 <div className="absolute top-2 right-6 z-10 flex items-center space-x-2">
                     <div className="flex items-center space-x-2">
                         <button
@@ -441,12 +522,71 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                 </div>
                 <div className="pt-1">
                     {factures.length > 0 ? (
-                        <Bar 
-                            data={filteredChartData} 
-                            options={options} 
-                            plugins={[ChartDataLabels]}
-                            height={80} 
-                        />
+                        viewType === 'chart' ? (
+                            <Bar 
+                                data={filteredChartData} 
+                                options={options} 
+                                plugins={[ChartDataLabels]}
+                                height={80} 
+                            />
+                        ) : aggregatedData ? (
+                            <div className="overflow-x-auto mt-8">
+                                <table className="min-w-full divide-y divide-gray-200 text-xs">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                                                Filière
+                                            </th>
+                                            {aggregatedData.labels.map((label, index) => (
+                                                <th key={index} className="px-6 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">
+                                                    {label}
+                                                </th>
+                                            ))}
+                                            <th className="px-6 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">
+                                                Total
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {aggregatedData.datasets.map((dataset, index) => (
+                                            <tr key={index} className="hover:bg-gray-50 transition-colors duration-150">
+                                                <td className="px-6 py-1 whitespace-nowrap font-medium text-gray-900">
+                                                    {dataset.label}
+                                                </td>
+                                                {dataset.data.map((value, valueIndex) => (
+                                                    <td key={valueIndex} className="px-6 py-2 whitespace-nowrap text-gray-500">
+                                                        {Math.abs(value).toLocaleString('fr-FR')} €
+                                                    </td>
+                                                ))}
+                                                <td className="px-6 py-1 whitespace-nowrap font-medium text-gray-900">
+                                                    {Math.abs(dataset.data.reduce((sum, val) => sum + val, 0)).toLocaleString('fr-FR')} €
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        <tr className="bg-gray-50 font-medium">
+                                            <td className="px-6 py-1 whitespace-nowrap text-gray-900">Total</td>
+                                            {aggregatedData.labels.map((_, index) => {
+                                                const total = aggregatedData.datasets.reduce(
+                                                    (sum, dataset) => sum + dataset.data[index], 0
+                                                );
+                                                return (
+                                                    <td key={index} className="px-6 py-2 whitespace-nowrap text-gray-900">
+                                                        {Math.abs(total).toLocaleString('fr-FR')} €
+                                                    </td>
+                                                );
+                                            })}
+                                            <td className="px-6 py-1 whitespace-nowrap text-gray-900">
+                                                {Math.abs(aggregatedData.datasets.reduce(
+                                                    (sum, dataset) => sum + dataset.data.reduce((s, v) => s + v, 0), 0
+                                                )).toLocaleString('fr-FR')} €
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="text-center text-gray-500">Aucune donnée disponible</div>
+                        )
                     ) : (
                         <div className="text-center text-gray-500">Aucune donnée disponible</div>
                     )}
