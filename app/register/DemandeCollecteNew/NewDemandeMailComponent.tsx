@@ -88,13 +88,10 @@ Prestation d'enlèvement de déchet pour : ${date === 'Dès que possible' ? 'Dè
 ${lines.map(line => `Contenant : 1 ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
-Contact terrain : ${params.emitter.contact} / ${params.emitter.phone}
-
 ${params.mention.toMentionned ? (
     params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
-
 Merci de confirmer la prise en charge des demandes ci-dessus.
 
 Cordialement,
