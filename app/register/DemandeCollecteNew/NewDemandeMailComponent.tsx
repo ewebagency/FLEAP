@@ -63,6 +63,10 @@ const emailTemplate: EmailTemplate = {
         return `Demande de collecte - ${Array.from(filieres).join(', ')} | ${params.entrepriseName}`;
     },
     getBody: (params: EmailParams) => {
+        // Construire l'adresse complète du point de collecte
+        const collectAddress = params.emitter.workSite.fullAddress || 
+            `${params.emitter.workSite.address || ''} ${params.emitter.workSite.postalCode || ''} ${params.emitter.workSite.city || ''}`.trim();
+
         // Grouper les déchets par date de collecte
         const wastesByDate = params.wasteLines.reduce((acc, line) => {
             const date = line.collectDate || 'Dès que possible';
@@ -73,40 +77,30 @@ const emailTemplate: EmailTemplate = {
             return acc;
         }, {} as { [key: string]: typeof params.wasteLines });
 
-        // Construire l'adresse complète du point de collecte
-        const collectAddress = params.emitter.workSite.fullAddress || 
-            `${params.emitter.workSite.address || ''} ${params.emitter.workSite.postalCode || ''} ${params.emitter.workSite.city || ''}`.trim();
-
         return `Bonjour,
-Je souhaite organiser des collectes de déchets pour ${params.entrepriseName} ${collectAddress ? `à l'adresse suivante : ${collectAddress}` : ''}.
+Je souhaite organiser des collectes de déchets.
+Client : ${params.entrepriseName}
+Site : ${params.emitter.workSite.name}
+Adresse : ${collectAddress}
 
-
-Voici la liste des collectes attendues :
 ${Object.entries(wastesByDate).map(([date, lines]) => `
-${date === 'Dès que possible' ? 'Dès que possible' : `Le ${date.split('-')[2]}/${date.split('-')[1]}/${date.split('-')[0]}`}
-${lines.map(line => {
-    const container = line.container; //+ (line.volume ? ` - ${line.volume} ${line.volumeUnit}` : '');
-    return `• 1 ${container} ${line.description ? `de ${line.description}` : ''} ${line.code ? `(${line.code})` : ''}`;
-}).join('\n')}`).join('\n')}
-
-${params.mention.toMentionned ? (
-    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
-                                                : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
-) : ''}
+Prestation d'enlèvement de déchet pour : ${date === 'Dès que possible' ? 'Dès que possible' : 'le ' + `${date.split('-')[2]}/${date.split('-')[1]}/${date.split('-')[0]}`}
+${lines.map(line => `Contenant : 1 ${line.container}
+Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 
-Merci de me confirmer la prise en charge de toutes les demandes de collecte ci-dessus.
-
+Merci de confirmer la prise en charge des demandes ci-dessus.
 
 Cordialement,
-
 ${params.emitter.contact}
 ${params.entrepriseGlobalName}
-${params.emitter.phone ? `Tél : ${params.emitter.phone}` : ''}
-${params.emitter.email ? `Email : ${params.emitter.email}` : ''}
 
-Email envoyé depuis FLEAP
-Merci de « Répondre à tous » pour la confirmation`;
+Tel : ${params.emitter.phone}
+Email : ${params.emitter.email}
+
+PS: Merci de « Répondre à tous »
+
+Email envoyé depuis FLEAP`;
     }
 };
 

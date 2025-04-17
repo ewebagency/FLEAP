@@ -11,6 +11,7 @@ import FiliereTab from './components/Filiere/FiliereTab';
 import SiteTab from './components/Site/SiteTab';
 //import PermissionsTab from './components/Permissions/PermissionsTab';
 import ParametrageTab from './components/ParametrageTable/ParametrageTab';
+//import AutocompletionTab from './components/TableAutocompletion/AutocompletionTab';
 
 export default function UserSettings() {
     const router = useRouter();
@@ -83,6 +84,11 @@ export default function UserSettings() {
                        onClick={() => handleTabClick('tab_parametrage')}>
                        Paramétrage
                     </a>*/}
+                    {/*<a role="tab" 
+                       className={`tab border-0 ${activeTab === 'tab_autocompletion' ? 'border-b-4 border-green-500' : ''}`}
+                       onClick={() => handleTabClick('tab_autocompletion')}>
+                       Table Autocomplétion
+                    </a>*/}
                 </div>
 
                 {activeTab === 'tab_personal' && <PersonalTab email={email} currentProfile={currentProfile} />}
@@ -90,6 +96,7 @@ export default function UserSettings() {
                 {activeTab === 'tab_site' && <SiteTab />}
                 {/*activeTab === 'tab_permissions' && <PermissionsTab />*/}
                 {activeTab === 'tab_parametrage' && <ParametrageTab />}
+                {/*activeTab === 'tab_autocompletion' && <AutocompletionTab />*/}
             </div>
         </div>
     );

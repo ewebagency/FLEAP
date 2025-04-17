@@ -7,6 +7,9 @@ import { useModalContextNew } from './Modal/ContextModal';
 import { Filiere, useFilterContext } from '@/app/FilterContext';
 import NewDemandeMailButon from '../DemandeCollecteNew/NewDemandeMailButton';
 import { RowBSD } from "../interface/BSD_Interface";
+import NewFormulaireDemande from '../DemandeCollecteNew/NewFormulaireDemande';
+//import OpenFormulaireButton from '../DemandeCollecteAutocompletion/OpenFormulaireButton';
+//import Formulaire from '../DemandeCollecteAutocompletion/Formulaire';
 
 
 export const ListStatusEnAttente = ['Ligne créée automatiquement', 'Ligne demandée', 'Collecte demandée', 'REFUSED', 'CANCELED'];
@@ -14,6 +17,7 @@ export const ListStatusEnAttente = ['Ligne créée automatiquement', 'Ligne dema
 const BordereauxRegister = () => {
     const session = useSession();
     const { filterPendingBSDs, setFilterPendingBSDs } = useModalContextNew();
+    const [showFormulaire, setShowFormulaire] = useState(false);
     const [stats, setStats] = useState({
         //collected: 0,
         pending: 0,
@@ -80,6 +84,8 @@ const BordereauxRegister = () => {
                     <div className="flex space-x-2">
                     <NewDemandeMailButon/>
                     {/*<BoutonOpenModal/>*/}
+                    {/*<OpenFormulaireButton onClick={() => setShowFormulaire(true)} />
+                    {showFormulaire && <Formulaire setDisplayThis={setShowFormulaire} />}*/}
                     </div>
                     <div className="flex space-x-8">
                         <div className='border border-[var(--green-medium)] rounded-lg'>

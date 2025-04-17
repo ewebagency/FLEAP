@@ -33,6 +33,16 @@ const ImportsFiltre: React.FC = () => {
                     BSD
                 </button>
                 <button
+                    onClick={() => handleFilterChange('bon')}
+                    className={`px-3 py-1 text-xs rounded-md ${
+                        documentTypeFilter === 'bon'
+                            ? 'bg-green-100 text-green-800 font-medium'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                    Bon
+                </button>
+                <button
                     onClick={() => handleFilterChange('facture')}
                     className={`px-3 py-1 text-xs rounded-md ${
                         documentTypeFilter === 'facture'
