@@ -8,8 +8,8 @@ import { Filiere, useFilterContext } from '@/app/FilterContext';
 import NewDemandeMailButon from '../DemandeCollecteNew/NewDemandeMailButton';
 import { RowBSD } from "../interface/BSD_Interface";
 import NewFormulaireDemande from '../DemandeCollecteNew/NewFormulaireDemande';
-//import OpenFormulaireButton from '../DemandeCollecteAutocompletion/OpenFormulaireButton';
-//import Formulaire from '../DemandeCollecteAutocompletion/Formulaire';
+/*import OpenFormulaireButton from '../DemandeCollecteAutocompletion/OpenFormulaireButton';
+import Formulaire from '../DemandeCollecteAutocompletion/Formulaire';*/
 
 
 export const ListStatusEnAttente = ['Ligne créée automatiquement', 'Ligne demandée', 'Collecte demandée', 'REFUSED', 'CANCELED'];

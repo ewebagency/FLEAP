@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { fetchAutocompletionData, fetchAutocompletionLinks, checkAutocompletion } from "./utils";
 
-
 export const useAutocompletion = (entreprise_id: string|null) => {
   const [allOptions, setAllOptions] = useState<AutocompletionData>({
     sites: [],
@@ -20,7 +19,7 @@ export const useAutocompletion = (entreprise_id: string|null) => {
     contactLinks: []
   });
 
-  const [selectedFields, setSelectedFields] = useState<SelectedFields>({
+  const [selectedFieldsList, setSelectedFieldsList] = useState<SelectedFields[]>([{
     site: null,
     pointCollecte: null,
     dechet: null,
@@ -29,7 +28,7 @@ export const useAutocompletion = (entreprise_id: string|null) => {
     contenant: null,
     contactEmetteur: null,
     date: null
-  });
+  }]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,17 +42,49 @@ export const useAutocompletion = (entreprise_id: string|null) => {
     fetchData();
   }, [entreprise_id]);
 
-  const handleFieldChange = (field: keyof SelectedFields, value: any | null) => {
-    setSelectedFields(prev => {
-      const newFields = { ...prev, [field]: value };
-      const updatedFields = checkAutocompletion(newFields, links, allOptions);
-      //console.log('updatedFields', updatedFields);
-      return updatedFields;
+  const handleFieldChange = (index: number, field: keyof SelectedFields, value: any | null) => {
+    setSelectedFieldsList(prev => {
+      const newList = [...prev];
+      newList[index] = { ...newList[index], [field]: value };
+      
+      // Si on modifie les champs partagés (site, pointCollecte, contactEmetteur)
+      // on met à jour toutes les lignes
+      if (field === 'site' || field === 'pointCollecte' || field === 'contactEmetteur') {
+        for (let i = 0; i < newList.length; i++) {
+          if (i !== index) {
+            newList[i] = { ...newList[i], [field]: value };
+          }
+        }
+      }
+
+      // On vérifie l'autocomplétion pour chaque ligne
+      return newList.map(fields => checkAutocompletion(fields, links, allOptions));
     });
   };
-  
 
-  //console.log('alloptions', allOptions);
-  return { allOptions, selectedFields, handleFieldChange };
+  const addNewLine = () => {
+    setSelectedFieldsList(prev => {
+      const lastLine = prev[prev.length - 1];
+      return [
+        ...prev,
+        {
+          site: lastLine.site,
+          pointCollecte: lastLine.pointCollecte,
+          contactEmetteur: lastLine.contactEmetteur,
+          dechet: null,
+          transporteur: null,
+          destinataire: null,
+          contenant: null,
+          date: null
+        }
+      ];
+    });
+  };
+
+  const removeLine = (index: number) => {
+    setSelectedFieldsList(prev => prev.filter((_, i) => i !== index));
+  };
+
+  return { allOptions, selectedFieldsList, handleFieldChange, addNewLine, removeLine };
 };
 */

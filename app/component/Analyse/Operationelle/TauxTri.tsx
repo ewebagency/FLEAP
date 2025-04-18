@@ -28,7 +28,7 @@ const TauxTri = () => {
                 mappingTable
             ) || 'Autres';
 
-            if (filiere === 'DIB' || filiere === 'Autres') {
+            if (filiere === 'DIB' || filiere === 'Autres' || filiere === 'DAS') {
                 nonRecycledWeight += quantity;
                 const code = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
                 const description = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
