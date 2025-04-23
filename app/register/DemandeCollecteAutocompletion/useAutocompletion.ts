@@ -1,22 +1,26 @@
-/*import { AutocompletionData, SelectedFields, AutocompletionLinks } from "./types"
+import { AutocompletionData, SelectedFields, AutocompletionLinks } from "./types"
 import { useEffect, useState } from "react";
 import { fetchAutocompletionData, fetchAutocompletionLinks, checkAutocompletion } from "./utils";
 
-export const useAutocompletion = (entreprise_id: string|null) => {
+export const useAutocompletion = (entreprise_id: string|null, site_access?: string[]) => {
   const [allOptions, setAllOptions] = useState<AutocompletionData>({
     sites: [],
     transporteurs: [],
     destinataires: [],
     dechets: [],
     contenants: [],
-    contacts: []
+    contacts: [],
+    negociants: [],
+    courtiers: []
   });
   const [links, setLinks] = useState<AutocompletionLinks>({
     transportLinks: [],
     destinataireLinks: [],
     contenantLinks: [],
     codeTraitementLinks: [],
-    contactLinks: []
+    contactLinks: [],
+    negociantLinks: [],
+    courtierLinks: []
   });
 
   const [selectedFieldsList, setSelectedFieldsList] = useState<SelectedFields[]>([{
@@ -25,9 +29,15 @@ export const useAutocompletion = (entreprise_id: string|null) => {
     dechet: null,
     transporteur: null,
     destinataire: null,
+    negociant: null,
+    courtier: null,
     contenant: null,
     contactEmetteur: null,
-    date: null
+    date: null,
+    nombreContenant: 1,
+    destinataireMail: 'transporteur',
+    typePrestation: 'enlevement',
+    showNegociant: false
   }]);
 
   useEffect(() => {
@@ -35,14 +45,32 @@ export const useAutocompletion = (entreprise_id: string|null) => {
       if (entreprise_id) {
         const data = await fetchAutocompletionData(Number(entreprise_id));
         const dataLinks = await fetchAutocompletionLinks(Number(entreprise_id));
+        
+        // Filtrer les sites en fonction des site_access
+        const filteredData = { ...data };
+        if (site_access && site_access.length > 0) {
+          filteredData.sites = data.sites.filter(site => 
+            site_access.includes(site.value.siret)
+          );
+        }
+
         setLinks(dataLinks);
-        setAllOptions(data);
+        setAllOptions(filteredData);
+
+        // Si un seul site est disponible, l'auto-compléter
+        if (filteredData.sites.length === 1) {
+          setSelectedFieldsList(prev => {
+            const newList = [...prev];
+            newList[0] = { ...newList[0], site: filteredData.sites[0] };
+            return newList.map(fields => checkAutocompletion(fields, dataLinks, filteredData));
+          });
+        }
       }
     };
     fetchData();
-  }, [entreprise_id]);
+  }, [entreprise_id, site_access]);
 
-  const handleFieldChange = (index: number, field: keyof SelectedFields, value: any | null) => {
+  const handleFieldChange = (index: number, field: keyof SelectedFields, value: SelectedFields[keyof SelectedFields]) => {
     setSelectedFieldsList(prev => {
       const newList = [...prev];
       newList[index] = { ...newList[index], [field]: value };
@@ -74,8 +102,14 @@ export const useAutocompletion = (entreprise_id: string|null) => {
           dechet: null,
           transporteur: null,
           destinataire: null,
+          negociant: null,
+          courtier: null,
           contenant: null,
-          date: null
+          date: null,
+          nombreContenant: 1,
+          destinataireMail: 'transporteur',
+          typePrestation: 'enlevement',
+          showNegociant: false
         }
       ];
     });
@@ -85,6 +119,6 @@ export const useAutocompletion = (entreprise_id: string|null) => {
     setSelectedFieldsList(prev => prev.filter((_, i) => i !== index));
   };
 
+  console.log(selectedFieldsList);
   return { allOptions, selectedFieldsList, handleFieldChange, addNewLine, removeLine };
 };
-*/

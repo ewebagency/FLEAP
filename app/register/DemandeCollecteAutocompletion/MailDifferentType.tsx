@@ -27,6 +27,8 @@ interface EmailParams {
     };
     adminEmail: string;
     destinataire: string;
+    ccList: string[];
+    respoTerrain: {email: string, prenomNom: string, telephone: string };
     mention: {
         toMentionned: boolean;
         mentionType: string;
@@ -43,6 +45,8 @@ interface EmailParams {
         volume: string;
         volumeUnit: string;
         collectDate: string;
+        prestationType: string;
+        nombreContenant: number;
     }[];
 }
 
@@ -51,6 +55,7 @@ interface MailComponentProps {
     pastBrouillon?: boolean;
     onMobile?: boolean;
     onUpdateRecipientEmail: (email: string) => void;
+    onSendMailFunction?: (sendMail: () => Promise<void>) => void;
 }
 
 const emailTemplate: EmailTemplate = {
@@ -67,22 +72,148 @@ const emailTemplate: EmailTemplate = {
         const collectAddress = params.emitter.workSite.fullAddress || 
             `${params.emitter.workSite.address || ''} ${params.emitter.workSite.postalCode || ''} ${params.emitter.workSite.city || ''}`.trim();
 
-        return `Bonjour,${'\r\n'}${'\r\n'}Nous souhaitons organiser des collectes de déchets suivant ces informations :${'\r\n'}Client : ${params.entrepriseGlobalName}${'\r\n'}Site : ${params.entrepriseName}${'\r\n'}Adresse : ${collectAddress}${'\r\n'}${'\r\n'}Voici la liste des prestations attendues :${'\r\n'}${params.wasteLines.map(line => `${'\r\n'}Prestation d'enlèvement de déchet à effectuer ${!line.collectDate ? 'dès que possible' : 'le ' + `${line.collectDate.split('-')[2]}/${line.collectDate.split('-')[1]}/${line.collectDate.split('-')[0]}`}${'\r\n'}- Contenant : 1 ${line.container}${'\r\n'}- Déchets : ${line.description} (${line.code})${'\r\n'}`).join('')}${params.mention.toMentionned ? (
-            params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}${'\r\n'}` 
-                                                : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}${'\r\n'}`
-        ) : ''}${'\r\n'}Merci de nous confirmer la prise en charge de toutes les prestations ci-dessus.${'\r\n'}Cordialement,${'\r\n'}${'\r\n'}${params.emitter.contact}${'\r\n'}${params.entrepriseGlobalName}${'\r\n'}Téléphone : ${params.emitter.phone}${'\r\n'}Email : ${params.emitter.email}${'\r\n'}${'\r\n'}PS: Merci de « Répondre à tous »${'\r\n'}Email envoyé depuis FLEAP`;
+        // Grouper les déchets par date de collecte
+        const wastesByDate = params.wasteLines.reduce((acc, line) => {
+            const date = line.collectDate || 'Dès que possible';
+            if (!acc[date]) {
+                acc[date] = [];
+            }
+            acc[date].push(line);
+            return acc;
+        }, {} as { [key: string]: typeof params.wasteLines });
+
+        // Fonction pour formater la date
+        const formatDate = (date: string) => {
+            return date === 'Dès que possible' ? 'Dès que possible' : 'le ' + `${date.split('-')[2]}/${date.split('-')[1]}/${date.split('-')[0]}`;
+        };
+
+        // Fonction pour générer le corps du mail selon le type de prestation
+        const getMailBodyByPrestationType = (prestationType: string) => {
+            switch (prestationType) {
+                case 'enlevement':
+                    return `Bonjour,
+Je souhaite organiser des collectes de déchets.
+Client : ${params.entrepriseName}
+Site : ${params.emitter.workSite.name}
+Adresse : ${collectAddress}
+
+${Object.entries(wastesByDate).map(([date, lines]) => `
+Prestation d'enlèvement de déchet pour : ${formatDate(date)}
+${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
+
+${params.mention.toMentionned ? (
+    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+                                                : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
+) : ''}
+Merci de confirmer la prise en charge de ces demandes en répondant à tous.
+Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+
+                case 'camion_journee':
+                    return `Bonjour,
+Je souhaite réserver un camion pour la journée.
+Client : ${params.entrepriseName}
+Site : ${params.emitter.workSite.name}
+Adresse : ${collectAddress}
+
+${Object.entries(wastesByDate).map(([date, lines]) => `
+Prestation de camion à la journée pour : ${formatDate(date)}
+${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}`).join('\n')}`).join('\n')}
+
+${params.mention.toMentionned ? (
+    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+                                                : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
+) : ''}
+Merci de confirmer la disponibilité du camion pour la journée en répondant à tous.
+Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+
+                case 'camion_demie':
+                    return `Bonjour,
+Je souhaite réserver un camion pour la demi-journée.
+Client : ${params.entrepriseName}
+Site : ${params.emitter.workSite.name}
+Adresse : ${collectAddress}
+
+${Object.entries(wastesByDate).map(([date, lines]) => `
+Prestation de camion à la demi-journée pour : ${formatDate(date)}
+${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}`).join('\n')}`).join('\n')}
+
+${params.mention.toMentionned ? (
+    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+                                                : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
+) : ''}
+Merci de confirmer la disponibilité du camion pour la demi-journée en répondant à tous.
+Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+
+                case 'livraison':
+                    return `Bonjour,
+Je souhaite commander des contenants vides.
+Client : ${params.entrepriseName}
+Site : ${params.emitter.workSite.name}
+Adresse : ${collectAddress}
+
+${Object.entries(wastesByDate).map(([date, lines]) => `
+Prestation de livraison de contenants pour : ${formatDate(date)}
+${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}`).join('\n')}`).join('\n')}
+
+${params.mention.toMentionned ? (
+    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+                                                : `Le transporteur qui livrera les contenants sera ${params.mention.mentionCompany}`
+) : ''}
+Merci de confirmer la prise en charge de ces demandes en répondant à tous.
+Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+
+                default:
+                    return `Bonjour,
+Je souhaite organiser une prestation.
+Client : ${params.entrepriseName}
+Site : ${params.emitter.workSite.name}
+Adresse : ${collectAddress}
+
+${Object.entries(wastesByDate).map(([date, lines]) => `
+Prestation pour : ${formatDate(date)}
+${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Type de prestation : ${line.prestationType}
+Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
+
+${params.mention.toMentionned ? (
+    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+                                                : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
+) : ''}
+Merci de confirmer la prise en charge de ces demandes en répondant à tous.
+Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+            }
+        };
+
+        // Utiliser le type de prestation de la première ligne pour déterminer le format du mail
+        const prestationType = params.wasteLines[0]?.prestationType || 'enlevement';
+        const mailBody = getMailBodyByPrestationType(prestationType);
+
+        return `${mailBody}
+
+Cordialement,
+
+${params.entrepriseGlobalName}
+
+Tel : ${params.emitter.phone}
+Email : ${params.emitter.email}
+
+PS: Merci de « Répondre à tous »
+
+Email envoyé depuis FLEAP`;
     }
 };
 
-const NewDemandeMailComponent: React.FC<MailComponentProps> = ({ 
+const MailDifferentType: React.FC<MailComponentProps> = ({ 
     params, 
     pastBrouillon = false, 
     onMobile = false,
-    onUpdateRecipientEmail
+    onUpdateRecipientEmail,
+    onSendMailFunction
 }) => {
     const [to, setTo] = useState<string>(params.destinataire || '');
     const [cc, setCc] = useState<string>('');
-    const [ccList, setCcList] = useState<string[]>([params.emitter.email]);
+    const [ccList, setCcList] = useState<string[]>([params.emitter.email, ...params.ccList]);
     const [replyTo, setReplyTo] = useState<string>(params.emitter.email || '');
     const [subject, setSubject] = useState<string>('');
     const [emailBody, setEmailBody] = useState<string>('');
@@ -138,15 +269,14 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
             const response = await fetch('/api/send_mail', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json; charset=UTF-8',
+                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
                     to,
-                    cc: [...ccList, "contact.prestataire.fleap@gmail.com"].join(','),
+                    cc: [...ccList, ...params.ccList, "contact.prestataire.fleap@gmail.com"].join(','),
                     replyTo,
                     subject,
-                    text: emailBody,
-                    contentType: 'text/plain; charset=UTF-8'
+                    text: emailBody
                 }),
             });
 
@@ -159,11 +289,14 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
             console.error('Erreur:', error);
             toast.error('Erreur lors de l\'envoi de l\'email');
         }
-    }, [to, cc, replyTo, subject, emailBody, ccList]);
+    }, [to, cc, replyTo, subject, emailBody, ccList, params.ccList]);
 
     useEffect(() => {
         setSendMailFunction(handleSubmit);
-    }, [handleSubmit]);
+        if (onSendMailFunction) {
+            onSendMailFunction(handleSubmit);
+        }
+    }, [handleSubmit, onSendMailFunction]);
 
     const handleEmailBodyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setEmailBody(e.target.value);
@@ -261,5 +394,5 @@ const NewDemandeMailComponent: React.FC<MailComponentProps> = ({
     );
 };
 
-export default NewDemandeMailComponent;
+export default MailDifferentType;
 

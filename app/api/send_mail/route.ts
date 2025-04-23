@@ -25,8 +25,8 @@ export async function POST(req: Request) {
         auth: {
             user: 'contact.prestataire.fleap@gmail.com',
             pass: process.env.NEXT_PUBLIC_PASSWORD_GMAIL_SMTP,
-        },
-    });
+        }
+    } as nodemailer.TransportOptions);
 
     const mailOptions = {
         from: 'arthur.pouzargue@gmail.com',
@@ -35,6 +35,7 @@ export async function POST(req: Request) {
         cc: cc,
         subject: subject,
         text: text,
+        encoding: 'base64',
         attachments: attachments ? (attachments as Attachment[]).map(attachment => ({
             filename: attachment.filename,
             content: Buffer.from(attachment.content, 'base64'),

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 
-type AttributeType = 'string' | 'address' | 'contact' | 'collectionPoint' | 'number' | 'select';
+type AttributeType = 'string' | 'address' | 'contact' | 'collectionPoint' | 'number' | 'select' | 'boolean';
 
 interface Attribute {
   name: string;
@@ -37,9 +37,16 @@ const EntityForm: React.FC<EntityFormProps> = ({
   const [formData, setFormData] = useState<Record<string, unknown>>(initialData || {});
   const [collectionPoints, setCollectionPoints] = useState<CollectionPoint[]>([]);
 
-  const handleInputChange = (name: string, value: string) => {
+  const handleInputChange = (name: string, value: string | boolean) => {
     const attribute = secondaryAttributes.find(attr => attr.name === name) || mainAttribute;
-    const processedValue = attribute.type === 'number' ? Number(value) : value;
+    let processedValue: string | number | boolean = value;
+    
+    if (attribute.type === 'number') {
+      processedValue = Number(value);
+    } else if (attribute.type === 'boolean') {
+      processedValue = Boolean(value);
+    }
+    
     setFormData(prev => ({ ...prev, [name]: processedValue }));
   };
 
@@ -235,6 +242,21 @@ const EntityForm: React.FC<EntityFormProps> = ({
                 />
               </div>
             </div>
+          </div>
+        );
+
+      case 'boolean':
+        return (
+          <div className="w-full">
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-500">
+              <input
+                type="checkbox"
+                checked={formData[attribute.name] as boolean || false}
+                onChange={(e) => handleInputChange(attribute.name, e.target.checked)}
+                className="w-4 h-4 text-[var(--green-medium)] border-gray-300 rounded focus:ring-[var(--green-medium)]"
+              />
+              {attribute.label}
+            </label>
           </div>
         );
 

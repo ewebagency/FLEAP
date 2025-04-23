@@ -5,93 +5,70 @@ import EntityForm from './EntityForm';
 import { supabase } from '@/app/database/supabaseClient';
 import { useSession } from '@/app/component/SessionProvider';
 import LinkComponents from './LinkComponents';
+import {
+  Site,
+  Transporteur,
+  Dechet,
+  Destinataire,
+  Contenant,
+  ContactEmetteur,
+  Negociant,
+  Courtier,
+  Ecorganisme,
+  CodeTreatment,
+  TransportLink,
+  DestLink,
+  NegociantLink,
+  CourtierLink,
+  ContenantLink,
+  SiteContactLink,
+  CodeTreatmentLink,
+  EcorganismeLink
+} from './types';
+import {
+  handleTransportLink,
+  handleDestLink,
+  handleContenantLink,
+  handleSiteContactLink,
+  handleNegociantLink,
+  handleCourtierLink,
+  handleEcorganismeLink,
+  handleCodeTreatmentLink
+} from './LinkHandlers';
+import { fetchAutocompletionData } from './utils';
+import { siteAttributes, transporteurAttributes, dechetAttributes, destinataireAttributes, contenantAttributes, contactEmetteurAttributes, negociantAttributes, courtierAttributes, ecoOrganismeAttributes, codeTraitementAttributes } from './definitions';
 
-export interface CollectionPoint {
-  nom: string;
-  adresse: string;
-}
-
-export interface Site {
+interface AutocompletionRecord {
   id: string;
-  nom: string;
-  siret?: string;
-  adresseSiege?: string;
-  pointsCollecte?: CollectionPoint[];
-}
-
-export interface Transporteur {
-  id: string;
-  nomBoite: string;
-  siret?: string;
-  contact?: {
-    nomPrenom?: string;
-    email?: string;
-    telephone?: string;
-  };
-  adresse?: string;
-}
-
-export interface Dechet {
-  id: string;
-  nom: string;
-  codeCED?: string;
-  adr?: string;
-  onu?: string;
-}
-
-export interface Destinataire {
-  id: string;
-  nomBoite: string;
-  siret?: string;
-  contact: {
-    nomPrenom: string;
-    email: string;
-    telephone: string;
-  };
-  adresse: string;
-}
-
-export interface Contenant {
-  id: string;
-  nom: string;
-  volume: number;
-  uniteVolume: string;
-}
-
-export interface ContactEmetteur {
-  id: string;
-  prenomNom: string;
-  email: string;
-  telephone: string;
-}
-
-interface TransportLink {
-  site: string;
-  dechet: string;
-}
-
-interface DestLink {
-  site: string;
-  dechet: string;
-}
-
-interface ContenantLink {
-  site: string;
-  dechet: string;
-}
-
-interface SiteContactLink {
-  site: string;
-  contact: string;
+  transport_link?: TransportLink[];
+  dest_link?: DestLink[];
+  contenant_link?: ContenantLink[];
+  contact_link?: SiteContactLink[];
 }
 
 const AutocompletionTab: React.FC = () => {
+  
+  //on va chercher allOptions
   const [sites, setSites] = useState<Site[]>([]);
   const [transporteurs, setTransporteurs] = useState<Transporteur[]>([]);
   const [dechets, setDechets] = useState<Dechet[]>([]);
   const [destinataires, setDestinataires] = useState<Destinataire[]>([]);
   const [contenants, setContenants] = useState<Contenant[]>([]);
   const [contactEmetteurs, setContactEmetteurs] = useState<ContactEmetteur[]>([]);
+  const [negociants, setNegociants] = useState<Negociant[]>([]);
+  const [courtiers, setCourtiers] = useState<Courtier[]>([]);
+  const [ecoorganismes, setEcoorganismes] = useState<Ecorganisme[]>([]);
+  const [codeTreatments, setCodeTreatments] = useState<CodeTreatment[]>([]);
+  //on va chercher les liens
+  const [transportLinks, setTransportLinks] = useState<TransportLink[]>([]);
+  const [destLinks, setDestLinks] = useState<DestLink[]>([]);
+  const [negociantLinks, setNegociantLinks] = useState<NegociantLink[]>([]);
+  const [courtierLinks, setCourtierLinks] = useState<CourtierLink[]>([]);
+  const [contenantLinks, setContenantLinks] = useState<ContenantLink[]>([]);
+  const [siteContactLinks, setSiteContactLinks] = useState<SiteContactLink[]>([]);
+  const [codeTreatmentLinks, setCodeTreatmentLinks] = useState<CodeTreatmentLink[]>([]);
+  const [ecoorganismeLinks, setEcoorganismeLinks] = useState<EcorganismeLink[]>([]);
+
   const [showNewForm, setShowNewForm] = useState<{ [key: string]: boolean }>({
     site: false,
     transporteur: false,
@@ -99,128 +76,42 @@ const AutocompletionTab: React.FC = () => {
     destinataire: false,
     contenant: false,
     contactEmetteur: false,
+    negociant: false,
+    courtier: false,
+    ecoOrganisme: false,
+    codeTraitement: false,
   });
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [editingItems, setEditingItems] = useState<Set<string>>(new Set());
-  const [transportLinks, setTransportLinks] = useState<TransportLink[]>([]);
-  const [destLinks, setDestLinks] = useState<DestLink[]>([]);
-  const [contenantLinks, setContenantLinks] = useState<ContenantLink[]>([]);
-  const [siteContactLinks, setSiteContactLinks] = useState<SiteContactLink[]>([]);
   const {entreprise_id} = useSession();
 
+  //on va chercher les données allOptions
   useEffect(() => {
     if (entreprise_id) {
-      fetchAutocompletionData(Number(entreprise_id));
+      fetchAutocompletionData(Number(entreprise_id), setSites, setTransporteurs, setDechets, setDestinataires, setContenants, setContactEmetteurs, setNegociants, setCourtiers, setEcoorganismes, setCodeTreatments, setTransportLinks, setDestLinks, setNegociantLinks, setCourtierLinks, setContenantLinks, setSiteContactLinks, setCodeTreatmentLinks, setEcoorganismeLinks);
     }
   }, [entreprise_id]);
 
-  const fetchAutocompletionData = async (entrepriseId: number) => {
-    const { data, error } = await supabase
-      .from('table_autocompletion')
-      .select('*')
-      .eq('entreprise_id', entrepriseId);
+  // Ajout d'un état pour gérer l'onglet actif
+  const [activeTab, setActiveTab] = useState<string>('sites');
 
-    if (error) {
-      console.error('Error fetching autocompletion data:', error);
-      return;
-    }
+  // Liste des onglets disponibles
+  const tabs = [
+    { id: 'sites', label: 'Sites' },
+    { id: 'transporteurs', label: 'Transporteurs' },
+    { id: 'dechets', label: 'Déchets' },
+    { id: 'destinataires', label: 'Destinataires' },
+    { id: 'contenants', label: 'Contenants' },
+    { id: 'contactEmetteurs', label: 'Contacts Émetteurs' },
+    { id: 'negociants', label: 'Négociants' },
+    { id: 'courtiers', label: 'Courtiers' },
+    { id: 'ecoOrganismes', label: 'Éco-organismes' },
+    { id: 'codeTraitements', label: 'Codes de traitement' }
+  ];
 
-    if (data) {
-      const sites: Site[] = [];
-      const transporteurs: Transporteur[] = [];
-      const dechets: Dechet[] = [];
-      const destinataires: Destinataire[] = [];
-      const contenants: Contenant[] = [];
-      const contactEmetteurs: ContactEmetteur[] = [];
-      const transportLinks: TransportLink[] = [];
-      const destLinks: DestLink[] = [];
-      const contenantLinks: ContenantLink[] = [];
-      const siteContactLinks: SiteContactLink[] = [];
-
-      data.forEach(record => {
-        if (record.site) {
-          sites.push({
-            ...record.site,
-            id: record.id.toString()
-          });
-        }
-        if (record.transporteur) {
-          transporteurs.push({
-            ...record.transporteur,
-            id: record.id.toString()
-          });
-          if (record.transport_link) {
-            record.transport_link.forEach((link: { site: string; dechet: string }) => {
-              transportLinks.push({
-                site: link.site,
-                dechet: link.dechet
-              });
-            });
-          }
-        }
-        if (record.destinataire) {
-          destinataires.push({
-            ...record.destinataire,
-            id: record.id.toString()
-          });
-          if (record.dest_link) {
-            record.dest_link.forEach((link: { site: string; dechet: string }) => {
-              destLinks.push({
-                site: link.site,
-                dechet: link.dechet
-              });
-            });
-          }
-        }
-        if (record.dechet) {
-          dechets.push({
-            ...record.dechet,
-            id: record.id.toString()
-          });
-        }
-        if (record.contenant) {
-          contenants.push({
-            ...record.contenant,
-            id: record.id.toString()
-          });
-          if (record.contenant_link) {
-            record.contenant_link.forEach((link: { site: string; dechet: string }) => {
-              contenantLinks.push({
-                site: link.site,
-                dechet: link.dechet
-              });
-            });
-          }
-        }
-        if (record.contact_emetteur) {
-          contactEmetteurs.push({
-            ...record.contact_emetteur,
-            id: record.id.toString()
-          });
-        }
-        if (record.contact_link) {
-          record.contact_link.forEach((link: { site: string; contact: string }) => {
-            siteContactLinks.push({
-              site: link.site,
-              contact: link.contact
-            });
-          });
-        }
-      });
-
-      setSites(sites);
-      setTransporteurs(transporteurs);
-      setDechets(dechets);
-      setDestinataires(destinataires);
-      setContenants(contenants);
-      setContactEmetteurs(contactEmetteurs);
-      setTransportLinks(transportLinks);
-      setDestLinks(destLinks);
-      setContenantLinks(contenantLinks);
-      setSiteContactLinks(siteContactLinks);
-    }
-  };
-
+  //-------------------------------- Fonctions utils --------------------------------
+  
+  //Fonction de toogle pour les items
   const toggleItem = (itemId: string, type: string) => {
     const uniqueId = `${type}-${itemId}`;
     setExpandedItems(prev => {
@@ -238,6 +129,7 @@ const AutocompletionTab: React.FC = () => {
     return expandedItems.has(`${type}-${itemId}`);
   };
 
+  //Fonction d'édition pour les items
   const handleEdit = (itemId: string, type: string) => {
     const uniqueId = `${type}-${itemId}`;
     setEditingItems(prev => {
@@ -255,7 +147,8 @@ const AutocompletionTab: React.FC = () => {
     return editingItems.has(`${type}-${itemId}`);
   };
 
-  const handleFieldChange = (type: string, id: string, field: string, value: string) => {
+  //Fonction de changement pour les items -> différent de edit ?
+  const handleFieldChange = (type: string, id: string, field: string, value: string | boolean) => {
     switch (type) {
       case 'Site':
         setSites(prev => prev.map(site => 
@@ -282,6 +175,31 @@ const AutocompletionTab: React.FC = () => {
           contenant.id === id ? { ...contenant, [field]: value } : contenant
         ));
         break;
+      case 'ContactEmetteur':
+        setContactEmetteurs(prev => prev.map(contact => 
+          contact.id === id ? { ...contact, [field]: value } : contact
+        ));
+        break;
+      case 'Negociant':
+        setNegociants(prev => prev.map(negociant => 
+          negociant.id === id ? { ...negociant, [field]: value } : negociant
+        ));
+        break;
+      case 'Courtier':
+        setCourtiers(prev => prev.map(courtier => 
+          courtier.id === id ? { ...courtier, [field]: value } : courtier
+        ));
+        break;
+      case 'EcoOrganisme':
+        setEcoorganismes((prev: Ecorganisme[]) => prev.map((ecoorganisme: Ecorganisme) => 
+          ecoorganisme.id === id ? { ...ecoorganisme, [field]: value } : ecoorganisme
+        ));
+        break;
+      case 'CodeTraitement':
+        setCodeTreatments((prev: CodeTreatment[]) => prev.map((codeTreatment: CodeTreatment) => 
+          codeTreatment.id === id ? { ...codeTreatment, [field]: value } : codeTreatment
+        ));
+        break;
     }
   };
 
@@ -291,7 +209,7 @@ const AutocompletionTab: React.FC = () => {
         setTransporteurs(prev => prev.map(transporteur => 
           transporteur.id === id ? { 
             ...transporteur, 
-            contact: { ...transporteur.contact, [field]: value } 
+            [field]: value 
           } : transporteur
         ));
         break;
@@ -299,8 +217,30 @@ const AutocompletionTab: React.FC = () => {
         setDestinataires(prev => prev.map(destinataire => 
           destinataire.id === id ? { 
             ...destinataire, 
-            contact: { ...destinataire.contact, [field]: value } 
+            [field]: value 
           } : destinataire
+        ));
+        break;
+      case 'Negociant':
+        setNegociants(prev => prev.map(negociant => 
+          negociant.id === id ? { 
+            ...negociant, [field]: value 
+          } : negociant
+        ));
+        break;
+      case 'Courtier':
+        setCourtiers(prev => prev.map(courtier => 
+          courtier.id === id ? { 
+            ...courtier, [field]: value 
+          } : courtier
+        ));
+        break;
+      case 'EcoOrganisme':
+        setEcoorganismes((prev: Ecorganisme[]) => prev.map((ecoorganisme: Ecorganisme) => 
+          ecoorganisme.id === id ? { 
+            ...ecoorganisme, 
+            [field]: value 
+          } : ecoorganisme
         ));
         break;
     }
@@ -325,6 +265,18 @@ const AutocompletionTab: React.FC = () => {
         case 'Contenant':
           dataToUpdate = contenants.find(contenant => contenant.id === id);
           break;
+        case 'Negociant':
+          dataToUpdate = negociants.find(negociant => negociant.id === id);
+          break;
+        case 'Courtier':
+          dataToUpdate = courtiers.find(courtier => courtier.id === id);
+          break;
+        case 'EcoOrganisme':
+          dataToUpdate = ecoorganismes.find(ecoorganisme => ecoorganisme.id === id);
+          break;
+        case 'CodeTraitement':
+          dataToUpdate = codeTreatments.find(codeTreatment => codeTreatment.id === id);
+          break;
       }
 
       if (!dataToUpdate) return;
@@ -332,9 +284,22 @@ const AutocompletionTab: React.FC = () => {
       // Créer une copie des données sans l'ID
       const { id: _, ...dataWithoutId } = dataToUpdate;
 
+      const getTableName = (type: string) => {
+        switch (type.toLowerCase()) {
+          case 'contactemetteur':
+            return 'contact_emetteur';
+          case 'ecoorganisme':
+            return 'eco_organisme';
+          case 'codetraitement':
+            return 'code_traitement';
+          default:
+            return type.toLowerCase();
+        }
+      };
+
       const { error } = await supabase
         .from('table_autocompletion')
-        .update({ [type.toLowerCase()]: dataWithoutId })
+        .update({ [getTableName(type)]: dataWithoutId })
         .eq('id', id);
 
       if (error) {
@@ -382,15 +347,33 @@ const AutocompletionTab: React.FC = () => {
           // Supprimer les liens associés au contenant
           //setContenantLinks(prev => prev.filter(link => link.id !== id));
           break;
+        case 'Negociant':
+          setNegociants(prev => prev.filter(negociant => negociant.id !== id));
+          // Supprimer les liens associés au négociant
+          //setNegociantLinks(prev => prev.filter(link => link.id !== id));
+          break;
+        case 'Courtier':
+          setCourtiers(prev => prev.filter(courtier => courtier.id !== id));
+          // Supprimer les liens associés au courtier
+          //setCourtierLinks(prev => prev.filter(link => link.id !== id));
+          break;
         case 'ContactEmetteur':
           setContactEmetteurs(prev => prev.filter(contact => contact.id !== id));
           // Supprimer les liens associés au contact
           setSiteContactLinks(prev => prev.filter(link => link.contact !== id));
           break;
+        case 'EcoOrganisme':
+          setEcoorganismes(prev => prev.filter(ecoorganisme => ecoorganisme.id !== id));
+          break;
+        case 'CodeTraitement':
+          setCodeTreatments(prev => prev.filter(codeTreatment => codeTreatment.id !== id));
+          break;
       }
 
       // Mettre à jour Supabase avec le bon nom de colonne
-      const columnName = type === 'ContactEmetteur' ? 'contact_emetteur' : type.toLowerCase();
+      const columnName = type === 'EcoOrganisme' ? 'eco_organisme' : 
+                        type === 'CodeTraitement' ? 'code_traitement' : 
+                        type.toLowerCase();
       const { error: updateError } = await supabase
         .from('table_autocompletion')
         .update({ [columnName]: null })
@@ -413,11 +396,11 @@ const AutocompletionTab: React.FC = () => {
 
       // Mettre à jour chaque enregistrement pour supprimer les liens associés
       for (const record of allRecords) {
-        const updates: any = {};
+        const updates: Partial<AutocompletionRecord> = {};
 
         // Supprimer les liens de transport
         if (record.transport_link) {
-          const updatedTransportLinks = record.transport_link.filter((link: any) => {
+          const updatedTransportLinks = record.transport_link.filter((link: TransportLink) => {
             if (type === 'Site' && link.site === id) return false;
             if (type === 'Dechet' && link.dechet === id) return false;
             if (type === 'Transporteur' && record.id === id) return false;
@@ -430,7 +413,7 @@ const AutocompletionTab: React.FC = () => {
 
         // Supprimer les liens de destination
         if (record.dest_link) {
-          const updatedDestLinks = record.dest_link.filter((link: any) => {
+          const updatedDestLinks = record.dest_link.filter((link: DestLink) => {
             if (type === 'Site' && link.site === id) return false;
             if (type === 'Dechet' && link.dechet === id) return false;
             if (type === 'Destinataire' && record.id === id) return false;
@@ -443,7 +426,7 @@ const AutocompletionTab: React.FC = () => {
 
         // Supprimer les liens de contenant
         if (record.contenant_link) {
-          const updatedContenantLinks = record.contenant_link.filter((link: any) => {
+          const updatedContenantLinks = record.contenant_link.filter((link: ContenantLink) => {
             if (type === 'Site' && link.site === id) return false;
             if (type === 'Dechet' && link.dechet === id) return false;
             if (type === 'Contenant' && record.id === id) return false;
@@ -456,7 +439,7 @@ const AutocompletionTab: React.FC = () => {
 
         // Supprimer les liens de contact
         if (record.contact_link) {
-          const updatedContactLinks = record.contact_link.filter((link: any) => {
+          const updatedContactLinks = record.contact_link.filter((link: SiteContactLink) => {
             if (type === 'Site' && link.site === id) return false;
             if (type === 'ContactEmetteur' && link.contact === id) return false;
             return true;
@@ -486,9 +469,22 @@ const AutocompletionTab: React.FC = () => {
   const handleSave = async (entityType: string, data: Record<string, unknown>) => {
     if (!entreprise_id) return;
     
+    const getTableName = (type: string) => {
+      switch (type.toLowerCase()) {
+        case 'contactemetteur':
+          return 'contact_emetteur';
+        case 'ecoorganisme':
+          return 'eco_organisme';
+        case 'codetraitement':
+          return 'code_traitement';
+        default:
+          return type.toLowerCase();
+      }
+    };
+
     const insertData = {
       entreprise_id: entreprise_id,
-      [entityType.toLowerCase() === 'contactemetteur' ? 'contact_emetteur' : entityType.toLowerCase()]: data,
+      [getTableName(entityType)]: data,
     };
 
     const { data: insertedData, error: insertError } = await supabase
@@ -535,7 +531,6 @@ const AutocompletionTab: React.FC = () => {
           nom: data.nom as string,
           codeCED: data.codeCED as string,
           adr: data.adr as string,
-          onu: data.onu as string,
         };
         setDechets(prev => [...prev, newDechet]);
         break;
@@ -544,7 +539,6 @@ const AutocompletionTab: React.FC = () => {
           ...baseItem,
           nomBoite: data.nomBoite as string,
           contact: {
-            nomPrenom: data['contact.nomPrenom'] as string,
             email: data['contact.email'] as string,
             telephone: data['contact.telephone'] as string,
           },
@@ -567,208 +561,74 @@ const AutocompletionTab: React.FC = () => {
           prenomNom: data.prenomNom as string,
           email: data.email as string,
           telephone: data.telephone as string,
+          respoTerrain: Boolean(data.respoTerrain),
         };
         setContactEmetteurs(prev => [...prev, newContactEmetteur]);
+        break;
+      case 'Negociant':
+        const newNegociant: Negociant = {
+          ...baseItem,
+          nomBoite: data.nomBoite as string,
+          contact: data.contact as Negociant['contact'],
+          adresse: data.adresse as string,
+        };
+        setNegociants(prev => [...prev, newNegociant]);
+        break;
+      case 'Courtier':
+        const newCourtier: Courtier = {
+          ...baseItem,
+          nomBoite: data.nomBoite as string,
+          contact: data.contact as Courtier['contact'],
+          adresse: data.adresse as string,
+        };
+        setCourtiers(prev => [...prev, newCourtier]);
+        break;
+      case 'EcoOrganisme':
+        const newEcoOrganisme: Ecorganisme = {
+          ...baseItem,
+          nomBoite: data.nomBoite as string,
+          siret: data.siret as string,
+          contact: {
+            email: data['contact.email'] as string,
+            telephone: data['contact.telephone'] as string,
+          },
+          adresse: data.adresse as string,
+        };
+        setEcoorganismes(prev => [...prev, newEcoOrganisme]);
+        break;
+      case 'CodeTraitement':
+        const newCodeTraitement: CodeTreatment = {
+          ...baseItem,
+          nom: data.nom as string,
+          code: data.code as string,
+        };
+        setCodeTreatments(prev => [...prev, newCodeTraitement]);
         break;
     }
     
     // Mettre à jour l'état showNewForm avec la bonne clé
-    const formKey = entityType === 'ContactEmetteur' ? 'contactEmetteur' : entityType.toLowerCase();
-    setShowNewForm(prev => ({ ...prev, [formKey]: false }));
+    const getFormKey = (type: string) => {
+      switch (type) {
+        case 'ContactEmetteur':
+          return 'contactEmetteur';
+        case 'EcoOrganisme':
+          return 'ecoOrganisme';
+        case 'CodeTraitement':
+          return 'codeTraitement';
+        default:
+          return type.toLowerCase();
+      }
+    };
+    
+    setShowNewForm(prev => ({ ...prev, [getFormKey(entityType)]: false }));
   };
 
-  const siteAttributes = {
-    mainAttribute: {
-      name: 'nom',
-      label: 'Nom du site',
-      type: 'string' as const,
-      required: true,
-      placeholder: 'Entrez le nom du site',
-    },
-    secondaryAttributes: [
-      {
-        name: 'siret',
-        label: 'SIRET',
-        type: 'string' as const,
-        required: true,
-        placeholder: 'Entrez le numéro SIRET',
-      },
-      {
-        name: 'adresseSiege',
-        label: 'Adresse du siège',
-        type: 'address' as const,
-        required: true,
-      },
-      {
-        name: 'pointsCollecte',
-        label: 'Points de collecte',
-        type: 'collectionPoint' as const,
-        required: false,
-      },
-    ],
-  };
+  //--------------------------------
 
-  const transporteurAttributes = {
-    mainAttribute: {
-      name: 'nomBoite',
-      label: 'Nom de la société',
-      type: 'string' as const,
-      required: true,
-      placeholder: 'Entrez le nom de la société',
-    },
-    secondaryAttributes: [
-      {
-        name: 'siret',
-        label: 'SIRET',
-        type: 'string' as const,
-        required: true,
-        placeholder: 'Entrez le numéro SIRET',
-      },
-      {
-        name: 'contact',
-        label: 'Contact',
-        type: 'contact' as const,
-        required: true,
-      },
-      {
-        name: 'adresse',
-        label: 'Adresse',
-        type: 'address' as const,
-        required: false,
-      },
-    ],
-  };
 
-  const dechetAttributes = {
-    mainAttribute: {
-      name: 'nom',
-      label: 'Nom du déchet',
-      type: 'string' as const,
-      required: true,
-      placeholder: 'Entrez le nom du déchet',
-    },
-    secondaryAttributes: [
-      {
-        name: 'codeCED',
-        label: 'Code CED',
-        type: 'string' as const,
-        required: true,
-        placeholder: 'Entrez le code CED',
-      },
-      {
-        name: 'adr',
-        label: 'ADR',
-        type: 'string' as const,
-        required: false,
-        placeholder: 'Entrez le code ADR',
-      },
-      {
-        name: 'onu',
-        label: 'ONU',
-        type: 'string' as const,
-        required: false,
-        placeholder: 'Entrez le code ONU',
-      },
-    ],
-  };
-
-  const destinataireAttributes = {
-    mainAttribute: {
-      name: 'nomBoite',
-      label: 'Nom de la société',
-      type: 'string' as const,
-      required: true,
-      placeholder: 'Entrez le nom de la société',
-    },
-    secondaryAttributes: [
-      {
-        name: 'contact.nomPrenom',
-        label: 'Nom et Prénom',
-        type: 'string' as const,
-        required: true,
-        placeholder: 'Entrez le nom et prénom',
-      },
-      {
-        name: 'contact.email',
-        label: 'Email',
-        type: 'string' as const,
-        required: true,
-        placeholder: 'Entrez l\'email',
-      },
-      {
-        name: 'contact.telephone',
-        label: 'Téléphone',
-        type: 'string' as const,
-        required: true,
-        placeholder: 'Entrez le téléphone',
-      },
-      {
-        name: 'adresse',
-        label: 'Adresse',
-        type: 'address' as const,
-        required: true,
-      },
-    ],
-  };
-
-  const contenantAttributes = {
-    mainAttribute: {
-      name: 'nom',
-      label: 'Nom du contenant',
-      type: 'string' as const,
-      required: true,
-      placeholder: 'Entrez le nom du contenant',
-    },
-    secondaryAttributes: [
-      {
-        name: 'volume',
-        label: 'Volume',
-        type: 'number' as const,
-        required: true,
-        placeholder: 'Entrez le volume',
-      },
-      {
-        name: 'uniteVolume',
-        label: 'Unité du volume',
-        type: 'select' as const,
-        required: true,
-        placeholder: 'Sélectionnez l\'unité',
-        options: [
-          { value: 'm3', label: 'm³' },
-          { value: 'L', label: 'Litre (L)' }
-        ],
-      },
-    ],
-  };
-
-  const contactEmetteurAttributes = {
-    mainAttribute: {
-      name: 'prenomNom',
-      label: 'Prénom et Nom',
-      type: 'string' as const,
-      required: true,
-      placeholder: 'Entrez le prénom et le nom',
-    },
-    secondaryAttributes: [
-      {
-        name: 'email',
-        label: 'Email',
-        type: 'string' as const,
-        required: true,
-        placeholder: 'Entrez l\'email',
-      },
-      {
-        name: 'telephone',
-        label: 'Téléphone',
-        type: 'string' as const,
-        required: true,
-        placeholder: 'Entrez le numéro de téléphone',
-      },
-    ],
-  };
-
+  //Le component qui affiche une entité avec son toogle
   const renderEntityList = (
-    entities: Site[] | Transporteur[] | Dechet[] | Destinataire[] | Contenant[] | ContactEmetteur[],
+    entities: Site[] | Transporteur[] | Dechet[] | Destinataire[] | Contenant[] | ContactEmetteur[] | Negociant[] | Courtier[] | Ecorganisme[] | CodeTreatment[],
     type: string,
     mainField: string
   ) => {
@@ -793,6 +653,18 @@ const AutocompletionTab: React.FC = () => {
         case 'ContactEmetteur':
           attributes = contactEmetteurAttributes;
           break;
+        case 'Negociant':
+          attributes = negociantAttributes;
+          break;
+        case 'Courtier':
+          attributes = courtierAttributes;
+          break;
+        case 'EcoOrganisme':
+          attributes = ecoOrganismeAttributes;
+          break;
+        case 'CodeTraitement':
+          attributes = codeTraitementAttributes;
+          break;        
         default:
           return field;
       }
@@ -934,292 +806,292 @@ const AutocompletionTab: React.FC = () => {
     );
   };
 
-  const handleTransportLink = async (transportId: string, siteId: string, dechetId: string) => {
-    try {
-      const newLink: TransportLink = { site: siteId, dechet: dechetId };
-      setTransportLinks(prev => [...prev, newLink]);
-
-      const { data: existingRecord, error: fetchError } = await supabase
-        .from('table_autocompletion')
-        .select('transport_link')
-        .eq('id', transportId)
-        .single();
-
-      if (fetchError) {
-        console.error('Error fetching existing transport links:', fetchError);
-        return;
-      }
-
-      const existingLinks = existingRecord?.transport_link || [];
-      const updatedLinks = [...existingLinks, { site: siteId, dechet: dechetId }];
-
-      const { error: updateError } = await supabase
-        .from('table_autocompletion')
-        .update({ transport_link: updatedLinks })
-        .eq('id', transportId);
-
-      if (updateError) {
-        console.error('Error updating transport link:', updateError);
-      }
-    } catch (error) {
-      console.error('Error in handleTransportLink:', error);
-    }
-  };
-
-  const handleDestLink = async (destId: string, siteId: string, dechetId: string) => {
-    try {
-      const newLink: DestLink = { site: siteId, dechet: dechetId };
-      setDestLinks(prev => [...prev, newLink]);
-
-      const { data: existingRecord, error: fetchError } = await supabase
-        .from('table_autocompletion')
-        .select('dest_link')
-        .eq('id', destId)
-        .single();
-
-      if (fetchError) {
-        console.error('Error fetching existing destination links:', fetchError);
-        return;
-      }
-
-      const existingLinks = existingRecord?.dest_link || [];
-      const updatedLinks = [...existingLinks, { site: siteId, dechet: dechetId }];
-
-      const { error: updateError } = await supabase
-        .from('table_autocompletion')
-        .update({ dest_link: updatedLinks })
-        .eq('id', destId);
-
-      if (updateError) {
-        console.error('Error updating destination link:', updateError);
-      }
-    } catch (error) {
-      console.error('Error in handleDestLink:', error);
-    }
-  };
-
-  const handleContenantLink = async (contenantId: string, siteId: string, dechetId: string) => {
-    try {
-      const newLink: ContenantLink = { site: siteId, dechet: dechetId };
-      setContenantLinks(prev => [...prev, newLink]);
-
-      const { data: existingRecord, error: fetchError } = await supabase
-        .from('table_autocompletion')
-        .select('contenant_link')
-        .eq('id', contenantId)
-        .single();
-
-      if (fetchError) {
-        console.error('Error fetching existing container links:', fetchError);
-        return;
-      }
-
-      const existingLinks = existingRecord?.contenant_link || [];
-      const updatedLinks = [...existingLinks, { site: siteId, dechet: dechetId }];
-
-      const { error: updateError } = await supabase
-        .from('table_autocompletion')
-        .update({ contenant_link: updatedLinks })
-        .eq('id', contenantId);
-
-      if (updateError) {
-        console.error('Error updating container link:', updateError);
-      }
-    } catch (error) {
-      console.error('Error in handleContenantLink:', error);
-    }
-  };
-
-  const handleSiteContactLink = async (siteId: string, contactId: string) => {
-    try {
-      const newLink: SiteContactLink = { site: siteId, contact: contactId };
-      setSiteContactLinks(prev => [...prev, newLink]);
-
-      const { data: existingRecord, error: fetchError } = await supabase
-        .from('table_autocompletion')
-        .select('contact_link')
-        .eq('id', siteId)
-        .single();
-
-      if (fetchError) {
-        console.error('Error fetching existing site contact links:', fetchError);
-        return;
-      }
-
-      const existingLinks = existingRecord?.contact_link || [];
-      const updatedLinks = [...existingLinks, { site: siteId, contact: contactId }];
-
-      const { error: updateError } = await supabase
-        .from('table_autocompletion')
-        .update({ contact_link: updatedLinks })
-        .eq('id', siteId);
-
-      if (updateError) {
-        console.error('Error updating site contact link:', updateError);
-      }
-    } catch (error) {
-      console.error('Error in handleSiteContactLink:', error);
-    }
-  };
-
+  //Chaque Carte d'entités
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex gap-8 justify-center">
-        <div className="bg-white rounded-xl shadow-sm p-5 w-[40%]">
-          {!showNewForm.site && (
-            <div className="flex justify-between items-end mb-4">
-              <p className="text-xl ml-2 font-semibold text-gray-800">Sites</p>
-              <button
-                onClick={() => setShowNewForm(prev => ({ ...prev, site: true }))}
-                className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-1 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-              >
-                + Nouveau
-              </button>
-            </div>
-          )}
-
-          {showNewForm.site ? (
-            <EntityForm
-              title="Nouveau site"
-              mainAttribute={siteAttributes.mainAttribute}
-              secondaryAttributes={siteAttributes.secondaryAttributes}
-              onSave={(data) => handleSave('Site', data)}
-            />
-          ) : (
-            renderEntityList(sites, 'Site', 'nom')
-          )}
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm p-5 w-[40%]">
-          {!showNewForm.transporteur && (
-            <div className="flex justify-between items-end mb-4">
-              <p className="text-xl ml-2 font-semibold text-gray-800">Transporteurs</p>
-              <button
-                onClick={() => setShowNewForm(prev => ({ ...prev, transporteur: true }))}
-                className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-              >
-                + Nouveau
-              </button>
-            </div>
-          )}
-
-          {showNewForm.transporteur ? (
-            <EntityForm
-              title="Nouveau transporteur"
-              mainAttribute={transporteurAttributes.mainAttribute}
-              secondaryAttributes={transporteurAttributes.secondaryAttributes}
-              onSave={(data) => handleSave('Transporteur', data)}
-            />
-          ) : (
-            renderEntityList(transporteurs, 'Transporteur', 'nomBoite')
-          )}
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm p-5 w-[40%]">
-          {!showNewForm.dechet && (
-            <div className="flex justify-between items-end mb-4">
-              <p className="text-xl ml-2 font-semibold text-gray-800">Déchets</p>
-              <button
-                onClick={() => setShowNewForm(prev => ({ ...prev, dechet: true }))}
-                className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-              >
-                + Nouveau
-              </button>
-            </div>
-          )}
-
-          {showNewForm.dechet ? (
-            <EntityForm
-              title="Nouveau déchet"
-              mainAttribute={dechetAttributes.mainAttribute}
-              secondaryAttributes={dechetAttributes.secondaryAttributes}
-              onSave={(data) => handleSave('Dechet', data)}
-            />
-          ) : (
-            renderEntityList(dechets, 'Dechet', 'nom')
-          )}
+      {/* Barre d'onglets 
+      <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="flex space-x-2 overflow-x-auto pb-2">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === tab.id
+                  ? 'bg-[var(--green-medium)] text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="flex gap-8 justify-center">
-        <div className="bg-white rounded-xl shadow-sm p-5 w-[40%]">
-          {!showNewForm.destinataire && (
-            <div className="flex justify-between items-end mb-4">
-              <p className="text-xl ml-2 font-semibold text-gray-800">Destinataires</p>
-              <button
-                onClick={() => setShowNewForm(prev => ({ ...prev, destinataire: true }))}
-                className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-              >
-                + Nouveau
-              </button>
-            </div>
-          )}
+      {/* Contenu des onglets 
+      <div className="bg-white rounded-xl shadow-sm p-5">
+        {activeTab === 'sites' && (
+          <>
+            {!showNewForm.site && (
+              <div className="flex justify-between items-end mb-4">
+                <p className="text-xl ml-2 font-semibold text-gray-800">Sites</p>
+                <button
+                  onClick={() => setShowNewForm(prev => ({ ...prev, site: true }))}
+                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-1 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                >
+                  + Nouveau
+                </button>
+              </div>
+            )}
+            {showNewForm.site ? (
+              <EntityForm
+                title="Nouveau site"
+                mainAttribute={siteAttributes.mainAttribute}
+                secondaryAttributes={siteAttributes.secondaryAttributes}
+                onSave={(data) => handleSave('Site', data)}
+              />
+            ) : (
+              renderEntityList(sites, 'Site', 'nom')
+            )}
+          </>
+        )}
 
-          {showNewForm.destinataire ? (
-            <EntityForm
-              title="Nouveau destinataire"
-              mainAttribute={destinataireAttributes.mainAttribute}
-              secondaryAttributes={destinataireAttributes.secondaryAttributes}
-              onSave={(data) => handleSave('Destinataire', data)}
-            />
-          ) : (
-            renderEntityList(destinataires, 'Destinataire', 'nomBoite')
-          )}
-        </div>
+        {activeTab === 'transporteurs' && (
+          <>
+            {!showNewForm.transporteur && (
+              <div className="flex justify-between items-end mb-4">
+                <p className="text-xl ml-2 font-semibold text-gray-800">Transporteurs</p>
+                <button
+                  onClick={() => setShowNewForm(prev => ({ ...prev, transporteur: true }))}
+                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                >
+                  + Nouveau
+                </button>
+              </div>
+            )}
+            {showNewForm.transporteur ? (
+              <EntityForm
+                title="Nouveau transporteur"
+                mainAttribute={transporteurAttributes.mainAttribute}
+                secondaryAttributes={transporteurAttributes.secondaryAttributes}
+                onSave={(data) => handleSave('Transporteur', data)}
+              />
+            ) : (
+              renderEntityList(transporteurs, 'Transporteur', 'nomBoite')
+            )}
+          </>
+        )}
 
-        <div className="bg-white rounded-xl shadow-sm p-5 w-[40%]">
-          {!showNewForm.contenant && (
-            <div className="flex justify-between items-end mb-4">
-              <p className="text-xl ml-2 font-semibold text-gray-800">Contenants</p>
-              <button
-                onClick={() => setShowNewForm(prev => ({ ...prev, contenant: true }))}
-                className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-              >
-                + Nouveau
-              </button>
-            </div>
-          )}
+        {activeTab === 'dechets' && (
+          <>
+            {!showNewForm.dechet && (
+              <div className="flex justify-between items-end mb-4">
+                <p className="text-xl ml-2 font-semibold text-gray-800">Déchets</p>
+                <button
+                  onClick={() => setShowNewForm(prev => ({ ...prev, dechet: true }))}
+                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                >
+                  + Nouveau
+                </button>
+              </div>
+            )}
+            {showNewForm.dechet ? (
+              <EntityForm
+                title="Nouveau déchet"
+                mainAttribute={dechetAttributes.mainAttribute}
+                secondaryAttributes={dechetAttributes.secondaryAttributes}
+                onSave={(data) => handleSave('Dechet', data)}
+              />
+            ) : (
+              renderEntityList(dechets, 'Dechet', 'nom')
+            )}
+          </>
+        )}
 
-          {showNewForm.contenant ? (
-            <EntityForm
-              title="Nouveau contenant"
-              mainAttribute={contenantAttributes.mainAttribute}
-              secondaryAttributes={contenantAttributes.secondaryAttributes}
-              onSave={(data) => handleSave('Contenant', data)}
-            />
-          ) : (
-            renderEntityList(contenants, 'Contenant', 'nom')
-          )}
-        </div>
+        {activeTab === 'destinataires' && (
+          <>
+            {!showNewForm.destinataire && (
+              <div className="flex justify-between items-end mb-4">
+                <p className="text-xl ml-2 font-semibold text-gray-800">Destinataires</p>
+                <button
+                  onClick={() => setShowNewForm(prev => ({ ...prev, destinataire: true }))}
+                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                >
+                  + Nouveau
+                </button>
+              </div>
+            )}
+            {showNewForm.destinataire ? (
+              <EntityForm
+                title="Nouveau destinataire"
+                mainAttribute={destinataireAttributes.mainAttribute}
+                secondaryAttributes={destinataireAttributes.secondaryAttributes}
+                onSave={(data) => handleSave('Destinataire', data)}
+              />
+            ) : (
+              renderEntityList(destinataires, 'Destinataire', 'nomBoite')
+            )}
+          </>
+        )}
+
+        {activeTab === 'contenants' && (
+          <>
+            {!showNewForm.contenant && (
+              <div className="flex justify-between items-end mb-4">
+                <p className="text-xl ml-2 font-semibold text-gray-800">Contenants</p>
+                <button
+                  onClick={() => setShowNewForm(prev => ({ ...prev, contenant: true }))}
+                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                >
+                  + Nouveau
+                </button>
+              </div>
+            )}
+            {showNewForm.contenant ? (
+              <EntityForm
+                title="Nouveau contenant"
+                mainAttribute={contenantAttributes.mainAttribute}
+                secondaryAttributes={contenantAttributes.secondaryAttributes}
+                onSave={(data) => handleSave('Contenant', data)}
+              />
+            ) : (
+              renderEntityList(contenants, 'Contenant', 'nom')
+            )}
+          </>
+        )}
+
+        {activeTab === 'contactEmetteurs' && (
+          <>
+            {!showNewForm.contactEmetteur && (
+              <div className="flex justify-between items-end mb-4">
+                <p className="text-xl ml-2 font-semibold text-gray-800">Contacts Émetteurs</p>
+                <button
+                  onClick={() => setShowNewForm(prev => ({ ...prev, contactEmetteur: true }))}
+                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                >
+                  + Nouveau
+                </button>
+              </div>
+            )}
+            {showNewForm.contactEmetteur ? (
+              <EntityForm
+                title="Nouveau contact émetteur"
+                mainAttribute={contactEmetteurAttributes.mainAttribute}
+                secondaryAttributes={contactEmetteurAttributes.secondaryAttributes}
+                onSave={(data) => handleSave('ContactEmetteur', data)}
+              />
+            ) : (
+              renderEntityList(contactEmetteurs, 'ContactEmetteur', 'prenomNom')
+            )}
+          </>
+        )}
+
+        {activeTab === 'negociants' && (
+          <>
+            {!showNewForm.negociant && (
+              <div className="flex justify-between items-end mb-4">
+                <p className="text-xl ml-2 font-semibold text-gray-800">Négociants</p>
+                <button
+                  onClick={() => setShowNewForm(prev => ({ ...prev, negociant: true }))}
+                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                >
+                  + Nouveau
+                </button>
+              </div>
+            )}
+            {showNewForm.negociant ? (
+              <EntityForm
+                title="Nouveau négociant"
+                mainAttribute={negociantAttributes.mainAttribute}
+                secondaryAttributes={negociantAttributes.secondaryAttributes}
+                onSave={(data) => handleSave('Negociant', data)}
+              />
+            ) : (
+              renderEntityList(negociants, 'Negociant', 'nomBoite')
+            )}
+          </>
+        )}
+
+        {activeTab === 'courtiers' && (
+          <>
+            {!showNewForm.courtier && (
+              <div className="flex justify-between items-end mb-4">
+                <p className="text-xl ml-2 font-semibold text-gray-800">Courtiers</p>
+                <button
+                  onClick={() => setShowNewForm(prev => ({ ...prev, courtier: true }))}
+                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                >
+                  + Nouveau
+                </button>
+              </div>
+            )}
+            {showNewForm.courtier ? (
+              <EntityForm
+                title="Nouveau courtier"
+                mainAttribute={courtierAttributes.mainAttribute}
+                secondaryAttributes={courtierAttributes.secondaryAttributes}
+                onSave={(data) => handleSave('Courtier', data)}
+              />
+            ) : (
+              renderEntityList(courtiers, 'Courtier', 'nomBoite')
+            )}
+          </>
+        )}
+
+        {activeTab === 'ecoOrganismes' && (
+          <>
+            {!showNewForm.ecoOrganisme && (
+              <div className="flex justify-between items-end mb-4">
+                <p className="text-xl ml-2 font-semibold text-gray-800">Éco-organismes</p>
+                <button
+                  onClick={() => setShowNewForm(prev => ({ ...prev, ecoOrganisme: true }))}
+                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                >
+                  + Nouveau
+                </button>
+              </div>
+            )}
+            {showNewForm.ecoOrganisme ? (
+              <EntityForm
+                title="Nouvel éco-organisme"
+                mainAttribute={ecoOrganismeAttributes.mainAttribute}
+                secondaryAttributes={ecoOrganismeAttributes.secondaryAttributes}
+                onSave={(data) => handleSave('EcoOrganisme', data)}
+              />
+            ) : (
+              renderEntityList(ecoorganismes, 'EcoOrganisme', 'nomBoite')
+            )}
+          </>
+        )}
+
+        {activeTab === 'codeTraitements' && (
+          <>
+            {!showNewForm.codeTraitement && (
+              <div className="flex justify-between items-end mb-4">
+                <p className="text-xl ml-2 font-semibold text-gray-800">Codes de traitement</p>
+                <button
+                  onClick={() => setShowNewForm(prev => ({ ...prev, codeTraitement: true }))}
+                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                >
+                  + Nouveau
+                </button>
+              </div>
+            )}
+            {showNewForm.codeTraitement ? (
+              <EntityForm
+                title="Nouveau code de traitement"
+                mainAttribute={codeTraitementAttributes.mainAttribute}
+                secondaryAttributes={codeTraitementAttributes.secondaryAttributes}
+                onSave={(data) => handleSave('CodeTraitement', data)}
+              />
+            ) : (
+              renderEntityList(codeTreatments, 'CodeTraitement', 'nom')
+            )}
+          </>
+        )}
       </div>
 
-      <div className="flex gap-8 justify-center">
-        <div className="bg-white rounded-xl shadow-sm p-5 w-[40%]">
-          {!showNewForm.contactEmetteur && (
-            <div className="flex justify-between items-end mb-4">
-              <p className="text-xl ml-2 font-semibold text-gray-800">Contacts Émetteurs</p>
-              <button
-                onClick={() => setShowNewForm(prev => ({ ...prev, contactEmetteur: true }))}
-                className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-              >
-                + Nouveau
-              </button>
-            </div>
-          )}
-
-          {showNewForm.contactEmetteur ? (
-            <EntityForm
-              title="Nouveau contact émetteur"
-              mainAttribute={contactEmetteurAttributes.mainAttribute}
-              secondaryAttributes={contactEmetteurAttributes.secondaryAttributes}
-              onSave={(data) => handleSave('ContactEmetteur', data)}
-            />
-          ) : (
-            renderEntityList(contactEmetteurs, 'ContactEmetteur', 'prenomNom')
-          )}
-        </div>
-      </div>
-
+      {/* Carte des liens 
       <div className="mt-8">
         <LinkComponents
           sites={sites}
@@ -1228,14 +1100,26 @@ const AutocompletionTab: React.FC = () => {
           destinataires={destinataires}
           contenants={contenants}
           contactEmetteurs={contactEmetteurs}
+          negociants={negociants}
+          courtiers={courtiers}
+          ecoorganismes={ecoorganismes}
+          codeTreatments={codeTreatments}
           transportLinks={transportLinks}
           destLinks={destLinks}
           contenantLinks={contenantLinks}
           siteContactLinks={siteContactLinks}
-          onTransportLink={handleTransportLink}
-          onDestLink={handleDestLink}
-          onContenantLink={handleContenantLink}
-          onSiteContactLink={handleSiteContactLink}
+          negociantLinks={negociantLinks}
+          courtierLinks={courtierLinks}
+          codeTreatmentLinks={codeTreatmentLinks}
+          ecoorganismeLinks={ecoorganismeLinks}
+          onTransportLink={(transportId, siteId, dechetId, isMailRecipient) => handleTransportLink(transportId, siteId, dechetId, isMailRecipient, setTransportLinks, transportLinks)}
+          onDestLink={(destId, siteId, dechetId, isMailRecipient) => handleDestLink(destId, siteId, dechetId, isMailRecipient, setDestLinks, destLinks)}
+          onContenantLink={(contenantId, siteId, dechetId) => handleContenantLink(contenantId, siteId, dechetId, setContenantLinks, contenantLinks)}
+          onSiteContactLink={(siteId, contactId) => handleSiteContactLink(siteId, contactId, setSiteContactLinks, siteContactLinks)}
+          onNegociantLink={(negociantId, siteId, dechetId, isMailRecipient) => handleNegociantLink(negociantId, siteId, dechetId, isMailRecipient, setNegociantLinks, negociantLinks)}
+          onCourtierLink={(courtierId, siteId, dechetId, isMailRecipient) => handleCourtierLink(courtierId, siteId, dechetId, isMailRecipient, setCourtierLinks, courtierLinks)}
+          onCodeTreatmentLink={(codeTreatmentId, siteId, dechetId) => handleCodeTreatmentLink(codeTreatmentId, siteId, dechetId, setCodeTreatmentLinks, codeTreatmentLinks)}
+          onEcorganismeLink={(ecoorganismeId, siteId, dechetId, isMailRecipient) => handleEcorganismeLink(ecoorganismeId, siteId, dechetId, isMailRecipient, setEcoorganismeLinks, ecoorganismeLinks)}
         />
       </div>
     </div>

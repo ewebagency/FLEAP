@@ -206,7 +206,6 @@ const FiltreSiteEtablissement = () => {
             }
             
             try {
-                console.log('Récupération des accès aux sites pour user_id:', user_id);
                 const { data, error } = await supabase
                     .from('profiles')
                     .select('site_access')
@@ -218,12 +217,8 @@ const FiltreSiteEtablissement = () => {
                     return;
                 }
 
-                console.log('Données récupérées de la table profiles:', data);
                 if (data?.site_access && Array.isArray(data.site_access)) {
-                    console.log('Liste des sirets autorisés:', data.site_access);
                     setUserSiteAccess(data.site_access);
-                } else {
-                    console.log('Pas de liste de sirets autorisés trouvée');
                 }
             } catch (error) {
                 console.error('Erreur lors de la récupération des accès aux sites:', error);
@@ -235,7 +230,6 @@ const FiltreSiteEtablissement = () => {
 
     // Effet pour mettre à jour les sites quand les données changent
     useEffect(() => {
-        console.log('État actuel de userSiteAccess:', userSiteAccess);
 
         if (!entreprise_id) {
             //console.log('[Effect 3] Pas d\'entreprise_id, retour');
@@ -248,7 +242,6 @@ const FiltreSiteEtablissement = () => {
 
         // Si l'utilisateur a des accès aux sites définis dans Supabase, on écrase les données du localStorage
         if (userSiteAccess.length > 0) {
-            console.log('Écrasement des données du localStorage par les données de Supabase');
             
             // Créer un nouvel objet pour stocker les états des sites
             const newSavedSiteStates: { [key: string]: { checked: boolean } } = {};
@@ -270,8 +263,6 @@ const FiltreSiteEtablissement = () => {
                 `sites-${entreprise_id}`,
                 JSON.stringify(newSavedSiteStates)
             );
-            
-            console.log('Nouvelles données sauvegardées dans le localStorage:', newSavedSiteStates);
         }
 
         const getSavedState = (orgId: string) => {
@@ -287,7 +278,6 @@ const FiltreSiteEtablissement = () => {
                 }
                 // Pour les autres sites, on vérifie s'ils sont dans la liste des accès
                 const isIncluded = userSiteAccess.includes(orgId);
-                console.log(`Site ${orgId} est ${isIncluded ? 'autorisé' : 'non autorisé'}`);
                 return isIncluded;
             }
             
@@ -297,7 +287,6 @@ const FiltreSiteEtablissement = () => {
 
         const sites_from_db: ContextSite[] = additionnalSites.map(site => {
             const isChecked = getSavedState(site.siret);
-            console.log(`Site DB ${site.siret} (${site.name}) est ${isChecked ? 'coché' : 'décoché'}`);
             return {
                 orgId: site.siret,
                 name: site.name,
@@ -324,7 +313,6 @@ const FiltreSiteEtablissement = () => {
         if (etablissementsWithStatus.length > 0) {
             const vrai_sites: ContextSite[] = etablissementsWithStatus.map((etablissement: Etablissement) => {
                 const isChecked = getSavedState(etablissement.orgId);
-                console.log(`Site TrackDéchets ${etablissement.orgId} (${etablissement.name}) est ${isChecked ? 'coché' : 'décoché'}`);
                 return {
                     orgId: etablissement.orgId,
                     name: etablissement.name,
@@ -339,7 +327,6 @@ const FiltreSiteEtablissement = () => {
             const mergedSites = vrai_sites.map(trackSite => {
                 const dbSite = sites_from_db.find(dbSite => dbSite.orgId === trackSite.orgId);
                 if (dbSite) {
-                    console.log(`Site fusionné ${trackSite.orgId} (${dbSite.name}) est ${trackSite.checked ? 'coché' : 'décoché'}`);
                     return {
                         ...trackSite,
                         name: dbSite.name,
@@ -354,7 +341,6 @@ const FiltreSiteEtablissement = () => {
             const uniqueDbSites = sites_from_db.filter(site => !trackDechetsSirets.has(site.orgId))
                 .map(site => {
                     const isChecked = savedSiteStates[site.orgId]?.checked ?? site.checked;
-                    console.log(`Site unique DB ${site.orgId} (${site.name}) est ${isChecked ? 'coché' : 'décoché'}`);
                     return {
                         ...site,
                         checked: isChecked
@@ -365,15 +351,11 @@ const FiltreSiteEtablissement = () => {
                 ...sites_autre,
                 checked: savedSiteStates['----']?.checked ?? sites_autre.checked
             };
-            console.log(`Site Autres est ${sitesAutre.checked ? 'coché' : 'décoché'}`);
 
             let allSites = [...mergedSites, ...uniqueDbSites, sitesAutre];
-            console.log('Nombre total de sites:', allSites.length);
-            console.log('Sites cochés:', allSites.filter(site => site.checked).length);
 
             // Si l'utilisateur a des accès aux sites définis dans Supabase, on s'assure que seuls les sites autorisés sont cochés
             if (userSiteAccess.length > 0) {
-                console.log('Filtrage des sites selon les accès Supabase');
                 allSites = allSites.map(site => {
                     // Le site "Autres" est toujours accessible
                     if (site.orgId === '----') {
@@ -381,13 +363,11 @@ const FiltreSiteEtablissement = () => {
                     }
                     // Pour les autres sites, on vérifie s'ils sont dans la liste des accès
                     const isIncluded = userSiteAccess.includes(site.orgId);
-                    console.log(`Site ${site.orgId} (${site.name}) est ${isIncluded ? 'autorisé' : 'non autorisé'}`);
                     return {
                         ...site,
                         checked: isIncluded
                     };
                 });
-                console.log('Sites cochés après filtrage:', allSites.filter(site => site.checked).length);
             }
 
             if (window.innerWidth <= 768) {
@@ -417,11 +397,9 @@ const FiltreSiteEtablissement = () => {
 
                 // Si l'utilisateur a des accès aux sites définis dans Supabase, on s'assure que les groupes sont correctement cochés
                 if (userSiteAccess.length > 0) {
-                    console.log('Mise à jour des groupes selon les accès Supabase');
                     const updatedGroups = groups.map(group => {
                         // Un groupe est coché si au moins un de ses sites est autorisé
                         const hasAuthorizedSite = group.sirets.some(siret => userSiteAccess.includes(siret));
-                        console.log(`Groupe ${group.name} est ${hasAuthorizedSite ? 'autorisé' : 'non autorisé'}`);
                         return {
                             ...group,
                             checked: hasAuthorizedSite
@@ -439,7 +417,6 @@ const FiltreSiteEtablissement = () => {
             
             let sitesWithSavedStates = [...sites_from_db, sites_autre].map(site => {
                 const isChecked = getSavedState(site.orgId);
-                console.log(`Site sans TrackDéchets ${site.orgId} (${site.name}) est ${isChecked ? 'coché' : 'décoché'}`);
                 return {
                     ...site,
                     checked: isChecked
@@ -456,12 +433,9 @@ const FiltreSiteEtablissement = () => {
                 }
             }
 
-            console.log('Nombre total de sites (sans TrackDéchets):', sitesWithSavedStates.length);
-            console.log('Sites cochés (sans TrackDéchets):', sitesWithSavedStates.filter(site => site.checked).length);
 
             // Si l'utilisateur a des accès aux sites définis dans Supabase, on s'assure que seuls les sites autorisés sont cochés
             if (userSiteAccess.length > 0) {
-                console.log('Filtrage des sites sans TrackDéchets selon les accès Supabase');
                 sitesWithSavedStates = sitesWithSavedStates.map(site => {
                     // Le site "Autres" est toujours accessible
                     if (site.orgId === '----') {
@@ -469,13 +443,11 @@ const FiltreSiteEtablissement = () => {
                     }
                     // Pour les autres sites, on vérifie s'ils sont dans la liste des accès
                     const isIncluded = userSiteAccess.includes(site.orgId);
-                    console.log(`Site sans TrackDéchets ${site.orgId} (${site.name}) est ${isIncluded ? 'autorisé' : 'non autorisé'}`);
                     return {
                         ...site,
                         checked: isIncluded
                     };
                 });
-                console.log('Sites cochés après filtrage (sans TrackDéchets):', sitesWithSavedStates.filter(site => site.checked).length);
             }
 
             setSites(sitesWithSavedStates);

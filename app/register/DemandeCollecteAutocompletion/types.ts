@@ -19,10 +19,11 @@ interface TransporteurInterface {
   value: {
       nomBoite?: string;
       adresse?: string;
+      siret?: string;
       contact?: {
-      nomPrenom?: string;
-      email?: string;
-      telephone?: string;
+        nomPrenom?: string;
+        email?: string;
+        telephone?: string;
     }
   }
 }
@@ -32,6 +33,7 @@ interface DestinataireInterface {
   value: {
     nomBoite?: string;
     adresse?: string;
+    siret?: string;
     contact?: {
       nomPrenom?: string;
       email?: string;
@@ -65,9 +67,37 @@ interface ContactInterface {
     prenomNom?: string;
     email?: string;
     telephone?: string;
+    respoTerrain?: boolean;
   }
 }
 
+interface NegociantInterface {
+  table_id: number;
+  value: {
+    nomBoite?: string;
+    adresse?: string;
+    siret?: string;
+    contact?: {
+      nomPrenom?: string;
+      email?: string;
+      telephone?: string;
+    }
+  }
+}
+
+interface CourtierInterface {
+  table_id: number;
+  value: {
+    nomBoite?: string;
+    adresse?: string;
+    siret?: string;
+    contact?: {
+      nomPrenom?: string;
+      email?: string;
+      telephone?: string;
+    }
+  }
+} 
 export interface SelectedFields {
   site: SiteInterface | null;
   pointCollecte: PointCollecteInterface | null;
@@ -77,6 +107,12 @@ export interface SelectedFields {
   date: Date | null;
   transporteur: TransporteurInterface | null;
   destinataire: DestinataireInterface | null;
+  negociant: NegociantInterface | null;
+  courtier: CourtierInterface | null;
+  nombreContenant: number;
+  destinataireMail: string;
+  typePrestation: string;
+  showNegociant: boolean;
 }
 
 export interface AutocompletionData {
@@ -86,6 +122,8 @@ export interface AutocompletionData {
   destinataires: DestinataireInterface[];
   dechets: DechetInterface[];
   contenants: ContenantInterface[];
+  negociants: NegociantInterface[];
+  courtiers: CourtierInterface[];
 }
 
 interface TransportLinkInterface {
@@ -128,12 +166,31 @@ interface ContactLinkInterface {
   }[];
 }
 
+interface NegociantLinkInterface {
+  table_id: number;
+  negociant_link: {
+    site: string;
+    dechet: string;
+  }[];
+}
+
+interface CourtierLinkInterface {
+  table_id: number;
+  courtier_link: {
+    site: string;
+    dechet: string;
+  }[];
+}
+
+
 export interface AutocompletionLinks {
   transportLinks: TransportLinkInterface[];
   destinataireLinks: DestinataireLinkInterface[];
   contenantLinks: ContenantLinkInterface[];
   codeTraitementLinks: CodeTraitementLinkInterface[];
   contactLinks: ContactLinkInterface[];
+  negociantLinks: NegociantLinkInterface[];
+  courtierLinks: CourtierLinkInterface[];
 }
 
 export interface RawAutocompletionData {
@@ -145,10 +202,14 @@ export interface RawAutocompletionData {
   destinataire: DestinataireInterface["value"] | null;
   dechet: DechetInterface["value"] | null;
   contenant: ContenantInterface["value"] | null;
+  negociant: NegociantInterface["value"] | null;
+  courtier: CourtierInterface["value"] | null;
   contact_emetteur: ContactInterface["value"] | null;
   transport_link: TransportLinkInterface["transport_link"] | null;
   dest_link: DestinataireLinkInterface["dest_link"] | null;
   contenant_link: ContenantLinkInterface["contenant_link"] | null;
   code_traitement_link: CodeTraitementLinkInterface["code_traitement_link"] | null;
   contact_link: ContactLinkInterface["contact_link"] | null;
+  negociant_link: NegociantLinkInterface["negociant_link"] | null;
+  courtier_link: CourtierLinkInterface["courtier_link"] | null;
 } 

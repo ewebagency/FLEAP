@@ -1,4 +1,4 @@
-/*import React from 'react';
+import React from 'react';
 import BoxIcon from "@/app/component/BoxIconWrapper";
 
 interface OpenFormulaireButtonProps {
@@ -17,4 +17,4 @@ const OpenFormulaireButton: React.FC<OpenFormulaireButtonProps> = ({ onClick }) 
   );
 };
 
-export default OpenFormulaireButton;*/
+export default OpenFormulaireButton;
