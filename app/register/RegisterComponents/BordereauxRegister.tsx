@@ -85,7 +85,7 @@ const BordereauxRegister = () => {
                     <NewDemandeMailButon/>
                     {/*<BoutonOpenModal/>*/}
                     {/*<OpenFormulaireButton onClick={() => setShowFormulaire(true)} />
-                    {showFormulaire && <Formulaire setDisplayThis={setShowFormulaire} />*/}
+                    {showFormulaire && <Formulaire setDisplayThis={setShowFormulaire} />}*/}
                     </div>
                     <div className="flex space-x-8">
                         <div className='border border-[var(--green-medium)] rounded-lg'>
