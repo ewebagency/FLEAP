@@ -1,5 +1,6 @@
-/*import React, { useState } from 'react';
-import { SiteContactFormProps } from './types';
+/* -> DEPRECATED
+
+import React, { useState } from 'react';
 
 const SiteContactForm: React.FC<SiteContactFormProps> = ({
   sites,

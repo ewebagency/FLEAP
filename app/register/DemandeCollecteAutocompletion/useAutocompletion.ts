@@ -11,7 +11,10 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
     contenants: [],
     contacts: [],
     negociants: [],
-    courtiers: []
+    courtiers: [],
+    ecoorganismes: [],
+    codeTraitements: [],
+    contrats: []
   });
   const [links, setLinks] = useState<AutocompletionLinks>({
     transportLinks: [],
@@ -20,7 +23,9 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
     codeTraitementLinks: [],
     contactLinks: [],
     negociantLinks: [],
-    courtierLinks: []
+    courtierLinks: [],
+    ecoorganismeLinks: [],
+    contratLinks: []
   });
 
   const [selectedFieldsList, setSelectedFieldsList] = useState<SelectedFields[]>([{
@@ -37,7 +42,10 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
     nombreContenant: 1,
     destinataireMail: 'transporteur',
     typePrestation: 'enlevement',
-    showNegociant: false
+    showNegociant: false,
+    ecoorganisme: null,
+    codeTraitement: null,
+    contrat: null
   }]);
 
   useEffect(() => {
@@ -105,6 +113,9 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
           negociant: null,
           courtier: null,
           contenant: null,
+          ecoorganisme: null,
+          codeTraitement: null,
+          contrat: null,
           date: null,
           nombreContenant: 1,
           destinataireMail: 'transporteur',
@@ -119,6 +130,6 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
     setSelectedFieldsList(prev => prev.filter((_, i) => i !== index));
   };
 
-  console.log(selectedFieldsList);
+  console.log("selectedFieldsList", selectedFieldsList);
   return { allOptions, selectedFieldsList, handleFieldChange, addNewLine, removeLine };
 };

@@ -7,7 +7,7 @@ import {
   CourtierLink, 
   CodeTreatmentLink, 
   EcorganismeLink,
-  SiteContactLink
+  ContratLink
 } from './types';
 
 
@@ -305,103 +305,50 @@ export const handleDeleteEcorganismeLink = async (
     console.error('Error in handleDeleteEcorganismeLink:', error);
   }
 };
-*/
-//--------------------------------handleSave-------------------------------- laisser en commentaire pour l'instant entre ces 2 //----
 
-/*export const handleSaveCodeTreatmentLink = async (
-  codeTreatmentId: string,
+export const handleDeleteContratLink = async (
+  contratId: string,
   siteId: string,
   dechetId: string,
-  onUpdateCodeTreatmentLinks: (links: CodeTreatmentLink[]) => void,
-  codeTreatmentLinks: CodeTreatmentLink[]
-) => {
-  console.log('handleSaveCodeTreatmentLink', codeTreatmentId, siteId, dechetId);
-  try {
-    // 1. Récupérer l'enregistrement existant
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('code_traitement_link')
-      .eq('id', codeTreatmentId)
-      .single();
-
-    console.log('existingRecord', existingRecord);
-    if (fetchError) {
-      console.error('Error fetching code treatment links:', fetchError);
-      return;
-    }
-
-    // 2. Ajouter le nouveau lien
-    const existingLinks = existingRecord?.code_traitement_link || [];
-    const newLink = { site: siteId, dechet: dechetId };
-    const updatedLinks = [...existingLinks, newLink];
-
-    console.log('updatedLinks', updatedLinks);
-
-    // 3. Mettre à jour dans Supabase
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ code_traitement_link: updatedLinks })
-      .eq('id', codeTreatmentId);
-
-    if (updateError) {
-      console.error('Error updating code treatment links:', updateError);
-      return;
-    }
-
-    // 4. Mettre à jour l'état local
-    const newCodeTreatmentLink: CodeTreatmentLink = { id: codeTreatmentId, site: siteId, dechet: dechetId };
-    onUpdateCodeTreatmentLinks([...codeTreatmentLinks, newCodeTreatmentLink]);
-  } catch (error) {
-    console.error('Error in handleSaveCodeTreatmentLink:', error);
-  }
-};*/
-
-/*export const handleSaveEcorganismeLink = async (
-  ecoorganismeId: string,
-  siteId: string,
-  dechetId: string,
-  onUpdateEcorganismeLinks: (links: EcorganismeLink[]) => void,
-  ecoorganismeLinks: EcorganismeLink[]
+  onUpdateContratLinks: (links: ContratLink[]) => void,
+  contratLinks: ContratLink[]
 ) => {
   try {
-    // 1. Récupérer l'enregistrement existant
     const { data: existingRecord, error: fetchError } = await supabase
       .from('table_autocompletion')
-      .select('eco_organisme_link')
-      .eq('id', ecoorganismeId)
+      .select('contrat_link')
+      .eq('id', contratId)
       .single();
 
     if (fetchError) {
-      console.error('Error fetching ecoorganisme links:', fetchError);
+      console.error('Error fetching contrat links:', fetchError);
       return;
     }
 
-    // 2. Ajouter le nouveau lien
-    const existingLinks = existingRecord?.eco_organisme_link || [];
-    const newLink = { site: siteId, dechet: dechetId };
-    const updatedLinks = [...existingLinks, newLink];
+    const existingLinks = existingRecord?.contrat_link || [];
+    const updatedLinks = existingLinks.filter(
+      (link: { site: string; dechet: string }) => !(link.site === siteId && link.dechet === dechetId)
+    );
 
-    // 3. Mettre à jour dans Supabase
     const { error: updateError } = await supabase
       .from('table_autocompletion')
-      .update({ eco_organisme_link: updatedLinks })
-      .eq('id', ecoorganismeId);
+      .update({ contrat_link: updatedLinks })
+      .eq('id', contratId);
 
     if (updateError) {
-      console.error('Error updating ecoorganisme links:', updateError);
+      console.error('Error updating contrat links:', updateError);
       return;
     }
 
-    // 4. Mettre à jour l'état local
-    const newEcorganismeLink: EcorganismeLink = { id: ecoorganismeId, site: siteId, dechet: dechetId };
-    onUpdateEcorganismeLinks([...ecoorganismeLinks, newEcorganismeLink]);
+    onUpdateContratLinks(contratLinks.filter(
+      link => !(link.site === siteId && link.dechet === dechetId)
+    ));
   } catch (error) {
-    console.error('Error in handleSaveEcorganismeLink:', error);
+    console.error('Error in handleDeleteContratLink:', error);
   }
-};*/
+};
 
-//--------------------------
-/*
+
 
 export const handleTransportLink = async (
   transportId: string, 
@@ -698,6 +645,44 @@ export const handleCodeTreatmentLink = async (
     }
   } catch (error) {
     console.error('Error in handleCodeTreatmentLink:', error);
+  }
+};
+
+export const handleContratLink = async (
+  contratId: string, 
+  siteId: string, 
+  dechetId: string,
+  onUpdateContratLinks: (links: ContratLink[]) => void,
+  contratLinks: ContratLink[]
+) => {
+  try {
+    const newLink: ContratLink = { id: contratId, site: siteId, dechet: dechetId };
+    onUpdateContratLinks([...contratLinks, newLink]);
+
+    const { data: existingRecord, error: fetchError } = await supabase
+      .from('table_autocompletion')
+      .select('contrat_link')
+      .eq('id', contratId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching existing contrat links:', fetchError);
+      return;
+    }
+
+    const existingLinks = existingRecord?.contrat_link || [];
+    const updatedLinks = [...existingLinks, newLink];
+
+    const { error: updateError } = await supabase
+      .from('table_autocompletion')
+      .update({ contrat_link: updatedLinks })
+      .eq('id', contratId);
+
+    if (updateError) {
+      console.error('Error updating contrat link:', updateError);
+    }
+  } catch (error) {
+    console.error('Error in handleContratLink:', error);
   }
 };
 

@@ -19,7 +19,10 @@ export const fetchAutocompletionData = async (entreprise_id: number): Promise<Au
     contenants: [],
     contacts: [],
     negociants: [],
-    courtiers: []
+    courtiers: [],
+    ecoorganismes: [],
+    codeTraitements: [],
+    contrats: []
   };
 
   if (!data) return result;
@@ -73,9 +76,28 @@ export const fetchAutocompletionData = async (entreprise_id: number): Promise<Au
         value: item.courtier
       });
     }
+    if (item.eco_organisme) {
+      result.ecoorganismes.push({
+        table_id: item.id,
+        value: item.eco_organisme
+      });
+    }
+    if (item.code_traitement) {
+      result.codeTraitements.push({
+        table_id: item.id,
+        value: item.code_traitement
+      });
+    }
+    if (item.contrat) {
+      result.contrats.push({
+        table_id: item.id,
+        value: item.contrat
+      });
+    }
+    
   });
 
-  console.log('result', result);
+  //console.log('alloptions', result);
   return result;
 };
 
@@ -94,7 +116,9 @@ export const fetchAutocompletionLinks = async (entreprise_id: number): Promise<A
     codeTraitementLinks: [],
     contactLinks: [],
     negociantLinks: [],
-    courtierLinks: []
+    courtierLinks: [],
+    ecoorganismeLinks: [],
+    contratLinks: []
   };
 
   if (!data) return result;
@@ -142,9 +166,20 @@ export const fetchAutocompletionLinks = async (entreprise_id: number): Promise<A
         courtier_link: item.courtier_link
       });
     }
+    if (item.eco_organisme_link && item.eco_organisme_link.length > 0) {
+      result.ecoorganismeLinks.push({
+        table_id: item.id,
+        eco_organisme_link: item.eco_organisme_link
+      });
+    }
+    if (item.contrat_link && item.contrat_link.length > 0) {
+      result.contratLinks.push({
+        table_id: item.id,
+        contrat_link: item.contrat_link
+      });
+    }
   });
 
-  console.log('result', result);
   return result;
 };
 
@@ -173,6 +208,12 @@ export const checkAutocompletion = (
       if (transporteur) {
         result.transporteur = transporteur;
       }
+      
+      const transportLinkFound = transportLink.transport_link.find(item => item.site === selectedFields.site!.table_id.toString() && item.dechet === selectedFields.dechet!.table_id.toString());
+      //console.log('transportLinkFound', transportLinkFound);
+      if(transportLinkFound?.mail){
+        result.destinataireMail = 'transporteur';
+      }
     }
 
 
@@ -189,6 +230,11 @@ export const checkAutocompletion = (
       const destinataire = allOptions.destinataires.find(d => d.table_id === destinataireLink.table_id);
       if (destinataire) {
         result.destinataire = destinataire;
+      }
+      const destinataireLinkFound = destinataireLink.dest_link.find(item => item.site === selectedFields.site!.table_id.toString() && item.dechet === selectedFields.dechet!.table_id.toString());
+      //console.log('destinataireLinkFound', destinataireLinkFound);
+      if(destinataireLinkFound?.mail){
+        result.destinataireMail = 'destinataire';
       }
     }
 
@@ -222,6 +268,11 @@ export const checkAutocompletion = (
       if (negociant) {
         result.negociant = negociant;
       }
+      const negociantLinkFound = negociantLink.negociant_link.find(item => item.site === selectedFields.site!.table_id.toString() && item.dechet === selectedFields.dechet!.table_id.toString());
+      //console.log('negociantLinkFound', negociantLinkFound);
+      if(negociantLinkFound?.mail){
+        result.destinataireMail = 'negociant';
+      }
     }
 
     // Rechercher un courtierLink qui correspond à la paire site/dechet
@@ -236,6 +287,62 @@ export const checkAutocompletion = (
       const courtier = allOptions.courtiers.find(c => c.table_id === courtierLink.table_id);
       if (courtier) {
         result.courtier = courtier;
+      }
+      const courtierLinkFound = courtierLink.courtier_link.find(item => item.site === selectedFields.site!.table_id.toString() && item.dechet === selectedFields.dechet!.table_id.toString());
+      //console.log('courtierLinkFound', courtierLinkFound);
+      if(courtierLinkFound?.mail){
+        result.destinataireMail = 'courtier';
+      }
+    }
+
+    
+    //--- Rechercher un ecoorganismeLink qui correspond à la paire site/dechet
+    const ecoorganismeLink = links.ecoorganismeLinks.find(link => {
+      const siteMatch = link.eco_organisme_link.some(item => item.site === selectedFields.site!.table_id.toString());
+      const dechetMatch = link.eco_organisme_link.some(item => item.dechet === selectedFields.dechet!.table_id.toString());
+      return siteMatch && dechetMatch;
+    });
+
+    if (ecoorganismeLink) {
+      // Trouver le ecoorganisme correspondant
+      const ecoorganisme = allOptions.ecoorganismes.find(e => e.table_id === ecoorganismeLink.table_id);
+      if (ecoorganisme) {
+        result.ecoorganisme = ecoorganisme;
+      }
+      const ecoorganismeLinkFound = ecoorganismeLink.eco_organisme_link.find(item => item.site === selectedFields.site!.table_id.toString() && item.dechet === selectedFields.dechet!.table_id.toString());
+      //console.log('ecoorganismeLinkFound', ecoorganismeLinkFound);
+      if(ecoorganismeLinkFound?.mail){
+        result.destinataireMail = 'ecoorganisme';
+      }
+    }
+    
+    //--- Rechercher un codeTraitementLink qui correspond à la paire site/dechet
+    const codeTraitementLink = links.codeTraitementLinks.find(link => {
+      const siteMatch = link.code_traitement_link.some(item => item.site === selectedFields.site!.table_id.toString());
+      const dechetMatch = link.code_traitement_link.some(item => item.dechet === selectedFields.dechet!.table_id.toString());
+      return siteMatch && dechetMatch;
+    });
+
+    if (codeTraitementLink) {
+      // Trouver le codeTraitement correspondant
+      const codeTraitement = allOptions.codeTraitements.find(c => c.table_id === codeTraitementLink.table_id);
+      if (codeTraitement) {
+        result.codeTraitement = codeTraitement;
+      }
+    }
+
+    //--- Rechercher un contratLink qui correspond à la paire site/dechet
+    const contratLink = links.contratLinks.find(link => {
+      const siteMatch = link.contrat_link.some(item => item.site === selectedFields.site!.table_id.toString());
+      const dechetMatch = link.contrat_link.some(item => item.dechet === selectedFields.dechet!.table_id.toString());
+      return siteMatch && dechetMatch;
+    }); 
+
+    if (contratLink) {
+      // Trouver le contrat correspondant
+      const contrat = allOptions.contrats.find(c => c.table_id === contratLink.table_id);
+      if (contrat) {
+        result.contrat = contrat;
       }
     }
     
@@ -272,6 +379,7 @@ export const checkAutocompletion = (
   
   }
 
+  //console.log('autocompletion_result', result);
   return result;
 };
 
@@ -298,7 +406,7 @@ interface ValueType {
 
 export const aggregateByMailRecipient = (selectedFieldsList: SelectedFields[]): AggregatedMailRecipient[] => {
   const groupedByRecipient: { [key: string]: AggregatedMailRecipient } = {};
-  console.log('selectedFieldsList', JSON.stringify(selectedFieldsList));
+  //console.log('selectedFieldsList', selectedFieldsList);
 
   selectedFieldsList.forEach((line) => {
     let recipientEmail = '';
@@ -329,6 +437,10 @@ export const aggregateByMailRecipient = (selectedFieldsList: SelectedFields[]): 
         recipientEmail = getEmailFromValue(line.courtier?.value);
         recipientNom = line.courtier?.value?.nomBoite || '';
         break;
+      case 'ecoorganisme':
+        recipientEmail = getEmailFromValue(line.ecoorganisme?.value);
+        recipientNom = line.ecoorganisme?.value?.nomBoite || '';
+        break;
     }
 
     // Créer une clé unique pour le regroupement incluant le type de prestation
@@ -349,9 +461,11 @@ export const aggregateByMailRecipient = (selectedFieldsList: SelectedFields[]): 
   });
 
   // Convertir l'objet en tableau et filtrer les entrées sans email
-  return Object.values(groupedByRecipient).filter(
+  const aggregatedMailRecipients = Object.values(groupedByRecipient).filter(
     (group) => group.destinataire.email !== ''
   );
+  console.log('aggregatedMailRecipients', aggregatedMailRecipients);
+  return aggregatedMailRecipients;
 };
 
 export interface CreateLineResult {
@@ -388,6 +502,9 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
           break;
         case 'courtier':
           recipientEmail = getEmailFromValue(line.courtier?.value as ValueType);
+          break;
+        case 'ecoorganisme':
+          recipientEmail = getEmailFromValue(line.ecoorganisme?.value as ValueType);
           break;
         default:
           recipientEmail = '';
@@ -436,7 +553,7 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
                   country: ''
                 },
                 isTempStorage: false,
-                processingOperation: ''
+                processingOperation: line.codeTraitement?.value?.code || ''
               },
               transporter: {
                 company: {
@@ -478,7 +595,10 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
           filiere: getFiliere(line.dechet?.value?.codeCED || '', ced_table),
           recipientEmail: recipientEmail,
           entreprise_name: entreprise_name,
-          typePrestation: line.typePrestation || 'enlevement'
+          typePrestation: line.typePrestation || 'enlevement',
+          ecoorganisme: line.ecoorganisme?.value?.nomBoite || '',
+          contrat: line.contrat?.value?.nom || '',
+          num_client: line.contrat?.value?.num_client || ''
         },
         created_at: line.date?.toISOString() || new Date().toISOString()
       };

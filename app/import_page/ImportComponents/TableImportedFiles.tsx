@@ -17,7 +17,7 @@ export interface PdfInfo {
     url?: string;
     file_size: number;
     document_type?: string;
-    site_siret?: string;
+    site_siret_plus?: string[];
     provider?: ProviderJSON;
 }
 
@@ -76,12 +76,14 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
 
     // Filtrer les pdfInfos en fonction des sites cochés
     const filteredPdfInfos = pdfInfos.filter(pdf => {
-        // Si le site n'est pas défini, on garde le fichier
-        if (!pdf.site_siret) return true;
+        // Si aucun site n'est défini, on garde le fichier
+        if (!pdf.site_siret_plus || pdf.site_siret_plus.length === 0) return true;
         
-        // On vérifie si le site est coché dans le filtre
-        const site = filteredSites.find(s => s.orgId === pdf.site_siret);
-        return site?.checked ?? true;
+        // On vérifie si au moins un des sites est coché dans le filtre
+        return pdf.site_siret_plus.some(siret => {
+            const site = filteredSites.find(s => s.orgId === siret);
+            return site?.checked ?? true;
+        });
     });
 
     // Gestionnaire de clic en dehors du menu
@@ -200,7 +202,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                 <SelectSite 
                                     entreprise_id={session?.entreprise_id} 
                                     pdf_id={pdf.id}
-                                    initialSite={pdf.site_siret}
+                                    initialSite={pdf.site_siret_plus}
                                 />
                             </td>
                             {/*<td style={{ padding: '6px', height: '40px' }} className="align-middle">
@@ -297,15 +299,17 @@ const getSites = async (entreprise_id: string, sitesFromContext: FilterSite[]): 
     }));
 };
 
-const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initialSite?: string }> = ({ 
+const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initialSite?: string[] }> = ({ 
     entreprise_id, 
     pdf_id, 
     initialSite 
 }) => {
     const [sites, setSites] = useState<SiteInfo[]>([]);
-    const [selectedSite, setSelectedSite] = useState<string>(initialSite || '');
+    const [selectedSites, setSelectedSites] = useState<string[]>(initialSite || []);
     const [isLoading, setIsLoading] = useState(true);
+    const [isOpen, setIsOpen] = useState(false);
     const { sites: sitesFromContext } = useFilterContext();
+    const dropdownRef = React.useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const fetchSites = async () => {
@@ -323,36 +327,79 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
         fetchSites();
     }, [entreprise_id, sitesFromContext]);
 
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    const handleSelectSite = async (siret: string) => {
+        const newSelectedSites = selectedSites.includes(siret)
+            ? selectedSites.filter(site => site !== siret)
+            : [...selectedSites, siret];
+        
+        setSelectedSites(newSelectedSites);
+        
+        const { error } = await supabase
+            .from('pdf_infos')
+            .update({ site_siret_plus: newSelectedSites })
+            .eq('id', pdf_id);
+
+        if (error) {
+            console.error('Erreur lors de la mise à jour des sites:', error);
+        }
+    };
+
     if (isLoading) {
         return <div className="text-xs">Chargement...</div>;
     }
 
-    const handleSelectSite = async (siret: string) => {
-        setSelectedSite(siret);
-        const { error } = await supabase
-            .from('pdf_infos')
-            .update({ site_siret: siret })
-            .eq('id', pdf_id);
-
-        if (error) {
-            console.error('Erreur lors de la mise à jour du site:', error);
-        }
-    };
-
     return (
-        <select 
-            className="border rounded p-1 text-xs w-full max-w-[140px]"
-            value={selectedSite}
-            onChange={(e) => handleSelectSite(e.target.value)}
-            disabled={isLoading}
-        >
-            <option value="">Sélectionner</option>
-            {sites.map((site) => (
-                <option key={site.siret} value={site.siret}>
-                    {site.name} - {site.siret}
-                </option>
-            ))}
-        </select>
+        <div className="relative" ref={dropdownRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center justify-between w-full max-w-[140px] px-2 py-1 text-xs border rounded-md hover:bg-gray-50"
+            >
+                <span className="truncate">
+                    {selectedSites.length === 0 
+                        ? "Sélectionner" 
+                        : selectedSites.length === 1
+                            ? sites.find(s => s.siret === selectedSites[0])?.name
+                            : `${selectedSites.length} sites sélectionnés`}
+                </span>
+                <BoxIcon name={isOpen ? 'chevron-up' : 'chevron-down'} size="16px" />
+            </button>
+
+            {isOpen && (
+                <div className="absolute z-10 w-full max-w-[200px] mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="py-1">
+                        {sites.map((site) => (
+                            <label
+                                key={site.siret}
+                                className="flex items-center px-3 py-1.5 hover:bg-gray-50 cursor-pointer whitespace-nowrap"
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={selectedSites.includes(site.siret)}
+                                    onChange={() => handleSelectSite(site.siret)}
+                                    className="mr-2 rounded border-gray-300 text-[var(--green-medium)] focus:ring-[var(--green-medium)]"
+                                />
+                                <span className="text-xs">
+                                    {site.name}
+                                </span>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 

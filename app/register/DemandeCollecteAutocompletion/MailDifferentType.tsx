@@ -25,6 +25,7 @@ interface EmailParams {
             city: string;
         };
     };
+    numClient: string;
     adminEmail: string;
     destinataire: string;
     ccList: string[];
@@ -94,6 +95,7 @@ const emailTemplate: EmailTemplate = {
                     return `Bonjour,
 Je souhaite organiser des collectes de déchets.
 Client : ${params.entrepriseName}
+${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
 Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
@@ -113,6 +115,7 @@ Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${par
                     return `Bonjour,
 Je souhaite réserver un camion pour la journée.
 Client : ${params.entrepriseName}
+${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
 Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
@@ -131,6 +134,7 @@ Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${par
                     return `Bonjour,
 Je souhaite réserver un camion pour la demi-journée.
 Client : ${params.entrepriseName}
+${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
 Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
@@ -149,6 +153,7 @@ Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${par
                     return `Bonjour,
 Je souhaite commander des contenants vides.
 Client : ${params.entrepriseName}
+${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
 Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
@@ -167,6 +172,7 @@ Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${par
                     return `Bonjour,
 Je souhaite organiser une prestation.
 Client : ${params.entrepriseName}
+${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
 Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 

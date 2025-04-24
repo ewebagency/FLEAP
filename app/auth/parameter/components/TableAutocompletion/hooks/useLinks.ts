@@ -1,5 +1,5 @@
 /*import { useState, useCallback } from 'react';
-import { BaseLink, Site, Dechet, Transporteur, Destinataire, Contenant, Negociant, Courtier, CodeTreatment, Ecorganisme } from '../types';
+import { BaseLink, Site, Dechet, Transporteur, Destinataire, Contenant, Negociant, Courtier, CodeTreatment, Ecorganisme, Contrat } from '../types';
 import { handleLink, handleDeleteLink } from '../linkHandlers';
 
 interface UseLinksProps {
@@ -12,6 +12,7 @@ interface UseLinksProps {
   courtiers: Courtier[];
   codeTreatments: CodeTreatment[];
   ecoorganismes: Ecorganisme[];
+  contrat: Contrat[];
   transportLinks: BaseLink[];
   destLinks: BaseLink[];
   contenantLinks: BaseLink[];
@@ -19,6 +20,7 @@ interface UseLinksProps {
   courtierLinks: BaseLink[];
   codeTreatmentLinks: BaseLink[];
   ecoorganismeLinks: BaseLink[];
+  contratLinks: BaseLink[];
   onUpdateTransportLinks: (links: BaseLink[]) => void;
   onUpdateDestLinks: (links: BaseLink[]) => void;
   onUpdateContenantLinks: (links: BaseLink[]) => void;
@@ -26,6 +28,7 @@ interface UseLinksProps {
   onUpdateCourtierLinks: (links: BaseLink[]) => void;
   onUpdateCodeTreatmentLinks: (links: BaseLink[]) => void;
   onUpdateEcorganismeLinks: (links: BaseLink[]) => void;
+  onUpdateContratLinks: (links: BaseLink[]) => void;
 }
 
 export const useLinks = ({
@@ -38,6 +41,7 @@ export const useLinks = ({
   courtiers,
   codeTreatments,
   ecoorganismes,
+  contrat,
   transportLinks,
   destLinks,
   contenantLinks,
@@ -45,6 +49,7 @@ export const useLinks = ({
   courtierLinks,
   codeTreatmentLinks,
   ecoorganismeLinks,
+  contratLinks,
   onUpdateTransportLinks,
   onUpdateDestLinks,
   onUpdateContenantLinks,
@@ -52,6 +57,7 @@ export const useLinks = ({
   onUpdateCourtierLinks,
   onUpdateCodeTreatmentLinks,
   onUpdateEcorganismeLinks,
+  onUpdateContratLinks,
 }: UseLinksProps) => {
   // États pour les sélections
   const [selectedSite, setSelectedSite] = useState<string>('');
@@ -63,6 +69,7 @@ export const useLinks = ({
   const [selectedCourtier, setSelectedCourtier] = useState<string>('');
   const [selectedCodeTreatment, setSelectedCodeTreatment] = useState<string>('');
   const [selectedEcorganisme, setSelectedEcorganisme] = useState<string>('');
+  const [selectedContrat, setSelectedContrat] = useState<string>('');
   const [showAdvancedOptions, setShowAdvancedOptions] = useState<boolean>(false);
 
   // Gestion des liens
@@ -105,6 +112,11 @@ export const useLinks = ({
         update: onUpdateEcorganismeLinks,
         links: ecoorganismeLinks,
       },
+      contrat: {
+        handler: handleLink,
+        update: onUpdateContratLinks,
+        links: contratLinks,
+      },
     };
 
     const handler = handlers[type as keyof typeof handlers];
@@ -121,6 +133,7 @@ export const useLinks = ({
     courtierLinks,
     codeTreatmentLinks,
     ecoorganismeLinks,
+    contratLinks,
     onUpdateTransportLinks,
     onUpdateDestLinks,
     onUpdateContenantLinks,
@@ -128,6 +141,7 @@ export const useLinks = ({
     onUpdateCourtierLinks,
     onUpdateCodeTreatmentLinks,
     onUpdateEcorganismeLinks,
+    onUpdateContratLinks,
   ]);
 
   const handleLinkDeletion = useCallback(async (type: string, id: string) => {
@@ -169,6 +183,11 @@ export const useLinks = ({
         update: onUpdateEcorganismeLinks,
         links: ecoorganismeLinks,
       },
+      contrat: {
+        handler: handleDeleteLink,
+        update: onUpdateContratLinks,
+        links: contratLinks,
+      },
     };
 
     const handler = handlers[type as keyof typeof handlers];
@@ -185,6 +204,7 @@ export const useLinks = ({
     courtierLinks,
     codeTreatmentLinks,
     ecoorganismeLinks,
+    contratLinks,
     onUpdateTransportLinks,
     onUpdateDestLinks,
     onUpdateContenantLinks,
@@ -192,6 +212,7 @@ export const useLinks = ({
     onUpdateCourtierLinks,
     onUpdateCodeTreatmentLinks,
     onUpdateEcorganismeLinks,
+    onUpdateContratLinks,
   ]);
 
   // Gestion des formulaires
@@ -206,6 +227,7 @@ export const useLinks = ({
       { type: 'courtier_link', id: selectedCourtier },
       { type: 'code_traitement', id: selectedCodeTreatment },
       { type: 'eco_organisme', id: selectedEcorganisme },
+      { type: 'contrat', id: selectedContrat },
     ];
 
     for (const link of linksToCreate) {
@@ -222,6 +244,7 @@ export const useLinks = ({
     setSelectedCourtier('');
     setSelectedCodeTreatment('');
     setSelectedEcorganisme('');
+    setSelectedContrat('');
   }, [
     selectedSite,
     selectedDechet,
@@ -232,6 +255,7 @@ export const useLinks = ({
     selectedCourtier,
     selectedCodeTreatment,
     selectedEcorganisme,
+    selectedContrat,
     handleLinkCreation,
   ]);
 
@@ -260,6 +284,8 @@ export const useLinks = ({
     setSelectedCodeTreatment,
     selectedEcorganisme,
     setSelectedEcorganisme,
+    selectedContrat,
+    setSelectedContrat,
     showAdvancedOptions,
     setShowAdvancedOptions,
 
@@ -279,6 +305,7 @@ export const useLinks = ({
     courtiers,
     codeTreatments,
     ecoorganismes,
+    contrat,
     transportLinks,
     destLinks,
     contenantLinks,
@@ -286,5 +313,6 @@ export const useLinks = ({
     courtierLinks,
     codeTreatmentLinks,
     ecoorganismeLinks,
+    contratLinks,
   };
 }; */

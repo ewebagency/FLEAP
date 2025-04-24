@@ -1,6 +1,7 @@
-/*import React, { useState } from 'react';
+/*
+import React, { useState } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
-//import { handleSaveEcorganismeLink, handleSaveCodeTreatmentLink } from './LinkHandlers';
+
 
 import {
   Site,
@@ -13,6 +14,7 @@ import {
   Courtier,
   CodeTreatment,
   Ecorganisme,
+  Contrat,
   TransportLink,
   DestLink,
   NegociantLink,
@@ -20,7 +22,8 @@ import {
   ContenantLink,
   SiteContactLink,
   CodeTreatmentLink,
-  EcorganismeLink
+  EcorganismeLink,
+  ContratLink
 } from './types';
 
 
@@ -34,16 +37,12 @@ interface GroupedLink {
   courtierId?: string;
   codeTreatmentId?: string;
   ecoorganismeId?: string;
+  contratId?: string;
 }
 
 
 
-interface SiteContactFormProps {
-  sites: Site[];
-  contactEmetteurs: ContactEmetteur[];
-  linkedItems: SiteContactLink[];
-  onLink: (siteId: string, contactId: string) => void;
-}
+
 
 interface MultiLinkFormProps {
   sites: Site[];
@@ -55,6 +54,7 @@ interface MultiLinkFormProps {
   contenants: Contenant[];
   codeTreatments: CodeTreatment[];
   ecoorganismes: Ecorganisme[];
+  contrat: Contrat[];
   transportLinks: TransportLink[];
   destLinks: DestLink[];
   negociantLinks: NegociantLink[];
@@ -62,6 +62,7 @@ interface MultiLinkFormProps {
   contenantLinks: ContenantLink[];
   codeTreatmentLinks: CodeTreatmentLink[];
   ecoorganismeLinks: EcorganismeLink[];
+  contratLinks: ContratLink[];
   onTransportLink: (transportId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
   onDestLink: (destId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
   onNegociantLink: (negociantId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
@@ -69,6 +70,7 @@ interface MultiLinkFormProps {
   onContenantLink: (contenantId: string, siteId: string, dechetId: string) => void;
   onCodeTreatmentLink: (codeTreatmentId: string, siteId: string, dechetId: string) => void;
   onEcorganismeLink: (ecoorganismeId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
+  onContratLink: (contratId: string, siteId: string, dechetId: string) => void;
   onUpdateTransportLinks: (links: TransportLink[]) => void;
   onUpdateDestLinks: (links: DestLink[]) => void;
   onUpdateContenantLinks: (links: ContenantLink[]) => void;
@@ -76,6 +78,7 @@ interface MultiLinkFormProps {
   onUpdateCourtierLinks: (links: CourtierLink[]) => void;
   onUpdateCodeTreatmentLinks: (links: CodeTreatmentLink[]) => void;
   onUpdateEcorganismeLinks: (links: EcorganismeLink[]) => void;
+  onUpdateContratLinks: (links: ContratLink[]) => void;
   onDeleteTransportLink: (transportId: string, siteId: string, dechetId: string) => void;
   onDeleteDestLink: (destId: string, siteId: string, dechetId: string) => void;
   onDeleteContenantLink: (contenantId: string, siteId: string, dechetId: string) => void;
@@ -83,118 +86,9 @@ interface MultiLinkFormProps {
   onDeleteCourtierLink: (courtierId: string, siteId: string, dechetId: string) => void;
   onDeleteCodeTreatmentLink: (codeTreatmentId: string, siteId: string, dechetId: string) => void;
   onDeleteEcorganismeLink: (ecoorganismeId: string, siteId: string, dechetId: string) => void;
+  onDeleteContratLink: (contratId: string, siteId: string, dechetId: string) => void;
 }
 
-// Formulaire de création de lien entre site et contact émetteur
-const SiteContactForm: React.FC<SiteContactFormProps> = ({
-  sites,
-  contactEmetteurs,
-  linkedItems,
-  onLink,
-}) => {
-  const [selectedSite, setSelectedSite] = useState<string>('');
-  const [selectedContact, setSelectedContact] = useState<string>('');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedSite && selectedContact) {
-      onLink(selectedSite, selectedContact);
-      setSelectedSite('');
-      setSelectedContact('');
-    }
-  };
-
-  return (
-    <div className="bg-white rounded-xl shadow-sm p-5">
-      <h3 className="text-xl font-semibold text-gray-800 mb-4">Liens Site - Contact Émetteur</h3>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex items-center justify-start gap-4">
-          <div className="w-40">
-            <select
-              value={selectedSite}
-              onChange={(e) => setSelectedSite(e.target.value)}
-              className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            >
-              <option value="">Site</option>
-              {sites.map((site) => (
-                <option key={site.id} value={site.id}>
-                  {site.nom}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <span className="text-gray-500 text-sm">→</span>
-          </div>
-
-          <div className="w-40">
-            <select
-              value={selectedContact}
-              onChange={(e) => setSelectedContact(e.target.value)}
-              className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            >
-              <option value="">Contact</option>
-              {contactEmetteurs.map((contact) => (
-                <option key={contact.id} value={contact.id}>
-                  {contact.prenomNom}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            type="submit"
-            className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-          >
-            Lier
-          </button>
-        </div>
-      </form>
-
-      <div className="mt-6">
-        <h4 className="text-sm font-semibold text-gray-700 mb-2">Liens existants</h4>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Site</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact Émetteur</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {linkedItems.map((link, index) => {
-                const site = sites.find(s => s.id === link.site);
-                const contact = contactEmetteurs.find(c => c.id === link.contact);
-                return (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {site?.nom}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {contact?.prenomNom}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => onLink(link.site, link.contact)}
-                        className="text-blue-500 hover:text-blue-600 hover:bg-blue-50 rounded-full p-1"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // Formulaire html de création de lien entre site + déchet et entités qui va être utilisé dans le composant LinkComponents
 const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
@@ -207,6 +101,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
   contenants,
   codeTreatments,
   ecoorganismes,
+  contrats,
   transportLinks,
   destLinks,
   negociantLinks,
@@ -214,6 +109,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
   contenantLinks,
   codeTreatmentLinks,
   ecoorganismeLinks,
+  contratLinks,
   onTransportLink,
   onDestLink,
   onNegociantLink,
@@ -221,6 +117,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
   onContenantLink,
   onCodeTreatmentLink,
   onEcorganismeLink,
+  onContratLink,
   onUpdateTransportLinks,
   onUpdateDestLinks,
   onUpdateContenantLinks,
@@ -228,6 +125,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
   onUpdateCourtierLinks,
   onUpdateCodeTreatmentLinks,
   onUpdateEcorganismeLinks,
+  onUpdateContratLinks,
   onDeleteTransportLink,
   onDeleteDestLink,
   onDeleteNegociantLink,
@@ -235,6 +133,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
   onDeleteContenantLink,
   onDeleteCodeTreatmentLink,
   onDeleteEcorganismeLink,
+  onDeleteContratLink,
 }) => {
   const [selectedSite, setSelectedSite] = useState<string>('');
   const [selectedDechet, setSelectedDechet] = useState<string>('');
@@ -245,6 +144,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
   const [selectedContenant, setSelectedContenant] = useState<string>('');
   const [selectedCodeTreatment, setSelectedCodeTreatment] = useState<string>('');
   const [selectedEcorganisme, setSelectedEcorganisme] = useState<string>('');
+  const [selectedContrat, setSelectedContrat] = useState<string>('');
   const [showAdvancedOptions, setShowAdvancedOptions] = useState<boolean>(false);
   const [editingLink, setEditingLink] = useState<GroupedLink | null>(null);
   const [selectedMailRecipient, setSelectedMailRecipient] = useState<string>('');
@@ -259,7 +159,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
   const [courtierFilter, setCourtierFilter] = useState<string>('');
   const [codeTreatmentFilter, setCodeTreatmentFilter] = useState<string>('');
   const [ecoorganismeFilter, setEcoorganismeFilter] = useState<string>('');
-
+  const [contratFilter, setContratFilter] = useState<string>('');
   const getGroupedLinks = (): GroupedLink[] => {
     // 1. Créer tous les couples possibles site+dechet
     const allCombinations: GroupedLink[] = [];    
@@ -275,6 +175,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
           courtierId: "",
           codeTreatmentId: "",
           ecoorganismeId: "",
+          contratId: "",
           mailRecipientType: ""
         });
       });
@@ -399,6 +300,21 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
         }
       });
     });
+
+    // Contrats
+    contrats.forEach(contrat => {
+      const contratLinksForContrat = contratLinks.filter(link => link.id === contrat.id); 
+      
+      contratLinksForContrat.forEach(link => {
+        const combination = allCombinations.find(
+          c => c.site === link.site && c.dechet === link.dechet
+        );
+        if (combination) {
+          combination.contratId = contrat.id;
+        }
+      });
+    });
+    
     
     console.log('allcombinations',allCombinations.map(c => c.mailRecipientType));
     return allCombinations;
@@ -416,6 +332,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
     setSelectedCourtier(link.courtierId || '');
     setSelectedCodeTreatment(link.codeTreatmentId || '');
     setSelectedEcorganisme(link.ecoorganismeId || '');
+    setSelectedContrat(link.contratId || '');
   };
 
   const handleSaveEdit = (e: React.FormEvent) => {
@@ -443,6 +360,9 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
       if (editingLink.ecoorganismeId) {
         onDeleteEcorganismeLink(editingLink.ecoorganismeId, editingLink.site, editingLink.dechet);
       }
+      if (editingLink.contratId) {
+        onDeleteContratLink(editingLink.contratId, editingLink.site, editingLink.dechet);
+      }
 
       // Ajouter les nouveaux liens
       if (selectedTransporteur) {
@@ -466,6 +386,9 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
       if (selectedEcorganisme) {
         onEcorganismeLink(selectedEcorganisme, selectedSite, selectedDechet, selectedMailRecipient === 'ecoorganisme');
       }
+      if (selectedContrat) {
+        onContratLink(selectedContrat, selectedSite, selectedDechet);
+      }
 
       setEditingLink(null);
       setSelectedSite('');
@@ -477,6 +400,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
       setSelectedCourtier('');
       setSelectedCodeTreatment('');
       setSelectedEcorganisme('');
+      setSelectedContrat('');
     }
   };
 
@@ -529,6 +453,9 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
           selectedMailRecipient === 'ecoorganisme'
         );
       }
+      if (selectedContrat) {
+        onContratLink(selectedContrat, selectedSite, selectedDechet);
+      }
       // Réinitialiser les sélections
       setSelectedTransporteur('');
       setSelectedDestinataire('');
@@ -537,6 +464,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
       setSelectedContenant('');
       setSelectedCodeTreatment('');
       setSelectedEcorganisme('');
+      setSelectedContrat('');
       setSelectedMailRecipient('');
     }
   };
@@ -553,6 +481,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
       const courtier = courtiers.find(c => c.id === link.courtierId);
       const codeTreatment = codeTreatments.find(ct => ct.id === link.codeTreatmentId);
       const ecoorganisme = ecoorganismes.find(eo => eo.id === link.ecoorganismeId);
+      const contrat = contrats.find(c => c.id === link.contratId);
 
       const siteName = site?.nom || '';
       const dechetName = dechet?.nom || '';
@@ -563,6 +492,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
       const courtierName = courtier?.nomBoite || '';
       const codeTreatmentName = codeTreatment?.nom || '';
       const ecoorganismeName = ecoorganisme?.nomBoite || '';
+      const contratName = contrat?.nom || '';
 
       return (
         (!siteFilter || siteName.toLowerCase().includes(siteFilter.toLowerCase())) &&
@@ -573,7 +503,8 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
         (!negociantFilter || negociantName.toLowerCase().includes(negociantFilter.toLowerCase())) &&
         (!courtierFilter || courtierName.toLowerCase().includes(courtierFilter.toLowerCase())) &&
         (!codeTreatmentFilter || codeTreatmentName.toLowerCase().includes(codeTreatmentFilter.toLowerCase())) &&
-        (!ecoorganismeFilter || ecoorganismeName.toLowerCase().includes(ecoorganismeFilter.toLowerCase()))
+        (!ecoorganismeFilter || ecoorganismeName.toLowerCase().includes(ecoorganismeFilter.toLowerCase())) &&
+        (!contratFilter || contratName.toLowerCase().includes(contratFilter.toLowerCase()))
       );
     });
   };
@@ -728,6 +659,21 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                         </option>
                       );
                     })}
+                  </select>
+                </div>
+
+                <div className="w-30">
+                  <select
+                    value={selectedContrat}
+                    onChange={(e) => setSelectedContrat(e.target.value)}
+                    className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    <option value="">Contrat</option>
+                    {contrats.map((contrat) => (
+                      <option key={contrat.id} value={contrat.id}>
+                        {contrat.nom}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </>
@@ -925,6 +871,27 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                     </select>
                   </div>
                 </th>
+
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <div className="flex flex-col gap-2">
+                    <span>Contrat</span>
+                    <select
+                      value={contratFilter}
+                      onChange={(e) => setContratFilter(e.target.value)}
+                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    >
+                      <option value="">Contrats</option>
+                      {contrats.map((contrat) => (
+                        <option key={contrat.id} value={contrat.nom}>
+                          {contrat.nom}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </th>
+
+
+                
                 {showAdvancedOptions && (
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <div className="flex flex-col gap-2">
@@ -959,12 +926,14 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                 const courtier = courtiers.find(c => c.id === link.courtierId);
                 const codeTreatment = codeTreatments.find(ct => ct.id === link.codeTreatmentId);
                 const ecoorganisme = ecoorganismes.find(eo => eo.id === link.ecoorganismeId);
+                const contrat = contrats.find(c => c.id === link.contratId);
                 const dic_mail_dest = {
                   'transporteur': "Transporteur",
                   'destinataire': "Destinataire",
                   'negociant': "Négociant",
                   'courtier': "Courtier",
-                  'ecoorganisme': "Écoorganisme"
+                  'ecoorganisme': "Écoorganisme",
+                  'contrat': "Contrat"
                 }
 
                 return (
@@ -993,6 +962,9 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                     )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {codeTreatment?.nom || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {contrat?.nom || '-'}
                     </td>
                     {showAdvancedOptions && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -1029,11 +1001,12 @@ interface LinkComponentsProps {
   dechets: Dechet[];
   destinataires: Destinataire[];
   contenants: Contenant[];
-  contactEmetteurs: ContactEmetteur[];
+  //contactEmetteurs: ContactEmetteur[];
   negociants: Negociant[];
   courtiers: Courtier[];
   codeTreatments: CodeTreatment[];
   ecoorganismes: Ecorganisme[];
+  contrats: Contrat[];
   transportLinks: TransportLink[];
   destLinks: DestLink[];
   contenantLinks: ContenantLink[];
@@ -1042,6 +1015,7 @@ interface LinkComponentsProps {
   courtierLinks: CourtierLink[];
   codeTreatmentLinks: CodeTreatmentLink[];
   ecoorganismeLinks: EcorganismeLink[];
+  contratLinks: ContratLink[];
   onTransportLink: (transportId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
   onDestLink: (destId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
   onContenantLink: (contenantId: string, siteId: string, dechetId: string) => void;
@@ -1050,6 +1024,7 @@ interface LinkComponentsProps {
   onCourtierLink: (courtierId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
   onCodeTreatmentLink: (codeTreatmentId: string, siteId: string, dechetId: string) => void;
   onEcorganismeLink: (ecoorganismeId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
+  onContratLink: (contratId: string, siteId: string, dechetId: string) => void;
   onUpdateTransportLinks: (links: TransportLink[]) => void;
   onUpdateDestLinks: (links: DestLink[]) => void;
   onUpdateContenantLinks: (links: ContenantLink[]) => void;
@@ -1057,6 +1032,7 @@ interface LinkComponentsProps {
   onUpdateCourtierLinks: (links: CourtierLink[]) => void;
   onUpdateCodeTreatmentLinks: (links: CodeTreatmentLink[]) => void;
   onUpdateEcorganismeLinks: (links: EcorganismeLink[]) => void;
+  onUpdateContratLinks: (links: ContratLink[]) => void;
 }
 
 const LinkComponents: React.FC<LinkComponentsProps> = ({
@@ -1065,10 +1041,11 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
   dechets,
   destinataires,
   contenants,
-  contactEmetteurs,
+  //contactEmetteurs,
   negociants,
   courtiers,
   codeTreatments,
+  contrats,
   ecoorganismes,
   transportLinks,
   destLinks,
@@ -1077,6 +1054,7 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
   negociantLinks,
   courtierLinks,
   codeTreatmentLinks,
+  contratLinks,
   ecoorganismeLinks,
   onTransportLink,
   onDestLink,
@@ -1086,6 +1064,7 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
   onCourtierLink,
   onCodeTreatmentLink,
   onEcorganismeLink,
+  onContratLink,
   onUpdateTransportLinks,
   onUpdateDestLinks,
   onUpdateContenantLinks,
@@ -1093,6 +1072,7 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
   onUpdateCourtierLinks,
   onUpdateCodeTreatmentLinks,
   onUpdateEcorganismeLinks,
+  onUpdateContratLinks,
 }) => {
   const handleDeleteTransportLink = async (transportId: string, siteId: string, dechetId: string) => {
     try {
@@ -1310,6 +1290,42 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
     }
   };
 
+  const handleDeleteContratLink = async (contratId: string, siteId: string, dechetId: string) => {
+    try {
+      const { data: existingRecord, error: fetchError } = await supabase
+        .from('table_autocompletion')
+        .select('contrat_link')
+        .eq('id', contratId)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching existing contrat links:', fetchError);
+        return;
+      }
+
+      const existingLinks = existingRecord?.contrat_link || [];
+      const updatedLinks = existingLinks.filter(
+        (link: { site: string; dechet: string }) => !(link.site === siteId && link.dechet === dechetId)
+      );
+
+      const { error: updateError } = await supabase
+        .from('table_autocompletion')
+        .update({ contrat_link: updatedLinks })
+        .eq('id', contratId);
+
+      if (updateError) {
+        console.error('Error updating contrat link:', updateError);
+        return;
+      }
+
+      onUpdateContratLinks(contratLinks.filter(
+        link => !(link.site === siteId && link.dechet === dechetId)
+      ));
+    } catch (error) {
+      console.error('Error in handleDeleteContratLink:', error);
+    }
+  };
+
   const handleDeleteEcorganismeLink = async (ecoorganismeId: string, siteId: string, dechetId: string) => {
     try {
       const { data: existingRecord, error: fetchError } = await supabase
@@ -1357,6 +1373,7 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
         courtiers={courtiers}
         contenants={contenants}
         codeTreatments={codeTreatments}
+        contrats={contrats}
         ecoorganismes={ecoorganismes}
         transportLinks={transportLinks}
         destLinks={destLinks}
@@ -1364,6 +1381,7 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
         courtierLinks={courtierLinks}
         contenantLinks={contenantLinks}
         codeTreatmentLinks={codeTreatmentLinks}
+        contratLinks={contratLinks}
         ecoorganismeLinks={ecoorganismeLinks}
         onTransportLink={onTransportLink}
         onDestLink={onDestLink}
@@ -1372,6 +1390,7 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
         onContenantLink={onContenantLink}
         onCodeTreatmentLink={onCodeTreatmentLink}
         onEcorganismeLink={onEcorganismeLink}
+        onContratLink={onContratLink}
         onUpdateTransportLinks={onUpdateTransportLinks}
         onUpdateDestLinks={onUpdateDestLinks}
         onUpdateContenantLinks={onUpdateContenantLinks}
@@ -1379,6 +1398,7 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
         onUpdateCourtierLinks={onUpdateCourtierLinks}
         onUpdateCodeTreatmentLinks={onUpdateCodeTreatmentLinks}
         onUpdateEcorganismeLinks={onUpdateEcorganismeLinks}
+        onUpdateContratLinks={onUpdateContratLinks}
         onDeleteTransportLink={handleDeleteTransportLink}
         onDeleteDestLink={handleDeleteDestLink}
         onDeleteNegociantLink={handleDeleteNegociantLink}
@@ -1386,14 +1406,10 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
         onDeleteContenantLink={handleDeleteContenantLink}
         onDeleteCodeTreatmentLink={handleDeleteCodeTreatmentLink}
         onDeleteEcorganismeLink={handleDeleteEcorganismeLink}
+        onDeleteContratLink={handleDeleteContratLink}
       />
 
-      <SiteContactForm
-        sites={sites}
-        contactEmetteurs={contactEmetteurs}
-        linkedItems={siteContactLinks}
-        onLink={onSiteContactLink}
-      />
+
     </div>
   );
 };

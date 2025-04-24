@@ -11,7 +11,6 @@ import {
   Dechet,
   Destinataire,
   Contenant,
-  ContactEmetteur,
   Negociant,
   Courtier,
   Ecorganisme,
@@ -21,29 +20,29 @@ import {
   NegociantLink,
   CourtierLink,
   ContenantLink,
-  SiteContactLink,
   CodeTreatmentLink,
-  EcorganismeLink
+  EcorganismeLink,
+  Contrat,
+  ContratLink
 } from './types';
 import {
   handleTransportLink,
   handleDestLink,
   handleContenantLink,
-  handleSiteContactLink,
   handleNegociantLink,
   handleCourtierLink,
   handleEcorganismeLink,
-  handleCodeTreatmentLink
+  handleCodeTreatmentLink,
+  handleContratLink
 } from './LinkHandlers';
 import { fetchAutocompletionData } from './utils';
-import { siteAttributes, transporteurAttributes, dechetAttributes, destinataireAttributes, contenantAttributes, contactEmetteurAttributes, negociantAttributes, courtierAttributes, ecoOrganismeAttributes, codeTraitementAttributes } from './definitions';
+import { siteAttributes, transporteurAttributes, dechetAttributes, destinataireAttributes, contenantAttributes, negociantAttributes, courtierAttributes, ecoOrganismeAttributes, codeTraitementAttributes, codeTraitementOptions, contratAttributes } from './definitions';
 
 interface AutocompletionRecord {
   id: string;
   transport_link?: TransportLink[];
   dest_link?: DestLink[];
   contenant_link?: ContenantLink[];
-  contact_link?: SiteContactLink[];
 }
 
 const AutocompletionTab: React.FC = () => {
@@ -54,20 +53,20 @@ const AutocompletionTab: React.FC = () => {
   const [dechets, setDechets] = useState<Dechet[]>([]);
   const [destinataires, setDestinataires] = useState<Destinataire[]>([]);
   const [contenants, setContenants] = useState<Contenant[]>([]);
-  const [contactEmetteurs, setContactEmetteurs] = useState<ContactEmetteur[]>([]);
   const [negociants, setNegociants] = useState<Negociant[]>([]);
   const [courtiers, setCourtiers] = useState<Courtier[]>([]);
   const [ecoorganismes, setEcoorganismes] = useState<Ecorganisme[]>([]);
   const [codeTreatments, setCodeTreatments] = useState<CodeTreatment[]>([]);
+  const [contrats, setContrats] = useState<Contrat[]>([]);
   //on va chercher les liens
   const [transportLinks, setTransportLinks] = useState<TransportLink[]>([]);
   const [destLinks, setDestLinks] = useState<DestLink[]>([]);
   const [negociantLinks, setNegociantLinks] = useState<NegociantLink[]>([]);
   const [courtierLinks, setCourtierLinks] = useState<CourtierLink[]>([]);
   const [contenantLinks, setContenantLinks] = useState<ContenantLink[]>([]);
-  const [siteContactLinks, setSiteContactLinks] = useState<SiteContactLink[]>([]);
   const [codeTreatmentLinks, setCodeTreatmentLinks] = useState<CodeTreatmentLink[]>([]);
   const [ecoorganismeLinks, setEcoorganismeLinks] = useState<EcorganismeLink[]>([]);
+  const [contratLinks, setContratLinks] = useState<ContratLink[]>([]);
 
   const [showNewForm, setShowNewForm] = useState<{ [key: string]: boolean }>({
     site: false,
@@ -75,11 +74,11 @@ const AutocompletionTab: React.FC = () => {
     dechet: false,
     destinataire: false,
     contenant: false,
-    contactEmetteur: false,
     negociant: false,
     courtier: false,
     ecoOrganisme: false,
     codeTraitement: false,
+    contrat: false
   });
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [editingItems, setEditingItems] = useState<Set<string>>(new Set());
@@ -88,7 +87,7 @@ const AutocompletionTab: React.FC = () => {
   //on va chercher les données allOptions
   useEffect(() => {
     if (entreprise_id) {
-      fetchAutocompletionData(Number(entreprise_id), setSites, setTransporteurs, setDechets, setDestinataires, setContenants, setContactEmetteurs, setNegociants, setCourtiers, setEcoorganismes, setCodeTreatments, setTransportLinks, setDestLinks, setNegociantLinks, setCourtierLinks, setContenantLinks, setSiteContactLinks, setCodeTreatmentLinks, setEcoorganismeLinks);
+      fetchAutocompletionData(Number(entreprise_id), setSites, setTransporteurs, setDechets, setDestinataires, setContenants, setNegociants, setCourtiers, setEcoorganismes, setCodeTreatments, setContrats, setTransportLinks, setDestLinks, setNegociantLinks, setCourtierLinks, setContenantLinks, setCodeTreatmentLinks, setEcoorganismeLinks, setContratLinks);
     }
   }, [entreprise_id]);
 
@@ -102,11 +101,11 @@ const AutocompletionTab: React.FC = () => {
     { id: 'dechets', label: 'Déchets' },
     { id: 'destinataires', label: 'Destinataires' },
     { id: 'contenants', label: 'Contenants' },
-    { id: 'contactEmetteurs', label: 'Contacts Émetteurs' },
     { id: 'negociants', label: 'Négociants' },
     { id: 'courtiers', label: 'Courtiers' },
     { id: 'ecoOrganismes', label: 'Éco-organismes' },
-    { id: 'codeTraitements', label: 'Codes de traitement' }
+    { id: 'codeTraitements', label: 'Codes de traitement' },
+    { id: 'contrats', label: 'Contrats' }
   ];
 
   //-------------------------------- Fonctions utils --------------------------------
@@ -175,11 +174,6 @@ const AutocompletionTab: React.FC = () => {
           contenant.id === id ? { ...contenant, [field]: value } : contenant
         ));
         break;
-      case 'ContactEmetteur':
-        setContactEmetteurs(prev => prev.map(contact => 
-          contact.id === id ? { ...contact, [field]: value } : contact
-        ));
-        break;
       case 'Negociant':
         setNegociants(prev => prev.map(negociant => 
           negociant.id === id ? { ...negociant, [field]: value } : negociant
@@ -200,47 +194,9 @@ const AutocompletionTab: React.FC = () => {
           codeTreatment.id === id ? { ...codeTreatment, [field]: value } : codeTreatment
         ));
         break;
-    }
-  };
-
-  const handleContactFieldChange = (type: string, id: string, field: string, value: string) => {
-    switch (type) {
-      case 'Transporteur':
-        setTransporteurs(prev => prev.map(transporteur => 
-          transporteur.id === id ? { 
-            ...transporteur, 
-            [field]: value 
-          } : transporteur
-        ));
-        break;
-      case 'Destinataire':
-        setDestinataires(prev => prev.map(destinataire => 
-          destinataire.id === id ? { 
-            ...destinataire, 
-            [field]: value 
-          } : destinataire
-        ));
-        break;
-      case 'Negociant':
-        setNegociants(prev => prev.map(negociant => 
-          negociant.id === id ? { 
-            ...negociant, [field]: value 
-          } : negociant
-        ));
-        break;
-      case 'Courtier':
-        setCourtiers(prev => prev.map(courtier => 
-          courtier.id === id ? { 
-            ...courtier, [field]: value 
-          } : courtier
-        ));
-        break;
-      case 'EcoOrganisme':
-        setEcoorganismes((prev: Ecorganisme[]) => prev.map((ecoorganisme: Ecorganisme) => 
-          ecoorganisme.id === id ? { 
-            ...ecoorganisme, 
-            [field]: value 
-          } : ecoorganisme
+      case 'Contrat':
+        setContrats((prev: Contrat[]) => prev.map((contrat: Contrat) => 
+          contrat.id === id ? { ...contrat, [field]: value } : contrat
         ));
         break;
     }
@@ -276,6 +232,9 @@ const AutocompletionTab: React.FC = () => {
           break;
         case 'CodeTraitement':
           dataToUpdate = codeTreatments.find(codeTreatment => codeTreatment.id === id);
+          break;
+        case 'Contrat':
+          dataToUpdate = contrats.find(contrat => contrat.id === id);
           break;
       }
 
@@ -323,7 +282,6 @@ const AutocompletionTab: React.FC = () => {
           setTransportLinks(prev => prev.filter(link => link.site !== id));
           setDestLinks(prev => prev.filter(link => link.site !== id));
           setContenantLinks(prev => prev.filter(link => link.site !== id));
-          setSiteContactLinks(prev => prev.filter(link => link.site !== id));
           break;
         case 'Transporteur':
           setTransporteurs(prev => prev.filter(transporteur => transporteur.id !== id));
@@ -357,16 +315,14 @@ const AutocompletionTab: React.FC = () => {
           // Supprimer les liens associés au courtier
           //setCourtierLinks(prev => prev.filter(link => link.id !== id));
           break;
-        case 'ContactEmetteur':
-          setContactEmetteurs(prev => prev.filter(contact => contact.id !== id));
-          // Supprimer les liens associés au contact
-          setSiteContactLinks(prev => prev.filter(link => link.contact !== id));
-          break;
         case 'EcoOrganisme':
           setEcoorganismes(prev => prev.filter(ecoorganisme => ecoorganisme.id !== id));
           break;
         case 'CodeTraitement':
           setCodeTreatments(prev => prev.filter(codeTreatment => codeTreatment.id !== id));
+          break;
+        case 'Contrat':
+          setContrats(prev => prev.filter(contrat => contrat.id !== id));
           break;
       }
 
@@ -437,18 +393,6 @@ const AutocompletionTab: React.FC = () => {
           }
         }
 
-        // Supprimer les liens de contact
-        if (record.contact_link) {
-          const updatedContactLinks = record.contact_link.filter((link: SiteContactLink) => {
-            if (type === 'Site' && link.site === id) return false;
-            if (type === 'ContactEmetteur' && link.contact === id) return false;
-            return true;
-          });
-          if (updatedContactLinks.length !== record.contact_link.length) {
-            updates.contact_link = updatedContactLinks;
-          }
-        }
-
         // Mettre à jour l'enregistrement si des liens ont été supprimés
         if (Object.keys(updates).length > 0) {
           const { error: linkUpdateError } = await supabase
@@ -471,8 +415,6 @@ const AutocompletionTab: React.FC = () => {
     
     const getTableName = (type: string) => {
       switch (type.toLowerCase()) {
-        case 'contactemetteur':
-          return 'contact_emetteur';
         case 'ecoorganisme':
           return 'eco_organisme';
         case 'codetraitement':
@@ -513,6 +455,7 @@ const AutocompletionTab: React.FC = () => {
           siret: data.siret as string,
           adresseSiege: data.adresseSiege as string,
           pointsCollecte: data.pointsCollecte as CollectionPoint[],
+          contacts: data.contacts as Contact[],
         };
         setSites(prev => [...prev, newSite]);
         break;
@@ -555,16 +498,6 @@ const AutocompletionTab: React.FC = () => {
         };
         setContenants(prev => [...prev, newContenant]);
         break;
-      case 'ContactEmetteur':
-        const newContactEmetteur: ContactEmetteur = {
-          ...baseItem,
-          prenomNom: data.prenomNom as string,
-          email: data.email as string,
-          telephone: data.telephone as string,
-          respoTerrain: Boolean(data.respoTerrain),
-        };
-        setContactEmetteurs(prev => [...prev, newContactEmetteur]);
-        break;
       case 'Negociant':
         const newNegociant: Negociant = {
           ...baseItem,
@@ -597,20 +530,27 @@ const AutocompletionTab: React.FC = () => {
         setEcoorganismes(prev => [...prev, newEcoOrganisme]);
         break;
       case 'CodeTraitement':
+        const selectedOption = codeTraitementOptions.find(option => option.code === data.code);
         const newCodeTraitement: CodeTreatment = {
           ...baseItem,
-          nom: data.nom as string,
+          nom: selectedOption?.nom || '',
           code: data.code as string,
         };
         setCodeTreatments(prev => [...prev, newCodeTraitement]);
         break;
+      case 'Contrat':
+        const newContrat: Contrat = {
+          ...baseItem,
+          nom: data.nom as string,
+          num_client: data.num_client as string,
+          tarifs: data.tarifs as Contrat['tarifs'],
+        };
+        setContrats(prev => [...prev, newContrat]);
+        break;
     }
-    
     // Mettre à jour l'état showNewForm avec la bonne clé
     const getFormKey = (type: string) => {
       switch (type) {
-        case 'ContactEmetteur':
-          return 'contactEmetteur';
         case 'EcoOrganisme':
           return 'ecoOrganisme';
         case 'CodeTraitement':
@@ -628,7 +568,7 @@ const AutocompletionTab: React.FC = () => {
 
   //Le component qui affiche une entité avec son toogle
   const renderEntityList = (
-    entities: Site[] | Transporteur[] | Dechet[] | Destinataire[] | Contenant[] | ContactEmetteur[] | Negociant[] | Courtier[] | Ecorganisme[] | CodeTreatment[],
+    entities: Site[] | Transporteur[] | Dechet[] | Destinataire[] | Contenant[] | Negociant[] | Courtier[] | Ecorganisme[] | CodeTreatment[] | Contrat[],
     type: string,
     mainField: string
   ) => {
@@ -650,9 +590,6 @@ const AutocompletionTab: React.FC = () => {
         case 'Contenant':
           attributes = contenantAttributes;
           break;
-        case 'ContactEmetteur':
-          attributes = contactEmetteurAttributes;
-          break;
         case 'Negociant':
           attributes = negociantAttributes;
           break;
@@ -664,7 +601,10 @@ const AutocompletionTab: React.FC = () => {
           break;
         case 'CodeTraitement':
           attributes = codeTraitementAttributes;
-          break;        
+          break;
+        case 'Contrat':
+          attributes = contratAttributes;
+          break;
         default:
           return field;
       }
@@ -726,7 +666,7 @@ const AutocompletionTab: React.FC = () => {
                                   <input
                                     type="text"
                                     value={String(contactValue)}
-                                    onChange={(e) => handleContactFieldChange(type, entity.id, contactKey, e.target.value)}
+                                    onChange={(e) => handleFieldChange(type, entity.id, contactKey, e.target.value)}
                                     className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
                                   />
                                 ) : (
@@ -747,6 +687,55 @@ const AutocompletionTab: React.FC = () => {
                               <li key={index} className="flex items-center gap-3">
                                 <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Point {index + 1}:</span>
                                 <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{point.nom} - {point.adresse}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    }
+                    if (key === 'contacts' && Array.isArray(value) && type === 'Site') {
+                      return (
+                        <div key={key} className="bg-gray-50 rounded-xl p-4">
+                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Contacts</p>
+                          <ul className="space-y-3">
+                            {value.map((contact, index) => (
+                              <li key={index} className="flex flex-col gap-2">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Contact {index + 1}:</span>
+                                  <div className="flex flex-row gap-2">
+                                    <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.nom}</span>
+                                    <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.email}</span>
+                                    <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.telephone}</span>
+                                    {contact.respoTerrain && <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">Terrain ✅</span>}
+                                  </div>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    }
+                    if (key === 'tarifs' && Array.isArray(value) && type === 'Contrat') {
+                      return (
+                        <div key={key} className="bg-gray-50 rounded-xl p-4 hidden">
+                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Tarifs</p>
+                          <ul className="space-y-3">
+                            {value.map((tarif, index) => (
+                              <li key={index} className="flex flex-col gap-2">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Déchet:</span>
+                                  <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{tarif.dechet}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Code CED:</span>
+                                  <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{tarif.code_ced}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Coûts:</span>
+                                  <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">
+                                    Traitement: {tarif.couts.traitement}€ | Location: {tarif.couts.location}€ | Transport: {tarif.couts.transport}€
+                                  </span>
+                                </div>
                               </li>
                             ))}
                           </ul>
@@ -960,32 +949,6 @@ const AutocompletionTab: React.FC = () => {
           </>
         )}
 
-        {activeTab === 'contactEmetteurs' && (
-          <>
-            {!showNewForm.contactEmetteur && (
-              <div className="flex justify-between items-end mb-4">
-                <p className="text-xl ml-2 font-semibold text-gray-800">Contacts Émetteurs</p>
-                <button
-                  onClick={() => setShowNewForm(prev => ({ ...prev, contactEmetteur: true }))}
-                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-                >
-                  + Nouveau
-                </button>
-              </div>
-            )}
-            {showNewForm.contactEmetteur ? (
-              <EntityForm
-                title="Nouveau contact émetteur"
-                mainAttribute={contactEmetteurAttributes.mainAttribute}
-                secondaryAttributes={contactEmetteurAttributes.secondaryAttributes}
-                onSave={(data) => handleSave('ContactEmetteur', data)}
-              />
-            ) : (
-              renderEntityList(contactEmetteurs, 'ContactEmetteur', 'prenomNom')
-            )}
-          </>
-        )}
-
         {activeTab === 'negociants' && (
           <>
             {!showNewForm.negociant && (
@@ -1078,14 +1041,72 @@ const AutocompletionTab: React.FC = () => {
               </div>
             )}
             {showNewForm.codeTraitement ? (
-              <EntityForm
-                title="Nouveau code de traitement"
-                mainAttribute={codeTraitementAttributes.mainAttribute}
-                secondaryAttributes={codeTraitementAttributes.secondaryAttributes}
-                onSave={(data) => handleSave('CodeTraitement', data)}
-              />
+              <div className="bg-white rounded-xl shadow-sm p-5">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">Nouveau code de traitement</h3>
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const code = formData.get('code') as string;
+                  const selectedOption = codeTraitementOptions.find(option => option.code === code);
+                  if (selectedOption) {
+                    handleSave('CodeTraitement', { code, nom: selectedOption.nom });
+                  }
+                }} className="space-y-4">
+                  <div className="w-full">
+                    <label className="block text-md font-medium text-gray-500 mb-1">
+                      Code de traitement
+                    </label>
+                    <select
+                      name="code"
+                      required
+                      className="w-full px-2 py-1.5 text-md border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                    >
+                      <option value="">Sélectionnez le code de traitement</option>
+                      {codeTraitementOptions.map((option) => (
+                        <option key={option.code} value={option.code}>
+                          {option.code} | {option.nom}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex justify-end">
+                    <button 
+                      type="submit" 
+                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                    >
+                      Enregistrer
+                    </button>
+                  </div>
+                </form>
+              </div>
             ) : (
               renderEntityList(codeTreatments, 'CodeTraitement', 'nom')
+            )}
+          </>
+        )}
+
+        {activeTab === 'contrats' && (
+          <>
+            {!showNewForm.contrat && (
+              <div className="flex justify-between items-end mb-4">
+                <p className="text-xl ml-2 font-semibold text-gray-800">Contrats</p>
+                <button
+                  onClick={() => setShowNewForm(prev => ({ ...prev, contrat: true }))}
+                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                >
+                  + Nouveau
+                </button>
+              </div>
+            )}
+            {showNewForm.contrat ? (
+              <EntityForm
+                title="Nouveau contrat"
+                mainAttribute={contratAttributes.mainAttribute}
+                secondaryAttributes={contratAttributes.secondaryAttributes}
+                onSave={(data) => handleSave('Contrat', data)}
+              />
+            ) : (
+              renderEntityList(contrats, 'Contrat', 'nom')
             )}
           </>
         )}
@@ -1099,27 +1120,27 @@ const AutocompletionTab: React.FC = () => {
           dechets={dechets}
           destinataires={destinataires}
           contenants={contenants}
-          contactEmetteurs={contactEmetteurs}
           negociants={negociants}
           courtiers={courtiers}
           ecoorganismes={ecoorganismes}
           codeTreatments={codeTreatments}
+          contrats={contrats}
           transportLinks={transportLinks}
           destLinks={destLinks}
           contenantLinks={contenantLinks}
-          siteContactLinks={siteContactLinks}
           negociantLinks={negociantLinks}
           courtierLinks={courtierLinks}
           codeTreatmentLinks={codeTreatmentLinks}
           ecoorganismeLinks={ecoorganismeLinks}
+          contratLinks={contratLinks}
           onTransportLink={(transportId, siteId, dechetId, isMailRecipient) => handleTransportLink(transportId, siteId, dechetId, isMailRecipient, setTransportLinks, transportLinks)}
           onDestLink={(destId, siteId, dechetId, isMailRecipient) => handleDestLink(destId, siteId, dechetId, isMailRecipient, setDestLinks, destLinks)}
           onContenantLink={(contenantId, siteId, dechetId) => handleContenantLink(contenantId, siteId, dechetId, setContenantLinks, contenantLinks)}
-          onSiteContactLink={(siteId, contactId) => handleSiteContactLink(siteId, contactId, setSiteContactLinks, siteContactLinks)}
           onNegociantLink={(negociantId, siteId, dechetId, isMailRecipient) => handleNegociantLink(negociantId, siteId, dechetId, isMailRecipient, setNegociantLinks, negociantLinks)}
           onCourtierLink={(courtierId, siteId, dechetId, isMailRecipient) => handleCourtierLink(courtierId, siteId, dechetId, isMailRecipient, setCourtierLinks, courtierLinks)}
           onCodeTreatmentLink={(codeTreatmentId, siteId, dechetId) => handleCodeTreatmentLink(codeTreatmentId, siteId, dechetId, setCodeTreatmentLinks, codeTreatmentLinks)}
           onEcorganismeLink={(ecoorganismeId, siteId, dechetId, isMailRecipient) => handleEcorganismeLink(ecoorganismeId, siteId, dechetId, isMailRecipient, setEcoorganismeLinks, ecoorganismeLinks)}
+          onContratLink={(contratId, siteId, dechetId, isMailRecipient) => handleContratLink(contratId, siteId, dechetId, setContratLinks, contratLinks)}
         />
       </div>
     </div>

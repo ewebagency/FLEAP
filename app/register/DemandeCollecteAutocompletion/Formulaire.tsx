@@ -107,6 +107,45 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
               Demande de collecte avec Autocompletion
             </span>
           </h3>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => {
+                // Reset selectedFieldsList to initial state
+                handleFieldChange(0, 'site', null);
+                handleFieldChange(0, 'pointCollecte', null);
+                handleFieldChange(0, 'contactEmetteur', null);
+                handleFieldChange(0, 'dechet', null);
+                handleFieldChange(0, 'contenant', null);
+                handleFieldChange(0, 'nombreContenant', 1);
+                handleFieldChange(0, 'date', null);
+                handleFieldChange(0, 'transporteur', null);
+                handleFieldChange(0, 'destinataire', null);
+                handleFieldChange(0, 'showNegociant', false);
+                handleFieldChange(0, 'destinataireMail', 'transporteur');
+                handleFieldChange(0, 'typePrestation', 'enlevement');
+                handleFieldChange(0, 'negociant', null);
+                handleFieldChange(0, 'courtier', null);
+                handleFieldChange(0, 'ecoorganisme', null);
+                handleFieldChange(0, 'codeTraitement', null);
+                handleFieldChange(0, 'contrat', null);
+                
+                // Remove all lines except the first one
+                while (selectedFieldsList.length > 1) {
+                  removeLine(selectedFieldsList.length - 1);
+                }
+              }}
+              className="w-full md:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200"
+            >
+              <span className="text-sm">Réinitialiser</span>
+            </button>
+            <button
+              onClick={() => setDisplayThis(false)}
+              className="text-gray-500 hover:text-gray-700 focus:outline-none mt-2"
+            >
+              <BoxIcon name="x" type="solid" size="md" />
+            </button>
+          </div>
         </div>
         
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4">
@@ -517,6 +556,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                             <option value="destinataire">Destinataire</option>
                             <option value="negociant">Négociant</option>
                             <option value="courtier">Courtier</option>
+                            <option value="ecoorganisme">Ecoorganisme</option>
                           </select>
                           <select
                             value={selectedFields.typePrestation}
@@ -563,6 +603,63 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                 onChange={(e) => {
                                   const selectedCourtier = allOptions.courtiers?.find(court => court.value.nomBoite === e.target.value);
                                   handleFieldChange(index, 'courtier', selectedCourtier || null);
+                                }}
+                                enableText={true}
+                                stylePrimary={true}
+                                onMobile={true}
+                              />
+                            </div>
+                            <div className={inputClasses}>
+                              <InputMobile
+                                name="ecoorganisme"
+                                titre="Ecoorganisme"
+                                placeholder="Sélectionner un ecoorganisme"
+                                options={{
+                                  filteredOptions: allOptions.ecoorganismes?.map(eco => eco.value.nomBoite || '') || [],
+                                  allOptions: []
+                                }}
+                                value={selectedFields.ecoorganisme?.value?.nomBoite || ''}
+                                onChange={(e) => {
+                                  const selectedEcoorganisme = allOptions.ecoorganismes?.find(eco => eco.value.nomBoite === e.target.value);
+                                  handleFieldChange(index, 'ecoorganisme', selectedEcoorganisme || null);
+                                }}
+                                enableText={true}
+                                stylePrimary={true}
+                                onMobile={true}
+                              />
+                            </div>
+                            <div className={inputClasses}>
+                              <InputMobile
+                                name="codeTraitement"
+                                titre="Code traitement"
+                                placeholder="Sélectionner un code traitement"
+                                options={{
+                                  filteredOptions: allOptions.codeTraitements?.map(code => code.value.nom || '') || [],
+                                  allOptions: []
+                                }}
+                                value={selectedFields.codeTraitement?.value?.nom || ''}
+                                onChange={(e) => {
+                                  const selectedCodeTraitement = allOptions.codeTraitements?.find(code => code.value.nom === e.target.value);
+                                  handleFieldChange(index, 'codeTraitement', selectedCodeTraitement || null);
+                                }}
+                                enableText={true}
+                                stylePrimary={true}
+                                onMobile={true}
+                              />
+                            </div>
+                            <div className={inputClasses}>
+                              <InputMobile
+                                name="contrat"
+                                titre="Contrat"
+                                placeholder="Sélectionner un contrat"
+                                options={{
+                                  filteredOptions: allOptions.contrats?.map(contrat => contrat.value.nom || '') || [],
+                                  allOptions: []
+                                }}
+                                value={selectedFields.contrat?.value?.nom || ''}
+                                onChange={(e) => {
+                                  const selectedContrat = allOptions.contrats?.find(contrat => contrat.value.nom === e.target.value);
+                                  handleFieldChange(index, 'contrat', selectedContrat || null);
                                 }}
                                 enableText={true}
                                 stylePrimary={true}
@@ -628,6 +725,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                             <option value="destinataire">Destinataire</option>
                             <option value="negociant">Négociant</option>
                             <option value="courtier">Courtier</option>
+                            <option value="ecoorganisme">Ecoorganisme</option>
                           </select>
                           <select
                             value={selectedFields.typePrestation}
@@ -673,6 +771,60 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                 onChange={(e) => {
                                   const selectedCourtier = allOptions.courtiers?.find(court => court.value.nomBoite === e.target.value);
                                   handleFieldChange(index, 'courtier', selectedCourtier || null);
+                                }}
+                                enableText={true}
+                                stylePrimary={true}
+                              />
+                            </div>
+                            <div className={inputClasses}>
+                              <InputFull
+                                name="ecoorganisme"
+                                titre="Ecoorganisme"
+                                placeholder="Sélectionner un ecoorganisme"
+                                options={{
+                                  filteredOptions: allOptions.ecoorganismes?.map(eco => eco.value.nomBoite || '') || [],
+                                  allOptions: []
+                                }}
+                                value={selectedFields.ecoorganisme?.value?.nomBoite || ''}
+                                onChange={(e) => {
+                                  const selectedEcoorganisme = allOptions.ecoorganismes?.find(eco => eco.value.nomBoite === e.target.value);
+                                  handleFieldChange(index, 'ecoorganisme', selectedEcoorganisme || null);
+                                }}
+                                enableText={true}
+                                stylePrimary={true}
+                              />
+                            </div>
+                            <div className={inputClasses}>
+                              <InputFull
+                                name="codeTraitement"
+                                titre="Code traitement"
+                                placeholder="Sélectionner un code traitement"
+                                options={{
+                                  filteredOptions: allOptions.codeTraitements?.map(code => code.value.nom || '') || [],
+                                  allOptions: []
+                                }}
+                                value={selectedFields.codeTraitement?.value?.nom || ''}
+                                onChange={(e) => {
+                                  const selectedCodeTraitement = allOptions.codeTraitements?.find(code => code.value.nom === e.target.value);
+                                  handleFieldChange(index, 'codeTraitement', selectedCodeTraitement || null);
+                                }}
+                                enableText={true}
+                                stylePrimary={true}
+                              />
+                            </div>
+                            <div className={inputClasses}>
+                              <InputFull
+                                name="contrat"
+                                titre="Contrat"
+                                placeholder="Sélectionner un contrat"
+                                options={{
+                                  filteredOptions: allOptions.contrats?.map(contrat => contrat.value.nom || '') || [],
+                                  allOptions: []
+                                }}
+                                value={selectedFields.contrat?.value?.nom || ''}
+                                onChange={(e) => {
+                                  const selectedContrat = allOptions.contrats?.find(contrat => contrat.value.nom === e.target.value);
+                                  handleFieldChange(index, 'contrat', selectedContrat || null);
                                 }}
                                 enableText={true}
                                 stylePrimary={true}

@@ -1,5 +1,4 @@
-/*
-export const siteAttributes = {
+/*export const siteAttributes = {
     mainAttribute: {
       name: 'nom',
       label: 'Nom du site',
@@ -25,6 +24,12 @@ export const siteAttributes = {
         name: 'pointsCollecte',
         label: 'Points de collecte',
         type: 'collectionPoint' as const,
+        required: false,
+      },
+      {
+        name: 'contacts',
+        label: 'Contacts',
+        type: 'contact' as const,
         required: false,
       },
     ],
@@ -164,38 +169,6 @@ export const contenantAttributes = {
     ],
   };
 
-export const contactEmetteurAttributes = {
-    mainAttribute: {
-      name: 'prenomNom',
-      label: 'Prénom et Nom',
-      type: 'string' as const,
-      required: true,
-      placeholder: 'Entrez le prénom et le nom',
-    },
-    secondaryAttributes: [
-      {
-        name: 'email',
-        label: 'Email',
-        type: 'string' as const,
-        required: true,
-        placeholder: 'Entrez l\'email',
-      },
-      {
-        name: 'telephone',
-        label: 'Téléphone',
-        type: 'string' as const,
-        required: true,
-        placeholder: 'Entrez le numéro de téléphone',
-      },
-      {
-        name: 'respoTerrain',
-        label: 'Responsable Terrain',
-        type: 'boolean' as const,
-        required: false,
-      },
-    ],
-  };
-
 export const negociantAttributes = {
     mainAttribute: {
       name: 'nomBoite',
@@ -327,53 +300,75 @@ export const ecoOrganismeAttributes = {
     ],
   };
 
+export const codeTraitementOptions = [
+  { code: 'D1', nom: 'Mise en décharge' },
+  { code: 'D2', nom: 'Traitement en sol' },
+  { code: 'D3', nom: 'Injection en profondeur' },
+  { code: 'D4', nom: 'Lagunage' },
+  { code: 'D5', nom: 'Décharge aménagée' },
+  { code: 'D6', nom: 'Rejet en eau (hors immersion)' },
+  { code: 'D7', nom: 'Immersion en mer' },
+  { code: 'D8', nom: 'Traitement bio. avant élimination' },
+  { code: 'D9', nom: 'Traitement physico-chimique avant élimination' },
+  { code: 'D10', nom: 'Incinération à terre' },
+  { code: 'D11', nom: 'Incinération en mer (interdit)' },
+  { code: 'D12', nom: 'Stockage permanent' },
+  { code: 'D13', nom: 'Regroupement/mélange avant D1-D12' },
+  { code: 'D14', nom: 'Reconditionnement avant D1-D13' },
+  { code: 'D15', nom: 'Stockage avant D1-D14' },
+  { code: 'R1', nom: 'Valorisation énergétique' },
+  { code: 'R2', nom: 'Régénération solvants' },
+  { code: 'R3', nom: 'Recyclage organique (hors solvants)' },
+  { code: 'R4', nom: 'Recyclage métaux' },
+  { code: 'R5', nom: 'Recyclage inorganique' },
+  { code: 'R6', nom: 'Régénération acides/bases' },
+  { code: 'R7', nom: 'Récup. agents de dépollution' },
+  { code: 'R8', nom: 'Récup. catalyseurs' },
+  { code: 'R9', nom: 'Régénération huiles' },
+  { code: 'R10', nom: 'Épandage agricole/écologique' },
+  { code: 'R11', nom: 'Réutilisation résidus R1-R10' },
+  { code: 'R12', nom: 'Échange de déchets avant R1-R11' },
+  { code: 'R13', nom: 'Stockage avant R1-R12' },
+  { code: 'PR', nom: 'Réutilisation' },
+  { code: 'RX', nom: 'Réemploi' }
+];
+
 export const codeTraitementAttributes = {
+  mainAttribute: {
+    name: 'code',
+    label: 'Code de traitement',
+    type: 'select' as const,
+    required: true,
+    placeholder: 'Sélectionnez le code de traitement',
+    options: codeTraitementOptions.map(option => ({
+      value: option.code,
+      label: `${option.code} | ${option.nom}`
+    }))
+  },
+  secondaryAttributes: []
+};
+
+export const contratAttributes = {
     mainAttribute: {
       name: 'nom',
-      label: 'Nom du code',
+      label: 'Nom du contrat',
       type: 'string' as const,
       required: true,
-      placeholder: 'Entrez le nom du code de traitement',
+      placeholder: 'Entrez le nom du contrat',
     },
     secondaryAttributes: [
       {
-        name: 'code',
-        label: 'Code',
-        type: 'select' as const,
+        name: 'num_client',
+        label: 'Numéro client',
+        type: 'string' as const,
         required: true,
-        placeholder: 'Sélectionnez le code de traitement',
-        options: [
-          { value: 'D1', label: 'Elimination - D1' },
-          { value: 'D2', label: 'Elimination - D2' },
-          { value: 'D3', label: 'Elimination - D3' },
-          { value: 'D4', label: 'Elimination - D4' },
-          { value: 'D5', label: 'Elimination - D5' },
-          { value: 'D6', label: 'Elimination - D6' },
-          { value: 'D7', label: 'Elimination - D7' },
-          { value: 'D8', label: 'Elimination - D8' },
-          { value: 'D9', label: 'Elimination - D9' },
-          { value: 'D10', label: 'Elimination - D10' },
-          { value: 'D11', label: 'Elimination - D11' },
-          { value: 'D12', label: 'Elimination - D12' },
-          { value: 'D13', label: 'Elimination - D13' },
-          { value: 'D14', label: 'Elimination - D14' },
-          { value: 'D15', label: 'Elimination - D15' },
-          { value: 'R1', label: 'Valorisation énergétique - R1' },
-          { value: 'R2', label: 'Valorisation matière - R2' },
-          { value: 'R3', label: 'Valorisation matière - R3' },
-          { value: 'R4', label: 'Valorisation matière - R4' },
-          { value: 'R5', label: 'Valorisation matière - R5' },
-          { value: 'R6', label: 'Valorisation matière - R6' },
-          { value: 'R7', label: 'Valorisation matière - R7' },
-          { value: 'R8', label: 'Valorisation matière - R8' },
-          { value: 'R9', label: 'Valorisation matière - R9' },
-          { value: 'R10', label: 'Valorisation matière - R10' },
-          { value: 'R11', label: 'Valorisation matière - R11' },
-          { value: 'R12', label: 'Préparation à la valorisation - R12' },
-          { value: 'R13', label: 'Préparation à la valorisation - R13' },
-          { value: 'PR', label: 'Réutilisation - PR' },
-          { value: 'RX', label: 'Réemploi - RX' },
-        ],
+        placeholder: 'Entrez le numéro client',
+      },
+      {
+        name: 'tarifs',
+        label: 'Tarifs',
+        type: 'tarifs' as const,
+        required: false,
       },
     ],
   };

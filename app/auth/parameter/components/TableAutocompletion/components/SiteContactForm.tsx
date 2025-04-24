@@ -1,6 +1,7 @@
 //Component Liens site - contact emetteur / front uniquement
-
-/*import React from 'react';
+// -> DEPRECATED
+/*
+import React from 'react';
 import { FormField } from './FormField';
 import { BaseEntity } from '../types';
 

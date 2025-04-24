@@ -98,6 +98,49 @@ interface CourtierInterface {
     }
   }
 } 
+
+interface EcorganismeInterface {
+  table_id: number;
+  value: {
+    nomBoite?: string;
+    adresse?: string;
+    siret?: string;
+    contact?: {
+      nomPrenom?: string;
+      email?: string;
+      telephone?: string;
+    }
+  }
+} 
+
+interface CodeTraitementInterface {
+  table_id: number;
+  value: {
+    nom: string;
+    code: string;
+  }
+}
+
+interface ContratInterface {
+  table_id: number;
+  value: {
+    nom: string;
+    num_client: string;
+    tarifs?:{
+      dechet: string;
+      code_ced: string;
+      couts: {
+        traitement: number;
+        location: number;
+        transport: number;
+      }
+    }
+  }
+}
+
+
+
+
 export interface SelectedFields {
   site: SiteInterface | null;
   pointCollecte: PointCollecteInterface | null;
@@ -109,6 +152,9 @@ export interface SelectedFields {
   destinataire: DestinataireInterface | null;
   negociant: NegociantInterface | null;
   courtier: CourtierInterface | null;
+  ecoorganisme: EcorganismeInterface | null;
+  codeTraitement: CodeTraitementInterface | null;
+  contrat: ContratInterface | null;
   nombreContenant: number;
   destinataireMail: string;
   typePrestation: string;
@@ -124,6 +170,9 @@ export interface AutocompletionData {
   contenants: ContenantInterface[];
   negociants: NegociantInterface[];
   courtiers: CourtierInterface[];
+  ecoorganismes: EcorganismeInterface[];
+  codeTraitements: CodeTraitementInterface[];
+  contrats: ContratInterface[];
 }
 
 interface TransportLinkInterface {
@@ -131,6 +180,7 @@ interface TransportLinkInterface {
   transport_link: {
     site: string;
     dechet: string;
+    mail?: boolean;
   }[];
 }
 
@@ -139,6 +189,7 @@ interface DestinataireLinkInterface {
   dest_link: {
     site: string;
     dechet: string;
+    mail?: boolean;
   }[];
 }
 
@@ -171,12 +222,30 @@ interface NegociantLinkInterface {
   negociant_link: {
     site: string;
     dechet: string;
+    mail?: boolean;
   }[];
 }
 
 interface CourtierLinkInterface {
   table_id: number;
   courtier_link: {
+    site: string;
+    dechet: string;
+    mail?: boolean;
+  }[];
+}
+
+interface EcorganismeLinkInterface {
+  table_id: number;
+  eco_organisme_link: {
+    site: string;
+    dechet: string;
+    mail?: boolean;
+  }[];
+}
+interface ContratLinkInterface {
+  table_id: number;
+  contrat_link: {
     site: string;
     dechet: string;
   }[];
@@ -191,6 +260,8 @@ export interface AutocompletionLinks {
   contactLinks: ContactLinkInterface[];
   negociantLinks: NegociantLinkInterface[];
   courtierLinks: CourtierLinkInterface[];
+  ecoorganismeLinks: EcorganismeLinkInterface[];
+  contratLinks: ContratLinkInterface[];
 }
 
 export interface RawAutocompletionData {
@@ -204,6 +275,9 @@ export interface RawAutocompletionData {
   contenant: ContenantInterface["value"] | null;
   negociant: NegociantInterface["value"] | null;
   courtier: CourtierInterface["value"] | null;
+  eco_organisme: EcorganismeInterface["value"] | null;
+  code_traitement: CodeTraitementInterface["value"] | null;
+  contrat: ContratInterface["value"] | null;
   contact_emetteur: ContactInterface["value"] | null;
   transport_link: TransportLinkInterface["transport_link"] | null;
   dest_link: DestinataireLinkInterface["dest_link"] | null;
@@ -212,4 +286,6 @@ export interface RawAutocompletionData {
   contact_link: ContactLinkInterface["contact_link"] | null;
   negociant_link: NegociantLinkInterface["negociant_link"] | null;
   courtier_link: CourtierLinkInterface["courtier_link"] | null;
+  eco_organisme_link: EcorganismeLinkInterface["eco_organisme_link"] | null;
+  contrat_link: ContratLinkInterface["contrat_link"] | null;
 } 

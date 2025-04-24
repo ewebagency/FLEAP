@@ -24,7 +24,7 @@ const MailsPartComponent = forwardRef<MailsPartComponentRef, MailsPartComponentP
   }));
 
   // Debug logs
-  console.log('MailsPartComponent - aggregatedMailRecipients:', aggregatedMailRecipients);
+  //console.log('MailsPartComponent - aggregatedMailRecipients:', aggregatedMailRecipients);
   //console.log('MailsPartComponent - entreprise_id:', entreprise_id);
   //console.log('MailsPartComponent - user_email:', user_email);
 
@@ -40,6 +40,7 @@ const MailsPartComponent = forwardRef<MailsPartComponentRef, MailsPartComponentP
         const site = firstLine.site?.value;
         const pointCollecte = firstLine.pointCollecte;
         const contactEmetteur = firstLine.contactEmetteur?.[0]?.value;
+        const num_client = firstLine.contrat?.value?.num_client;
 
         // Debug logs pour chaque destinataire
         /*console.log(`MailsPartComponent - Destinataire ${index}:`, {
@@ -79,6 +80,7 @@ const MailsPartComponent = forwardRef<MailsPartComponentRef, MailsPartComponentP
               city: ''
             }
           },
+          numClient: num_client || '',
           adminEmail: user_email || '',
           destinataire: recipient.destinataire.email,
           ccList: recipient.lignes[0]?.contactEmetteur
@@ -108,7 +110,7 @@ const MailsPartComponent = forwardRef<MailsPartComponentRef, MailsPartComponentP
         };
 
         // Debug logs pour les params
-        console.log(`MailsPartComponent - Params ${index}:`, params);
+        //console.log(`MailsPartComponent - Params ${index}:`, params);
 
         return (
           <div key={index} className="border-t pt-4">
