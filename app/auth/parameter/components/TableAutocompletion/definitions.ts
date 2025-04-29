@@ -59,21 +59,21 @@ export const transporteurAttributes = {
         placeholder: 'Entrez le numéro de récépissé',
       },
       {
-        name: 'contact.email',
+        name: 'email',
         label: 'Email',
         type: 'string' as const,
         required: true,
         placeholder: 'Entrez l\'email',
       },
       {
-        name: 'contact.nomPrenom',
+        name: 'nomPrenom',
         label: 'Prénom Nom',
         type: 'string' as const,
         required: true,
         placeholder: 'Entrez le nom et prénom',
       },
       {
-        name: 'contact.telephone',
+        name: 'telephone',
         label: 'Téléphone',
         type: 'string' as const,
         required: true,
@@ -124,21 +124,28 @@ export const destinataireAttributes = {
     },
     secondaryAttributes: [
       {
-        name: 'contact.email',
+        name: 'siret',
+        label: 'SIRET',
+        type: 'string' as const,
+        required: true,
+        placeholder: 'Entrez le numéro SIRET',
+      },
+      {
+        name: 'email',
         label: 'Email',
         type: 'string' as const,
         required: true,
         placeholder: 'Entrez l\'email',
       },
       {
-        name: 'contact.nomPrenom',
+        name: 'nomPrenom',
         label: 'Prénom Nom',
         type: 'string' as const,
         required: true,
         placeholder: 'Entrez le nom et prénom',
       },
       {
-        name: 'contact.telephone',
+        name: 'telephone',
         label: 'Téléphone',
         type: 'string' as const,
         required: true,
@@ -174,7 +181,7 @@ export const contenantAttributes = {
         label: 'Unité du volume',
         type: 'select' as const,
         required: true,
-        placeholder: 'Sélectionnez l\'unité',
+        placeholder: 'Sélectionnez l\'unité, m3 ou L',
         options: [
           { value: 'm3', label: 'm³' },
           { value: 'L', label: 'Litre (L)' }
@@ -207,14 +214,14 @@ export const negociantAttributes = {
         placeholder: 'Entrez le numéro de récépissé',
       },
       {
-        name: 'contact.email',
+        name: 'email',
         label: 'Email',
         type: 'string' as const,
         required: true,
         placeholder: 'Entrez l\'email',
       },
       {
-        name: 'contact.telephone',
+        name: 'telephone',
         label: 'Téléphone',
         type: 'string' as const,
         required: true,
@@ -253,14 +260,14 @@ export const courtierAttributes = {
         placeholder: 'Entrez le numéro de récépissé',
       },
       {
-        name: 'contact.email',
+        name: 'email',
         label: 'Email',
         type: 'string' as const,
         required: true,
         placeholder: 'Entrez l\'email',
       },
       {
-        name: 'contact.telephone',
+        name: 'telephone',
         label: 'Téléphone',
         type: 'string' as const,
         required: true,
@@ -292,14 +299,14 @@ export const ecoorganismeAttributes = {
         placeholder: 'Entrez le numéro SIRET',
       },
       {
-        name: 'contact.email',
+        name: 'email',
         label: 'Email',
         type: 'string' as const,
         required: true,
         placeholder: 'Entrez l\'email',
       },
       {
-        name: 'contact.telephone',
+        name: 'telephone',
         label: 'Téléphone',
         type: 'string' as const,
         required: true,
@@ -377,12 +384,12 @@ export const contratAttributes = {
         type: 'string' as const,
         required: true,
         placeholder: 'Entrez le numéro client',
-      },
-      {
+      }
+      /*{
         name: 'tarifs',
         label: 'Tarifs',
         type: 'tarifs' as const,
         required: false,
-      },
+      },*/
     ],
   };

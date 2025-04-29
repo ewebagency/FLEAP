@@ -388,6 +388,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
           </div>
         );
 
+        /*
       case 'tarifs':
         return (
           <div className="space-y-2 w-full">
@@ -469,7 +470,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
             </div>
           </div>
         );
-
+*/
       default:
         return null;
     }

@@ -15,15 +15,8 @@ import {
   Courtier,
   Ecorganisme,
   CodeTreatment,
-  TransportLink,
-  DestLink,
-  NegociantLink,
-  CourtierLink,
-  ContenantLink,
-  CodeTreatmentLink,
-  EcorganismeLink,
+
   Contrat,
-  ContratLink,
   BaseLink,
   CollectionPoint,
   Contact
@@ -112,6 +105,7 @@ const AutocompletionTab: React.FC = () => {
     { id: 'dechets', label: 'Déchets' },
     { id: 'destinataires', label: 'Destinataires' },
     { id: 'contenants', label: 'Contenants' },
+    { id: 'codeTraitements', label: 'Codes de traitement' },
     ...(showAllTabs ? [
       { id: 'negociants', label: 'Négociants' },
       { id: 'courtiers', label: 'Courtiers' },
@@ -369,17 +363,14 @@ const AutocompletionTab: React.FC = () => {
           break;
       }
 
-      // Mettre à jour Supabase avec le bon nom de colonne
-      const columnName = type === 'Ecoorganisme' ? 'eco_organisme' : 
-                        type === 'CodeTraitement' ? 'code_traitement' : 
-                        type.toLowerCase();
-      const { error: updateError } = await supabase
+      // Supprimer complètement la ligne de la base de données
+      const { error: deleteError } = await supabase
         .from('table_autocompletion')
-        .update({ [columnName]: null })
+        .delete()
         .eq('id', id);
 
-      if (updateError) {
-        console.error('Error updating record after deletion:', updateError);
+      if (deleteError) {
+        console.error('Error deleting record:', deleteError);
         return;
       }
 
@@ -500,9 +491,6 @@ const AutocompletionTab: React.FC = () => {
             updates.contrat_link = updatedContratLinks;
           }
         }
-        
-        
-        
 
         // Mettre à jour l'enregistrement si des liens ont été supprimés
         if (Object.keys(updates).length > 0) {
@@ -524,6 +512,25 @@ const AutocompletionTab: React.FC = () => {
   const handleSave = async (entityType: string, data: Record<string, unknown>) => {
     if (!entreprise_id) return;
     
+    // Validation du format du code CED pour les déchets
+    if (entityType === 'Dechet') {
+      const codeCED = data.codeCED as string;
+      const cedRegex = /^\d{2}\s\d{2}\s\d{2}(\*)?$/;
+      if (!cedRegex.test(codeCED)) {
+        alert('Le code CED doit être au format 00 00 00 ou 00 00 00*');
+        return;
+      }
+    }
+
+    // Validation de l'unité de volume pour les contenants
+    if (entityType === 'Contenant') {
+      const uniteVolume = data.uniteVolume as string;
+      if (uniteVolume !== 'm3' && uniteVolume !== 'L') {
+        alert('L\'unité de volume doit être "m3" ou "L"');
+        return;
+      }
+    }
+    
     const getTableName = (type: string) => {
       switch (type.toLowerCase()) {
         case 'ecoorganisme':
@@ -535,9 +542,15 @@ const AutocompletionTab: React.FC = () => {
       }
     };
 
+    // Créer une copie des données sans le champ contacts pour les transporteurs
+    const cleanData = { ...data };
+    if (entityType !== 'Site') {
+      delete cleanData.contacts;
+    }
+
     const insertData = {
       entreprise_id: entreprise_id,
-      [getTableName(entityType)]: data,
+      [getTableName(entityType)]: cleanData,
     };
 
     const { data: insertedData, error: insertError } = await supabase
@@ -574,8 +587,11 @@ const AutocompletionTab: React.FC = () => {
         const newTransporteur: Transporteur = {
           ...baseItem,
           nomBoite: data.nomBoite as string,
-          contact: data.contact as Transporteur['contact'],
+          nomPrenom: data.nomPrenom as string,
+          email: data.email as string,
+          telephone: data.telephone as string,
           adresse: data.adresse as string,
+          siret: data.siret as string,
         };
         setTransporteurs(prev => [...prev, newTransporteur]);
         break;
@@ -592,11 +608,11 @@ const AutocompletionTab: React.FC = () => {
         const newDestinataire: Destinataire = {
           ...baseItem,
           nomBoite: data.nomBoite as string,
-          contact: {
-            email: data['contact.email'] as string,
-            telephone: data['contact.telephone'] as string,
-          },
+          nomPrenom: data.nomPrenom as string,
+          email: data.email as string,
+          telephone: data.telephone as string,
           adresse: data.adresse as string,
+          siret: data.siret as string,
         };
         setDestinataires(prev => [...prev, newDestinataire]);
         break;
@@ -613,8 +629,10 @@ const AutocompletionTab: React.FC = () => {
         const newNegociant: Negociant = {
           ...baseItem,
           nomBoite: data.nomBoite as string,
-          contact: data.contact as Negociant['contact'],
+          email: data.email as string,
+          telephone: data.telephone as string,
           adresse: data.adresse as string,
+          siret: data.siret as string
         };
         setNegociants(prev => [...prev, newNegociant]);
         break;
@@ -622,8 +640,10 @@ const AutocompletionTab: React.FC = () => {
         const newCourtier: Courtier = {
           ...baseItem,
           nomBoite: data.nomBoite as string,
-          contact: data.contact as Courtier['contact'],
+          email: data.email as string,
+          telephone: data.telephone as string,
           adresse: data.adresse as string,
+          siret: data.siret as string
         };
         setCourtiers(prev => [...prev, newCourtier]);
         break;
@@ -632,10 +652,8 @@ const AutocompletionTab: React.FC = () => {
           ...baseItem,
           nomBoite: data.nomBoite as string,
           siret: data.siret as string,
-          contact: {
-            email: data['contact.email'] as string,
-            telephone: data['contact.telephone'] as string,
-          },
+          email: data.email as string,
+          telephone: data.telephone as string,
           adresse: data.adresse as string,
         };
         setEcoorganismes(prev => [...prev, newEcoorganisme]);
@@ -762,20 +780,20 @@ const AutocompletionTab: React.FC = () => {
                     <>
                       {/* Siret */}
                       <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
+                        <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
                           {getAttributeLabel('siret', type)}
-                                </span>
-                                {isEditing ? (
-                                  <input
-                                    type="text"
+                        </span>
+                        {isEditing ? (
+                          <input
+                            type="text"
                             value={String((entity as Site).siret)}
                             onChange={(e) => handleFieldChange(type, entity.id, 'siret', e.target.value)}
-                                    className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
-                                  />
-                                ) : (
+                            className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                          />
+                        ) : (
                           <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{String((entity as Site).siret)}</span>
-                                )}
-                        </div>
+                        )}
+                      </div>
                       
                       {/* Adresse du siège */}
                       <div className="flex items-center gap-3">
@@ -792,7 +810,7 @@ const AutocompletionTab: React.FC = () => {
                         ) : (
                           <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{String((entity as Site).adresseSiege)}</span>
                         )}
-                        </div>
+                      </div>
 
                       {/* Contacts */}
                       {(entity as Site).contacts && Array.isArray((entity as Site).contacts) && (
@@ -837,12 +855,12 @@ const AutocompletionTab: React.FC = () => {
                                       </div>
                                     </div>
                                   ) : (
-                                  <div className="flex flex-row gap-2">
-                                    <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.nom}</span>
-                                    <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.email}</span>
-                                    <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.telephone}</span>
-                                    {contact.respoTerrain && <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">Terrain ✅</span>}
-                                  </div>
+                                    <div className="flex flex-row gap-2">
+                                      <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.nom}</span>
+                                      <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.email}</span>
+                                      <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.telephone}</span>
+                                      {contact.respoTerrain && <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">Terrain ✅</span>}
+                                    </div>
                                   )}
                                 </div>
                               </li>
@@ -876,7 +894,7 @@ const AutocompletionTab: React.FC = () => {
                                         className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
                                         placeholder="Adresse"
                                       />
-                                </div>
+                                    </div>
                                   ) : (
                                     <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{point.nom} - {point.adresse}</span>
                                   )}
@@ -884,7 +902,7 @@ const AutocompletionTab: React.FC = () => {
                               </li>
                             ))}
                           </ul>
-                                </div>
+                        </div>
                       )}
                     </>
                   ) : (
@@ -892,6 +910,7 @@ const AutocompletionTab: React.FC = () => {
                     Object.entries(entity).map(([key, value]) => {
                       if (key === 'id' || key === mainField) return null;
                       if (key === 'onu') return null; // Supprimer le champ ONU pour les déchets
+                      if (key === 'tarifs' && type === 'Contrat') return null; // Masquer les tarifs pour les contrats
                       if (key === 'contact' && typeof value === 'object') {
                         return (
                           <div key={key} className="bg-gray-50 rounded-xl p-4">
@@ -899,7 +918,7 @@ const AutocompletionTab: React.FC = () => {
                             <ul className="space-y-3">
                               {Object.entries(value).map(([contactKey, contactValue]) => {
                                 // Changer le label pour contact.nomPrenom
-                                const label = contactKey === 'nomPrenom' ? 'Prénom Nom' : getAttributeLabel(`contact.${contactKey}`, type);
+                                const label = contactKey === 'nomPrenom' ? 'Prénom Nom' : getAttributeLabel(`${contactKey}`, type);
                                 return (
                                   <li key={contactKey} className="flex items-center gap-3">
                                     <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
@@ -918,27 +937,47 @@ const AutocompletionTab: React.FC = () => {
                                   </li>
                                 );
                               })}
-                          </ul>
+                            </ul>
+                          </div>
+                        );
+                      }
+                      // Ajout de la gestion du SIRET pour les transporteurs et destinataires
+                      if ((type === 'Transporteur' || type === 'Destinataire') && key === 'siret') {
+                        return (
+                          <div key={key} className="flex items-center gap-3">
+                            <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
+                              {getAttributeLabel('siret', type)}
+                            </span>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={String(value)}
+                                onChange={(e) => handleFieldChange(type, entity.id, key, e.target.value)}
+                                className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                              />
+                            ) : (
+                              <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{String(value)}</span>
+                            )}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={key} className="flex items-center gap-3">
+                          <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
+                            {getAttributeLabel(key, type)}
+                          </span>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={String(value)}
+                              onChange={(e) => handleFieldChange(type, entity.id, key, e.target.value)}
+                              className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                            />
+                          ) : (
+                            <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{String(value)}</span>
+                          )}
                         </div>
                       );
-                    }
-                    return (
-                      <div key={key} className="flex items-center gap-3">
-                        <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
-                          {getAttributeLabel(key, type)}
-                        </span>
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={String(value)}
-                            onChange={(e) => handleFieldChange(type, entity.id, key, e.target.value)}
-                            className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
-                          />
-                        ) : (
-                          <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{String(value)}</span>
-                        )}
-                      </div>
-                    );
                     })
                   )}
                   <div className="flex justify-end gap-2 mt-4">

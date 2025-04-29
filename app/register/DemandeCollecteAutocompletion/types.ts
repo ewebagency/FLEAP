@@ -28,12 +28,10 @@ export interface TransporteurInterface {
       nomBoite?: string;
       adresse?: string;
       siret?: string;
-      contact?: {
-        nomPrenom?: string;
-        email?: string;
-        telephone?: string;
+      nomPrenom?: string;
+      email?: string;
+      telephone?: string;
     }
-  }
 }
 
 export interface DestinataireInterface {
@@ -42,11 +40,9 @@ export interface DestinataireInterface {
     nomBoite?: string;
     adresse?: string;
     siret?: string;
-    contact?: {
-      nomPrenom?: string;
-      email?: string;
-      telephone?: string;
-    }
+    nomPrenom?: string;
+    email?: string;
+    telephone?: string;
   }
 }
 
@@ -76,11 +72,9 @@ export interface NegociantInterface {
     nomBoite?: string;
     adresse?: string;
     siret?: string;
-    contact?: {
-      nomPrenom?: string;
-      email?: string;
-      telephone?: string;
-    }
+    nomPrenom?: string;
+    email?: string;
+    telephone?: string;
   }
 }
 
@@ -90,11 +84,9 @@ export interface CourtierInterface {
     nomBoite?: string;
     adresse?: string;
     siret?: string;
-    contact?: {
-      nomPrenom?: string;
-      email?: string;
-      telephone?: string;
-    }
+    nomPrenom?: string;
+    email?: string;
+    telephone?: string;
   }
 } 
 
@@ -104,11 +96,9 @@ export interface EcorganismeInterface {
     nomBoite?: string;
     adresse?: string;
     siret?: string;
-    contact?: {
-      nomPrenom?: string;
-      email?: string;
-      telephone?: string;
-    }
+    nomPrenom?: string;
+    email?: string;
+    telephone?: string;
   }
 } 
 

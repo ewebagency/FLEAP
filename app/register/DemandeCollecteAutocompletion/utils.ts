@@ -383,11 +383,9 @@ interface ValueType {
   nomBoite?: string;
   adresse?: string;
   siret?: string;
-  contact?: {
-    nomPrenom?: string;
-    email?: string;
-    telephone?: string;
-  };
+  nomPrenom?: string;
+  email?: string;
+  telephone?: string;
   [key: string]: string | { nomPrenom?: string; email?: string; telephone?: string } | undefined;
 }
 
@@ -403,7 +401,7 @@ export const aggregateByMailRecipient = (selectedFieldsList: SelectedFields[]): 
 
     const getEmailFromValue = (value: ValueType | undefined): string => {
       if (!value) return '';
-      const contactEmail = value['contact.email'];
+      const contactEmail = value.email;
       return typeof contactEmail === 'string' ? contactEmail : '';
     };
 
@@ -451,7 +449,7 @@ export const aggregateByMailRecipient = (selectedFieldsList: SelectedFields[]): 
   const aggregatedMailRecipients = Object.values(groupedByRecipient).filter(
     (group) => group.destinataire.email !== ''
   );
-  console.log('aggregatedMailRecipients', aggregatedMailRecipients);
+  //console.log('aggregatedMailRecipients', aggregatedMailRecipients);
   return aggregatedMailRecipients;
 };
 
@@ -473,7 +471,7 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
       let recipientEmail = '';
       const getEmailFromValue = (value: ValueType | undefined): string => {
         if (!value) return '';
-        const email = value['contact.email'];
+        const email = value.email;
         return typeof email === 'string' ? email : '';
       };
 
@@ -532,11 +530,11 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
                 cap: '',
                 company: {
                   name: line.destinataire?.value?.nomBoite || '',
-                  siret: '',
+                  siret: line.destinataire?.value?.siret || '',
                   address: line.destinataire?.value?.adresse || '',
-                  contact: line.destinataire?.value?.contact?.nomPrenom || '',
-                  phone: line.destinataire?.value?.contact?.telephone || '',
-                  mail: line.destinataire?.value?.contact?.email || '',
+                  contact: line.destinataire?.value?.nomPrenom || '',
+                  phone: line.destinataire?.value?.telephone || '',
+                  mail: line.destinataire?.value?.email || '',
                   country: ''
                 },
                 isTempStorage: false,
@@ -545,11 +543,11 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
               transporter: {
                 company: {
                   name: line.transporteur?.value?.nomBoite || '',
-                  siret: '',
+                  siret: line.transporteur?.value?.siret || '',
                   address: line.transporteur?.value?.adresse || '',
-                  contact: line.transporteur?.value?.contact?.nomPrenom || '',
-                  phone: line.transporteur?.value?.contact?.telephone || '',
-                  mail: line.transporteur?.value?.contact?.email || '',
+                  contact: line.transporteur?.value?.nomPrenom || '',
+                  phone: line.transporteur?.value?.telephone || '',
+                  mail: line.transporteur?.value?.email || '',
                   country: ''
                 },
                 receipt: '',

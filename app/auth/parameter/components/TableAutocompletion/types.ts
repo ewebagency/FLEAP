@@ -42,19 +42,19 @@ export interface Dechet extends BaseEntity {
 }
 
 export interface Transporteur extends BaseEntity {
-  contact: {
-    email: string;
-    telephone: string;
-  };
+  nomPrenom: string;
+  email: string;
+  telephone: string;
   adresse: string;
+  siret: string;
 }
 
 export interface Destinataire extends BaseEntity {
-  contact: {
-    email: string;
-    telephone: string;
-  };
+  nomPrenom: string;
+  email: string;
+  telephone: string;
   adresse: string;
+  siret: string;
 }
 
 export interface Contenant extends BaseEntity {
@@ -63,19 +63,17 @@ export interface Contenant extends BaseEntity {
 }
 
 export interface Negociant extends BaseEntity {
-  contact: {
-    email: string;
-    telephone: string;
-  };
+  email: string;
+  telephone: string;
   adresse: string;
+  siret: string;
 }
 
 export interface Courtier extends BaseEntity {
-  contact: {
-    email: string;
-    telephone: string;
-  };
+  email: string;
+  telephone: string;
   adresse: string;
+  siret: string;
 }
 
 export interface CodeTreatment extends BaseEntity {
@@ -83,12 +81,10 @@ export interface CodeTreatment extends BaseEntity {
 }
 
 export interface Ecorganisme extends BaseEntity {
-  siret: string;
-  contact: {
-    email: string;
-    telephone: string;
-  };
+  email: string;
+  telephone: string;
   adresse: string;
+  siret: string;
 }
 
 export interface Contrat extends BaseEntity {
