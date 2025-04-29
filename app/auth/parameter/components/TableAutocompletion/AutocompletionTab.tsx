@@ -1,4 +1,4 @@
-/*'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import EntityForm from './EntityForm';
@@ -23,7 +23,10 @@ import {
   CodeTreatmentLink,
   EcorganismeLink,
   Contrat,
-  ContratLink
+  ContratLink,
+  BaseLink,
+  CollectionPoint,
+  Contact
 } from './types';
 import {
   handleTransportLink,
@@ -33,16 +36,21 @@ import {
   handleCourtierLink,
   handleEcorganismeLink,
   handleCodeTreatmentLink,
-  handleContratLink
+  handleContratLink,
 } from './LinkHandlers';
 import { fetchAutocompletionData } from './utils';
-import { siteAttributes, transporteurAttributes, dechetAttributes, destinataireAttributes, contenantAttributes, negociantAttributes, courtierAttributes, ecoOrganismeAttributes, codeTraitementAttributes, codeTraitementOptions, contratAttributes } from './definitions';
+import { siteAttributes, transporteurAttributes, dechetAttributes, destinataireAttributes, contenantAttributes, negociantAttributes, courtierAttributes, ecoorganismeAttributes, codeTraitementAttributes, codeTraitementOptions, contratAttributes } from './definitions';
 
 interface AutocompletionRecord {
   id: string;
-  transport_link?: TransportLink[];
-  dest_link?: DestLink[];
-  contenant_link?: ContenantLink[];
+  transport_link?: BaseLink[];
+  dest_link?: BaseLink[];
+  contenant_link?: BaseLink[];
+  code_traitement_link?: BaseLink[];
+  negociant_link?: BaseLink[];
+  courtier_link?: BaseLink[];
+  eco_organisme_link?: BaseLink[];
+  contrat_link?: BaseLink[];
 }
 
 const AutocompletionTab: React.FC = () => {
@@ -59,14 +67,14 @@ const AutocompletionTab: React.FC = () => {
   const [codeTreatments, setCodeTreatments] = useState<CodeTreatment[]>([]);
   const [contrats, setContrats] = useState<Contrat[]>([]);
   //on va chercher les liens
-  const [transportLinks, setTransportLinks] = useState<TransportLink[]>([]);
-  const [destLinks, setDestLinks] = useState<DestLink[]>([]);
-  const [negociantLinks, setNegociantLinks] = useState<NegociantLink[]>([]);
-  const [courtierLinks, setCourtierLinks] = useState<CourtierLink[]>([]);
-  const [contenantLinks, setContenantLinks] = useState<ContenantLink[]>([]);
-  const [codeTreatmentLinks, setCodeTreatmentLinks] = useState<CodeTreatmentLink[]>([]);
-  const [ecoorganismeLinks, setEcoorganismeLinks] = useState<EcorganismeLink[]>([]);
-  const [contratLinks, setContratLinks] = useState<ContratLink[]>([]);
+  const [transportLinks, setTransportLinks] = useState<BaseLink[]>([]);
+  const [destLinks, setDestLinks] = useState<BaseLink[]>([]);
+  const [negociantLinks, setNegociantLinks] = useState<BaseLink[]>([]);
+  const [courtierLinks, setCourtierLinks] = useState<BaseLink[]>([]);
+  const [contenantLinks, setContenantLinks] = useState<BaseLink[]>([]);
+  const [codeTreatmentLinks, setCodeTreatmentLinks] = useState<BaseLink[]>([]);
+  const [ecoorganismeLinks, setEcoorganismeLinks] = useState<BaseLink[]>([]);
+  const [contratLinks, setContratLinks] = useState<BaseLink[]>([]);
 
   const [showNewForm, setShowNewForm] = useState<{ [key: string]: boolean }>({
     site: false,
@@ -76,7 +84,7 @@ const AutocompletionTab: React.FC = () => {
     contenant: false,
     negociant: false,
     courtier: false,
-    ecoOrganisme: false,
+    ecoorganisme: false,
     codeTraitement: false,
     contrat: false
   });
@@ -93,19 +101,23 @@ const AutocompletionTab: React.FC = () => {
 
   // Ajout d'un état pour gérer l'onglet actif
   const [activeTab, setActiveTab] = useState<string>('sites');
+  const [viewMode, setViewMode] = useState<'entities' | 'links'>('entities');
 
   // Liste des onglets disponibles
+  const [showAllTabs, setShowAllTabs] = useState(false);
+
   const tabs = [
     { id: 'sites', label: 'Sites' },
     { id: 'transporteurs', label: 'Transporteurs' },
     { id: 'dechets', label: 'Déchets' },
     { id: 'destinataires', label: 'Destinataires' },
     { id: 'contenants', label: 'Contenants' },
-    { id: 'negociants', label: 'Négociants' },
-    { id: 'courtiers', label: 'Courtiers' },
-    { id: 'ecoOrganismes', label: 'Éco-organismes' },
-    { id: 'codeTraitements', label: 'Codes de traitement' },
-    { id: 'contrats', label: 'Contrats' }
+    ...(showAllTabs ? [
+      { id: 'negociants', label: 'Négociants' },
+      { id: 'courtiers', label: 'Courtiers' },
+      { id: 'ecoorganismes', label: 'Éco-organismes' },
+      { id: 'contrats', label: 'Contrats' }
+    ] : [])
   ];
 
   //-------------------------------- Fonctions utils --------------------------------
@@ -150,9 +162,40 @@ const AutocompletionTab: React.FC = () => {
   const handleFieldChange = (type: string, id: string, field: string, value: string | boolean) => {
     switch (type) {
       case 'Site':
-        setSites(prev => prev.map(site => 
-          site.id === id ? { ...site, [field]: value } : site
-        ));
+        setSites(prev => prev.map(site => {
+          if (site.id !== id) return site;
+          
+          // Gestion des points de collecte
+          if (field.startsWith('pointsCollecte.')) {
+            const [_, index, prop] = field.split('.');
+            const pointsCollecte = [...site.pointsCollecte];
+            pointsCollecte[parseInt(index)] = {
+              ...pointsCollecte[parseInt(index)],
+              [prop]: value
+            };
+            return {
+              ...site,
+              pointsCollecte
+            };
+          }
+          
+          // Gestion des contacts multiples
+          if (field.startsWith('contacts.')) {
+            const [_, index, prop] = field.split('.');
+            const contacts = [...site.contacts];
+            contacts[parseInt(index)] = {
+              ...contacts[parseInt(index)],
+              [prop]: value
+            };
+            return {
+              ...site,
+              contacts
+            };
+          }
+          
+          // Gestion des champs simples
+          return { ...site, [field]: value };
+        }));
         break;
       case 'Transporteur':
         setTransporteurs(prev => prev.map(transporteur => 
@@ -184,7 +227,7 @@ const AutocompletionTab: React.FC = () => {
           courtier.id === id ? { ...courtier, [field]: value } : courtier
         ));
         break;
-      case 'EcoOrganisme':
+      case 'Ecoorganisme':
         setEcoorganismes((prev: Ecorganisme[]) => prev.map((ecoorganisme: Ecorganisme) => 
           ecoorganisme.id === id ? { ...ecoorganisme, [field]: value } : ecoorganisme
         ));
@@ -227,7 +270,7 @@ const AutocompletionTab: React.FC = () => {
         case 'Courtier':
           dataToUpdate = courtiers.find(courtier => courtier.id === id);
           break;
-        case 'EcoOrganisme':
+        case 'Ecoorganisme':
           dataToUpdate = ecoorganismes.find(ecoorganisme => ecoorganisme.id === id);
           break;
         case 'CodeTraitement':
@@ -315,7 +358,7 @@ const AutocompletionTab: React.FC = () => {
           // Supprimer les liens associés au courtier
           //setCourtierLinks(prev => prev.filter(link => link.id !== id));
           break;
-        case 'EcoOrganisme':
+        case 'Ecoorganisme':
           setEcoorganismes(prev => prev.filter(ecoorganisme => ecoorganisme.id !== id));
           break;
         case 'CodeTraitement':
@@ -327,7 +370,7 @@ const AutocompletionTab: React.FC = () => {
       }
 
       // Mettre à jour Supabase avec le bon nom de colonne
-      const columnName = type === 'EcoOrganisme' ? 'eco_organisme' : 
+      const columnName = type === 'Ecoorganisme' ? 'eco_organisme' : 
                         type === 'CodeTraitement' ? 'code_traitement' : 
                         type.toLowerCase();
       const { error: updateError } = await supabase
@@ -356,7 +399,7 @@ const AutocompletionTab: React.FC = () => {
 
         // Supprimer les liens de transport
         if (record.transport_link) {
-          const updatedTransportLinks = record.transport_link.filter((link: TransportLink) => {
+          const updatedTransportLinks = record.transport_link.filter((link: BaseLink) => {
             if (type === 'Site' && link.site === id) return false;
             if (type === 'Dechet' && link.dechet === id) return false;
             if (type === 'Transporteur' && record.id === id) return false;
@@ -369,7 +412,7 @@ const AutocompletionTab: React.FC = () => {
 
         // Supprimer les liens de destination
         if (record.dest_link) {
-          const updatedDestLinks = record.dest_link.filter((link: DestLink) => {
+          const updatedDestLinks = record.dest_link.filter((link: BaseLink) => {
             if (type === 'Site' && link.site === id) return false;
             if (type === 'Dechet' && link.dechet === id) return false;
             if (type === 'Destinataire' && record.id === id) return false;
@@ -382,7 +425,7 @@ const AutocompletionTab: React.FC = () => {
 
         // Supprimer les liens de contenant
         if (record.contenant_link) {
-          const updatedContenantLinks = record.contenant_link.filter((link: ContenantLink) => {
+          const updatedContenantLinks = record.contenant_link.filter((link: BaseLink) => {
             if (type === 'Site' && link.site === id) return false;
             if (type === 'Dechet' && link.dechet === id) return false;
             if (type === 'Contenant' && record.id === id) return false;
@@ -392,6 +435,74 @@ const AutocompletionTab: React.FC = () => {
             updates.contenant_link = updatedContenantLinks;
           }
         }
+
+        // Supprimer les liens de code traitement
+        if (record.code_traitement_link) {
+          const updatedCodeTreatmentLinks = record.code_traitement_link.filter((link: BaseLink) => {
+            if (type === 'Site' && link.site === id) return false;
+            if (type === 'Dechet' && link.dechet === id) return false;
+            if (type === 'CodeTraitement' && record.id === id) return false;
+            return true;
+          });
+          if (updatedCodeTreatmentLinks.length !== record.code_traitement_link.length) {
+            updates.code_traitement_link = updatedCodeTreatmentLinks;
+          }
+        }
+
+        // Supprimer les liens de négociant
+        if (record.negociant_link) {
+          const updatedNegociantLinks = record.negociant_link.filter((link: BaseLink) => {
+            if (type === 'Site' && link.site === id) return false;
+            if (type === 'Dechet' && link.dechet === id) return false;
+            if (type === 'Negociant' && record.id === id) return false; 
+            return true;
+          });
+          if (updatedNegociantLinks.length !== record.negociant_link.length) {
+            updates.negociant_link = updatedNegociantLinks;
+          }
+        }
+
+        // Supprimer les liens de courtier
+        if (record.courtier_link) {
+          const updatedCourtierLinks = record.courtier_link.filter((link: BaseLink) => {
+            if (type === 'Site' && link.site === id) return false;
+            if (type === 'Dechet' && link.dechet === id) return false;
+            if (type === 'Courtier' && record.id === id) return false;  
+            return true;
+          });
+          if (updatedCourtierLinks.length !== record.courtier_link.length) {
+            updates.courtier_link = updatedCourtierLinks;
+          }
+        }
+
+        // Supprimer les liens de ecoorganisme
+        if (record.eco_organisme_link) {
+          const updatedEcoorganismeLinks = record.eco_organisme_link.filter((link: BaseLink) => {
+            if (type === 'Site' && link.site === id) return false;
+            if (type === 'Dechet' && link.dechet === id) return false;
+            if (type === 'Ecoorganisme' && record.id === id) return false;
+            return true;
+          });
+          if (updatedEcoorganismeLinks.length !== record.eco_organisme_link.length) {
+            updates.eco_organisme_link = updatedEcoorganismeLinks;
+          }
+        }
+        
+        // Supprimer les liens de contrat
+        if (record.contrat_link) {
+          const updatedContratLinks = record.contrat_link.filter((link: BaseLink) => {
+            if (type === 'Site' && link.site === id) return false;
+            if (type === 'Dechet' && link.dechet === id) return false;
+            if (type === 'Contrat' && record.id === id) return false;
+            return true;
+          });
+          if (updatedContratLinks.length !== record.contrat_link.length) {
+            updates.contrat_link = updatedContratLinks;
+          }
+        }
+        
+        
+        
 
         // Mettre à jour l'enregistrement si des liens ont été supprimés
         if (Object.keys(updates).length > 0) {
@@ -516,8 +627,8 @@ const AutocompletionTab: React.FC = () => {
         };
         setCourtiers(prev => [...prev, newCourtier]);
         break;
-      case 'EcoOrganisme':
-        const newEcoOrganisme: Ecorganisme = {
+      case 'Ecoorganisme':
+        const newEcoorganisme: Ecorganisme = {
           ...baseItem,
           nomBoite: data.nomBoite as string,
           siret: data.siret as string,
@@ -527,7 +638,7 @@ const AutocompletionTab: React.FC = () => {
           },
           adresse: data.adresse as string,
         };
-        setEcoorganismes(prev => [...prev, newEcoOrganisme]);
+        setEcoorganismes(prev => [...prev, newEcoorganisme]);
         break;
       case 'CodeTraitement':
         const selectedOption = codeTraitementOptions.find(option => option.code === data.code);
@@ -551,8 +662,8 @@ const AutocompletionTab: React.FC = () => {
     // Mettre à jour l'état showNewForm avec la bonne clé
     const getFormKey = (type: string) => {
       switch (type) {
-        case 'EcoOrganisme':
-          return 'ecoOrganisme';
+        case 'Ecoorganisme':
+          return 'ecoorganisme';
         case 'CodeTraitement':
           return 'codeTraitement';
         default:
@@ -562,9 +673,6 @@ const AutocompletionTab: React.FC = () => {
     
     setShowNewForm(prev => ({ ...prev, [getFormKey(entityType)]: false }));
   };
-
-  //--------------------------------
-
 
   //Le component qui affiche une entité avec son toogle
   const renderEntityList = (
@@ -596,8 +704,8 @@ const AutocompletionTab: React.FC = () => {
         case 'Courtier':
           attributes = courtierAttributes;
           break;
-        case 'EcoOrganisme':
-          attributes = ecoOrganismeAttributes;
+        case 'Ecoorganisme':
+          attributes = ecoorganismeAttributes;
           break;
         case 'CodeTraitement':
           attributes = codeTraitementAttributes;
@@ -650,94 +758,166 @@ const AutocompletionTab: React.FC = () => {
               </div>
               {isItemExpanded(itemId, type) && (
                 <div className="mt-4 space-y-2">
-                  {Object.entries(entity).map(([key, value]) => {
-                    if (key === 'id' || key === mainField) return null;
-                    if (key === 'contact' && typeof value === 'object') {
-                      return (
-                        <div key={key} className="bg-gray-50 rounded-xl p-4">
-                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Contact</p>
-                          <ul className="space-y-3">
-                            {Object.entries(value).map(([contactKey, contactValue]) => (
-                              <li key={contactKey} className="flex items-center gap-3">
+                  {type === 'Site' && (entity as Site).siret !== undefined ? (
+                    <>
+                      {/* Siret */}
+                      <div className="flex items-center gap-3">
                                 <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
-                                  {getAttributeLabel(`contact.${contactKey}`, type)}
+                          {getAttributeLabel('siret', type)}
                                 </span>
                                 {isEditing ? (
                                   <input
                                     type="text"
-                                    value={String(contactValue)}
-                                    onChange={(e) => handleFieldChange(type, entity.id, contactKey, e.target.value)}
+                            value={String((entity as Site).siret)}
+                            onChange={(e) => handleFieldChange(type, entity.id, 'siret', e.target.value)}
                                     className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
                                   />
                                 ) : (
-                                  <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{String(contactValue)}</span>
+                          <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{String((entity as Site).siret)}</span>
                                 )}
-                              </li>
-                            ))}
-                          </ul>
                         </div>
-                      );
-                    }
-                    if (key === 'pointsCollecte' && Array.isArray(value) && type === 'Site') {
-                      return (
-                        <div key={key} className="bg-gray-50 rounded-xl p-4">
-                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Points de collecte</p>
-                          <ul className="space-y-3">
-                            {value.map((point, index) => (
-                              <li key={index} className="flex items-center gap-3">
-                                <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Point {index + 1}:</span>
-                                <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{point.nom} - {point.adresse}</span>
-                              </li>
-                            ))}
-                          </ul>
+                      
+                      {/* Adresse du siège */}
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
+                          {getAttributeLabel('adresseSiege', type)}
+                        </span>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={String((entity as Site).adresseSiege)}
+                            onChange={(e) => handleFieldChange(type, entity.id, 'adresseSiege', e.target.value)}
+                            className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                          />
+                        ) : (
+                          <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{String((entity as Site).adresseSiege)}</span>
+                        )}
                         </div>
-                      );
-                    }
-                    if (key === 'contacts' && Array.isArray(value) && type === 'Site') {
-                      return (
-                        <div key={key} className="bg-gray-50 rounded-xl p-4">
+
+                      {/* Contacts */}
+                      {(entity as Site).contacts && Array.isArray((entity as Site).contacts) && (
+                        <div className="bg-gray-50 rounded-xl p-4">
                           <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Contacts</p>
                           <ul className="space-y-3">
-                            {value.map((contact, index) => (
+                            {(entity as Site).contacts.map((contact: Contact, index: number) => (
                               <li key={index} className="flex flex-col gap-2">
                                 <div className="flex items-center gap-3">
                                   <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Contact {index + 1}:</span>
+                                  {isEditing ? (
+                                    <div className="flex flex-col gap-2 w-full">
+                                      <input
+                                        type="text"
+                                        value={contact.nom}
+                                        onChange={(e) => handleFieldChange(type, entity.id, `contacts.${index}.nom`, e.target.value)}
+                                        className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                                        placeholder="Nom"
+                                      />
+                                      <input
+                                        type="email"
+                                        value={contact.email}
+                                        onChange={(e) => handleFieldChange(type, entity.id, `contacts.${index}.email`, e.target.value)}
+                                        className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                                        placeholder="Email"
+                                      />
+                                      <input
+                                        type="tel"
+                                        value={contact.telephone}
+                                        onChange={(e) => handleFieldChange(type, entity.id, `contacts.${index}.telephone`, e.target.value)}
+                                        className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                                        placeholder="Téléphone"
+                                      />
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={contact.respoTerrain}
+                                          onChange={(e) => handleFieldChange(type, entity.id, `contacts.${index}.respoTerrain`, e.target.checked)}
+                                          className="rounded border-gray-300 text-[var(--green-medium)] focus:ring-[var(--green-medium)]"
+                                        />
+                                        <label className="text-xs text-gray-600">Responsable terrain</label>
+                                      </div>
+                                    </div>
+                                  ) : (
                                   <div className="flex flex-row gap-2">
                                     <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.nom}</span>
                                     <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.email}</span>
                                     <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.telephone}</span>
                                     {contact.respoTerrain && <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">Terrain ✅</span>}
                                   </div>
+                                  )}
                                 </div>
                               </li>
                             ))}
                           </ul>
                         </div>
-                      );
-                    }
-                    if (key === 'tarifs' && Array.isArray(value) && type === 'Contrat') {
-                      return (
-                        <div key={key} className="bg-gray-50 rounded-xl p-4 hidden">
-                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Tarifs</p>
+                      )}
+
+                      {/* Points de collecte */}
+                      {(entity as Site).pointsCollecte && Array.isArray((entity as Site).pointsCollecte) && (
+                        <div className="bg-gray-50 rounded-xl p-4">
+                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Points de collecte</p>
                           <ul className="space-y-3">
-                            {value.map((tarif, index) => (
+                            {(entity as Site).pointsCollecte.map((point: CollectionPoint, index: number) => (
                               <li key={index} className="flex flex-col gap-2">
                                 <div className="flex items-center gap-3">
-                                  <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Déchet:</span>
-                                  <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{tarif.dechet}</span>
+                                  <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Point {index + 1}:</span>
+                                  {isEditing ? (
+                                    <div className="flex flex-col gap-2 w-full">
+                                      <input
+                                        type="text"
+                                        value={point.nom}
+                                        onChange={(e) => handleFieldChange(type, entity.id, `pointsCollecte.${index}.nom`, e.target.value)}
+                                        className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                                        placeholder="Nom du point de collecte"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={point.adresse}
+                                        onChange={(e) => handleFieldChange(type, entity.id, `pointsCollecte.${index}.adresse`, e.target.value)}
+                                        className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                                        placeholder="Adresse"
+                                      />
                                 </div>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Code CED:</span>
-                                  <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{tarif.code_ced}</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Coûts:</span>
-                                  <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">
-                                    Traitement: {tarif.couts.traitement}€ | Location: {tarif.couts.location}€ | Transport: {tarif.couts.transport}€
-                                  </span>
+                                  ) : (
+                                    <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{point.nom} - {point.adresse}</span>
+                                  )}
                                 </div>
                               </li>
                             ))}
+                          </ul>
+                                </div>
+                      )}
+                    </>
+                  ) : (
+                    // Rendu par défaut pour les autres types d'entités
+                    Object.entries(entity).map(([key, value]) => {
+                      if (key === 'id' || key === mainField) return null;
+                      if (key === 'onu') return null; // Supprimer le champ ONU pour les déchets
+                      if (key === 'contact' && typeof value === 'object') {
+                        return (
+                          <div key={key} className="bg-gray-50 rounded-xl p-4">
+                            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Contact</p>
+                            <ul className="space-y-3">
+                              {Object.entries(value).map(([contactKey, contactValue]) => {
+                                // Changer le label pour contact.nomPrenom
+                                const label = contactKey === 'nomPrenom' ? 'Prénom Nom' : getAttributeLabel(`contact.${contactKey}`, type);
+                                return (
+                                  <li key={contactKey} className="flex items-center gap-3">
+                                    <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
+                                      {label}
+                                    </span>
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={String(contactValue)}
+                                        onChange={(e) => handleFieldChange(type, entity.id, contactKey, e.target.value)}
+                                        className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                                      />
+                                    ) : (
+                                      <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{String(contactValue)}</span>
+                                    )}
+                                  </li>
+                                );
+                              })}
                           </ul>
                         </div>
                       );
@@ -759,7 +939,8 @@ const AutocompletionTab: React.FC = () => {
                         )}
                       </div>
                     );
-                  })}
+                    })
+                  )}
                   <div className="flex justify-end gap-2 mt-4">
                     {entity.id && (
                       <>
@@ -798,354 +979,422 @@ const AutocompletionTab: React.FC = () => {
   //Chaque Carte d'entités
   return (
     <div className="flex flex-col gap-8">
-      {/* Barre d'onglets 
-      <div className="bg-white rounded-xl shadow-sm p-4">
-        <div className="flex space-x-2 overflow-x-auto pb-2">
-          {tabs.map(tab => (
+      {/* Barre d'onglets et bouton de contrôle */}
+      <div className="flex flex-col gap-4">
+        {/* Onglets Entités/Liens */}
+        <div className="w-1/2 ml-auto">
+          <div className="flex space-x-4">
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === tab.id
-                  ? 'bg-[var(--green-medium)] text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              onClick={() => setViewMode('entities')}
+              className="relative flex flex-col items-center flex-1"
             >
-              {tab.label}
+              <span className={`text-sm font-medium transition-all ${
+                viewMode === 'entities'
+                  ? 'text-black'
+                  : 'text-gray-400'
+              }`}>
+                Entités
+              </span>
+              <div className={`w-full h-0.5 mt-1 transition-all ${
+                viewMode === 'entities'
+                  ? 'bg-green-500'
+                  : 'bg-transparent'
+              }`} />
             </button>
-          ))}
+            <button
+              onClick={() => setViewMode('links')}
+              className="relative flex flex-col items-center flex-1"
+            >
+              <span className={`text-sm font-medium transition-all ${
+                viewMode === 'links'
+                  ? 'text-black'
+                  : 'text-gray-400'
+              }`}>
+                Liens
+              </span>
+              <div className={`w-full h-0.5 mt-1 transition-all ${
+                viewMode === 'links'
+                  ? 'bg-green-500'
+                  : 'bg-transparent'
+              }`} />
+            </button>
+          </div>
         </div>
+
+        {viewMode === 'entities' && (
+          <>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowAllTabs(!showAllTabs)}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+              >
+                {showAllTabs ? 'Masquer les onglets avancés' : 'Afficher les onglets avancés'}
+              </button>
+            </div>
+
+            {/* Onglets des entités */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="flex space-x-2">
+                {tabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activeTab === tab.id
+                        ? 'bg-[var(--green-medium)] text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Contenu des onglets 
+      {/* Contenu des onglets */}
       <div className="bg-white rounded-xl shadow-sm p-5">
-        {activeTab === 'sites' && (
+        {viewMode === 'entities' ? (
           <>
-            {!showNewForm.site && (
-              <div className="flex justify-between items-end mb-4">
-                <p className="text-xl ml-2 font-semibold text-gray-800">Sites</p>
-                <button
-                  onClick={() => setShowNewForm(prev => ({ ...prev, site: true }))}
-                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-1 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-                >
-                  + Nouveau
-                </button>
-              </div>
-            )}
-            {showNewForm.site ? (
-              <EntityForm
-                title="Nouveau site"
-                mainAttribute={siteAttributes.mainAttribute}
-                secondaryAttributes={siteAttributes.secondaryAttributes}
-                onSave={(data) => handleSave('Site', data)}
-              />
-            ) : (
-              renderEntityList(sites, 'Site', 'nom')
-            )}
-          </>
-        )}
-
-        {activeTab === 'transporteurs' && (
-          <>
-            {!showNewForm.transporteur && (
-              <div className="flex justify-between items-end mb-4">
-                <p className="text-xl ml-2 font-semibold text-gray-800">Transporteurs</p>
-                <button
-                  onClick={() => setShowNewForm(prev => ({ ...prev, transporteur: true }))}
-                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-                >
-                  + Nouveau
-                </button>
-              </div>
-            )}
-            {showNewForm.transporteur ? (
-              <EntityForm
-                title="Nouveau transporteur"
-                mainAttribute={transporteurAttributes.mainAttribute}
-                secondaryAttributes={transporteurAttributes.secondaryAttributes}
-                onSave={(data) => handleSave('Transporteur', data)}
-              />
-            ) : (
-              renderEntityList(transporteurs, 'Transporteur', 'nomBoite')
-            )}
-          </>
-        )}
-
-        {activeTab === 'dechets' && (
-          <>
-            {!showNewForm.dechet && (
-              <div className="flex justify-between items-end mb-4">
-                <p className="text-xl ml-2 font-semibold text-gray-800">Déchets</p>
-                <button
-                  onClick={() => setShowNewForm(prev => ({ ...prev, dechet: true }))}
-                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-                >
-                  + Nouveau
-                </button>
-              </div>
-            )}
-            {showNewForm.dechet ? (
-              <EntityForm
-                title="Nouveau déchet"
-                mainAttribute={dechetAttributes.mainAttribute}
-                secondaryAttributes={dechetAttributes.secondaryAttributes}
-                onSave={(data) => handleSave('Dechet', data)}
-              />
-            ) : (
-              renderEntityList(dechets, 'Dechet', 'nom')
-            )}
-          </>
-        )}
-
-        {activeTab === 'destinataires' && (
-          <>
-            {!showNewForm.destinataire && (
-              <div className="flex justify-between items-end mb-4">
-                <p className="text-xl ml-2 font-semibold text-gray-800">Destinataires</p>
-                <button
-                  onClick={() => setShowNewForm(prev => ({ ...prev, destinataire: true }))}
-                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-                >
-                  + Nouveau
-                </button>
-              </div>
-            )}
-            {showNewForm.destinataire ? (
-              <EntityForm
-                title="Nouveau destinataire"
-                mainAttribute={destinataireAttributes.mainAttribute}
-                secondaryAttributes={destinataireAttributes.secondaryAttributes}
-                onSave={(data) => handleSave('Destinataire', data)}
-              />
-            ) : (
-              renderEntityList(destinataires, 'Destinataire', 'nomBoite')
-            )}
-          </>
-        )}
-
-        {activeTab === 'contenants' && (
-          <>
-            {!showNewForm.contenant && (
-              <div className="flex justify-between items-end mb-4">
-                <p className="text-xl ml-2 font-semibold text-gray-800">Contenants</p>
-                <button
-                  onClick={() => setShowNewForm(prev => ({ ...prev, contenant: true }))}
-                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-                >
-                  + Nouveau
-                </button>
-              </div>
-            )}
-            {showNewForm.contenant ? (
-              <EntityForm
-                title="Nouveau contenant"
-                mainAttribute={contenantAttributes.mainAttribute}
-                secondaryAttributes={contenantAttributes.secondaryAttributes}
-                onSave={(data) => handleSave('Contenant', data)}
-              />
-            ) : (
-              renderEntityList(contenants, 'Contenant', 'nom')
-            )}
-          </>
-        )}
-
-        {activeTab === 'negociants' && (
-          <>
-            {!showNewForm.negociant && (
-              <div className="flex justify-between items-end mb-4">
-                <p className="text-xl ml-2 font-semibold text-gray-800">Négociants</p>
-                <button
-                  onClick={() => setShowNewForm(prev => ({ ...prev, negociant: true }))}
-                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-                >
-                  + Nouveau
-                </button>
-              </div>
-            )}
-            {showNewForm.negociant ? (
-              <EntityForm
-                title="Nouveau négociant"
-                mainAttribute={negociantAttributes.mainAttribute}
-                secondaryAttributes={negociantAttributes.secondaryAttributes}
-                onSave={(data) => handleSave('Negociant', data)}
-              />
-            ) : (
-              renderEntityList(negociants, 'Negociant', 'nomBoite')
-            )}
-          </>
-        )}
-
-        {activeTab === 'courtiers' && (
-          <>
-            {!showNewForm.courtier && (
-              <div className="flex justify-between items-end mb-4">
-                <p className="text-xl ml-2 font-semibold text-gray-800">Courtiers</p>
-                <button
-                  onClick={() => setShowNewForm(prev => ({ ...prev, courtier: true }))}
-                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-                >
-                  + Nouveau
-                </button>
-              </div>
-            )}
-            {showNewForm.courtier ? (
-              <EntityForm
-                title="Nouveau courtier"
-                mainAttribute={courtierAttributes.mainAttribute}
-                secondaryAttributes={courtierAttributes.secondaryAttributes}
-                onSave={(data) => handleSave('Courtier', data)}
-              />
-            ) : (
-              renderEntityList(courtiers, 'Courtier', 'nomBoite')
-            )}
-          </>
-        )}
-
-        {activeTab === 'ecoOrganismes' && (
-          <>
-            {!showNewForm.ecoOrganisme && (
-              <div className="flex justify-between items-end mb-4">
-                <p className="text-xl ml-2 font-semibold text-gray-800">Éco-organismes</p>
-                <button
-                  onClick={() => setShowNewForm(prev => ({ ...prev, ecoOrganisme: true }))}
-                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-                >
-                  + Nouveau
-                </button>
-              </div>
-            )}
-            {showNewForm.ecoOrganisme ? (
-              <EntityForm
-                title="Nouvel éco-organisme"
-                mainAttribute={ecoOrganismeAttributes.mainAttribute}
-                secondaryAttributes={ecoOrganismeAttributes.secondaryAttributes}
-                onSave={(data) => handleSave('EcoOrganisme', data)}
-              />
-            ) : (
-              renderEntityList(ecoorganismes, 'EcoOrganisme', 'nomBoite')
-            )}
-          </>
-        )}
-
-        {activeTab === 'codeTraitements' && (
-          <>
-            {!showNewForm.codeTraitement && (
-              <div className="flex justify-between items-end mb-4">
-                <p className="text-xl ml-2 font-semibold text-gray-800">Codes de traitement</p>
-                <button
-                  onClick={() => setShowNewForm(prev => ({ ...prev, codeTraitement: true }))}
-                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-                >
-                  + Nouveau
-                </button>
-              </div>
-            )}
-            {showNewForm.codeTraitement ? (
-              <div className="bg-white rounded-xl shadow-sm p-5">
-                <h3 className="text-xl font-semibold text-gray-800 mb-4">Nouveau code de traitement</h3>
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  const formData = new FormData(e.currentTarget);
-                  const code = formData.get('code') as string;
-                  const selectedOption = codeTraitementOptions.find(option => option.code === code);
-                  if (selectedOption) {
-                    handleSave('CodeTraitement', { code, nom: selectedOption.nom });
-                  }
-                }} className="space-y-4">
-                  <div className="w-full">
-                    <label className="block text-md font-medium text-gray-500 mb-1">
-                      Code de traitement
-                    </label>
-                    <select
-                      name="code"
-                      required
-                      className="w-full px-2 py-1.5 text-md border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+            {activeTab === 'sites' && (
+              <>
+                {!showNewForm.site && (
+                  <div className="flex justify-between items-end mb-4">
+                    <p className="text-xl ml-2 font-semibold text-gray-800">Sites</p>
+                    <button
+                      onClick={() => setShowNewForm(prev => ({ ...prev, site: true }))}
+                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-1 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
                     >
-                      <option value="">Sélectionnez le code de traitement</option>
-                      {codeTraitementOptions.map((option) => (
-                        <option key={option.code} value={option.code}>
-                          {option.code} | {option.nom}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex justify-end">
-                    <button 
-                      type="submit" 
-                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-                    >
-                      Enregistrer
+                      + Nouveau
                     </button>
                   </div>
-                </form>
-              </div>
-            ) : (
-              renderEntityList(codeTreatments, 'CodeTraitement', 'nom')
+                )}
+                {showNewForm.site ? (
+                  <EntityForm
+                    title="Nouveau site"
+                    mainAttribute={siteAttributes.mainAttribute}
+                    secondaryAttributes={siteAttributes.secondaryAttributes}
+                    onSave={(data) => handleSave('Site', data)}
+                  />
+                ) : (
+                  renderEntityList(sites, 'Site', 'nom')
+                )}
+              </>
+            )}
+
+            {activeTab === 'transporteurs' && (
+              <>
+                {!showNewForm.transporteur && (
+                  <div className="flex justify-between items-end mb-4">
+                    <p className="text-xl ml-2 font-semibold text-gray-800">Transporteurs</p>
+                    <button
+                      onClick={() => setShowNewForm(prev => ({ ...prev, transporteur: true }))}
+                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                    >
+                      + Nouveau
+                    </button>
+                  </div>
+                )}
+                {showNewForm.transporteur ? (
+                  <EntityForm
+                    title="Nouveau transporteur"
+                    mainAttribute={transporteurAttributes.mainAttribute}
+                    secondaryAttributes={transporteurAttributes.secondaryAttributes}
+                    onSave={(data) => handleSave('Transporteur', data)}
+                  />
+                ) : (
+                  renderEntityList(transporteurs, 'Transporteur', 'nomBoite')
+                )}
+              </>
+            )}
+
+            {activeTab === 'dechets' && (
+              <>
+                {!showNewForm.dechet && (
+                  <div className="flex justify-between items-end mb-4">
+                    <p className="text-xl ml-2 font-semibold text-gray-800">Déchets</p>
+                    <button
+                      onClick={() => setShowNewForm(prev => ({ ...prev, dechet: true }))}
+                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                    >
+                      + Nouveau
+                    </button>
+                  </div>
+                )}
+                {showNewForm.dechet ? (
+                  <EntityForm
+                    title="Nouveau déchet"
+                    mainAttribute={dechetAttributes.mainAttribute}
+                    secondaryAttributes={dechetAttributes.secondaryAttributes}
+                    onSave={(data) => handleSave('Dechet', data)}
+                  />
+                ) : (
+                  renderEntityList(dechets, 'Dechet', 'nom')
+                )}
+              </>
+            )}
+
+            {activeTab === 'destinataires' && (
+              <>
+                {!showNewForm.destinataire && (
+                  <div className="flex justify-between items-end mb-4">
+                    <p className="text-xl ml-2 font-semibold text-gray-800">Destinataires</p>
+                    <button
+                      onClick={() => setShowNewForm(prev => ({ ...prev, destinataire: true }))}
+                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                    >
+                      + Nouveau
+                    </button>
+                  </div>
+                )}
+                {showNewForm.destinataire ? (
+                  <EntityForm
+                    title="Nouveau destinataire"
+                    mainAttribute={destinataireAttributes.mainAttribute}
+                    secondaryAttributes={destinataireAttributes.secondaryAttributes}
+                    onSave={(data) => handleSave('Destinataire', data)}
+                  />
+                ) : (
+                  renderEntityList(destinataires, 'Destinataire', 'nomBoite')
+                )}
+              </>
+            )}
+
+            {activeTab === 'contenants' && (
+              <>
+                {!showNewForm.contenant && (
+                  <div className="flex justify-between items-end mb-4">
+                    <p className="text-xl ml-2 font-semibold text-gray-800">Contenants</p>
+                    <button
+                      onClick={() => setShowNewForm(prev => ({ ...prev, contenant: true }))}
+                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                    >
+                      + Nouveau
+                    </button>
+                  </div>
+                )}
+                {showNewForm.contenant ? (
+                  <EntityForm
+                    title="Nouveau contenant"
+                    mainAttribute={contenantAttributes.mainAttribute}
+                    secondaryAttributes={contenantAttributes.secondaryAttributes}
+                    onSave={(data) => handleSave('Contenant', data)}
+                  />
+                ) : (
+                  renderEntityList(contenants, 'Contenant', 'nom')
+                )}
+              </>
+            )}
+
+            {activeTab === 'negociants' && (
+              <>
+                {!showNewForm.negociant && (
+                  <div className="flex justify-between items-end mb-4">
+                    <p className="text-xl ml-2 font-semibold text-gray-800">Négociants</p>
+                    <button
+                      onClick={() => setShowNewForm(prev => ({ ...prev, negociant: true }))}
+                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                    >
+                      + Nouveau
+                    </button>
+                  </div>
+                )}
+                {showNewForm.negociant ? (
+                  <EntityForm
+                    title="Nouveau négociant"
+                    mainAttribute={negociantAttributes.mainAttribute}
+                    secondaryAttributes={negociantAttributes.secondaryAttributes}
+                    onSave={(data) => handleSave('Negociant', data)}
+                  />
+                ) : (
+                  renderEntityList(negociants, 'Negociant', 'nomBoite')
+                )}
+              </>
+            )}
+
+            {activeTab === 'courtiers' && (
+              <>
+                {!showNewForm.courtier && (
+                  <div className="flex justify-between items-end mb-4">
+                    <p className="text-xl ml-2 font-semibold text-gray-800">Courtiers</p>
+                    <button
+                      onClick={() => setShowNewForm(prev => ({ ...prev, courtier: true }))}
+                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                    >
+                      + Nouveau
+                    </button>
+                  </div>
+                )}
+                {showNewForm.courtier ? (
+                  <EntityForm
+                    title="Nouveau courtier"
+                    mainAttribute={courtierAttributes.mainAttribute}
+                    secondaryAttributes={courtierAttributes.secondaryAttributes}
+                    onSave={(data) => handleSave('Courtier', data)}
+                  />
+                ) : (
+                  renderEntityList(courtiers, 'Courtier', 'nomBoite')
+                )}
+              </>
+            )}
+
+            {activeTab === 'ecoorganismes' && (
+              <>
+                {!showNewForm.ecoorganisme && (
+                  <div className="flex justify-between items-end mb-4">
+                    <p className="text-xl ml-2 font-semibold text-gray-800">Éco-organismes</p>
+                    <button
+                      onClick={() => setShowNewForm(prev => ({ ...prev, ecoorganisme: true }))}
+                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                    >
+                      + Nouveau
+                    </button>
+                  </div>
+                )}
+                {showNewForm.ecoorganisme ? (
+                  <EntityForm
+                    title="Nouvel éco-organisme"
+                    mainAttribute={ecoorganismeAttributes.mainAttribute}
+                    secondaryAttributes={ecoorganismeAttributes.secondaryAttributes}
+                    onSave={(data) => handleSave('Ecoorganisme', data)}
+                  />
+                ) : (
+                  renderEntityList(ecoorganismes, 'Ecoorganisme', 'nomBoite')
+                )}
+              </>
+            )}
+
+            {activeTab === 'codeTraitements' && (
+              <>
+                {!showNewForm.codeTraitement && (
+                  <div className="flex justify-between items-end mb-4">
+                    <p className="text-xl ml-2 font-semibold text-gray-800">Codes de traitement</p>
+                    <button
+                      onClick={() => setShowNewForm(prev => ({ ...prev, codeTraitement: true }))}
+                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                    >
+                      + Nouveau
+                    </button>
+                  </div>
+                )}
+                {showNewForm.codeTraitement ? (
+                  <div className="bg-white rounded-xl shadow-sm p-5">
+                    <h3 className="text-xl font-semibold text-gray-800 mb-4">Nouveau code de traitement</h3>
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.currentTarget);
+                      const code = formData.get('code') as string;
+                      const selectedOption = codeTraitementOptions.find(option => option.code === code);
+                      if (selectedOption) {
+                        handleSave('CodeTraitement', { code, nom: selectedOption.nom });
+                      }
+                    }} className="space-y-4">
+                      <div className="w-full">
+                        <label className="block text-md font-medium text-gray-500 mb-1">
+                          Code de traitement
+                        </label>
+                        <select
+                          name="code"
+                          required
+                          className="w-full px-2 py-1.5 text-md border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                        >
+                          <option value="">Sélectionnez le code de traitement</option>
+                          {codeTraitementOptions.map((option) => (
+                            <option key={option.code} value={option.code}>
+                              {option.code} | {option.nom}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex justify-end">
+                        <button 
+                          type="submit" 
+                          className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                        >
+                          Enregistrer
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : (
+                  renderEntityList(codeTreatments, 'CodeTraitement', 'nom')
+                )}
+              </>
+            )}
+
+            {activeTab === 'contrats' && (
+              <>
+                {!showNewForm.contrat && (
+                  <div className="flex justify-between items-end mb-4">
+                    <p className="text-xl ml-2 font-semibold text-gray-800">Contrats</p>
+                    <button
+                      onClick={() => setShowNewForm(prev => ({ ...prev, contrat: true }))}
+                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                    >
+                      + Nouveau
+                    </button>
+                  </div>
+                )}
+                {showNewForm.contrat ? (
+                  <EntityForm
+                    title="Nouveau contrat"
+                    mainAttribute={contratAttributes.mainAttribute}
+                    secondaryAttributes={contratAttributes.secondaryAttributes}
+                    onSave={(data) => handleSave('Contrat', data)}
+                  />
+                ) : (
+                  renderEntityList(contrats, 'Contrat', 'nom')
+                )}
+              </>
             )}
           </>
+        ) : (
+          <div className="mt-8">
+            <LinkComponents
+              sites={sites}
+              transporteurs={transporteurs}
+              dechets={dechets}
+              destinataires={destinataires}
+              contenants={contenants}
+              negociants={negociants}
+              courtiers={courtiers}
+              ecoorganismes={ecoorganismes}
+              codeTreatments={codeTreatments}
+              contrats={contrats}
+              transportLinks={transportLinks}
+              destLinks={destLinks}
+              contenantLinks={contenantLinks}
+              negociantLinks={negociantLinks}
+              courtierLinks={courtierLinks}
+              codeTreatmentLinks={codeTreatmentLinks}
+              ecoorganismeLinks={ecoorganismeLinks}
+              contratLinks={contratLinks}
+              onTransportLink={(transportId, siteId, dechetId, isMailRecipient) => handleTransportLink(transportId, siteId, dechetId, isMailRecipient, setTransportLinks, transportLinks)}
+              onDestLink={(destId, siteId, dechetId, isMailRecipient) => handleDestLink(destId, siteId, dechetId, isMailRecipient, setDestLinks, destLinks)}
+              onContenantLink={(contenantId, siteId, dechetId) => handleContenantLink(contenantId, siteId, dechetId, setContenantLinks, contenantLinks)}
+              onNegociantLink={(negociantId, siteId, dechetId, isMailRecipient) => handleNegociantLink(negociantId, siteId, dechetId, isMailRecipient, setNegociantLinks, negociantLinks)}
+              onCourtierLink={(courtierId, siteId, dechetId, isMailRecipient) => handleCourtierLink(courtierId, siteId, dechetId, isMailRecipient, setCourtierLinks, courtierLinks)}
+              onCodeTreatmentLink={(codeTreatmentId, siteId, dechetId) => handleCodeTreatmentLink(codeTreatmentId, siteId, dechetId, setCodeTreatmentLinks, codeTreatmentLinks)}
+              onEcorganismeLink={(ecoorganismeId, siteId, dechetId, isMailRecipient) => handleEcorganismeLink(ecoorganismeId, siteId, dechetId, isMailRecipient, setEcoorganismeLinks, ecoorganismeLinks)}
+              onContratLink={(contratId, siteId, dechetId) => handleContratLink(contratId, siteId, dechetId, setContratLinks, contratLinks)}
+              onUpdateTransportLinks={setTransportLinks}
+              onUpdateDestLinks={setDestLinks}
+              onUpdateContenantLinks={setContenantLinks}
+              onUpdateNegociantLinks={setNegociantLinks}
+              onUpdateCourtierLinks={setCourtierLinks}
+              onUpdateCodeTreatmentLinks={setCodeTreatmentLinks}
+              onUpdateEcorganismeLinks={setEcoorganismeLinks}
+              onUpdateContratLinks={setContratLinks}
+              siteContactLinks={[]}
+              onSiteContactLink={() => {}}
+            />
+          </div>
         )}
-
-        {activeTab === 'contrats' && (
-          <>
-            {!showNewForm.contrat && (
-              <div className="flex justify-between items-end mb-4">
-                <p className="text-xl ml-2 font-semibold text-gray-800">Contrats</p>
-                <button
-                  onClick={() => setShowNewForm(prev => ({ ...prev, contrat: true }))}
-                  className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-                >
-                  + Nouveau
-                </button>
-              </div>
-            )}
-            {showNewForm.contrat ? (
-              <EntityForm
-                title="Nouveau contrat"
-                mainAttribute={contratAttributes.mainAttribute}
-                secondaryAttributes={contratAttributes.secondaryAttributes}
-                onSave={(data) => handleSave('Contrat', data)}
-              />
-            ) : (
-              renderEntityList(contrats, 'Contrat', 'nom')
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Carte des liens 
-      <div className="mt-8">
-        <LinkComponents
-          sites={sites}
-          transporteurs={transporteurs}
-          dechets={dechets}
-          destinataires={destinataires}
-          contenants={contenants}
-          negociants={negociants}
-          courtiers={courtiers}
-          ecoorganismes={ecoorganismes}
-          codeTreatments={codeTreatments}
-          contrats={contrats}
-          transportLinks={transportLinks}
-          destLinks={destLinks}
-          contenantLinks={contenantLinks}
-          negociantLinks={negociantLinks}
-          courtierLinks={courtierLinks}
-          codeTreatmentLinks={codeTreatmentLinks}
-          ecoorganismeLinks={ecoorganismeLinks}
-          contratLinks={contratLinks}
-          onTransportLink={(transportId, siteId, dechetId, isMailRecipient) => handleTransportLink(transportId, siteId, dechetId, isMailRecipient, setTransportLinks, transportLinks)}
-          onDestLink={(destId, siteId, dechetId, isMailRecipient) => handleDestLink(destId, siteId, dechetId, isMailRecipient, setDestLinks, destLinks)}
-          onContenantLink={(contenantId, siteId, dechetId) => handleContenantLink(contenantId, siteId, dechetId, setContenantLinks, contenantLinks)}
-          onNegociantLink={(negociantId, siteId, dechetId, isMailRecipient) => handleNegociantLink(negociantId, siteId, dechetId, isMailRecipient, setNegociantLinks, negociantLinks)}
-          onCourtierLink={(courtierId, siteId, dechetId, isMailRecipient) => handleCourtierLink(courtierId, siteId, dechetId, isMailRecipient, setCourtierLinks, courtierLinks)}
-          onCodeTreatmentLink={(codeTreatmentId, siteId, dechetId) => handleCodeTreatmentLink(codeTreatmentId, siteId, dechetId, setCodeTreatmentLinks, codeTreatmentLinks)}
-          onEcorganismeLink={(ecoorganismeId, siteId, dechetId, isMailRecipient) => handleEcorganismeLink(ecoorganismeId, siteId, dechetId, isMailRecipient, setEcoorganismeLinks, ecoorganismeLinks)}
-          onContratLink={(contratId, siteId, dechetId, isMailRecipient) => handleContratLink(contratId, siteId, dechetId, setContratLinks, contratLinks)}
-        />
       </div>
     </div>
   );
 };
 
 export default AutocompletionTab;
-*/

@@ -1,6 +1,6 @@
 /*import { useState, useCallback } from 'react';
 import { BaseLink, Site, Dechet, Transporteur, Destinataire, Contenant, Negociant, Courtier, CodeTreatment, Ecorganisme, Contrat } from '../types';
-import { handleLink, handleDeleteLink } from '../linkHandlers';
+import { handleLink, handleDeleteLink } from '../LinkHandlers';
 
 interface UseLinksProps {
   sites: Site[];

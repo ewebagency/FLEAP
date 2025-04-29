@@ -1,4 +1,3 @@
-/*
 import React, { useState } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
 
@@ -9,22 +8,14 @@ import {
   Dechet,
   Destinataire,
   Contenant,
-  ContactEmetteur,
   Negociant,
   Courtier,
   CodeTreatment,
   Ecorganisme,
   Contrat,
-  TransportLink,
-  DestLink,
-  NegociantLink,
-  CourtierLink,
-  ContenantLink,
-  SiteContactLink,
-  CodeTreatmentLink,
-  EcorganismeLink,
-  ContratLink
+  BaseLink
 } from './types';
+
 
 
 interface GroupedLink {
@@ -38,6 +29,7 @@ interface GroupedLink {
   codeTreatmentId?: string;
   ecoorganismeId?: string;
   contratId?: string;
+  mailRecipientType?: string;
 }
 
 
@@ -54,15 +46,15 @@ interface MultiLinkFormProps {
   contenants: Contenant[];
   codeTreatments: CodeTreatment[];
   ecoorganismes: Ecorganisme[];
-  contrat: Contrat[];
-  transportLinks: TransportLink[];
-  destLinks: DestLink[];
-  negociantLinks: NegociantLink[];
-  courtierLinks: CourtierLink[];
-  contenantLinks: ContenantLink[];
-  codeTreatmentLinks: CodeTreatmentLink[];
-  ecoorganismeLinks: EcorganismeLink[];
-  contratLinks: ContratLink[];
+  contrats: Contrat[];
+  transportLinks: BaseLink[];
+  destLinks: BaseLink[];
+  negociantLinks: BaseLink[];
+  courtierLinks: BaseLink[];
+  contenantLinks: BaseLink[];
+  codeTreatmentLinks: BaseLink[];
+  ecoorganismeLinks: BaseLink[];
+  contratLinks: BaseLink[];
   onTransportLink: (transportId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
   onDestLink: (destId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
   onNegociantLink: (negociantId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
@@ -71,24 +63,32 @@ interface MultiLinkFormProps {
   onCodeTreatmentLink: (codeTreatmentId: string, siteId: string, dechetId: string) => void;
   onEcorganismeLink: (ecoorganismeId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
   onContratLink: (contratId: string, siteId: string, dechetId: string) => void;
-  onUpdateTransportLinks: (links: TransportLink[]) => void;
-  onUpdateDestLinks: (links: DestLink[]) => void;
-  onUpdateContenantLinks: (links: ContenantLink[]) => void;
-  onUpdateNegociantLinks: (links: NegociantLink[]) => void;
-  onUpdateCourtierLinks: (links: CourtierLink[]) => void;
-  onUpdateCodeTreatmentLinks: (links: CodeTreatmentLink[]) => void;
-  onUpdateEcorganismeLinks: (links: EcorganismeLink[]) => void;
-  onUpdateContratLinks: (links: ContratLink[]) => void;
+  onUpdateTransportLinks: (links: BaseLink[]) => void;
+  onUpdateDestLinks: (links: BaseLink[]) => void;
+  onUpdateContenantLinks: (links: BaseLink[]) => void;
+  onUpdateNegociantLinks: (links: BaseLink[]) => void;
+  onUpdateCourtierLinks: (links: BaseLink[]) => void;
+  onUpdateCodeTreatmentLinks: (links: BaseLink[]) => void;
+  onUpdateEcorganismeLinks: (links: BaseLink[]) => void;
+  onUpdateContratLinks: (links: BaseLink[]) => void;
   onDeleteTransportLink: (transportId: string, siteId: string, dechetId: string) => void;
   onDeleteDestLink: (destId: string, siteId: string, dechetId: string) => void;
-  onDeleteContenantLink: (contenantId: string, siteId: string, dechetId: string) => void;
   onDeleteNegociantLink: (negociantId: string, siteId: string, dechetId: string) => void;
   onDeleteCourtierLink: (courtierId: string, siteId: string, dechetId: string) => void;
+  onDeleteContenantLink: (contenantId: string, siteId: string, dechetId: string) => void;
   onDeleteCodeTreatmentLink: (codeTreatmentId: string, siteId: string, dechetId: string) => void;
   onDeleteEcorganismeLink: (ecoorganismeId: string, siteId: string, dechetId: string) => void;
   onDeleteContratLink: (contratId: string, siteId: string, dechetId: string) => void;
 }
 
+const dic_mail_dest = {
+  'transporteur': "Transporteur",
+  'destinataire': "Destinataire",
+  'negociant': "Négociant",
+  'courtier': "Courtier",
+  'ecoorganisme': "Écoorganisme",
+  'contrat': "Contrat"
+} as const;
 
 // Formulaire html de création de lien entre site + déchet et entités qui va être utilisé dans le composant LinkComponents
 const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
@@ -118,14 +118,6 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
   onCodeTreatmentLink,
   onEcorganismeLink,
   onContratLink,
-  onUpdateTransportLinks,
-  onUpdateDestLinks,
-  onUpdateContenantLinks,
-  onUpdateNegociantLinks,
-  onUpdateCourtierLinks,
-  onUpdateCodeTreatmentLinks,
-  onUpdateEcorganismeLinks,
-  onUpdateContratLinks,
   onDeleteTransportLink,
   onDeleteDestLink,
   onDeleteNegociantLink,
@@ -134,6 +126,14 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
   onDeleteCodeTreatmentLink,
   onDeleteEcorganismeLink,
   onDeleteContratLink,
+  onUpdateTransportLinks,
+  onUpdateDestLinks,
+  onUpdateContenantLinks,
+  onUpdateNegociantLinks,
+  onUpdateCourtierLinks,
+  onUpdateCodeTreatmentLinks,
+  onUpdateEcorganismeLinks,
+  onUpdateContratLinks,
 }) => {
   const [selectedSite, setSelectedSite] = useState<string>('');
   const [selectedDechet, setSelectedDechet] = useState<string>('');
@@ -316,11 +316,12 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
     });
     
     
-    console.log('allcombinations',allCombinations.map(c => c.mailRecipientType));
+    //console.log('allcombinations',allCombinations.map(c => c.mailRecipientType));
     return allCombinations;
   };
 
   const handleEditLink = (link: GroupedLink) => {
+    //console.log('link',link);
     setEditingLink(link);
     setSelectedSite(link.site);
     setSelectedDechet(link.dechet);
@@ -333,139 +334,291 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
     setSelectedCodeTreatment(link.codeTreatmentId || '');
     setSelectedEcorganisme(link.ecoorganismeId || '');
     setSelectedContrat(link.contratId || '');
+    setSelectedMailRecipient(link.mailRecipientType || '');
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('=== DÉBUT DU PROCESSUS DE SAUVEGARDE ===');
+    console.log('1. Vérification du lien en édition:', editingLink);
+    
     if (editingLink) {
-      // Supprimer les anciens liens
-      if (editingLink.transporteurId) {
-        onDeleteTransportLink(editingLink.transporteurId, editingLink.site, editingLink.dechet);
-      }
-      if (editingLink.destinataireId) {
-        onDeleteDestLink(editingLink.destinataireId, editingLink.site, editingLink.dechet);
-      }
-      if (editingLink.contenantId) {
-        onDeleteContenantLink(editingLink.contenantId, editingLink.site, editingLink.dechet);
-      }
-      if (editingLink.negociantId) {
-        onDeleteNegociantLink(editingLink.negociantId, editingLink.site, editingLink.dechet);
-      }
-      if (editingLink.courtierId) {
-        onDeleteCourtierLink(editingLink.courtierId, editingLink.site, editingLink.dechet);
-      }
-      if (editingLink.codeTreatmentId) {
-        onDeleteCodeTreatmentLink(editingLink.codeTreatmentId, editingLink.site, editingLink.dechet);
-      }
-      if (editingLink.ecoorganismeId) {
-        onDeleteEcorganismeLink(editingLink.ecoorganismeId, editingLink.site, editingLink.dechet);
-      }
-      if (editingLink.contratId) {
-        onDeleteContratLink(editingLink.contratId, editingLink.site, editingLink.dechet);
-      }
+      try {
+        // Supprimer les anciens liens
+        if (editingLink.transporteurId) {
+          console.log('2. Suppression de l\'ancien lien transporteur:', {
+            transportId: editingLink.transporteurId,
+            siteId: editingLink.site,
+            dechetId: editingLink.dechet
+          });
+          await onDeleteTransportLink(editingLink.transporteurId, editingLink.site, editingLink.dechet);
+        }
+        if (editingLink.destinataireId) {
+          await onDeleteDestLink(editingLink.destinataireId, editingLink.site, editingLink.dechet);
+        }
+        if (editingLink.contenantId) {
+          await onDeleteContenantLink(editingLink.contenantId, editingLink.site, editingLink.dechet);
+        }
+        if (editingLink.negociantId) {
+          await onDeleteNegociantLink(editingLink.negociantId, editingLink.site, editingLink.dechet);
+        }
+        if (editingLink.courtierId) {
+          await onDeleteCourtierLink(editingLink.courtierId, editingLink.site, editingLink.dechet);
+        }
+        if (editingLink.codeTreatmentId) {
+          await onDeleteCodeTreatmentLink(editingLink.codeTreatmentId, editingLink.site, editingLink.dechet);
+        }
+        if (editingLink.ecoorganismeId) {
+          await onDeleteEcorganismeLink(editingLink.ecoorganismeId, editingLink.site, editingLink.dechet);
+        }
+        if (editingLink.contratId) {
+          await onDeleteContratLink(editingLink.contratId, editingLink.site, editingLink.dechet);
+        }
 
-      // Ajouter les nouveaux liens
-      if (selectedTransporteur) {
-        onTransportLink(selectedTransporteur, selectedSite, selectedDechet, selectedMailRecipient === 'transporteur');
-      }
-      if (selectedDestinataire) {
-        onDestLink(selectedDestinataire, selectedSite, selectedDechet, selectedMailRecipient === 'destinataire');
-      }
-      if (selectedContenant) {
-        onContenantLink(selectedContenant, selectedSite, selectedDechet);
-      }
-      if (selectedNegociant) {
-        onNegociantLink(selectedNegociant, selectedSite, selectedDechet, selectedMailRecipient === 'negociant');
-      }
-      if (selectedCourtier) {
-        onCourtierLink(selectedCourtier, selectedSite, selectedDechet, selectedMailRecipient === 'courtier');
-      }
-      if (selectedCodeTreatment) {
-        onCodeTreatmentLink(selectedCodeTreatment, selectedSite, selectedDechet);
-      }
-      if (selectedEcorganisme) {
-        onEcorganismeLink(selectedEcorganisme, selectedSite, selectedDechet, selectedMailRecipient === 'ecoorganisme');
-      }
-      if (selectedContrat) {
-        onContratLink(selectedContrat, selectedSite, selectedDechet);
-      }
+        // Attendre un court instant pour s'assurer que les suppressions sont terminées
+        await new Promise(resolve => setTimeout(resolve, 100));
 
-      setEditingLink(null);
-      setSelectedSite('');
-      setSelectedDechet('');
-      setSelectedTransporteur('');
-      setSelectedDestinataire('');
-      setSelectedContenant('');
-      setSelectedNegociant('');
-      setSelectedCourtier('');
-      setSelectedCodeTreatment('');
-      setSelectedEcorganisme('');
-      setSelectedContrat('');
+        // Ajouter les nouveaux liens
+        if (selectedTransporteur) {
+          console.log('3. Création du nouveau lien transporteur:', {
+            transportId: selectedTransporteur,
+            siteId: selectedSite,
+            dechetId: selectedDechet,
+            isMailRecipient: selectedMailRecipient === 'transporteur'
+          });
+          await onTransportLink(selectedTransporteur, selectedSite, selectedDechet, selectedMailRecipient === 'transporteur');
+        }
+        if (selectedDestinataire) {
+          await onDestLink(selectedDestinataire, selectedSite, selectedDechet, selectedMailRecipient === 'destinataire');
+        }
+        if (selectedContenant) {
+          await onContenantLink(selectedContenant, selectedSite, selectedDechet);
+        }
+        if (selectedNegociant) {
+          await onNegociantLink(selectedNegociant, selectedSite, selectedDechet, selectedMailRecipient === 'negociant');
+        }
+        if (selectedCourtier) {
+          await onCourtierLink(selectedCourtier, selectedSite, selectedDechet, selectedMailRecipient === 'courtier');
+        }
+        if (selectedCodeTreatment) {
+          await onCodeTreatmentLink(selectedCodeTreatment, selectedSite, selectedDechet);
+        }
+        if (selectedEcorganisme) {
+          await onEcorganismeLink(selectedEcorganisme, selectedSite, selectedDechet, selectedMailRecipient === 'ecoorganisme');
+        }
+        if (selectedContrat) {
+          await onContratLink(selectedContrat, selectedSite, selectedDechet);
+        }
+
+        // Attendre un court instant pour s'assurer que les créations sont terminées
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Mettre à jour l'état local des liens
+        const updatedLinks = getGroupedLinks().map(link => {
+          if (link.site === selectedSite && link.dechet === selectedDechet) {
+            return {
+              ...link,
+              transporteurId: selectedTransporteur || '',
+              destinataireId: selectedDestinataire || '',
+              contenantId: selectedContenant || '',
+              negociantId: selectedNegociant || '',
+              courtierId: selectedCourtier || '',
+              codeTreatmentId: selectedCodeTreatment || '',
+              ecoorganismeId: selectedEcorganisme || '',
+              contratId: selectedContrat || '',
+              mailRecipientType: selectedMailRecipient || ''
+            };
+          }
+          return link;
+        });
+
+        // Mettre à jour les états des liens de manière synchrone
+        const updatePromises = [
+          onUpdateTransportLinks(updatedLinks.filter(link => link.transporteurId).map(link => ({
+            id: link.transporteurId,
+            site: link.site,
+            dechet: link.dechet,
+            mail: link.mailRecipientType === 'transporteur'
+          }))),
+          onUpdateDestLinks(updatedLinks.filter(link => link.destinataireId).map(link => ({
+            id: link.destinataireId,
+            site: link.site,
+            dechet: link.dechet,
+            mail: link.mailRecipientType === 'destinataire'
+          }))),
+          onUpdateNegociantLinks(updatedLinks.filter(link => link.negociantId).map(link => ({
+            id: link.negociantId,
+            site: link.site,
+            dechet: link.dechet,
+            mail: link.mailRecipientType === 'negociant'
+          }))),
+          onUpdateCourtierLinks(updatedLinks.filter(link => link.courtierId).map(link => ({
+            id: link.courtierId,
+            site: link.site,
+            dechet: link.dechet,
+            mail: link.mailRecipientType === 'courtier'
+          }))),
+          onUpdateEcorganismeLinks(updatedLinks.filter(link => link.ecoorganismeId).map(link => ({
+            id: link.ecoorganismeId,
+            site: link.site,
+            dechet: link.dechet,
+            mail: link.mailRecipientType === 'ecoorganisme'
+          }))),
+          onUpdateContenantLinks(updatedLinks.filter(link => link.contenantId).map(link => ({
+            id: link.contenantId,
+            site: link.site,
+            dechet: link.dechet
+          }))),
+          onUpdateCodeTreatmentLinks(updatedLinks.filter(link => link.codeTreatmentId).map(link => ({
+            id: link.codeTreatmentId,
+            site: link.site,
+            dechet: link.dechet
+          }))),
+          onUpdateContratLinks(updatedLinks.filter(link => link.contratId).map(link => ({
+            id: link.contratId,
+            site: link.site,
+            dechet: link.dechet
+          })))
+        ];
+
+        await Promise.all(updatePromises);
+
+        console.log('4. Réinitialisation des états');
+        setEditingLink(null);
+        setSelectedSite('');
+        setSelectedDechet('');
+        setSelectedTransporteur('');
+        setSelectedDestinataire('');
+        setSelectedContenant('');
+        setSelectedNegociant('');
+        setSelectedCourtier('');
+        setSelectedCodeTreatment('');
+        setSelectedEcorganisme('');
+        setSelectedContrat('');
+        setSelectedMailRecipient('');
+        console.log('=== FIN DU PROCESSUS DE SAUVEGARDE ===');
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde:', error);
+      }
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedSite && selectedDechet) {
-      if (selectedTransporteur) {
-        onTransportLink(
-          selectedTransporteur, 
-          selectedSite, 
-          selectedDechet,
-          selectedMailRecipient === 'transporteur'
-        );
+      try {
+        // Ajouter les nouveaux liens
+        if (selectedTransporteur) {
+          await onTransportLink(selectedTransporteur, selectedSite, selectedDechet, selectedMailRecipient === 'transporteur');
+        }
+        if (selectedDestinataire) {
+          await onDestLink(selectedDestinataire, selectedSite, selectedDechet, selectedMailRecipient === 'destinataire');
+        }
+        if (selectedContenant) {
+          await onContenantLink(selectedContenant, selectedSite, selectedDechet);
+        }
+        if (selectedNegociant) {
+          await onNegociantLink(selectedNegociant, selectedSite, selectedDechet, selectedMailRecipient === 'negociant');
+        }
+        if (selectedCourtier) {
+          await onCourtierLink(selectedCourtier, selectedSite, selectedDechet, selectedMailRecipient === 'courtier');
+        }
+        if (selectedCodeTreatment) {
+          await onCodeTreatmentLink(selectedCodeTreatment, selectedSite, selectedDechet);
+        }
+        if (selectedEcorganisme) {
+          await onEcorganismeLink(selectedEcorganisme, selectedSite, selectedDechet, selectedMailRecipient === 'ecoorganisme');
+        }
+        if (selectedContrat) {
+          await onContratLink(selectedContrat, selectedSite, selectedDechet);
+        }
+
+        // Attendre un court instant pour s'assurer que les créations sont terminées
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Mettre à jour l'état local des liens
+        const updatedLinks = getGroupedLinks().map(link => {
+          if (link.site === selectedSite && link.dechet === selectedDechet) {
+            return {
+              ...link,
+              transporteurId: selectedTransporteur || '',
+              destinataireId: selectedDestinataire || '',
+              contenantId: selectedContenant || '',
+              negociantId: selectedNegociant || '',
+              courtierId: selectedCourtier || '',
+              codeTreatmentId: selectedCodeTreatment || '',
+              ecoorganismeId: selectedEcorganisme || '',
+              contratId: selectedContrat || '',
+              mailRecipientType: selectedMailRecipient || ''
+            };
+          }
+          return link;
+        });
+
+        // Mettre à jour les états des liens de manière synchrone
+        const updatePromises = [
+          onUpdateTransportLinks(updatedLinks.filter(link => link.transporteurId).map(link => ({
+            id: link.transporteurId,
+            site: link.site,
+            dechet: link.dechet,
+            mail: link.mailRecipientType === 'transporteur'
+          }))),
+          onUpdateDestLinks(updatedLinks.filter(link => link.destinataireId).map(link => ({
+            id: link.destinataireId,
+            site: link.site,
+            dechet: link.dechet,
+            mail: link.mailRecipientType === 'destinataire'
+          }))),
+          onUpdateNegociantLinks(updatedLinks.filter(link => link.negociantId).map(link => ({
+            id: link.negociantId,
+            site: link.site,
+            dechet: link.dechet,
+            mail: link.mailRecipientType === 'negociant'
+          }))),
+          onUpdateCourtierLinks(updatedLinks.filter(link => link.courtierId).map(link => ({
+            id: link.courtierId,
+            site: link.site,
+            dechet: link.dechet,
+            mail: link.mailRecipientType === 'courtier'
+          }))),
+          onUpdateEcorganismeLinks(updatedLinks.filter(link => link.ecoorganismeId).map(link => ({
+            id: link.ecoorganismeId,
+            site: link.site,
+            dechet: link.dechet,
+            mail: link.mailRecipientType === 'ecoorganisme'
+          }))),
+          onUpdateContenantLinks(updatedLinks.filter(link => link.contenantId).map(link => ({
+            id: link.contenantId,
+            site: link.site,
+            dechet: link.dechet
+          }))),
+          onUpdateCodeTreatmentLinks(updatedLinks.filter(link => link.codeTreatmentId).map(link => ({
+            id: link.codeTreatmentId,
+            site: link.site,
+            dechet: link.dechet
+          }))),
+          onUpdateContratLinks(updatedLinks.filter(link => link.contratId).map(link => ({
+            id: link.contratId,
+            site: link.site,
+            dechet: link.dechet
+          })))
+        ];
+
+        await Promise.all(updatePromises);
+
+        // Réinitialiser les sélections
+        setSelectedTransporteur('');
+        setSelectedDestinataire('');
+        setSelectedNegociant('');
+        setSelectedCourtier('');
+        setSelectedContenant('');
+        setSelectedCodeTreatment('');
+        setSelectedEcorganisme('');
+        setSelectedContrat('');
+        setSelectedMailRecipient('');
+      } catch (error) {
+        console.error('Erreur lors de la création des liens:', error);
       }
-      if (selectedDestinataire) {
-        onDestLink(
-          selectedDestinataire, 
-          selectedSite, 
-          selectedDechet,
-          selectedMailRecipient === 'destinataire'
-        );
-      }
-      if (selectedNegociant) {
-        onNegociantLink(
-          selectedNegociant, 
-          selectedSite, 
-          selectedDechet,
-          selectedMailRecipient === 'negociant'
-        );
-      }
-      if (selectedCourtier) {
-        onCourtierLink(
-          selectedCourtier, 
-          selectedSite, 
-          selectedDechet,
-          selectedMailRecipient === 'courtier'
-        );
-      }
-      if (selectedContenant) {
-        onContenantLink(selectedContenant, selectedSite, selectedDechet);
-      }
-      if (selectedCodeTreatment) {
-        onCodeTreatmentLink(selectedCodeTreatment, selectedSite, selectedDechet);
-      }
-      if (selectedEcorganisme) {
-        onEcorganismeLink(
-          selectedEcorganisme, 
-          selectedSite, 
-          selectedDechet,
-          selectedMailRecipient === 'ecoorganisme'
-        );
-      }
-      if (selectedContrat) {
-        onContratLink(selectedContrat, selectedSite, selectedDechet);
-      }
-      // Réinitialiser les sélections
-      setSelectedTransporteur('');
-      setSelectedDestinataire('');
-      setSelectedNegociant('');
-      setSelectedCourtier('');
-      setSelectedContenant('');
-      setSelectedCodeTreatment('');
-      setSelectedEcorganisme('');
-      setSelectedContrat('');
-      setSelectedMailRecipient('');
     }
   };
 
@@ -513,218 +666,235 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
     <div className="bg-white rounded-xl shadow-sm p-5">
       <h3 className="text-xl font-semibold text-gray-800 mb-4">Liens Site + Déchet</h3>
       <form onSubmit={editingLink ? handleSaveEdit : handleSubmit} className="space-y-4">
-        <div className="flex items-center justify-start gap-1">
-          <div className="w-30">
-            <select
-              value={selectedSite}
-              onChange={(e) => setSelectedSite(e.target.value)}
-              className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            >
-              <option value="">Site</option>
-              {sites.map((site) => (
-                <option key={site.id} value={site.id}>
-                  {site.nom}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <span className="text-gray-500 text-sm">+</span>
-          </div>
-
-          <div className="w-30">
-            <select
-              value={selectedDechet}
-              onChange={(e) => setSelectedDechet(e.target.value)}
-              className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            >
-              <option value="">Déchet</option>
-              {dechets.map((dechet) => (
-                <option key={dechet.id} value={dechet.id}>
-                  {dechet.nom}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-1 mx-1">
-            <span className="text-gray-500 text-sm">→</span>
-          </div>
-
-          <div className="grid grid-cols-4 gap-2">
-            <div className="w-30">
-              <select
-                value={selectedTransporteur}
-                onChange={(e) => setSelectedTransporteur(e.target.value)}
-                className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="">Transporteur</option>
-                {transporteurs.map((transporteur) => (
-                  <option key={transporteur.id} value={transporteur.id}>
-                    {transporteur.nomBoite}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="w-30">
-              <select
-                value={selectedDestinataire}
-                onChange={(e) => setSelectedDestinataire(e.target.value)}
-                className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="">Destinataire</option>
-                {destinataires.map((destinataire) => (
-                  <option key={destinataire.id} value={destinataire.id}>
-                    {destinataire.nomBoite}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="w-30">
-              <select
-                value={selectedContenant}
-                onChange={(e) => setSelectedContenant(e.target.value)}
-                className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="">Contenant</option>
-                {contenants.map((contenant) => (
-                  <option key={contenant.id} value={contenant.id}>
-                    {contenant.nom}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="w-30">
-              <select
-                value={selectedCodeTreatment}
-                onChange={(e) => setSelectedCodeTreatment(e.target.value)}
-                className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="">Code Traitement</option>
-                {(codeTreatments || []).map((codeTreatment) => (
-                  <option key={codeTreatment.id} value={codeTreatment.id}>
-                    {codeTreatment.nom}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {showAdvancedOptions && (
-              <>
-                <div className="w-30">
-                  <select
-                    value={selectedNegociant}
-                    onChange={(e) => setSelectedNegociant(e.target.value)}
-                    className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="">Négociant</option>
-                    {negociants.map((negociant) => (
-                      <option key={negociant.id} value={negociant.id}>
-                        {negociant.nomBoite}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="w-30">
-                  <select
-                    value={selectedCourtier}
-                    onChange={(e) => setSelectedCourtier(e.target.value)}
-                    className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="">Courtier</option>
-                    {courtiers.map((courtier) => (
-                      <option key={courtier.id} value={courtier.id}>
-                        {courtier.nomBoite}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="w-30">
-                  <select
-                    value={selectedEcorganisme}
-                    onChange={(e) => setSelectedEcorganisme(e.target.value)}
-                    className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="">Écoorganisme</option>
-                    {ecoorganismes.map((ecoorganisme) => {
-                      return (
-                        <option key={ecoorganisme.id} value={ecoorganisme.id}>
-                          {ecoorganisme.nomBoite}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                <div className="w-30">
-                  <select
-                    value={selectedContrat}
-                    onChange={(e) => setSelectedContrat(e.target.value)}
-                    className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="">Contrat</option>
-                    {contrats.map((contrat) => (
-                      <option key={contrat.id} value={contrat.id}>
-                        {contrat.nom}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="w-30">
-            <select
-              value={selectedMailRecipient}
-              onChange={(e) => setSelectedMailRecipient(e.target.value)}
-              className="w-full p-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            >
-              <option value="">Mail</option>
-              <option value="transporteur">Transporteur</option>
-              <option value="destinataire">Destinataire</option>
-              <option value="negociant">Négociant</option>
-              <option value="courtier">Courtier</option>
-              <option value="ecoorganisme">Écoorganisme</option>
-            </select>
-          </div>
-
-          <button
-            type="submit"
-            className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-          >
-            {editingLink ? 'Sauvegarder' : 'Lier'}
-          </button>
-        </div>
-
-        <div className="flex justify-end">
+        <div className="flex justify-end mb-4">
           <button
             type="button"
             onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-            className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+            className="text-sm font-medium text-gray-700 hover:text-gray-900 flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
             {showAdvancedOptions ? (
               <>
                 <span>Masquer options avancées</span>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                 </svg>
               </>
             ) : (
               <>
                 <span>Afficher options avancées</span>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </>
             )}
           </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-60">
+                  <div className="flex flex-col items-center gap-2">
+                    <span>Site + Déchet</span>
+                    <div className="flex gap-2 w-full">
+                      <select
+                        value={selectedSite}
+                        onChange={(e) => setSelectedSite(e.target.value)}
+                        className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                      >
+                        <option value="">Site</option>
+                        {sites.map((site) => (
+                          <option key={site.id} value={site.id}>
+                            {site.nom}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={selectedDechet}
+                        onChange={(e) => setSelectedDechet(e.target.value)}
+                        className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                      >
+                        <option value="">Déchet</option>
+                        {dechets.map((dechet) => (
+                          <option key={dechet.id} value={dechet.id}>
+                            {dechet.nom}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                  <div className="flex flex-col gap-2">
+                    <span>Transporteur</span>
+                    <select
+                      value={selectedTransporteur}
+                      onChange={(e) => setSelectedTransporteur(e.target.value)}
+                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                    >
+                      <option value="">Transporteur</option>
+                      {transporteurs.map((transporteur) => (
+                        <option key={transporteur.id} value={transporteur.id}>
+                          {transporteur.nomBoite}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                  <div className="flex flex-col gap-2">
+                    <span>Destinataire</span>
+                    <select
+                      value={selectedDestinataire}
+                      onChange={(e) => setSelectedDestinataire(e.target.value)}
+                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                    >
+                      <option value="">Destinataire</option>
+                      {destinataires.map((destinataire) => (
+                        <option key={destinataire.id} value={destinataire.id}>
+                          {destinataire.nomBoite}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                  <div className="flex flex-col gap-2">
+                    <span>Contenant</span>
+                    <select
+                      value={selectedContenant}
+                      onChange={(e) => setSelectedContenant(e.target.value)}
+                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                    >
+                      <option value="">Contenant</option>
+                      {contenants.map((contenant) => (
+                        <option key={contenant.id} value={contenant.id}>
+                          {contenant.nom}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                  <div className="flex flex-col gap-2">
+                    <span>Traitement</span>
+                    <select
+                      value={selectedCodeTreatment}
+                      onChange={(e) => setSelectedCodeTreatment(e.target.value)}
+                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                    >
+                      <option value="">Code Traitement</option>
+                      {(codeTreatments || []).map((codeTreatment) => (
+                        <option key={codeTreatment.id} value={codeTreatment.id}>
+                          {codeTreatment.nom}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                  <div className="flex flex-col gap-2">
+                    <span>Mail</span>
+                    <select
+                      value={selectedMailRecipient}
+                      onChange={(e) => setSelectedMailRecipient(e.target.value)}
+                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                    >
+                      <option value="">Mail</option>
+                      <option value="transporteur">Transporteur</option>
+                      <option value="destinataire">Destinataire</option>
+                      <option value="negociant">Négociant</option>
+                      <option value="courtier">Courtier</option>
+                      <option value="ecoorganisme">Écoorganisme</option>
+                    </select>
+                  </div>
+                </th>
+                {showAdvancedOptions && (
+                  <>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                      <div className="flex flex-col gap-2">
+                        <span>Négociant</span>
+                        <select
+                          value={selectedNegociant}
+                          onChange={(e) => setSelectedNegociant(e.target.value)}
+                          className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                        >
+                          <option value="">Négociant</option>
+                          {negociants.map((negociant) => (
+                            <option key={negociant.id} value={negociant.id}>
+                              {negociant.nomBoite}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                      <div className="flex flex-col gap-2">
+                        <span>Courtier</span>
+                        <select
+                          value={selectedCourtier}
+                          onChange={(e) => setSelectedCourtier(e.target.value)}
+                          className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                        >
+                          <option value="">Courtier</option>
+                          {courtiers.map((courtier) => (
+                            <option key={courtier.id} value={courtier.id}>
+                              {courtier.nomBoite}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                      <div className="flex flex-col gap-2">
+                        <span>Écoorganisme</span>
+                        <select
+                          value={selectedEcorganisme}
+                          onChange={(e) => setSelectedEcorganisme(e.target.value)}
+                          className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                        >
+                          <option value="">Écoorganisme</option>
+                          {ecoorganismes.map((ecoorganisme) => (
+                            <option key={ecoorganisme.id} value={ecoorganisme.id}>
+                              {ecoorganisme.nomBoite}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                      <div className="flex flex-col gap-2">
+                        <span>Contrat</span>
+                        <select
+                          value={selectedContrat}
+                          onChange={(e) => setSelectedContrat(e.target.value)}
+                          className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                        >
+                          <option value="">Contrat</option>
+                          {contrats.map((contrat) => (
+                            <option key={contrat.id} value={contrat.id}>
+                              {contrat.nom}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </th>
+                  </>
+                )}
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                  <div className="flex flex-col gap-2">
+                    <span>Actions</span>
+                    <button
+                      type="submit"
+                      className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                    >
+                      {editingLink ? 'Sauvegarder' : 'Lier'}
+                    </button>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+          </table>
         </div>
       </form>
 
@@ -734,14 +904,14 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div className="flex flex-col gap-2">
+                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <div className="flex flex-col items-center gap-2 w-60">
                     <span>Site + Déchet</span>
                     <div className="flex gap-2">
                       <select
                         value={siteFilter}
                         onChange={(e) => setSiteFilter(e.target.value)}
-                        className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
                       >
                         <option value="">Sites</option>
                         {sites.map((site) => (
@@ -753,7 +923,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                       <select
                         value={dechetFilter}
                         onChange={(e) => setDechetFilter(e.target.value)}
-                        className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
                       >
                         <option value="">Déchets</option>
                         {dechets.map((dechet) => (
@@ -771,7 +941,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                     <select
                       value={transporteurFilter}
                       onChange={(e) => setTransporteurFilter(e.target.value)}
-                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
                     >
                       <option value="">Transporteurs</option>
                       {transporteurs.map((transporteur) => (
@@ -788,7 +958,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                     <select
                       value={destinataireFilter}
                       onChange={(e) => setDestinataireFilter(e.target.value)}
-                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
                     >
                       <option value="">Destinataires</option>
                       {destinataires.map((destinataire) => (
@@ -805,7 +975,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                     <select
                       value={contenantFilter}
                       onChange={(e) => setContenantFilter(e.target.value)}
-                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
                     >
                       <option value="">Contenants</option>
                       {contenants.map((contenant) => (
@@ -816,6 +986,24 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                     </select>
                   </div>
                 </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <div className="flex flex-col gap-2">
+                    <span>Code Traitement</span>
+                    <select
+                      value={codeTreatmentFilter}
+                      onChange={(e) => setCodeTreatmentFilter(e.target.value)}
+                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                    >
+                      <option value="">Codes traitement</option>
+                      {codeTreatments.map((codeTreatment) => (
+                        <option key={codeTreatment.id} value={codeTreatment.nom}>
+                          {codeTreatment.nom}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mail</th>
                 {showAdvancedOptions && (
                   <>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -824,7 +1012,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                         <select
                           value={negociantFilter}
                           onChange={(e) => setNegociantFilter(e.target.value)}
-                          className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
                         >
                           <option value="">Négociants</option>
                           {negociants.map((negociant) => (
@@ -841,7 +1029,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                         <select
                           value={courtierFilter}
                           onChange={(e) => setCourtierFilter(e.target.value)}
-                          className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
                         >
                           <option value="">Courtiers</option>
                           {courtiers.map((courtier) => (
@@ -852,66 +1040,42 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                         </select>
                       </div>
                     </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <div className="flex flex-col gap-2">
+                        <span>Écoorganisme</span>
+                        <select
+                          value={ecoorganismeFilter}
+                          onChange={(e) => setEcoorganismeFilter(e.target.value)}
+                          className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                        >
+                          <option value="">Ecoorganismes</option>
+                          {ecoorganismes.map((ecoorganisme) => (
+                            <option key={ecoorganisme.id} value={ecoorganisme.nomBoite}>
+                              {ecoorganisme.nomBoite}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <div className="flex flex-col gap-2">
+                        <span>Contrat</span>
+                        <select
+                          value={contratFilter}
+                          onChange={(e) => setContratFilter(e.target.value)}
+                          className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent min-w-[120px]"
+                        >
+                          <option value="">Contrats</option>
+                          {contrats.map((contrat) => (
+                            <option key={contrat.id} value={contrat.nom}>
+                              {contrat.nom}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </th>
                   </>
                 )}
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div className="flex flex-col gap-2">
-                    <span>Code Traitement</span>
-                    <select
-                      value={codeTreatmentFilter}
-                      onChange={(e) => setCodeTreatmentFilter(e.target.value)}
-                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                      <option value="">Codes traitement</option>
-                      {codeTreatments.map((codeTreatment) => (
-                        <option key={codeTreatment.id} value={codeTreatment.nom}>
-                          {codeTreatment.nom}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </th>
-
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div className="flex flex-col gap-2">
-                    <span>Contrat</span>
-                    <select
-                      value={contratFilter}
-                      onChange={(e) => setContratFilter(e.target.value)}
-                      className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                      <option value="">Contrats</option>
-                      {contrats.map((contrat) => (
-                        <option key={contrat.id} value={contrat.nom}>
-                          {contrat.nom}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </th>
-
-
-                
-                {showAdvancedOptions && (
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex flex-col gap-2">
-                      <span>Écoorganisme</span>
-                      <select
-                        value={ecoorganismeFilter}
-                        onChange={(e) => setEcoorganismeFilter(e.target.value)}
-                        className="w-full p-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      >
-                        <option value="">Ecoorganismes</option>
-                        {ecoorganismes.map((ecoorganisme) => (
-                          <option key={ecoorganisme.id} value={ecoorganisme.nomBoite}>
-                            {ecoorganisme.nomBoite}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </th>
-                )}
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mail</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -927,18 +1091,10 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                 const codeTreatment = codeTreatments.find(ct => ct.id === link.codeTreatmentId);
                 const ecoorganisme = ecoorganismes.find(eo => eo.id === link.ecoorganismeId);
                 const contrat = contrats.find(c => c.id === link.contratId);
-                const dic_mail_dest = {
-                  'transporteur': "Transporteur",
-                  'destinataire': "Destinataire",
-                  'negociant': "Négociant",
-                  'courtier': "Courtier",
-                  'ecoorganisme': "Écoorganisme",
-                  'contrat': "Contrat"
-                }
 
                 return (
                   <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">
                       {site?.nom} + {dechet?.nom}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -950,6 +1106,12 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {contenant?.nom || '-'}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {codeTreatment?.nom || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {link.mailRecipientType ? dic_mail_dest[link.mailRecipientType as keyof typeof dic_mail_dest] : '-'}
+                    </td>
                     {showAdvancedOptions && (
                       <>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -958,22 +1120,14 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {courtier?.nomBoite || '-'}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {ecoorganisme?.nomBoite || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {contrat?.nom || '-'}
+                        </td>
                       </>
                     )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {codeTreatment?.nom || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {contrat?.nom || '-'}
-                    </td>
-                    {showAdvancedOptions && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {ecoorganisme?.nomBoite || '-'}
-                      </td>
-                    )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {dic_mail_dest[link.mailRecipientType as keyof typeof dic_mail_dest] || '-'}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
                         onClick={() => handleEditLink(link)}
@@ -1005,17 +1159,17 @@ interface LinkComponentsProps {
   negociants: Negociant[];
   courtiers: Courtier[];
   codeTreatments: CodeTreatment[];
-  ecoorganismes: Ecorganisme[];
   contrats: Contrat[];
-  transportLinks: TransportLink[];
-  destLinks: DestLink[];
-  contenantLinks: ContenantLink[];
-  siteContactLinks: SiteContactLink[];
-  negociantLinks: NegociantLink[];
-  courtierLinks: CourtierLink[];
-  codeTreatmentLinks: CodeTreatmentLink[];
-  ecoorganismeLinks: EcorganismeLink[];
-  contratLinks: ContratLink[];
+  ecoorganismes: Ecorganisme[];
+  transportLinks: BaseLink[];
+  destLinks: BaseLink[];
+  contenantLinks: BaseLink[];
+  siteContactLinks: BaseLink[];
+  negociantLinks: BaseLink[];
+  courtierLinks: BaseLink[];
+  codeTreatmentLinks: BaseLink[];
+  ecoorganismeLinks: BaseLink[];
+  contratLinks: BaseLink[];
   onTransportLink: (transportId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
   onDestLink: (destId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
   onContenantLink: (contenantId: string, siteId: string, dechetId: string) => void;
@@ -1025,14 +1179,14 @@ interface LinkComponentsProps {
   onCodeTreatmentLink: (codeTreatmentId: string, siteId: string, dechetId: string) => void;
   onEcorganismeLink: (ecoorganismeId: string, siteId: string, dechetId: string, isMailRecipient: boolean) => void;
   onContratLink: (contratId: string, siteId: string, dechetId: string) => void;
-  onUpdateTransportLinks: (links: TransportLink[]) => void;
-  onUpdateDestLinks: (links: DestLink[]) => void;
-  onUpdateContenantLinks: (links: ContenantLink[]) => void;
-  onUpdateNegociantLinks: (links: NegociantLink[]) => void;
-  onUpdateCourtierLinks: (links: CourtierLink[]) => void;
-  onUpdateCodeTreatmentLinks: (links: CodeTreatmentLink[]) => void;
-  onUpdateEcorganismeLinks: (links: EcorganismeLink[]) => void;
-  onUpdateContratLinks: (links: ContratLink[]) => void;
+  onUpdateTransportLinks: (links: BaseLink[]) => void;
+  onUpdateDestLinks: (links: BaseLink[]) => void;
+  onUpdateContenantLinks: (links: BaseLink[]) => void;
+  onUpdateNegociantLinks: (links: BaseLink[]) => void;
+  onUpdateCourtierLinks: (links: BaseLink[]) => void;
+  onUpdateCodeTreatmentLinks: (links: BaseLink[]) => void;
+  onUpdateEcorganismeLinks: (links: BaseLink[]) => void;
+  onUpdateContratLinks: (links: BaseLink[]) => void;
 }
 
 const LinkComponents: React.FC<LinkComponentsProps> = ({
@@ -1050,7 +1204,6 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
   transportLinks,
   destLinks,
   contenantLinks,
-  siteContactLinks,
   negociantLinks,
   courtierLinks,
   codeTreatmentLinks,
@@ -1059,7 +1212,6 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
   onTransportLink,
   onDestLink,
   onContenantLink,
-  onSiteContactLink,
   onNegociantLink,
   onCourtierLink,
   onCodeTreatmentLink,
@@ -1089,7 +1241,7 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
 
       const existingLinks = existingRecord?.transport_link || [];
       const updatedLinks = existingLinks.filter(
-        (link: { site: string; dechet: string }) => !(link.site === siteId && link.dechet === dechetId)
+        (link: { site: string; dechet: string, mail?:boolean}) => !(link.site === siteId && link.dechet === dechetId)
       );
 
       const { error: updateError } = await supabase
@@ -1408,10 +1560,8 @@ const LinkComponents: React.FC<LinkComponentsProps> = ({
         onDeleteEcorganismeLink={handleDeleteEcorganismeLink}
         onDeleteContratLink={handleDeleteContratLink}
       />
-
-
     </div>
   );
 };
 
-export default LinkComponents;*/
+export default LinkComponents;

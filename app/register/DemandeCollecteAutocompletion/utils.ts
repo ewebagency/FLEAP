@@ -3,6 +3,24 @@ import { AutocompletionData, RawAutocompletionData, AutocompletionLinks, Selecte
 import { CommonBSD } from "@/app/register/FiltreFunctionnal";
 import { getFiliere, getMappingTableFiliere, parseAddress } from "../RegisterComponents/Modal/FormulaireFull/utils_new";
 
+export const TYPES_PRESTATION = {
+  ENLEVEMENT_AVEC_DEPOT: 'enlevement_avec_depot',
+  ENLEVEMENT_SANS_DEPOT: 'enlevement_sans_depot',
+  DEPOT_UNIQUEMENT: 'depot_uniquement',
+  CAMION_DEMIE: 'camion_demie',
+  CAMION_JOURNEE: 'camion_journee',
+  CAMION_TOURNEE: 'camion_tournee'
+} as const;
+
+export const TYPES_PRESTATION_LABELS = {
+  [TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT]: 'Enlèvement avec dépot de contenant',
+  [TYPES_PRESTATION.ENLEVEMENT_SANS_DEPOT]: 'Enlèvement sans dépot de contenant',
+  [TYPES_PRESTATION.DEPOT_UNIQUEMENT]: 'Demande de dépôt de contenant',
+  //[TYPES_PRESTATION.CAMION_DEMIE]: 'Camion à la demi-journée',
+  //[TYPES_PRESTATION.CAMION_JOURNEE]: 'Camion à la journée',
+  //[TYPES_PRESTATION.CAMION_TOURNEE]: 'Tours de camion'
+} as const;
+
 export const fetchAutocompletionData = async (entreprise_id: number): Promise<AutocompletionData> => {
   const { data, error } = await supabase
     .from('table_autocompletion')
@@ -17,7 +35,6 @@ export const fetchAutocompletionData = async (entreprise_id: number): Promise<Au
     destinataires: [],
     dechets: [],
     contenants: [],
-    contacts: [],
     negociants: [],
     courtiers: [],
     ecoorganismes: [],
@@ -56,12 +73,6 @@ export const fetchAutocompletionData = async (entreprise_id: number): Promise<Au
       result.contenants.push({
         table_id: item.id,
         value: item.contenant
-      });
-    }
-    if (item.contact_emetteur) {
-      result.contacts.push({
-        table_id: item.id,
-        value: item.contact_emetteur
       });
     }
     if (item.negociant) {
@@ -114,7 +125,6 @@ export const fetchAutocompletionLinks = async (entreprise_id: number): Promise<A
     destinataireLinks: [],
     contenantLinks: [],
     codeTraitementLinks: [],
-    contactLinks: [],
     negociantLinks: [],
     courtierLinks: [],
     ecoorganismeLinks: [],
@@ -146,12 +156,6 @@ export const fetchAutocompletionLinks = async (entreprise_id: number): Promise<A
       result.codeTraitementLinks.push({
         table_id: item.id,
         code_traitement_link: item.code_traitement_link
-      });
-    }
-    if (item.contact_link && item.contact_link.length > 0) {
-      result.contactLinks.push({
-        table_id: item.id,
-        contact_link: item.contact_link
       });
     }
     if (item.negociant_link && item.negociant_link.length > 0) {
@@ -350,32 +354,15 @@ export const checkAutocompletion = (
   }
 
   // Vérifier si site
-  if (selectedFields.site) {
-    
-    const site_table_id = selectedFields.site!.table_id;
-    const contact_linked = links.contactLinks.filter(link => {
-      return link.contact_link.some(item => item.site === site_table_id.toString());
-    });
-
-    if (contact_linked.length > 0) {
-      
-      // Trouver tous les contacts correspondants
-      const contacts = allOptions.contacts.filter(option => 
-        contact_linked.some(link => 
-          link.contact_link.some(item => item.contact === option.table_id.toString())
-        )
-      );
-      
-
-      if (contacts.length > 0) {
-        result.contactEmetteur = contacts;
-      }
-    }
+  if (selectedFields.site) { 
 
   if(result.site?.value.pointsCollecte.length==1){
     result.pointCollecte = result.site?.value.pointsCollecte[0];
   }
   
+  if(result.site?.value.contacts && result.site?.value.contacts.length>0){
+    result.contactEmetteur = result.site?.value.contacts;
+  }
   
   }
 
@@ -411,7 +398,7 @@ export const aggregateByMailRecipient = (selectedFieldsList: SelectedFields[]): 
   selectedFieldsList.forEach((line) => {
     let recipientEmail = '';
     const recipientType = line.destinataireMail || 'transporteur';
-    const typePrestation = line.typePrestation || '';
+    const typePrestation = line.typePrestation || TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT;
     let recipientNom = '';
 
     const getEmailFromValue = (value: ValueType | undefined): string => {
@@ -479,8 +466,8 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
   if (!entreprise_id) throw new Error('Entreprise non trouvée');
   const ced_table = await getMappingTableFiliere(entreprise_id);
   try {
-    // Filtrer les lignes pour exclure le type 'livraison'
-    const filteredLines = selectedFieldsList.filter(line => line.typePrestation !== 'livraison');
+    // Filtrer les lignes pour exclure le type 'depot uniquement'
+    const filteredLines = selectedFieldsList.filter(line => line.typePrestation !== TYPES_PRESTATION.DEPOT_UNIQUEMENT);
     
     const linesToCreate = filteredLines.map(line => {
       let recipientEmail = '';
@@ -526,9 +513,9 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
                   name: line.site?.value?.nom || '',
                   siret: line.site?.value?.siret || '',
                   address: line.site?.value?.adresseSiege || '',
-                  contact: line.contactEmetteur?.[0]?.value?.prenomNom || '',
-                  phone: line.contactEmetteur?.[0]?.value?.telephone || '',
-                  mail: line.contactEmetteur?.[0]?.value?.email || '',
+                  contact: line.contactEmetteur?.[0]?.nom || '',
+                  phone: line.contactEmetteur?.[0]?.telephone || '',
+                  mail: line.contactEmetteur?.[0]?.email || '',
                   country: ''
                 },
                 workSite: {
@@ -577,6 +564,7 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
                 isDangerous: false,
                 pop: false,
                 quantity: 0,
+                onuCode: line.dechet?.value?.onu || '',
                 quantityType: "ESTIMATED",
                 packagingInfos: [{
                   type: line.contenant?.value?.nom || "AUTRE",
@@ -595,7 +583,7 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
           filiere: getFiliere(line.dechet?.value?.codeCED || '', ced_table),
           recipientEmail: recipientEmail,
           entreprise_name: entreprise_name,
-          typePrestation: line.typePrestation || 'enlevement',
+          typePrestation: line.typePrestation || TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT,
           ecoorganisme: line.ecoorganisme?.value?.nomBoite || '',
           contrat: line.contrat?.value?.nom || '',
           num_client: line.contrat?.value?.num_client || ''

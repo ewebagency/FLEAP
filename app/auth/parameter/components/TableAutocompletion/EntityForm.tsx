@@ -1,4 +1,4 @@
-/*'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 
@@ -179,7 +179,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalData = {
+    const finalData: Record<string, unknown> = {
       ...formData,
       contacts: contacts,
     };
@@ -479,7 +479,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
     <div className="bg-white rounded-xl shadow-sm p-5">
       <h3 className="text-xl font-semibold text-gray-800 mb-4">{title}</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Main attribute 
+        {/* Main attribute */}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-gray-700">
             {mainAttribute.label}
@@ -495,7 +495,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
           />
         </div>
 
-        {/* Secondary attributes 
+        {/* Secondary attributes */}
         {secondaryAttributes.map((attr) => {
           if (attr.type === 'collectionPoint') {
             return (
@@ -721,4 +721,4 @@ const EntityForm: React.FC<EntityFormProps> = ({
   );
 };
 
-export default EntityForm;*/
+export default EntityForm;

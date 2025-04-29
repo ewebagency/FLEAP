@@ -39,7 +39,7 @@ const MailsPartComponent = forwardRef<MailsPartComponentRef, MailsPartComponentP
         const firstLine = recipient.lignes[0];
         const site = firstLine.site?.value;
         const pointCollecte = firstLine.pointCollecte;
-        const contactEmetteur = firstLine.contactEmetteur?.[0]?.value;
+        const contactEmetteur = firstLine.contactEmetteur?.[0];
         const num_client = firstLine.contrat?.value?.num_client;
 
         // Debug logs pour chaque destinataire
@@ -68,7 +68,7 @@ const MailsPartComponent = forwardRef<MailsPartComponentRef, MailsPartComponentP
         const params = {
           emitter: {
             name: site?.nom || '',
-            contact: contactEmetteur?.prenomNom || '',
+            contact: contactEmetteur?.nom || '',
             phone: contactEmetteur?.telephone || '',
             email: user_email || '',
             address: site?.adresseSiege || '',
@@ -84,24 +84,28 @@ const MailsPartComponent = forwardRef<MailsPartComponentRef, MailsPartComponentP
           adminEmail: user_email || '',
           destinataire: recipient.destinataire.email,
           ccList: recipient.lignes[0]?.contactEmetteur
-            ?.map(c => c.value?.email)
+            ?.map(c => c.email)
             ?.filter((email): email is string => email !== undefined && email !== '') || [],
           respoTerrain: {
             email: recipient.lignes[0]?.contactEmetteur
-              ?.find(c => c.value?.respoTerrain === true)
-              ?.value?.email || '',
-            prenomNom: recipient.lignes[0]?.contactEmetteur
-              ?.find(c => c.value?.respoTerrain === true)
-              ?.value?.prenomNom || '',
+              ?.find(c => c.respoTerrain === true)
+              ?.email || '',
+            nom: recipient.lignes[0]?.contactEmetteur
+              ?.find(c => c.respoTerrain === true)
+              ?.nom || '',
             telephone: recipient.lignes[0]?.contactEmetteur
-              ?.find(c => c.value?.respoTerrain === true)
-              ?.value?.telephone || ''
+              ?.find(c => c.respoTerrain === true)
+              ?.telephone || ''
           },
           mention: {
-            toMentionned: false,
-            mentionType: 'recipient',
-            mentionCompany: '',
-            mentionAddress: ''
+            toMentionned: firstLine.mention?.toMentionned || false,
+            mentionType: firstLine.mention?.mentionType || 'recipient',
+            mentionCompany: firstLine.destinataireMail === 'transporteur' 
+              ? firstLine.destinataire?.value?.nomBoite || ''
+              : firstLine.transporteur?.value?.nomBoite || '',
+            mentionAddress: firstLine.destinataireMail === 'transporteur'
+              ? firstLine.destinataire?.value?.adresse || ''
+              : firstLine.transporteur?.value?.adresse || ''
           },
           entrepriseId: entreprise_id || '',
           entrepriseName: entreprise_name || '',

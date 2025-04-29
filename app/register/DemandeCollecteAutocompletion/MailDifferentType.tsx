@@ -3,6 +3,7 @@ import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useMailContext } from '../MailComponents/MailContext';
 import { getMappingTableFiliere, getFiliere } from '../RegisterComponents/Modal/FormulaireFull/utils_new';
+import { TYPES_PRESTATION } from './utils';
 
 interface EmailTemplate {
     name: string;
@@ -29,7 +30,7 @@ interface EmailParams {
     adminEmail: string;
     destinataire: string;
     ccList: string[];
-    respoTerrain: {email: string, prenomNom: string, telephone: string };
+    respoTerrain: {email: string, nom: string, telephone: string };
     mention: {
         toMentionned: boolean;
         mentionType: string;
@@ -85,13 +86,13 @@ const emailTemplate: EmailTemplate = {
 
         // Fonction pour formater la date
         const formatDate = (date: string) => {
-            return date === 'Dès que possible' ? 'Dès que possible' : 'le ' + `${date.split('-')[2]}/${date.split('-')[1]}/${date.split('-')[0]}`;
+            return date === 'Dès que possible' ? 'dès que possible' : 'pour le ' + `${date.split('-')[2]}/${date.split('-')[1]}/${date.split('-')[0]}`;
         };
 
         // Fonction pour générer le corps du mail selon le type de prestation
         const getMailBodyByPrestationType = (prestationType: string) => {
             switch (prestationType) {
-                case 'enlevement':
+                case TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT:
                     return `Bonjour,
 Je souhaite organiser des collectes de déchets.
 Client : ${params.entrepriseName}
@@ -100,7 +101,7 @@ Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
 ${Object.entries(wastesByDate).map(([date, lines]) => `
-Prestation d'enlèvement de déchet pour : ${formatDate(date)}
+Prestation d'enlèvement de déchet avec dépot de contenant ${formatDate(date)}
 ${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
@@ -109,9 +110,30 @@ ${params.mention.toMentionned ? (
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.
-Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
 
-                case 'camion_journee':
+                case TYPES_PRESTATION.ENLEVEMENT_SANS_DEPOT:
+                    return `Bonjour,
+Je souhaite organiser des collectes de déchets.
+Client : ${params.entrepriseName}
+${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
+Site : ${params.emitter.workSite.name}
+Adresse : ${collectAddress}
+
+${Object.entries(wastesByDate).map(([date, lines]) => `
+Prestation d'enlèvement de déchet sans dépot de contenant ${formatDate(date)}
+${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
+
+${params.mention.toMentionned ? (
+params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+                                : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
+) : ''}
+Merci de confirmer la prise en charge de ces demandes en répondant à tous.
+Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+
+
+                case TYPES_PRESTATION.CAMION_JOURNEE:
                     return `Bonjour,
 Je souhaite réserver un camion pour la journée.
 Client : ${params.entrepriseName}
@@ -120,17 +142,19 @@ Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
 ${Object.entries(wastesByDate).map(([date, lines]) => `
-Prestation de camion à la journée pour : ${formatDate(date)}
-${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}`).join('\n')}`).join('\n')}
+Prestation de camion à la journée ${formatDate(date)}
+${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
+
 
 ${params.mention.toMentionned ? (
     params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la disponibilité du camion pour la journée en répondant à tous.
-Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
 
-                case 'camion_demie':
+                case TYPES_PRESTATION.CAMION_DEMIE:
                     return `Bonjour,
 Je souhaite réserver un camion pour la demi-journée.
 Client : ${params.entrepriseName}
@@ -139,17 +163,18 @@ Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
 ${Object.entries(wastesByDate).map(([date, lines]) => `
-Prestation de camion à la demi-journée pour : ${formatDate(date)}
-${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}`).join('\n')}`).join('\n')}
+Prestation de camion à la demi-journée ${formatDate(date)}
+${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
     params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la disponibilité du camion pour la demi-journée en répondant à tous.
-Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
 
-                case 'livraison':
+                case TYPES_PRESTATION.DEPOT_UNIQUEMENT:
                     return `Bonjour,
 Je souhaite commander des contenants vides.
 Client : ${params.entrepriseName}
@@ -158,15 +183,37 @@ Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
 ${Object.entries(wastesByDate).map(([date, lines]) => `
-Prestation de livraison de contenants pour : ${formatDate(date)}
-${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}`).join('\n')}`).join('\n')}
+Prestation de livraison de contenants ${formatDate(date)}
+${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
     params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
                                                 : `Le transporteur qui livrera les contenants sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.
-Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+
+                case TYPES_PRESTATION.CAMION_TOURNEE:
+                    return `Bonjour,
+Je souhaite réserver un camion pour une tournée.
+Client : ${params.entrepriseName}
+${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
+Site : ${params.emitter.workSite.name}
+Adresse : ${collectAddress}
+
+${Object.entries(wastesByDate).map(([date, lines]) => `
+Prestation de camion pour une tournée ${formatDate(date)}
+${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
+
+${params.mention.toMentionned ? (
+params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+                                : `Le transporteur qui livrera les contenants sera ${params.mention.mentionCompany}`
+) : ''}
+Merci de confirmer la prise en charge de ces demandes en répondant à tous.
+Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+
 
                 default:
                     return `Bonjour,
@@ -177,9 +224,8 @@ Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
 ${Object.entries(wastesByDate).map(([date, lines]) => `
-Prestation pour : ${formatDate(date)}
+Prestation ${formatDate(date)}
 ${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
-Type de prestation : ${line.prestationType}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
@@ -187,12 +233,12 @@ ${params.mention.toMentionned ? (
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.
-Votre contact sur le terrain si besoin : ${params.respoTerrain.prenomNom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
             }
         };
 
         // Utiliser le type de prestation de la première ligne pour déterminer le format du mail
-        const prestationType = params.wasteLines[0]?.prestationType || 'enlevement';
+        const prestationType = params.wasteLines[0]?.prestationType || TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT;
         const mailBody = getMailBodyByPrestationType(prestationType);
 
         return `${mailBody}

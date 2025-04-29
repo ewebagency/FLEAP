@@ -1192,15 +1192,16 @@ const TableBSD = () => {
                                                     {bsd.status_track_dechets === "Ligne demandée" && (
                                                         <button 
                                                             className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-red-50 hover:text-red-600 text-left"
-                                                            onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleCancelCollecte(bsd).then(() => {
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                const result = await handleCancelCollecte(bsd);
+                                                                if (result) {
                                                                         setModalReload(!modalReload);
                                                                         invalidateCache();
                                                                         setAllBSDs(prev => prev.filter(prevBsd => prevBsd.id !== bsd.id));
                                                                         setAllFilteredBSDs(prev => prev.filter(prevBsd => prevBsd.id !== bsd.id));
                                                                         setDisplayedBSDs(prev => prev.filter(prevBsd => prevBsd.id !== bsd.id));
-                                                                    });
+                                                                    }
                                                             }}
                                                         >
                                                             Annuler la collecte

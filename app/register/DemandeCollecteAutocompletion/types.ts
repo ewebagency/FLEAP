@@ -1,20 +1,28 @@
-interface PointCollecteInterface {
+export interface PointCollecteInterface {
   id: string;
   nom: string;
   adresse: string;
 }
 
-interface SiteInterface {
+export interface ContactInterface {
+  nom: string;
+  email: string;
+  telephone: string;
+  respoTerrain: boolean;
+}
+
+export interface SiteInterface {
   table_id: number;
   value: {
     nom: string;
     siret: string;
     adresseSiege: string;
     pointsCollecte: PointCollecteInterface[];
+    contacts: ContactInterface[];
   }
 }
 
-interface TransporteurInterface {
+export interface TransporteurInterface {
   table_id: number;
   value: {
       nomBoite?: string;
@@ -28,7 +36,7 @@ interface TransporteurInterface {
   }
 }
 
-interface DestinataireInterface {
+export interface DestinataireInterface {
   table_id: number;
   value: {
     nomBoite?: string;
@@ -42,7 +50,7 @@ interface DestinataireInterface {
   }
 }
 
-interface DechetInterface {
+export interface DechetInterface {
   table_id: number;
   value: {
     nom: string;
@@ -52,7 +60,7 @@ interface DechetInterface {
   }
 }
 
-interface ContenantInterface {
+export interface ContenantInterface {
   table_id: number;
   value: {
     nom: string;
@@ -61,17 +69,8 @@ interface ContenantInterface {
   }
 }
 
-interface ContactInterface {
-  table_id: number;
-  value: {
-    prenomNom?: string;
-    email?: string;
-    telephone?: string;
-    respoTerrain?: boolean;
-  }
-}
 
-interface NegociantInterface {
+export interface NegociantInterface {
   table_id: number;
   value: {
     nomBoite?: string;
@@ -85,7 +84,7 @@ interface NegociantInterface {
   }
 }
 
-interface CourtierInterface {
+export interface CourtierInterface {
   table_id: number;
   value: {
     nomBoite?: string;
@@ -99,7 +98,7 @@ interface CourtierInterface {
   }
 } 
 
-interface EcorganismeInterface {
+export interface EcorganismeInterface {
   table_id: number;
   value: {
     nomBoite?: string;
@@ -113,7 +112,7 @@ interface EcorganismeInterface {
   }
 } 
 
-interface CodeTraitementInterface {
+export interface CodeTraitementInterface {
   table_id: number;
   value: {
     nom: string;
@@ -121,7 +120,7 @@ interface CodeTraitementInterface {
   }
 }
 
-interface ContratInterface {
+export interface ContratInterface {
   table_id: number;
   value: {
     nom: string;
@@ -159,11 +158,11 @@ export interface SelectedFields {
   destinataireMail: string;
   typePrestation: string;
   showNegociant: boolean;
+  mention: { toMentionned: boolean; mentionType: string; mentionCompany: string; mentionAddress: string } | null;
 }
 
 export interface AutocompletionData {
   sites: SiteInterface[];
-  contacts: ContactInterface[];
   transporteurs: TransporteurInterface[];
   destinataires: DestinataireInterface[];
   dechets: DechetInterface[];
@@ -209,14 +208,6 @@ interface CodeTraitementLinkInterface {
   }[];
 }
 
-interface ContactLinkInterface {
-  table_id: number;
-  contact_link: {
-    site: string; //inutile il faudrait l'enlever pour que ce soit cohérent avec le reste
-    contact: string;
-  }[];
-}
-
 interface NegociantLinkInterface {
   table_id: number;
   negociant_link: {
@@ -257,7 +248,6 @@ export interface AutocompletionLinks {
   destinataireLinks: DestinataireLinkInterface[];
   contenantLinks: ContenantLinkInterface[];
   codeTraitementLinks: CodeTraitementLinkInterface[];
-  contactLinks: ContactLinkInterface[];
   negociantLinks: NegociantLinkInterface[];
   courtierLinks: CourtierLinkInterface[];
   ecoorganismeLinks: EcorganismeLinkInterface[];
@@ -278,12 +268,10 @@ export interface RawAutocompletionData {
   eco_organisme: EcorganismeInterface["value"] | null;
   code_traitement: CodeTraitementInterface["value"] | null;
   contrat: ContratInterface["value"] | null;
-  contact_emetteur: ContactInterface["value"] | null;
   transport_link: TransportLinkInterface["transport_link"] | null;
   dest_link: DestinataireLinkInterface["dest_link"] | null;
   contenant_link: ContenantLinkInterface["contenant_link"] | null;
   code_traitement_link: CodeTraitementLinkInterface["code_traitement_link"] | null;
-  contact_link: ContactLinkInterface["contact_link"] | null;
   negociant_link: NegociantLinkInterface["negociant_link"] | null;
   courtier_link: CourtierLinkInterface["courtier_link"] | null;
   eco_organisme_link: EcorganismeLinkInterface["eco_organisme_link"] | null;

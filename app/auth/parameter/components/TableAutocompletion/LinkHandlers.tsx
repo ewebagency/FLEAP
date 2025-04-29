@@ -1,399 +1,130 @@
-/*import {supabase} from '@/app/database/supabaseClient';
+import {supabase} from '@/app/database/supabaseClient';
 import { 
-  TransportLink, 
-  DestLink, 
-  ContenantLink, 
-  NegociantLink, 
-  CourtierLink, 
-  CodeTreatmentLink, 
-  EcorganismeLink,
-  ContratLink
+  BaseLink
 } from './types';
 
+// Fonction utilitaire pour unifier les objets de liens
+const unifyLinkObjects = (existingLinks: BaseLink[], newLink: BaseLink) => {
+  // Créer un Map avec une clé unique pour chaque lien
+  const uniqueLinks = new Map();
+  
+  // Ajouter d'abord tous les liens existants
+  existingLinks.forEach(link => {
+    const key = `${link.site}-${link.dechet}`;
+    uniqueLinks.set(key, link);
+  });
+  
+  // Ajouter ou remplacer par le nouveau lien
+  const newKey = `${newLink.site}-${newLink.dechet}`;
+  uniqueLinks.set(newKey, newLink);
+  
+  // Convertir le Map en tableau
+  return Array.from(uniqueLinks.values());
+};
 
-//--------------------------------handleDelete--------------------------------
-export const handleDeleteTransportLink = async (
-  transportId: string, 
+// Fonction générique pour gérer les liens (création/mise à jour)
+export const handleGenericLink = async (
+  itemId: string,
   siteId: string, 
   dechetId: string,
-  onUpdateTransportLinks: (links: TransportLink[]) => void,
-  transportLinks: TransportLink[]
+  isMailRecipient: boolean | undefined,
+  linkType: string,
+  onUpdateLinks: (links: BaseLink[]) => void,
+  currentLinks: BaseLink[]
 ) => {
   try {
     const { data: existingRecord, error: fetchError } = await supabase
       .from('table_autocompletion')
-      .select('transport_link')
-      .eq('id', transportId)
+      .select(`${linkType}_link`)
+      .eq('id', itemId)
       .single();
 
     if (fetchError) {
-      console.error('Error fetching transport links:', fetchError);
+      console.error(`Error fetching ${linkType} links:`, fetchError);
       return;
     }
 
-    const existingLinks = existingRecord?.transport_link || [];
-    const updatedLinks = existingLinks.filter(
-      (link: { site: string; dechet: string }) => !(link.site === siteId && link.dechet === dechetId)
-    );
+    const existingLinks = (existingRecord?.[`${linkType}_link` as keyof typeof existingRecord] || []) as BaseLink[];
+    const newLink = { site: siteId, dechet: dechetId, ...(isMailRecipient !== undefined && { mail: isMailRecipient }) };
+    const updatedLinks = unifyLinkObjects(existingLinks, newLink);
 
     const { error: updateError } = await supabase
       .from('table_autocompletion')
-      .update({ transport_link: updatedLinks })
-      .eq('id', transportId);
+      .update({ [`${linkType}_link`]: updatedLinks })
+      .eq('id', itemId);
 
     if (updateError) {
-      console.error('Error updating transport links:', updateError);
+      console.error(`Error updating ${linkType} links:`, updateError);
       return;
     }
 
-    onUpdateTransportLinks(transportLinks.filter(
-      link => !(link.site === siteId && link.dechet === dechetId)
-    ));
+    const updatedLinksList = currentLinks.map(link => {
+      if (link.site === siteId && link.dechet === dechetId) {
+        return { ...link, id: itemId };
+      }
+      return link;
+    });
+
+    onUpdateLinks(updatedLinksList);
   } catch (error) {
-    console.error('Error in handleDeleteTransportLink:', error);
+    console.error(`Error in handle${linkType}Link:`, error);
   }
 };
 
-export const handleDeleteDestLink = async (
-  destId: string, 
-  siteId: string, 
-  dechetId: string,
-  onUpdateDestLinks: (links: DestLink[]) => void,
-  destLinks: DestLink[]
-) => {
-  try {
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('dest_link')
-      .eq('id', destId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching dest links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.dest_link || [];
-    const updatedLinks = existingLinks.filter(
-      (link: { site: string; dechet: string }) => !(link.site === siteId && link.dechet === dechetId)
-    );
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ dest_link: updatedLinks })
-      .eq('id', destId);
-
-    if (updateError) {
-      console.error('Error updating dest links:', updateError);
-      return;
-    }
-
-    onUpdateDestLinks(destLinks.filter(
-      link => !(link.site === siteId && link.dechet === dechetId)
-    ));
-  } catch (error) {
-    console.error('Error in handleDeleteDestLink:', error);
-  }
-};
-
-export const handleDeleteContenantLink = async (
-  contenantId: string, 
-  siteId: string, 
-  dechetId: string,
-  onUpdateContenantLinks: (links: ContenantLink[]) => void,
-  contenantLinks: ContenantLink[]
-) => {
-  try {
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('contenant_link')
-      .eq('id', contenantId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching contenant links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.contenant_link || [];
-    const updatedLinks = existingLinks.filter(
-      (link: { site: string; dechet: string }) => !(link.site === siteId && link.dechet === dechetId)
-    );
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ contenant_link: updatedLinks })
-      .eq('id', contenantId);
-
-    if (updateError) {
-      console.error('Error updating contenant links:', updateError);
-      return;
-    }
-
-    onUpdateContenantLinks(contenantLinks.filter(
-      link => !(link.site === siteId && link.dechet === dechetId)
-    ));
-  } catch (error) {
-    console.error('Error in handleDeleteContenantLink:', error);
-  }
-};
-
-export const handleDeleteNegociantLink = async (
-  negociantId: string, 
-  siteId: string, 
-  dechetId: string,
-  onUpdateNegociantLinks: (links: NegociantLink[]) => void,
-  negociantLinks: NegociantLink[]
-) => {
-  try {
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('negociant_link')
-      .eq('id', negociantId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching negociant links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.negociant_link || [];
-    const updatedLinks = existingLinks.filter(
-      (link: { site: string; dechet: string }) => !(link.site === siteId && link.dechet === dechetId)
-    );
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ negociant_link: updatedLinks })
-      .eq('id', negociantId);
-
-    if (updateError) {
-      console.error('Error updating negociant links:', updateError);
-      return;
-    }
-
-    onUpdateNegociantLinks(negociantLinks.filter(
-      link => !(link.site === siteId && link.dechet === dechetId)
-    ));
-  } catch (error) {
-    console.error('Error in handleDeleteNegociantLink:', error);
-  }
-};
-
-export const handleDeleteCourtierLink = async (
-  courtierId: string, 
-  siteId: string, 
-  dechetId: string,
-  onUpdateCourtierLinks: (links: CourtierLink[]) => void,
-  courtierLinks: CourtierLink[]
-) => {
-  try {
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('courtier_link')
-      .eq('id', courtierId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching courtier links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.courtier_link || [];
-    const updatedLinks = existingLinks.filter(
-      (link: { site: string; dechet: string }) => !(link.site === siteId && link.dechet === dechetId)
-    );
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ courtier_link: updatedLinks })
-      .eq('id', courtierId);
-
-    if (updateError) {
-      console.error('Error updating courtier links:', updateError);
-      return;
-    }
-
-    onUpdateCourtierLinks(courtierLinks.filter(
-      link => !(link.site === siteId && link.dechet === dechetId)
-    ));
-  } catch (error) {
-    console.error('Error in handleDeleteCourtierLink:', error);
-  }
-};
-
-export const handleDeleteCodeTreatmentLink = async (
-  codeTreatmentId: string, 
-  siteId: string, 
-  dechetId: string,
-  onUpdateCodeTreatmentLinks: (links: CodeTreatmentLink[]) => void,
-  codeTreatmentLinks: CodeTreatmentLink[]
-) => {
-  try {
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('code_traitement_link')
-      .eq('id', codeTreatmentId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching code treatment links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.code_traitement_link || [];
-    const updatedLinks = existingLinks.filter(
-      (link: { site: string; dechet: string }) => !(link.site === siteId && link.dechet === dechetId)
-    );
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ code_traitement_link: updatedLinks })
-      .eq('id', codeTreatmentId);
-
-    if (updateError) {
-      console.error('Error updating code treatment links:', updateError);
-      return;
-    }
-
-    onUpdateCodeTreatmentLinks(codeTreatmentLinks.filter(
-      link => !(link.site === siteId && link.dechet === dechetId)
-    ));
-  } catch (error) {
-    console.error('Error in handleDeleteCodeTreatmentLink:', error);
-  }
-};
-
-export const handleDeleteEcorganismeLink = async (
-  ecoorganismeId: string, 
-  siteId: string, 
-  dechetId: string,
-  onUpdateEcorganismeLinks: (links: EcorganismeLink[]) => void,
-  ecoorganismeLinks: EcorganismeLink[]
-) => {
-  try {
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('eco_organisme_link')
-      .eq('id', ecoorganismeId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching ecoorganisme links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.eco_organisme_link || [];
-    const updatedLinks = existingLinks.filter(
-      (link: { site: string; dechet: string }) => !(link.site === siteId && link.dechet === dechetId)
-    );
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ eco_organisme_link: updatedLinks })
-      .eq('id', ecoorganismeId);
-
-    if (updateError) {
-      console.error('Error updating ecoorganisme links:', updateError);
-      return;
-    }
-
-    onUpdateEcorganismeLinks(ecoorganismeLinks.filter(
-      link => !(link.site === siteId && link.dechet === dechetId)
-    ));
-  } catch (error) {
-    console.error('Error in handleDeleteEcorganismeLink:', error);
-  }
-};
-
-export const handleDeleteContratLink = async (
-  contratId: string,
+// Fonction générique pour supprimer les liens
+export const handleDeleteGenericLink = async (
+  itemId: string,
   siteId: string,
   dechetId: string,
-  onUpdateContratLinks: (links: ContratLink[]) => void,
-  contratLinks: ContratLink[]
+  linkType: string,
+  onUpdateLinks: (links: BaseLink[]) => void,
+  currentLinks: BaseLink[]
 ) => {
   try {
     const { data: existingRecord, error: fetchError } = await supabase
       .from('table_autocompletion')
-      .select('contrat_link')
-      .eq('id', contratId)
+      .select(`${linkType}_link`)
+      .eq('id', itemId)
       .single();
 
     if (fetchError) {
-      console.error('Error fetching contrat links:', fetchError);
+      console.error(`Error fetching ${linkType} links:`, fetchError);
       return;
     }
 
-    const existingLinks = existingRecord?.contrat_link || [];
+    const existingLinks = (existingRecord?.[`${linkType}_link` as keyof typeof existingRecord] || []) as BaseLink[];
     const updatedLinks = existingLinks.filter(
       (link: { site: string; dechet: string }) => !(link.site === siteId && link.dechet === dechetId)
     );
 
     const { error: updateError } = await supabase
       .from('table_autocompletion')
-      .update({ contrat_link: updatedLinks })
-      .eq('id', contratId);
+      .update({ [`${linkType}_link`]: updatedLinks })
+      .eq('id', itemId);
 
     if (updateError) {
-      console.error('Error updating contrat links:', updateError);
+      console.error(`Error updating ${linkType} links:`, updateError);
       return;
     }
 
-    onUpdateContratLinks(contratLinks.filter(
+    onUpdateLinks(currentLinks.filter(
       link => !(link.site === siteId && link.dechet === dechetId)
     ));
   } catch (error) {
-    console.error('Error in handleDeleteContratLink:', error);
+    console.error(`Error in handleDelete${linkType}Link:`, error);
   }
 };
 
-
-
+// Fonctions spécifiques qui utilisent les fonctions génériques
 export const handleTransportLink = async (
   transportId: string, 
   siteId: string, 
   dechetId: string,
   isMailRecipient: boolean,
-  onUpdateTransportLinks: (links: TransportLink[]) => void,
-  transportLinks: TransportLink[]
+  onUpdateTransportLinks: (links: BaseLink[]) => void,
+  transportLinks: BaseLink[]
 ) => {
-  try {
-    const newLink: TransportLink = { 
-      id: transportId, 
-      site: siteId, 
-      dechet: dechetId,
-      mail: isMailRecipient 
-    };
-    console.log('parametres', transportId, siteId, dechetId, isMailRecipient, onUpdateTransportLinks, transportLinks);
-
-    onUpdateTransportLinks([...transportLinks, newLink]);
-
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('transport_link')
-      .eq('id', transportId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching existing transport links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.transport_link || [];
-    const updatedLinks = [...existingLinks, newLink];
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ transport_link: updatedLinks })
-      .eq('id', transportId);
-
-    if (updateError) {
-      console.error('Error updating transport link:', updateError);
-    }
-  } catch (error) {
-    console.error('Error in handleTransportLink:', error);
-  }
+  await handleGenericLink(transportId, siteId, dechetId, isMailRecipient, 'transport', onUpdateTransportLinks, transportLinks);
 };
 
 export const handleDestLink = async (
@@ -401,81 +132,20 @@ export const handleDestLink = async (
   siteId: string, 
   dechetId: string,
   isMailRecipient: boolean,
-  onUpdateDestLinks: (links: DestLink[]) => void,
-  destLinks: DestLink[]
+  onUpdateDestLinks: (links: BaseLink[]) => void,
+  destLinks: BaseLink[]
 ) => {
-  try {
-    const newLink: DestLink = { 
-      id: destId, 
-      site: siteId, 
-      dechet: dechetId,
-      mail: isMailRecipient 
-    };
-    onUpdateDestLinks([...destLinks, newLink]);
-
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('dest_link')
-      .eq('id', destId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching existing destination links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.dest_link || [];
-    const updatedLinks = [...existingLinks, newLink];
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ dest_link: updatedLinks })
-      .eq('id', destId);
-
-    if (updateError) {
-      console.error('Error updating destination link:', updateError);
-    }
-  } catch (error) {
-    console.error('Error in handleDestLink:', error);
-  }
+  await handleGenericLink(destId, siteId, dechetId, isMailRecipient, 'dest', onUpdateDestLinks, destLinks);
 };
 
 export const handleContenantLink = async (
   contenantId: string, 
   siteId: string, 
   dechetId: string,
-  onUpdateContenantLinks: (links: ContenantLink[]) => void,
-  contenantLinks: ContenantLink[]
+  onUpdateContenantLinks: (links: BaseLink[]) => void,
+  contenantLinks: BaseLink[]
 ) => {
-  try {
-    const newLink: ContenantLink = { id: contenantId, site: siteId, dechet: dechetId };
-    onUpdateContenantLinks([...contenantLinks, newLink]);
-
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('contenant_link')
-      .eq('id', contenantId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching existing container links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.contenant_link || [];
-    const updatedLinks = [...existingLinks, newLink];
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ contenant_link: updatedLinks })
-      .eq('id', contenantId);
-
-    if (updateError) {
-      console.error('Error updating container link:', updateError);
-    }
-  } catch (error) {
-    console.error('Error in handleContenantLink:', error);
-  }
+  await handleGenericLink(contenantId, siteId, dechetId, undefined, 'contenant', onUpdateContenantLinks, contenantLinks);
 };
 
 export const handleNegociantLink = async (
@@ -483,43 +153,10 @@ export const handleNegociantLink = async (
   siteId: string, 
   dechetId: string,
   isMailRecipient: boolean,
-  onUpdateNegociantLinks: (links: NegociantLink[]) => void,
-  negociantLinks: NegociantLink[]
+  onUpdateNegociantLinks: (links: BaseLink[]) => void,
+  negociantLinks: BaseLink[]
 ) => {
-  try {
-    const newLink: NegociantLink = { 
-      id: negociantId, 
-      site: siteId, 
-      dechet: dechetId,
-      mail: isMailRecipient 
-    };
-    onUpdateNegociantLinks([...negociantLinks, newLink]);
-
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('negociant_link')
-      .eq('id', negociantId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching existing negociant links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.negociant_link || [];
-    const updatedLinks = [...existingLinks, newLink];
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ negociant_link: updatedLinks })
-      .eq('id', negociantId);
-
-    if (updateError) {
-      console.error('Error updating negociant link:', updateError);
-    }
-  } catch (error) {
-    console.error('Error in handleNegociantLink:', error);
-  }
+  await handleGenericLink(negociantId, siteId, dechetId, isMailRecipient, 'negociant', onUpdateNegociantLinks, negociantLinks);
 };
 
 export const handleCourtierLink = async (
@@ -527,198 +164,232 @@ export const handleCourtierLink = async (
   siteId: string, 
   dechetId: string,
   isMailRecipient: boolean,
-  onUpdateCourtierLinks: (links: CourtierLink[]) => void,
-  courtierLinks: CourtierLink[]
+  onUpdateCourtierLinks: (links: BaseLink[]) => void,
+  courtierLinks: BaseLink[]
 ) => {
-  try {
-    const newLink: CourtierLink = { 
-      id: courtierId, 
-      site: siteId, 
-      dechet: dechetId,
-      mail: isMailRecipient 
-    };
-    onUpdateCourtierLinks([...courtierLinks, newLink]);
-
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('courtier_link')
-      .eq('id', courtierId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching existing courtier links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.courtier_link || [];
-    const updatedLinks = [...existingLinks, newLink];
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ courtier_link: updatedLinks })
-      .eq('id', courtierId);
-
-    if (updateError) {
-      console.error('Error updating courtier link:', updateError);
-    }
-  } catch (error) {
-    console.error('Error in handleCourtierLink:', error);
-  }
-};
-
-export const handleEcorganismeLink = async (
-  ecoorganismeId: string, 
-  siteId: string, 
-  dechetId: string,
-  isMailRecipient: boolean,
-  onUpdateEcorganismeLinks: (links: EcorganismeLink[]) => void,
-  ecoorganismeLinks: EcorganismeLink[]
-) => {
-  try {
-    const newLink: EcorganismeLink = { 
-      id: ecoorganismeId, 
-      site: siteId, 
-      dechet: dechetId,
-      mail: isMailRecipient 
-    };
-    onUpdateEcorganismeLinks([...ecoorganismeLinks, newLink]);
-
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('eco_organisme_link')
-      .eq('id', ecoorganismeId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching existing ecoorganisme links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.eco_organisme_link || [];
-    const updatedLinks = [...existingLinks, newLink];
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ eco_organisme_link: updatedLinks })
-      .eq('id', ecoorganismeId);
-
-    if (updateError) {
-      console.error('Error updating ecoorganisme link:', updateError);
-    }
-  } catch (error) {
-    console.error('Error in handleEcorganismeLink:', error);
-  }
+  await handleGenericLink(courtierId, siteId, dechetId, isMailRecipient, 'courtier', onUpdateCourtierLinks, courtierLinks);
 };
 
 export const handleCodeTreatmentLink = async (
   codeTreatmentId: string, 
   siteId: string, 
   dechetId: string,
-  onUpdateCodeTreatmentLinks: (links: CodeTreatmentLink[]) => void,
-  codeTreatmentLinks: CodeTreatmentLink[]
+  onUpdateCodeTreatmentLinks: (links: BaseLink[]) => void,
+  codeTreatmentLinks: BaseLink[]
 ) => {
-  try {
-    const newLink: CodeTreatmentLink = { id: codeTreatmentId, site: siteId, dechet: dechetId };
-    onUpdateCodeTreatmentLinks([...codeTreatmentLinks, newLink]);
+  await handleGenericLink(codeTreatmentId, siteId, dechetId, undefined, 'code_traitement', onUpdateCodeTreatmentLinks, codeTreatmentLinks);
+};
 
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('code_traitement_link')
-      .eq('id', codeTreatmentId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching existing code treatment links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.code_traitement_link || [];
-    const updatedLinks = [...existingLinks, newLink];
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ code_traitement_link: updatedLinks })
-      .eq('id', codeTreatmentId);
-
-    if (updateError) {
-      console.error('Error updating code treatment link:', updateError);
-    }
-  } catch (error) {
-    console.error('Error in handleCodeTreatmentLink:', error);
-  }
+export const handleEcorganismeLink = async (
+  ecoorganismeId: string,
+  siteId: string,
+  dechetId: string,
+  isMailRecipient: boolean,
+  onUpdateEcorganismeLinks: (links: BaseLink[]) => void,
+  ecoorganismeLinks: BaseLink[]
+) => {
+  await handleGenericLink(ecoorganismeId, siteId, dechetId, isMailRecipient, 'eco_organisme', onUpdateEcorganismeLinks, ecoorganismeLinks);
 };
 
 export const handleContratLink = async (
-  contratId: string, 
-  siteId: string, 
+  contratId: string,
+  siteId: string,
   dechetId: string,
-  onUpdateContratLinks: (links: ContratLink[]) => void,
-  contratLinks: ContratLink[]
+  onUpdateContratLinks: (links: BaseLink[]) => void,
+  contratLinks: BaseLink[]
 ) => {
-  try {
-    const newLink: ContratLink = { id: contratId, site: siteId, dechet: dechetId };
-    onUpdateContratLinks([...contratLinks, newLink]);
-
-    const { data: existingRecord, error: fetchError } = await supabase
-      .from('table_autocompletion')
-      .select('contrat_link')
-      .eq('id', contratId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching existing contrat links:', fetchError);
-      return;
-    }
-
-    const existingLinks = existingRecord?.contrat_link || [];
-    const updatedLinks = [...existingLinks, newLink];
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ contrat_link: updatedLinks })
-      .eq('id', contratId);
-
-    if (updateError) {
-      console.error('Error updating contrat link:', updateError);
-    }
-  } catch (error) {
-    console.error('Error in handleContratLink:', error);
-  }
+  await handleGenericLink(contratId, siteId, dechetId, undefined, 'contrat', onUpdateContratLinks, contratLinks);
 };
 
-export const handleSiteContactLink = async (
-  siteId: string, 
-  contactId: string,
-  onUpdateSiteContactLinks: (links: SiteContactLink[]) => void,
-  siteContactLinks: SiteContactLink[]
+// Fonctions de suppression spécifiques
+export const handleDeleteTransportLink = async (
+  transportId: string,
+  siteId: string,
+  dechetId: string,
+  onUpdateTransportLinks: (links: BaseLink[]) => void,
+  transportLinks: BaseLink[]
+) => {
+  await handleDeleteGenericLink(transportId, siteId, dechetId, 'transport', onUpdateTransportLinks, transportLinks);
+};
+
+export const handleDeleteDestLink = async (
+  destId: string,
+  siteId: string,
+  dechetId: string,
+  onUpdateDestLinks: (links: BaseLink[]) => void,
+  destLinks: BaseLink[]
+) => {
+  await handleDeleteGenericLink(destId, siteId, dechetId, 'dest', onUpdateDestLinks, destLinks);
+};
+
+export const handleDeleteContenantLink = async (
+  contenantId: string,
+  siteId: string,
+  dechetId: string,
+  onUpdateContenantLinks: (links: BaseLink[]) => void,
+  contenantLinks: BaseLink[]
+) => {
+  await handleDeleteGenericLink(contenantId, siteId, dechetId, 'contenant', onUpdateContenantLinks, contenantLinks);
+};
+
+export const handleDeleteNegociantLink = async (
+  negociantId: string,
+  siteId: string,
+  dechetId: string,
+  onUpdateNegociantLinks: (links: BaseLink[]) => void,
+  negociantLinks: BaseLink[]
+) => {
+  await handleDeleteGenericLink(negociantId, siteId, dechetId, 'negociant', onUpdateNegociantLinks, negociantLinks);
+};
+
+export const handleDeleteCourtierLink = async (
+  courtierId: string,
+  siteId: string,
+  dechetId: string,
+  onUpdateCourtierLinks: (links: BaseLink[]) => void,
+  courtierLinks: BaseLink[]
+) => {
+  await handleDeleteGenericLink(courtierId, siteId, dechetId, 'courtier', onUpdateCourtierLinks, courtierLinks);
+};
+
+export const handleDeleteCodeTreatmentLink = async (
+  codeTreatmentId: string,
+  siteId: string,
+  dechetId: string,
+  onUpdateCodeTreatmentLinks: (links: BaseLink[]) => void,
+  codeTreatmentLinks: BaseLink[]
+) => {
+  await handleDeleteGenericLink(codeTreatmentId, siteId, dechetId, 'code_traitement', onUpdateCodeTreatmentLinks, codeTreatmentLinks);
+};
+
+export const handleDeleteEcorganismeLink = async (
+  ecoorganismeId: string,
+  siteId: string,
+  dechetId: string,
+  onUpdateEcorganismeLinks: (links: BaseLink[]) => void,
+  ecoorganismeLinks: BaseLink[]
+) => {
+  await handleDeleteGenericLink(ecoorganismeId, siteId, dechetId, 'eco_organisme', onUpdateEcorganismeLinks, ecoorganismeLinks);
+};
+
+export const handleDeleteContratLink = async (
+  contratId: string,
+  siteId: string,
+  dechetId: string,
+  onUpdateContratLinks: (links: BaseLink[]) => void,
+  contratLinks: BaseLink[]
+) => {
+  await handleDeleteGenericLink(contratId, siteId, dechetId, 'contrat', onUpdateContratLinks, contratLinks);
+};
+
+/*export const updateMailRecipient = async (
+  siteId: string,
+  dechetId: string,
+  mailRecipient: string,
+  selectedTransporteur: string,
+  selectedDestinataire: string,
+  selectedContenant: string,
+  selectedNegociant: string,
+  selectedCourtier: string,
+  selectedCodeTreatment: string,
+  selectedEcorganisme: string,
+  selectedContrat: string
 ) => {
   try {
-    const newLink: SiteContactLink = { id: contactId, site: siteId, contact: contactId };
-    onUpdateSiteContactLinks([...siteContactLinks, newLink]);
 
+    const updateItemLink = async (itemId: string, itemLinkSupabase: string, itemLink: string) => {
+      const { data: existingRecord, error: fetchError } = await supabase
+        .from('table_autocompletion')
+        .select('*')
+        .eq('id', itemId)
+        .single();
+
+      if (fetchError) {
+        console.error('Erreur lors de la récupération des liens:', fetchError);
+        return;
+      }
+
+      const existingItemLinks = existingRecord[itemLinkSupabase] || [];
+      const updatedItemLinks = existingItemLinks.map((link: { site: string; dechet: string; mail?: boolean })  => {
+        if (link.site === siteId && link.dechet === dechetId) {
+          return { ...link, mail: mailRecipient === itemLink };
+        }
+        return link;
+      });
+
+      const { error: updateError } = await supabase
+        .from('table_autocompletion')
+        .update({ [itemLinkSupabase]: updatedItemLinks })
+        .eq('id', itemId);
+
+      if (updateError) {
+        console.error('Erreur lors de la mise à jour:', updateError);
+      }
+
+      console.log('---UpdateMailRecipient---');
+      console.log('---Combinaison site/dechet:', siteId, dechetId);
+      console.log('---mailRecipient:', mailRecipient);
+      console.log('---itemLink:', itemLink);
+      console.log('---mailRecipient === itemLink:', mailRecipient === itemLink);
+      console.log('---existingItemLink:', existingItemLinks.map((link: { site: string; dechet: string; mail?: boolean }) => link.site === siteId && link.dechet === dechetId));
+      console.log('---updatedItemLink:', updatedItemLinks.map((link: { site: string; dechet: string; mail?: boolean }) => link.site === siteId && link.dechet === dechetId));
+      
+    }
+
+    await updateItemLink(selectedTransporteur, 'transport_link', 'transporteur');
+    await updateItemLink(selectedDestinataire, 'dest_link', 'destinataire');
+    await updateItemLink(selectedNegociant, 'negociant_link', 'negociant');
+    await updateItemLink(selectedCourtier, 'courtier_link', 'courtier');
+    await updateItemLink(selectedEcorganisme, 'eco_organisme_link', 'ecorganisme');
+
+  } catch (error) {
+    console.error('Erreur dans updateMailRecipient:', error);
+  }
+};*/
+
+
+/*export const showCombinaisonLink = async (
+  siteId: string,
+  dechetId: string
+) => {
+  try {
     const { data: existingRecord, error: fetchError } = await supabase
       .from('table_autocompletion')
-      .select('contact_link')
-      .eq('id', siteId)
-      .single();
+      .select('*');
+
+    console.log("\n\n---showCombinaisonLink---");
+    existingRecord?.map((item: { id: string; transport_link: BaseLink[]; dest_link: BaseLink[]; negociant_link: BaseLink[]; courtier_link: BaseLink[]; eco_organisme_link: BaseLink[]; contrat_link: BaseLink[]; code_traitement_link: BaseLink[]; contenant_link: BaseLink[]; }) => {
+      if (item.transport_link.some((link: { site: string; dechet: string; mail?: boolean }) => link.site === siteId && link.dechet === dechetId)) {
+        console.log('---transport_link:', item.transport_link, item.id);
+      }
+      if (item.dest_link.some((link: { site: string; dechet: string; mail?: boolean }) => link.site === siteId && link.dechet === dechetId)) {
+        console.log('---dest_link:', item.dest_link, item.id);
+      }
+      if (item.negociant_link.some((link: { site: string; dechet: string; mail?: boolean }) => link.site === siteId && link.dechet === dechetId)) {
+        console.log('---negociant_link:', item.negociant_link, item.id);
+      }
+      if (item.courtier_link.some((link: { site: string; dechet: string; mail?: boolean }) => link.site === siteId && link.dechet === dechetId)) {
+        console.log('---courtier_link:', item.courtier_link, item.id);
+      }
+      if (item.eco_organisme_link.some((link: { site: string; dechet: string; mail?: boolean }) => link.site === siteId && link.dechet === dechetId)) {
+        console.log('---eco_organisme_link:', item.eco_organisme_link, item.id);
+      }
+      if (item.contrat_link.some((link: { site: string; dechet: string; mail?: boolean }) => link.site === siteId && link.dechet === dechetId)) {
+        console.log('---contrat_link:', item.contrat_link, item.id);
+      }
+      if (item.code_traitement_link.some((link: { site: string; dechet: string; mail?: boolean }) => link.site === siteId && link.dechet === dechetId)) {
+        console.log('---code_traitement_link:', item.code_traitement_link, item.id);
+      }
+      if (item.contenant_link.some((link: { site: string; dechet: string; mail?: boolean }) => link.site === siteId && link.dechet === dechetId)) {
+        console.log('---contenant_link:', item.contenant_link, item.id);
+      }
+    });
 
     if (fetchError) {
-      console.error('Error fetching existing site contact links:', fetchError);
+      console.error('Erreur lors de la récupération des liens:', fetchError);
       return;
     }
-
-    const existingLinks = existingRecord?.contact_link || [];
-    const updatedLinks = [...existingLinks, newLink];
-
-    const { error: updateError } = await supabase
-      .from('table_autocompletion')
-      .update({ contact_link: updatedLinks })
-      .eq('id', siteId);
-
-    if (updateError) {
-      console.error('Error updating site contact link:', updateError);
-    }
   } catch (error) {
-    console.error('Error in handleSiteContactLink:', error);
+    console.error('Erreur dans showCombinaisonLink:', error);
   }
 };*/

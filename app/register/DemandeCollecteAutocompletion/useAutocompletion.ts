@@ -1,15 +1,15 @@
 import { AutocompletionData, SelectedFields, AutocompletionLinks } from "./types"
 import { useEffect, useState } from "react";
-import { fetchAutocompletionData, fetchAutocompletionLinks, checkAutocompletion } from "./utils";
+import { fetchAutocompletionData, fetchAutocompletionLinks, checkAutocompletion, TYPES_PRESTATION } from "./utils";
 
 export const useAutocompletion = (entreprise_id: string|null, site_access?: string[]) => {
+  const [autocompletionEnabled, setAutocompletionEnabled] = useState(true);
   const [allOptions, setAllOptions] = useState<AutocompletionData>({
     sites: [],
     transporteurs: [],
     destinataires: [],
     dechets: [],
     contenants: [],
-    contacts: [],
     negociants: [],
     courtiers: [],
     ecoorganismes: [],
@@ -21,7 +21,6 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
     destinataireLinks: [],
     contenantLinks: [],
     codeTraitementLinks: [],
-    contactLinks: [],
     negociantLinks: [],
     courtierLinks: [],
     ecoorganismeLinks: [],
@@ -41,11 +40,12 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
     date: null,
     nombreContenant: 1,
     destinataireMail: 'transporteur',
-    typePrestation: 'enlevement',
+    typePrestation: TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT,
     showNegociant: false,
     ecoorganisme: null,
     codeTraitement: null,
-    contrat: null
+    contrat: null,
+    mention: null
   }]);
 
   useEffect(() => {
@@ -94,7 +94,10 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
       }
 
       // On vérifie l'autocomplétion pour chaque ligne
-      return newList.map(fields => checkAutocompletion(fields, links, allOptions));
+      if(autocompletionEnabled){
+        return newList.map(fields => checkAutocompletion(fields, links, allOptions));
+      }
+      return newList;
     });
   };
 
@@ -119,8 +122,9 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
           date: null,
           nombreContenant: 1,
           destinataireMail: 'transporteur',
-          typePrestation: 'enlevement',
-          showNegociant: false
+          typePrestation: TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT,
+          showNegociant: false,
+          mention: null
         }
       ];
     });
@@ -131,5 +135,5 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
   };
 
   console.log("selectedFieldsList", selectedFieldsList);
-  return { allOptions, selectedFieldsList, handleFieldChange, addNewLine, removeLine };
+  return { allOptions, selectedFieldsList, handleFieldChange, addNewLine, removeLine, autocompletionEnabled, setAutocompletionEnabled };
 };

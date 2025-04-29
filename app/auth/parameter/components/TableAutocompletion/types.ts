@@ -20,7 +20,7 @@ AutocompletionTab.tsx :
 
 
 
-/*
+
 
 // Types de base
 export interface BaseEntity {
@@ -32,20 +32,8 @@ export interface BaseEntity {
 export interface Site extends BaseEntity {
   siret: string;
   adresseSiege: string;
-  pointsCollecte: {
-    id: string;
-    nom: string;
-    adresse: string;
-    codePostal: string;
-    ville: string;
-  }[];
-  contacts: {
-    id: string;
-    nom: string;
-    email: string;
-    telephone: string;
-    respoTerrain: boolean;
-  }[];
+  pointsCollecte: CollectionPoint[];
+  contacts: Contact[];
 }
 
 export interface Dechet extends BaseEntity {
@@ -100,6 +88,7 @@ export interface Ecorganisme extends BaseEntity {
     email: string;
     telephone: string;
   };
+  adresse: string;
 }
 
 export interface Contrat extends BaseEntity {
@@ -118,20 +107,43 @@ export interface Contrat extends BaseEntity {
 
 // Types pour les liens
 export interface BaseLink {
-  id: string;
+  id?: string;
   site: string;
   dechet: string;
   mail?: boolean;
 }
 
-export interface TransportLink extends BaseLink {}
-export interface DestLink extends BaseLink {}
-export interface ContenantLink extends BaseLink {}
-export interface NegociantLink extends BaseLink {}
-export interface CourtierLink extends BaseLink {}
-export interface CodeTreatmentLink extends BaseLink {}
-export interface EcorganismeLink extends BaseLink {}
-export interface ContratLink extends BaseLink {}
+export interface TransportLink extends BaseLink {
+  type: 'transport';
+}
+
+export interface DestLink extends BaseLink {
+  type: 'dest';
+}
+
+export interface ContenantLink extends BaseLink {
+  type: 'contenant';
+}
+
+export interface NegociantLink extends BaseLink {
+  type: 'negociant';
+}
+
+export interface CourtierLink extends BaseLink {
+  type: 'courtier';
+}
+
+export interface CodeTreatmentLink extends BaseLink {
+  type: 'codeTreatment';
+}
+
+export interface EcorganismeLink extends BaseLink {
+  type: 'ecorganisme';
+}
+
+export interface ContratLink extends BaseLink {
+  type: 'contrat';
+}
 
 // Types pour les props des composants
 export interface LinkFormProps<T extends BaseEntity> {
@@ -155,14 +167,14 @@ export interface MultiLinkFormProps {
   codeTreatments: CodeTreatment[];
   ecoorganismes: Ecorganisme[];
   contrat: Contrat[];
-  transportLinks: TransportLink[];
-  destLinks: DestLink[];
-  negociantLinks: NegociantLink[];
-  courtierLinks: CourtierLink[];
-  contenantLinks: ContenantLink[];
-  codeTreatmentLinks: CodeTreatmentLink[];
-  ecoorganismeLinks: EcorganismeLink[];
-  contratLinks: ContratLink[];
+  transportLinks: BaseLink[];
+  destLinks: BaseLink[];
+  negociantLinks: BaseLink[];
+  courtierLinks: BaseLink[];
+  contenantLinks: BaseLink[];
+  codeTreatmentLinks: BaseLink[];
+  ecoorganismeLinks: BaseLink[];
+  contratLinks: BaseLink[];
   onTransportLink: (transportId: string, siteId: string, dechetId: string) => void;
   onDestLink: (destId: string, siteId: string, dechetId: string) => void;
   onNegociantLink: (negociantId: string, siteId: string, dechetId: string) => void;
@@ -171,14 +183,14 @@ export interface MultiLinkFormProps {
   onCodeTreatmentLink: (codeTreatmentId: string, siteId: string, dechetId: string) => void;
   onEcorganismeLink: (ecoorganismeId: string, siteId: string, dechetId: string) => void;
   onContratLink: (contratId: string, siteId: string, dechetId: string) => void;
-  onUpdateTransportLinks: (links: TransportLink[]) => void;
-  onUpdateDestLinks: (links: DestLink[]) => void;
-  onUpdateContenantLinks: (links: ContenantLink[]) => void;
-  onUpdateNegociantLinks: (links: NegociantLink[]) => void;
-  onUpdateCourtierLinks: (links: CourtierLink[]) => void;
-  onUpdateCodeTreatmentLinks: (links: CodeTreatmentLink[]) => void;
-  onUpdateEcorganismeLinks: (links: EcorganismeLink[]) => void;
-  onUpdateContratLinks: (links: ContratLink[]) => void;
+  onUpdateTransportLinks: (links: BaseLink[]) => void;
+  onUpdateDestLinks: (links: BaseLink[]) => void;
+  onUpdateContenantLinks: (links: BaseLink[]) => void;
+  onUpdateNegociantLinks: (links: BaseLink[]) => void;
+  onUpdateCourtierLinks: (links: BaseLink[]) => void;
+  onUpdateCodeTreatmentLinks: (links: BaseLink[]) => void;
+  onUpdateEcorganismeLinks: (links: BaseLink[]) => void;
+  onUpdateContratLinks: (links: BaseLink[]) => void;
   onDeleteTransportLink: (transportId: string, siteId: string, dechetId: string) => void;
   onDeleteDestLink: (destId: string, siteId: string, dechetId: string) => void;
   onDeleteNegociantLink: (negociantId: string, siteId: string, dechetId: string) => void;
@@ -189,4 +201,18 @@ export interface MultiLinkFormProps {
   onDeleteContratLink: (contratId: string, siteId: string, dechetId: string) => void;
 }
 
-*/
+export interface CollectionPoint {
+  id: string;
+  nom: string;
+  adresse: string;
+  codePostal: string;
+  ville: string;
+}
+
+export interface Contact {
+  id: string;
+  nom: string;
+  email: string;
+  telephone: string;
+  respoTerrain: boolean;
+}

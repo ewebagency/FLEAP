@@ -192,6 +192,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                             control: (base) => ({
                                                 ...base,
                                                 minHeight: popup ? '42px' : '16px',
+                                                minWidth: '150px',
                                                 width: popup ? '100%' : `${(width * 10) - 120}px`,
                                                 backgroundColor: getBackgroundColor(),
                                                 borderColor: stylePrimary ? '#43A047' : base.borderColor,

@@ -1,6 +1,4 @@
-/*
-import { Site, Transporteur, Dechet, Destinataire, Contenant, Negociant, Courtier, Ecorganisme, CodeTreatment, Contrat, ContratLink } from "./types";
-import { DestLink, TransportLink, NegociantLink, CourtierLink, ContenantLink, CodeTreatmentLink, EcorganismeLink } from "./types";
+import { Site, Transporteur, Dechet, Destinataire, Contenant, Negociant, Courtier, Ecorganisme, CodeTreatment, Contrat, BaseLink } from "./types";
 
 import { supabase } from "@/app/database/supabaseClient";
 
@@ -16,14 +14,14 @@ export const fetchAutocompletionData = async (
   setEcoorganismes: (ecoorganismes: Ecorganisme[]) => void,
   setCodeTreatments: (codeTreatments: CodeTreatment[]) => void,
   setContrats: (contrats: Contrat[]) => void,
-  setTransportLinks: (transportLinks: TransportLink[]) => void,
-  setDestLinks: (destLinks: DestLink[]) => void,
-  setNegociantLinks: (negociantLinks: NegociantLink[]) => void,
-  setCourtierLinks: (courtierLinks: CourtierLink[]) => void,
-  setContenantLinks: (contenantLinks: ContenantLink[]) => void,
-  setCodeTreatmentLinks: (codeTreatmentLinks: CodeTreatmentLink[]) => void,
-  setEcoorganismeLinks: (ecoorganismeLinks: EcorganismeLink[]) => void,
-  setContratLinks: (contratLinks: ContratLink[]) => void
+  setTransportLinks: (transportLinks: BaseLink[]) => void,
+  setDestLinks: (destLinks: BaseLink[]) => void,
+  setNegociantLinks: (negociantLinks: BaseLink[]) => void,
+  setCourtierLinks: (courtierLinks: BaseLink[]) => void,
+  setContenantLinks: (contenantLinks: BaseLink[]) => void,
+  setCodeTreatmentLinks: (codeTreatmentLinks: BaseLink[]) => void,
+  setEcoorganismeLinks: (ecoorganismeLinks: BaseLink[]) => void,
+  setContratLinks: (contratLinks: BaseLink[]) => void
 ) => {
   try {
     console.log('Fetching autocompletion data for entreprise:', entrepriseId);
@@ -48,14 +46,14 @@ export const fetchAutocompletionData = async (
       const ecoOrganismes: Ecorganisme[] = [];
       const contrats: Contrat[] = [];
       const codeTraitements: CodeTreatment[] = [];
-      const transportLinks: TransportLink[] = [];
-      const destLinks: DestLink[] = [];
-      const negociantLinks: NegociantLink[] = [];
-      const courtierLinks: CourtierLink[] = [];
-      const contenantLinks: ContenantLink[] = [];
-      const codeTreatmentLinks: CodeTreatmentLink[] = [];
-      const ecoorganismesLinks: EcorganismeLink[] = [];
-      const contratLinks: ContratLink[] = [];
+      const transportLinks: BaseLink[] = [];
+      const destLinks: BaseLink[] = [];
+      const negociantLinks: BaseLink[] = [];
+      const courtierLinks: BaseLink[] = [];
+      const contenantLinks: BaseLink[] = [];
+      const codeTreatmentLinks: BaseLink[] = [];
+      const ecoorganismesLinks: BaseLink[] = [];
+      const contratLinks: BaseLink[] = [];
 
       data.forEach(record => {
         if (record.site) {
@@ -77,7 +75,7 @@ export const fetchAutocompletionData = async (
             id: record.id.toString()
           });
           if (record.transport_link) {
-            record.transport_link.forEach((link: { site: string; dechet: string }) => {
+            record.transport_link.forEach((link: { site: string; dechet: string, mail: boolean }) => {
               transportLinks.push({
                 id: record.id.toString(),
                 site: link.site,
@@ -94,7 +92,7 @@ export const fetchAutocompletionData = async (
             id: record.id.toString()
           });
           if (record.dest_link) {
-            record.dest_link.forEach((link: { site: string; dechet: string }) => {
+            record.dest_link.forEach((link: { site: string; dechet: string, mail: boolean }) => {
               destLinks.push({
                 id: record.id.toString(),
                 site: link.site,
@@ -128,7 +126,7 @@ export const fetchAutocompletionData = async (
           });
         }
         if (record.negociant_link) {
-          record.negociant_link.forEach((link: { site: string; dechet: string }) => {
+          record.negociant_link.forEach((link: { site: string; dechet: string, mail: boolean }) => {
             negociantLinks.push({
               id: record.id.toString(),
               site: link.site,
@@ -145,7 +143,7 @@ export const fetchAutocompletionData = async (
           });
         }
         if (record.courtier_link) {
-          record.courtier_link.forEach((link: { site: string; dechet: string }) => {
+          record.courtier_link.forEach((link: { site: string; dechet: string, mail: boolean }) => {
             courtierLinks.push({
               id: record.id.toString(),
               site: link.site,
@@ -162,7 +160,7 @@ export const fetchAutocompletionData = async (
           });
         }
         if (record.eco_organisme_link) {
-          record.eco_organisme_link.forEach((link: { site: string; dechet: string }) => {
+          record.eco_organisme_link.forEach((link: { site: string; dechet: string, mail: boolean }) => {
             ecoorganismesLinks.push({
               id: record.id.toString(),
               site: link.site,
@@ -179,7 +177,7 @@ export const fetchAutocompletionData = async (
           });
         }
         if (record.code_traitement_link) {
-          record.code_traitement_link.forEach((link: { site: string; dechet: string }) => {
+          record.code_traitement_link.forEach((link: { site: string; dechet: string, mail: boolean }) => {
             codeTreatmentLinks.push({
               id: record.id.toString(),
               site: link.site,
@@ -228,4 +226,3 @@ export const fetchAutocompletionData = async (
     console.error('Error in fetchAutocompletionData:', error);
   }
 };
-*/

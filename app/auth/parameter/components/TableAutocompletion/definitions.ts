@@ -1,4 +1,4 @@
-/*export const siteAttributes = {
+export const siteAttributes = {
     mainAttribute: {
       name: 'nom',
       label: 'Nom du site',
@@ -66,6 +66,13 @@ export const transporteurAttributes = {
         placeholder: 'Entrez l\'email',
       },
       {
+        name: 'contact.nomPrenom',
+        label: 'Prénom Nom',
+        type: 'string' as const,
+        required: true,
+        placeholder: 'Entrez le nom et prénom',
+      },
+      {
         name: 'contact.telephone',
         label: 'Téléphone',
         type: 'string' as const,
@@ -122,6 +129,13 @@ export const destinataireAttributes = {
         type: 'string' as const,
         required: true,
         placeholder: 'Entrez l\'email',
+      },
+      {
+        name: 'contact.nomPrenom',
+        label: 'Prénom Nom',
+        type: 'string' as const,
+        required: true,
+        placeholder: 'Entrez le nom et prénom',
       },
       {
         name: 'contact.telephone',
@@ -261,7 +275,7 @@ export const courtierAttributes = {
     ],
   };
 
-export const ecoOrganismeAttributes = {
+export const ecoorganismeAttributes = {
     mainAttribute: {
       name: 'nomBoite',
       label: 'Nom de la société',
@@ -372,4 +386,3 @@ export const contratAttributes = {
       },
     ],
   };
-*/

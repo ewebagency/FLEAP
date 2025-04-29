@@ -8,8 +8,8 @@ import { Filiere, useFilterContext } from '@/app/FilterContext';
 import NewDemandeMailButon from '../DemandeCollecteNew/NewDemandeMailButton';
 import { RowBSD } from "../interface/BSD_Interface";
 import NewFormulaireDemande from '../DemandeCollecteNew/NewFormulaireDemande';
-//import OpenFormulaireButton from '../DemandeCollecteAutocompletion/OpenFormulaireButton';
-//import Formulaire from '../DemandeCollecteAutocompletion/Formulaire';
+import OpenFormulaireButton from '../DemandeCollecteAutocompletion/OpenFormulaireButton';
+import Formulaire from '../DemandeCollecteAutocompletion/Formulaire';
 
 
 export const ListStatusEnAttente = ['Ligne créée automatiquement', 'Ligne demandée', 'Collecte demandée', 'REFUSED', 'CANCELED'];
@@ -63,7 +63,9 @@ const BordereauxRegister = () => {
                     ${filterPendingBSDs ? 'border-2 border-[var(--green-medium)]' : 'border border-gray-200'}`}
                 >
                     <div className="flex-grow">
-                        <NewDemandeMailButon/>
+                        {/*<NewDemandeMailButon/>*/}
+                        <OpenFormulaireButton onClick={() => setShowFormulaire(true)} />
+                        {showFormulaire && <Formulaire setDisplayThis={setShowFormulaire} />}
                     </div>
                     <div className="border border-[var(--green-medium)] rounded-lg ml-2">
                         <button className={`text-center py-1.5 px-2 rounded-lg ${filterPendingBSDs ? 'text-white bg-[var(--green-medium)]' : 'text-gray-600 bg-gray-50 hover:bg-white'}`} 
@@ -82,10 +84,10 @@ const BordereauxRegister = () => {
             <div className="hidden md:block bg-gray-100 p-2 rounded-lg shadow-sm mb-2">
                 <div className="flex items-center justify-between">
                     <div className="flex space-x-2">
-                    <NewDemandeMailButon/>
+                    {/*<NewDemandeMailButon/>*/}
                     {/*<BoutonOpenModal/>*/}
-                    {/*<OpenFormulaireButton onClick={() => setShowFormulaire(true)} />*/}
-                    {/*showFormulaire && <Formulaire setDisplayThis={setShowFormulaire} />*/}
+                    <OpenFormulaireButton onClick={() => setShowFormulaire(true)} />
+                    {showFormulaire && <Formulaire setDisplayThis={setShowFormulaire} />}
                     </div>
                     <div className="flex space-x-8">
                         <div className='border border-[var(--green-medium)] rounded-lg'>

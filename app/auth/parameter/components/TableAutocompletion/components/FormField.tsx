@@ -1,5 +1,5 @@
 //bouton select avec les options dans partie lien
-/*
+
 import React from 'react';
 
 interface FormFieldProps {
@@ -33,4 +33,4 @@ export const FormField: React.FC<FormFieldProps> = ({
       </select>
     </div>
   );
-}; */
+}; 

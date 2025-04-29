@@ -7,11 +7,27 @@ import BoxIcon from "@/app/component/BoxIconWrapper";
 import { toast } from "react-hot-toast";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { aggregateByMailRecipient, createLines } from './utils';
+import { aggregateByMailRecipient, createLines, TYPES_PRESTATION, TYPES_PRESTATION_LABELS } from './utils';
 import MailsPartComponent, { MailsPartComponentRef } from './MailsPartComponent';
 import { BSD } from '@/app/register/TableBSD';
 import { useBSDs } from '@/app/register/BSDsProvider';
 import { supabase } from '@/app/database/supabaseClient';
+import { 
+  SiteInterface, 
+  PointCollecteInterface, 
+  ContactInterface, 
+  DechetInterface, 
+  ContenantInterface, 
+  TransporteurInterface, 
+  DestinataireInterface, 
+  NegociantInterface, 
+  CourtierInterface, 
+  EcorganismeInterface, 
+  CodeTraitementInterface, 
+  ContratInterface 
+} from './types';
+import { invalidateCache } from '@/app/utils/invalidateCache';
+import { useModalContextNew } from '../RegisterComponents/Modal/ContextModal';
 
 interface FormulaireProps {
   setDisplayThis: (display: boolean) => void;
@@ -19,12 +35,15 @@ interface FormulaireProps {
 
 const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
   const { entreprise_id, user_id, entreprise_name } = useSession();
+  const {modalReload, setModalReload} = useModalContextNew();
   const [isMobile, setIsMobile] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [siteAccess, setSiteAccess] = useState<string[]>([]);
-  const { allOptions, selectedFieldsList, handleFieldChange, addNewLine, removeLine } = useAutocompletion(entreprise_id, siteAccess);
+  const [affichage_conditionnel, setAffichageConditionnel] = useState<{ [key: number]: string }>({});
+  const { allOptions, selectedFieldsList, handleFieldChange: originalHandleFieldChange, addNewLine, removeLine, autocompletionEnabled, setAutocompletionEnabled } = useAutocompletion(entreprise_id, siteAccess);
   const mailsPartRef = useRef<MailsPartComponentRef>(null);
   const { setAllBSDs, setAllFilteredBSDs, setDisplayedBSDs } = useBSDs();
+  
 
   React.useEffect(() => {
     const checkMobile = () => {
@@ -65,6 +84,54 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
   const sectionClasses = "w-[98%] md:w-[95%] pb-2 mt-1 mx-auto";
   const lineClasses = "bg-gray-50 rounded-lg p-3 mb-3 shadow-sm hover:shadow-md transition-shadow duration-200";
 
+  type FieldValue = {
+    site: SiteInterface | null;
+    pointCollecte: PointCollecteInterface | null;
+    contactEmetteur: ContactInterface[] | null;
+    dechet: DechetInterface | null;
+    contenant: ContenantInterface | null;
+    nombreContenant: number;
+    date: Date | null;
+    transporteur: TransporteurInterface | null;
+    destinataire: DestinataireInterface | null;
+    showNegociant: boolean;
+    destinataireMail: string;
+    typePrestation: string;
+    negociant: NegociantInterface | null;
+    courtier: CourtierInterface | null;
+    ecoorganisme: EcorganismeInterface | null;
+    codeTraitement: CodeTraitementInterface | null;
+    contrat: ContratInterface | null;
+    mention: { toMentionned: boolean; mentionType: string; mentionCompany: string; mentionAddress: string } | null;
+  };
+
+  const handleFieldChange = (index: number, field: keyof FieldValue, value: FieldValue[keyof FieldValue]) => {
+    // Update the display state based on field changes
+    if (field === 'site' && value) {
+      setAffichageConditionnel(prev => ({ ...prev, [index]: 'affichage_site' }));
+    } else if (field === 'dechet' && value) {
+      setAffichageConditionnel(prev => ({ ...prev, [index]: 'affichage_dechet' }));
+    }
+    // Call the original handleFieldChange
+    originalHandleFieldChange(index, field, value);
+  };
+
+  const handleShowMore = (index: number) => {
+    if (affichage_conditionnel[index] === 'affichage_maximum') {
+      setAffichageConditionnel(prev => ({ ...prev, [index]: 'affichage_dechet' }));
+    }
+    else {
+      setAffichageConditionnel(prev => ({ ...prev, [index]: 'affichage_maximum' }));
+    }
+    //originalHandleFieldChange(index, 'showNegociant', !selectedFieldsList[index].showNegociant);
+  };
+
+  const handleAddNewLine = () => {
+    const newIndex = selectedFieldsList.length;
+    setAffichageConditionnel(prev => ({ ...prev, [newIndex]: 'initial' }));
+    addNewLine();
+  };
+
   const handleSubmit = async () => {
     if (mailsPartRef.current) {
       try {
@@ -84,6 +151,8 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
           }, 100);
 
           toast.success('Formulaire soumis avec succès');
+          setModalReload(!modalReload)
+          invalidateCache(entreprise_id, user_id);
           setDisplayThis(false);
         } else {
           toast.error(result.error || 'Erreur lors de la création des lignes');
@@ -100,67 +169,122 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-hidden">
       <div className="bg-white rounded-lg shadow-lg w-[95%] md:w-[80%] max-w-8xl h-[90vh] flex flex-col touch-none overflow-x-hidden">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 p-4 border-b">
-          <h3 className="font-bold text-lg ml-0 md:ml-8 flex items-center gap-2">
-            <BoxIcon className="mb-1" name='truck' type='solid' />
-            <span className="text-green-medium mt-1 font-bold">
-              Demande de collecte avec Autocompletion
-            </span>
-          </h3>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 py-2 border-b">
+          <div className="w-full flex flex-row items-center justify-between">
+            <h3 className="font-bold text-lg ml-0 md:ml-8 flex items-center gap-2">
+              <BoxIcon className="mb-1" name='truck' type='solid' />
+              <span className="text-green-medium mt-1 font-bold">
+                Demande de collecte
+              </span>
+            </h3>
+            {isMobile && (
+              <button
+                onClick={() => setDisplayThis(false)}
+                className="text-gray-500 hover:text-gray-700 focus:outline-none mt-2"
+              >
+                <BoxIcon name="x" type="solid" size="md" />
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => {
-                // Reset selectedFieldsList to initial state
-                handleFieldChange(0, 'site', null);
-                handleFieldChange(0, 'pointCollecte', null);
-                handleFieldChange(0, 'contactEmetteur', null);
-                handleFieldChange(0, 'dechet', null);
-                handleFieldChange(0, 'contenant', null);
-                handleFieldChange(0, 'nombreContenant', 1);
-                handleFieldChange(0, 'date', null);
-                handleFieldChange(0, 'transporteur', null);
-                handleFieldChange(0, 'destinataire', null);
-                handleFieldChange(0, 'showNegociant', false);
-                handleFieldChange(0, 'destinataireMail', 'transporteur');
-                handleFieldChange(0, 'typePrestation', 'enlevement');
-                handleFieldChange(0, 'negociant', null);
-                handleFieldChange(0, 'courtier', null);
-                handleFieldChange(0, 'ecoorganisme', null);
-                handleFieldChange(0, 'codeTraitement', null);
-                handleFieldChange(0, 'contrat', null);
-                
-                // Remove all lines except the first one
-                while (selectedFieldsList.length > 1) {
-                  removeLine(selectedFieldsList.length - 1);
-                }
-              }}
-              className="w-full md:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200"
+              onClick={() => setAutocompletionEnabled(!autocompletionEnabled)}
+              className="md:w-[170px] px-2 py-1 text-sm font-medium bg-gray-100 rounded-md px-2 pb-1 cursor-pointer active:bg-gray-200 flex items-center gap-2"
+              title={autocompletionEnabled 
+                ? "Les informations ne sont pas modifiables quand l'autocomplétion est activée, vous pouvez la désactiver." 
+                : "Activer l'autocomplétion"}
             >
-              <span className="text-sm">Réinitialiser</span>
+              <BoxIcon name='pencil' type='solid' size='sm' color='green'></BoxIcon>
+              <p>{autocompletionEnabled ? "Remplissage auto" : "Remplissage manuel"}</p>
+              {/*<BoxIcon 
+                name={autocompletionEnabled ? "check-circle" : "x-circle"} 
+                type="solid" 
+                size="sm" 
+                className={autocompletionEnabled ? "text-[var(--green-medium)]" : "text-gray-400"}
+              />*/}
             </button>
             <button
-              onClick={() => setDisplayThis(false)}
-              className="text-gray-500 hover:text-gray-700 focus:outline-none mt-2"
+              type="button"
+              onClick={() => {
+                console.log('Début de la réinitialisation');
+                
+                // 1. Réinitialiser l'état d'affichage
+                const newAffichageConditionnel: { [key: number]: string } = { 0: 'initial' };
+                setAffichageConditionnel(newAffichageConditionnel);
+                console.log('État d\'affichage réinitialisé');
+
+                // 2. Réinitialiser les champs de la première ligne
+                const resetFields = () => {
+                  handleFieldChange(0, 'site', null);
+                  handleFieldChange(0, 'pointCollecte', null);
+                  handleFieldChange(0, 'contactEmetteur', null);
+                  handleFieldChange(0, 'dechet', null);
+                  handleFieldChange(0, 'contenant', null);
+                  handleFieldChange(0, 'nombreContenant', 1);
+                  handleFieldChange(0, 'date', null);
+                  handleFieldChange(0, 'transporteur', null);
+                  handleFieldChange(0, 'destinataire', null);
+                  handleFieldChange(0, 'showNegociant', false);
+                  handleFieldChange(0, 'destinataireMail', 'transporteur');
+                  handleFieldChange(0, 'typePrestation', TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT);
+                  handleFieldChange(0, 'negociant', null);
+                  handleFieldChange(0, 'courtier', null);
+                  handleFieldChange(0, 'ecoorganisme', null);
+                  handleFieldChange(0, 'codeTraitement', null);
+                  handleFieldChange(0, 'contrat', null);
+                  handleFieldChange(0, 'mention', null);
+                };
+                resetFields();
+                console.log('Champs de la première ligne réinitialisés');
+
+                // 3. Supprimer les lignes supplémentaires de manière sécurisée
+                const removeExtraLines = () => {
+                  const currentLength = selectedFieldsList.length;
+                  console.log(`Nombre de lignes avant suppression: ${currentLength}`);
+                  
+                  if (currentLength > 1) {
+                    // Supprimer les lignes de la fin vers le début pour éviter les problèmes d'index
+                    for (let i = currentLength - 1; i > 0; i--) {
+                      console.log(`Suppression de la ligne ${i}`);
+                      removeLine(i);
+                    }
+                  }
+                  console.log('Suppression des lignes supplémentaires terminée');
+                };
+                removeExtraLines();
+
+                console.log('Réinitialisation terminée');
+              }}
+              className="md:w-[130px] px-2 py-1 text-sm font-medium bg-gray-100 rounded-md px-2 pb-1 cursor-pointer active:bg-gray-200 flex items-center gap-2"
             >
-              <BoxIcon name="x" type="solid" size="md" />
+              <BoxIcon name='eraser' type='solid' size='sm' color='green'></BoxIcon>
+              <span>Tout effacer</span>
             </button>
+            {!isMobile && (
+              <button
+                onClick={() => setDisplayThis(false)}
+                className="text-gray-500 hover:text-gray-700 focus:outline-none mt-2"
+              >
+                <BoxIcon name="x" type="solid" size="md" />
+              </button>
+            )}
           </div>
         </div>
         
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4">
           <form className="w-full max-w-full">
             {/* Section Point de départ et Contact (en-tête) */}
-            <div className="text-sm font-semibold ml-2 md:ml-6 mt-2 text-gray-700">Point de départ et Contact</div>
+            <div className="text-sm font-semibold ml-2 md:ml-6 mt-2 mb-2 text-gray-700">Point de départ  </div>
             <div className="bg-white rounded-lg p-3 mb-4 shadow-sm">
-              <div className="flex flex-wrap gap-4">
+              <div>
                 {isMobile ? (
-                  <>
+                  <div className="flex flex-col gap-2">
                     <div className={inputClasses}>
                       <InputMobile
                         name="site"
                         titre="Site"
-                        placeholder="Sélectionner un site"
+                        placeholder="Site"
                         options={{
                           filteredOptions: allOptions.sites.map(site => site.value.nom),
                           allOptions: []
@@ -175,150 +299,122 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                         onMobile={true}
                       />
                     </div>
-                    <div className={inputClasses}>
-                      <InputMobile
-                        name="pointCollecte"
-                        titre="Point de collecte"
-                        placeholder="Sélectionner un point de collecte"
-                        options={{
-                          filteredOptions: selectedFieldsList[0]?.site?.value?.pointsCollecte?.map(point => point.nom) || [],
-                          allOptions: []
-                        }}
-                        value={selectedFieldsList[0]?.pointCollecte?.nom || ''}
-                        onChange={(e) => {
-                          const selectedPoint = selectedFieldsList[0]?.site?.value?.pointsCollecte?.find(p => p.nom === e.target.value);
-                          handleFieldChange(0, 'pointCollecte', selectedPoint || null);
-                        }}
-                        enableText={selectedFieldsList[0]?.site?.value?.pointsCollecte?.length === 1}
-                        stylePrimary={true}
-                        onMobile={true}
-                      />
-                    </div>
-                    <div className={inputClasses}>
-                      <InputMobile
-                        name="contactEmetteur"
-                        titre="Contact émetteur"
-                        placeholder="Sélectionner un contact"
-                        options={{
-                          filteredOptions: allOptions.contacts?.map(contact => contact.value.prenomNom || '') || [],
-                          allOptions: []
-                        }}
-                        value={selectedFieldsList[0]?.contactEmetteur?.[0]?.value?.prenomNom || ''}
-                        onChange={(e) => {
-                          const selectedContact = allOptions.contacts?.find(c => c.value.prenomNom === e.target.value);
-                          if (selectedContact) {
-                            const newContacts = selectedFieldsList[0]?.contactEmetteur || [];
-                            if (!newContacts.some(c => c.table_id === selectedContact.table_id)) {
-                              handleFieldChange(0, 'contactEmetteur', [...newContacts, selectedContact]);
-                            }
-                          }
-                        }}
-                        enableText={true}
-                        stylePrimary={true}
-                        onMobile={true}
-                      />
-                      {selectedFieldsList[0]?.contactEmetteur && selectedFieldsList[0].contactEmetteur.length > 0 && (
-                        <div className="mt-2 flex flex-row flex-nowrap overflow-x-auto gap-2">
-                          {selectedFieldsList[0].contactEmetteur.map((contact) => (
-                            <div key={contact.table_id} className="flex-shrink-0 flex items-center justify-between bg-gray-50 p-2 rounded w-[150px]">
-                              <span className="text-sm truncate">{contact.value.prenomNom}</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const newContacts = selectedFieldsList[0]?.contactEmetteur?.filter(c => c.table_id !== contact.table_id) || [];
-                                  handleFieldChange(0, 'contactEmetteur', newContacts.length > 0 ? newContacts : null);
-                                }}
-                                className="text-red-500 hover:text-red-700 ml-2"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
+                    {(affichage_conditionnel[0] === 'affichage_site' || affichage_conditionnel[0] === 'affichage_dechet' || affichage_conditionnel[0] === 'affichage_maximum') && (
+                      <>
+                        <div className={inputClasses}>
+                          <InputMobile
+                            name="pointCollecte"
+                            titre="Collecte"
+                            placeholder="Point de collecte"
+                            options={{
+                              filteredOptions: selectedFieldsList[0]?.site?.value?.pointsCollecte?.map(point => point.nom) || [],
+                              allOptions: []
+                            }}
+                            value={selectedFieldsList[0]?.pointCollecte?.nom || ''}
+                            onChange={(e) => {
+                              const selectedPoint = selectedFieldsList[0]?.site?.value?.pointsCollecte?.find(p => p.nom === e.target.value);
+                              handleFieldChange(0, 'pointCollecte', selectedPoint || null);
+                            }}
+                            enableText={selectedFieldsList[0]?.site?.value?.pointsCollecte?.length === 1}
+                            stylePrimary={true}
+                            onMobile={true}
+                          />
                         </div>
-                      )}
-                    </div>
-                  </>
+                        <div className={inputClasses}>
+                          <InputMobile
+                            name="contactEmetteur"
+                            titre="Respo"
+                            placeholder="Contact"
+                            options={{
+                              filteredOptions: selectedFieldsList[0]?.site?.value?.contacts?.map(contact => contact.nom) || [],
+                              allOptions: []
+                            }}
+                            value={selectedFieldsList[0]?.contactEmetteur?.[0]?.nom || ''}
+                            onChange={(e) => {
+                              const selectedContact = selectedFieldsList[0]?.site?.value?.contacts?.find(c => c.nom === e.target.value);
+                              if (selectedContact) {
+                                const newContacts = selectedFieldsList[0]?.contactEmetteur || [];
+                                if (!newContacts.some(c => c.nom === selectedContact.nom)) {
+                                  handleFieldChange(0, 'contactEmetteur', [...newContacts, selectedContact]);
+                                }
+                              }
+                            }}
+                            enableText={true}
+                            stylePrimary={true}
+                            onMobile={true}
+                          />
+                          {selectedFieldsList[0]?.site?.value?.contacts?.length && selectedFieldsList[0]?.site?.value?.contacts?.length > 1 && <div className="text-gray-500 text-sm ml-[80px] mt-1">+ {selectedFieldsList[0]?.site?.value?.contacts?.length - 1} {selectedFieldsList[0]?.site?.value?.contacts?.length - 1 > 1 ? 'autres' : 'autre'}</div>}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 ) : (
                   <>
-                    <div className={inputClasses}>
-                      <InputFull
-                        name="site"
-                        titre="Site"
-                        placeholder="Sélectionner un site"
-                        options={{
-                          filteredOptions: allOptions.sites.map(site => site.value.nom),
-                          allOptions: []
-                        }}
-                        value={selectedFieldsList[0]?.site?.value?.nom || ''}
-                        onChange={(e) => {
-                          const selectedSite = allOptions.sites.find(site => site.value.nom === e.target.value);
-                          handleFieldChange(0, 'site', selectedSite || null);
-                        }}
-                        enableText={true}
-                        stylePrimary={true}
-                      />
-                    </div>
-                    <div className={inputClasses}>
-                      <InputFull
-                        name="pointCollecte"
-                        titre="Point de collecte"
-                        placeholder="Sélectionner un point de collecte"
-                        options={{
-                          filteredOptions: selectedFieldsList[0]?.site?.value?.pointsCollecte?.map(point => point.nom) || [],
-                          allOptions: []
-                        }}
-                        value={selectedFieldsList[0]?.pointCollecte?.nom || ''}
-                        onChange={(e) => {
-                          const selectedPoint = selectedFieldsList[0]?.site?.value?.pointsCollecte?.find(p => p.nom === e.target.value);
-                          handleFieldChange(0, 'pointCollecte', selectedPoint || null);
-                        }}
-                        enableText={selectedFieldsList[0]?.site?.value?.pointsCollecte?.length === 1}
-                        stylePrimary={true}
-                      />
-                    </div>
-                    <div className="w-[800px]">
-                    <div className="flex flex-row justify-between items-center">
-                      <InputFull
-                        name="contactEmetteur"
-                        titre="Contact émetteur"
-                        placeholder="Sélectionner un contact"
-                        options={{
-                          filteredOptions: allOptions.contacts?.map(contact => contact.value.prenomNom || '') || [],
-                          allOptions: []
-                        }}
-                        value={selectedFieldsList[0]?.contactEmetteur?.[0]?.value?.prenomNom || ''}
-                        onChange={(e) => {
-                          const selectedContact = allOptions.contacts?.find(c => c.value.prenomNom === e.target.value);
-                          if (selectedContact) {
-                            const newContacts = selectedFieldsList[0]?.contactEmetteur || [];
-                            if (!newContacts.some(c => c.table_id === selectedContact.table_id)) {
-                              handleFieldChange(0, 'contactEmetteur', [...newContacts, selectedContact]);
-                            }
-                          }
-                        }}
-                        enableText={true}
-                        stylePrimary={true}
-                      />
-                      {selectedFieldsList[0]?.contactEmetteur && selectedFieldsList[0].contactEmetteur.length > 0 && (
-                        <div className="mt-2 flex flex-row flex-wrap overflow-x-auto gap-2">
-                          {selectedFieldsList[0].contactEmetteur.map((contact) => (
-                            <div key={contact.table_id} className="flex-shrink-0 flex items-center justify-between bg-gray-50 p-2 rounded w-[150px]">
-                              <span className="text-sm truncate">{contact.value.prenomNom}</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const newContacts = selectedFieldsList[0]?.contactEmetteur?.filter(c => c.table_id !== contact.table_id) || [];
-                                  handleFieldChange(0, 'contactEmetteur', newContacts.length > 0 ? newContacts : null);
-                                }}
-                                className="text-red-500 hover:text-red-700 ml-2"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                    <div  className="flex flex-row gap-4 items-center ml-6">
+                      <div className={inputClasses}>
+                        <InputFull
+                          name="site"
+                          titre="Site"
+                          placeholder="Site"
+                          options={{
+                            filteredOptions: allOptions.sites.map(site => site.value.nom),
+                            allOptions: []
+                          }}
+                          value={selectedFieldsList[0]?.site?.value?.nom || ''}
+                          onChange={(e) => {
+                            const selectedSite = allOptions.sites.find(site => site.value.nom === e.target.value);
+                            handleFieldChange(0, 'site', selectedSite || null);
+                          }}
+                          enableText={true}
+                          stylePrimary={true}
+                        />
                       </div>
+                      {(affichage_conditionnel[0] === 'affichage_site' || affichage_conditionnel[0] === 'affichage_dechet' || affichage_conditionnel[0] === 'affichage_maximum') && (
+                        <>
+                          <div className={inputClasses}>
+                            <InputFull
+                              name="pointCollecte"
+                              titre="Point de collecte"
+                              placeholder="Point de collecte"
+                              options={{
+                                filteredOptions: selectedFieldsList[0]?.site?.value?.pointsCollecte?.map(point => point.nom) || [],
+                                allOptions: []
+                              }}
+                              value={selectedFieldsList[0]?.pointCollecte?.nom || ''}
+                              onChange={(e) => {
+                                const selectedPoint = selectedFieldsList[0]?.site?.value?.pointsCollecte?.find(p => p.nom === e.target.value);
+                                handleFieldChange(0, 'pointCollecte', selectedPoint || null);
+                              }}
+                              enableText={selectedFieldsList[0]?.site?.value?.pointsCollecte?.length === 1}
+                              stylePrimary={true}
+                            />
+                          </div>
+                          <div className="flex justify-start items-center gap-2">
+                            <InputFull
+                              name="contactEmetteur"
+                              titre="Respo Terrain"
+                              placeholder="Contact"
+                              options={{
+                                filteredOptions: selectedFieldsList[0]?.site?.value?.contacts?.map(contact => contact.nom) || [],
+                                allOptions: []
+                              }}
+                              value={selectedFieldsList[0]?.contactEmetteur?.filter(contact => contact.respoTerrain === true)[0]?.nom || ''}
+                              onChange={(e) => {
+                                const selectedContact = selectedFieldsList[0]?.site?.value?.contacts?.find(c => c.nom === e.target.value);
+                                if (selectedContact) {
+                                  const newContacts = selectedFieldsList[0]?.contactEmetteur || [];
+                                  if (!newContacts.some(c => c.nom === selectedContact.nom)) {
+                                    handleFieldChange(0, 'contactEmetteur', [...newContacts, selectedContact]);
+                                  }
+                                }
+                              }}
+                              enableText={true}
+                              stylePrimary={true}
+                            />
+                            {selectedFieldsList[0]?.site?.value?.contacts?.length && selectedFieldsList[0]?.site?.value?.contacts?.length > 1 && <div className="text-gray-500 text-sm">+ {selectedFieldsList[0]?.site?.value?.contacts?.length - 1} {selectedFieldsList[0]?.site?.value?.contacts?.length - 1 > 1 ? 'autres' : 'autre'}</div>}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </>
                 )}
@@ -328,29 +424,53 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
             {/* Liste des lignes de déchets et transport */}
             {selectedFieldsList.map((selectedFields, index) => (
               <div key={index} className={lineClasses}>
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="text-sm font-semibold text-gray-700">Ligne {index + 1}</h4>
-                  {index > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => removeLine(index)}
-                      className="text-red-500 hover:text-red-700 text-sm"
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex flex-row items-center gap-2">
+                    <h4 className="text-sm font-semibold text-gray-700 flex flex-row items-center gap-2"><p className="hidden md:block">Demande</p> {index + 1} :</h4>
+                    <select
+                      value={selectedFields.typePrestation}
+                      onChange={(e) => handleFieldChange(index, 'typePrestation', e.target.value)}
+                      className="text-sm text-gray-600 bg-transparent border-0 focus:outline-none focus:ring-0"
                     >
-                      Supprimer
-                    </button>
+                      {Object.entries(TYPES_PRESTATION_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {index > 0 && (
+                    isMobile ? (
+                      <button
+                        type="button"
+                        onClick={() => removeLine(index)}
+                        className="text-white bg-red-500 hover:bg-red-600 font-bold text-sm rounded-xl px-3 pb-1"
+                      >
+                        -
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => removeLine(index)}
+                        className="text-red-500 hover:text-red-700 text-sm"
+                      >
+                        Supprimer
+                      </button>
+                    )
                   )}
                 </div>
 
                 {/* Section Déchets et Date */}
                 <div className={sectionClasses}>
-                  <div className="flex flex-wrap gap-4">
+                  <div className="flex md:flex-row flex-col gap-2 items-center">
                     {isMobile ? (
                       <>
                         <div className={inputClasses}>
                           <InputMobile
                             name="dechet"
                             titre="Déchet"
-                            placeholder="Sélectionner un déchet"
+                            placeholder="Déchet"
                             options={{
                               filteredOptions: allOptions.dechets.map(dechet => dechet.value.nom),
                               allOptions: []
@@ -365,11 +485,13 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                             onMobile={true}
                           />
                         </div>
+                        {(affichage_conditionnel[index] === 'affichage_dechet' || affichage_conditionnel[index] === 'affichage_maximum') && (
+                          <>
                         <div className={inputClasses}>
                           <InputMobile
                             name="contenant"
                             titre="Contenant"
-                            placeholder="Sélectionner un contenant"
+                            placeholder="Contenant"
                             options={{
                               filteredOptions: allOptions.contenants.map(contenant => contenant.value.nom),
                               allOptions: []
@@ -383,289 +505,43 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                             stylePrimary={true}
                             onMobile={true}
                           />
-                          <div className="flex items-center justify-center gap-0">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentNumber = selectedFields.nombreContenant || 1;
-                                if (currentNumber > 1) {
-                                  handleFieldChange(index, 'nombreContenant', currentNumber - 1);
-                                }
-                              }}
-                              className="w-6 h-6 flex items-center justify-center bg-gray-200 rounded-full hover:bg-gray-300 transition-colors"
-                            >
-                              -
-                            </button>
-                            <span className="w-6 text-center">{selectedFields.nombreContenant || 1}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentNumber = selectedFields.nombreContenant || 1;
-                                handleFieldChange(index, 'nombreContenant', currentNumber + 1);
-                              }}
-                              className="w-6 h-6 flex items-center justify-center bg-gray-200 rounded-full hover:bg-gray-300 transition-colors"
-                            >
-                              +
-                            </button>
+                          {/* Date et nombre de contenant */}
+                          <div className="w-full flex items-center justify-between mt-2">
+                            {/* Nombre de contenant */}
+                            <div className="flex items-center justify-center gap-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentNumber = selectedFields.nombreContenant || 1;
+                                  if (currentNumber > 1) {
+                                    handleFieldChange(index, 'nombreContenant', currentNumber - 1);
+                                  }
+                                }}
+                                className="w-6 h-6 flex items-center justify-center bg-green-700 text-white rounded-full hover:bg-green-800 transition-colors"
+                              >
+                                -
+                              </button>
+                              <span className="w-6 text-center">{selectedFields.nombreContenant || 1}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentNumber = selectedFields.nombreContenant || 1;
+                                  handleFieldChange(index, 'nombreContenant', currentNumber + 1);
+                                }}
+                                className="w-6 h-6 flex items-center justify-center bg-green-700 text-white rounded-full hover:bg-green-800 transition-colors"
+                              >
+                                +
+                              </button>
+                            </div>
+                            {/* Date */}
+                            <DatePicker
+                              selected={selectedFields.date || null}
+                              onChange={(date) => handleFieldChange(index, 'date', date)}
+                              className="ml-[70px] w-[70%] p-1 border rounded-md"
+                              placeholderText="Dès que possible"
+                            />                       
                           </div>
                         </div>
-                        <div className={inputClasses}>
-                          <DatePicker
-                            selected={selectedFields.date || null}
-                            onChange={(date) => handleFieldChange(index, 'date', date)}
-                            className="w-full p-2 border rounded-md"
-                            placeholderText="Sélectionner une date"
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className={inputClasses}>
-                          <InputFull
-                            name="dechet"
-                            titre="Déchet"
-                            placeholder="Sélectionner un déchet"
-                            options={{
-                              filteredOptions: allOptions.dechets.map(dechet => dechet.value.nom),
-                              allOptions: []
-                            }}
-                            value={selectedFields.dechet?.value?.nom || ''}
-                            onChange={(e) => {
-                              const selectedDechet = allOptions.dechets.find(d => d.value.nom === e.target.value);
-                              handleFieldChange(index, 'dechet', selectedDechet || null);
-                            }}
-                            enableText={true}
-                            stylePrimary={true}
-                          />
-                        </div>
-                        <div className={inputClasses}>
-                          <InputFull
-                            name="contenant"
-                            titre="Contenant"
-                            placeholder="Sélectionner un contenant"
-                            options={{
-                              filteredOptions: allOptions.contenants.map(contenant => contenant.value.nom),
-                              allOptions: []
-                            }}
-                            value={selectedFields.contenant?.value?.nom || ''}
-                            onChange={(e) => {
-                              const selectedContenant = allOptions.contenants.find(c => c.value.nom === e.target.value);
-                              handleFieldChange(index, 'contenant', selectedContenant || null);
-                            }}
-                            enableText={true}
-                            stylePrimary={true}
-                          />
-
-                        </div>
-                        <div className="flex items-center justify-center gap-0 mr-4">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentNumber = selectedFields.nombreContenant || 1;
-                                if (currentNumber > 1) {
-                                  handleFieldChange(index, 'nombreContenant', currentNumber - 1);
-                                }
-                              }}
-                              className="w-6 h-6 flex items-center justify-center bg-gray-200 rounded-full hover:bg-gray-300 transition-colors"
-                            >
-                              -
-                            </button>
-                            <span className="w-6 text-center">{selectedFields.nombreContenant || 1}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentNumber = selectedFields.nombreContenant || 1;
-                                handleFieldChange(index, 'nombreContenant', currentNumber + 1);
-                              }}
-                              className="w-6 h-6 flex items-center justify-center bg-gray-200 rounded-full hover:bg-gray-300 transition-colors"
-                            >
-                              +
-                            </button>
-                          </div>                        
-                        <div className={inputClasses}>
-                          <DatePicker
-                            selected={selectedFields.date || null}
-                            onChange={(date) => handleFieldChange(index, 'date', date)}
-                            className="w-full p-2 border rounded-md"
-                            placeholderText="Sélectionner une date"
-                          />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Section Transport */}
-                <div className={sectionClasses}>
-                  <div className="flex flex-wrap gap-4">
-                    {isMobile ? (
-                      <>
-                        <div className={inputClasses}>
-                          <InputMobile
-                            name="transporteur"
-                            titre="Transporteur"
-                            placeholder="Sélectionner un transporteur"
-                            options={{
-                              filteredOptions: allOptions.transporteurs.map(transporteur => transporteur.value.nomBoite || ''),
-                              allOptions: []
-                            }}
-                            value={selectedFields.transporteur?.value?.nomBoite || ''}
-                            onChange={(e) => {
-                              const selectedTransporteur = allOptions.transporteurs.find(t => t.value.nomBoite === e.target.value);
-                              handleFieldChange(index, 'transporteur', selectedTransporteur || null);
-                            }}
-                            enableText={true}
-                            stylePrimary={true}
-                            onMobile={true}
-                          />
-                        </div>
-                        <div className={inputClasses}>
-                          <InputMobile
-                            name="destinataire"
-                            titre="Destinataire"
-                            placeholder="Sélectionner un destinataire"
-                            options={{
-                              filteredOptions: allOptions.destinataires?.map(dest => dest.value.nomBoite || '') || [],
-                              allOptions: []
-                            }}
-                            value={selectedFields.destinataire?.value?.nomBoite || ''}
-                            onChange={(e) => {
-                              const selectedDestinataire = allOptions.destinataires?.find(d => d.value.nomBoite === e.target.value);
-                              handleFieldChange(index, 'destinataire', selectedDestinataire || null);
-                            }}
-                            enableText={true}
-                            stylePrimary={true}
-                            onMobile={true}
-                          />
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <button
-                            type="button"
-                            onClick={() => handleFieldChange(index, 'showNegociant', !selectedFields.showNegociant)}
-                            className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1"
-                          >
-                            <span>{selectedFields.showNegociant ? 'Masquer' : 'Afficher +'}</span>
-                            <BoxIcon name={selectedFields.showNegociant ? 'chevron-up' : 'chevron-down'} type="solid" size="xs" />
-                          </button>
-                          <select
-                            value={selectedFields.destinataireMail}
-                            onChange={(e) => handleFieldChange(index, 'destinataireMail', e.target.value)}
-                            className="text-sm text-gray-600 bg-transparent border-0 focus:outline-none focus:ring-0"
-                          >
-                            <option value="transporteur">Transporteur</option>
-                            <option value="destinataire">Destinataire</option>
-                            <option value="negociant">Négociant</option>
-                            <option value="courtier">Courtier</option>
-                            <option value="ecoorganisme">Ecoorganisme</option>
-                          </select>
-                          <select
-                            value={selectedFields.typePrestation}
-                            onChange={(e) => handleFieldChange(index, 'typePrestation', e.target.value)}
-                            className="text-sm text-gray-600 bg-transparent border-0 focus:outline-none focus:ring-0"
-                          >
-                            <option value="enlevement">Enlèvement de déchets</option>
-                            <option value="camion_journee">Camion à la journée</option>
-                            <option value="camion_demie">Camion à la demi-journée</option>
-                            <option value="livraison">Livraison de contenants vides</option>
-                          </select>
-                        </div>
-                        {selectedFields.showNegociant && (
-                          <>
-                            <div className={inputClasses}>
-                              <InputMobile
-                                name="negociant"
-                                titre="Négociant"
-                                placeholder="Sélectionner un négociant"
-                                options={{
-                                  filteredOptions: allOptions.negociants?.map(nego => nego.value.nomBoite || '') || [],
-                                  allOptions: []
-                                }}
-                                value={selectedFields.negociant?.value?.nomBoite || ''}
-                                onChange={(e) => {
-                                  const selectedNegociant = allOptions.negociants?.find(nego => nego.value.nomBoite === e.target.value);
-                                  handleFieldChange(index, 'negociant', selectedNegociant || null);
-                                }}
-                                enableText={true}
-                                stylePrimary={true}
-                                onMobile={true}
-                              />
-                            </div>
-                            <div className={inputClasses}>
-                              <InputMobile
-                                name="courtier"
-                                titre="Courtier"
-                                placeholder="Sélectionner un courtier"
-                                options={{
-                                  filteredOptions: allOptions.courtiers?.map(court => court.value.nomBoite || '') || [],
-                                  allOptions: []
-                                }}
-                                value={selectedFields.courtier?.value?.nomBoite || ''}
-                                onChange={(e) => {
-                                  const selectedCourtier = allOptions.courtiers?.find(court => court.value.nomBoite === e.target.value);
-                                  handleFieldChange(index, 'courtier', selectedCourtier || null);
-                                }}
-                                enableText={true}
-                                stylePrimary={true}
-                                onMobile={true}
-                              />
-                            </div>
-                            <div className={inputClasses}>
-                              <InputMobile
-                                name="ecoorganisme"
-                                titre="Ecoorganisme"
-                                placeholder="Sélectionner un ecoorganisme"
-                                options={{
-                                  filteredOptions: allOptions.ecoorganismes?.map(eco => eco.value.nomBoite || '') || [],
-                                  allOptions: []
-                                }}
-                                value={selectedFields.ecoorganisme?.value?.nomBoite || ''}
-                                onChange={(e) => {
-                                  const selectedEcoorganisme = allOptions.ecoorganismes?.find(eco => eco.value.nomBoite === e.target.value);
-                                  handleFieldChange(index, 'ecoorganisme', selectedEcoorganisme || null);
-                                }}
-                                enableText={true}
-                                stylePrimary={true}
-                                onMobile={true}
-                              />
-                            </div>
-                            <div className={inputClasses}>
-                              <InputMobile
-                                name="codeTraitement"
-                                titre="Code traitement"
-                                placeholder="Sélectionner un code traitement"
-                                options={{
-                                  filteredOptions: allOptions.codeTraitements?.map(code => code.value.nom || '') || [],
-                                  allOptions: []
-                                }}
-                                value={selectedFields.codeTraitement?.value?.nom || ''}
-                                onChange={(e) => {
-                                  const selectedCodeTraitement = allOptions.codeTraitements?.find(code => code.value.nom === e.target.value);
-                                  handleFieldChange(index, 'codeTraitement', selectedCodeTraitement || null);
-                                }}
-                                enableText={true}
-                                stylePrimary={true}
-                                onMobile={true}
-                              />
-                            </div>
-                            <div className={inputClasses}>
-                              <InputMobile
-                                name="contrat"
-                                titre="Contrat"
-                                placeholder="Sélectionner un contrat"
-                                options={{
-                                  filteredOptions: allOptions.contrats?.map(contrat => contrat.value.nom || '') || [],
-                                  allOptions: []
-                                }}
-                                value={selectedFields.contrat?.value?.nom || ''}
-                                onChange={(e) => {
-                                  const selectedContrat = allOptions.contrats?.find(contrat => contrat.value.nom === e.target.value);
-                                  handleFieldChange(index, 'contrat', selectedContrat || null);
-                                }}
-                                enableText={true}
-                                stylePrimary={true}
-                                onMobile={true}
-                              />
-                            </div>
                           </>
                         )}
                       </>
@@ -673,162 +549,442 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                       <>
                         <div className={inputClasses}>
                           <InputFull
-                            name="transporteur"
-                            titre="Transporteur"
-                            placeholder="Sélectionner un transporteur"
+                            name="dechet"
+                            titre="Déchet"
+                            placeholder="Déchet"
                             options={{
-                              filteredOptions: allOptions.transporteurs.map(transporteur => transporteur.value.nomBoite || ''),
+                              filteredOptions: allOptions.dechets.map(dechet => dechet.value.nom),
                               allOptions: []
                             }}
-                            value={selectedFields.transporteur?.value?.nomBoite || ''}
+                            value={selectedFields.dechet?.value?.nom || ''}
                             onChange={(e) => {
-                              const selectedTransporteur = allOptions.transporteurs.find(t => t.value.nomBoite === e.target.value);
-                              handleFieldChange(index, 'transporteur', selectedTransporteur || null);
+                              const selectedDechet = allOptions.dechets.find(d => d.value.nom === e.target.value);
+                              handleFieldChange(index, 'dechet', selectedDechet || null);
                             }}
                             enableText={true}
                             stylePrimary={true}
                           />
                         </div>
-                        <div className={inputClasses}>
-                          <InputFull
-                            name="destinataire"
-                            titre="Destinataire"
-                            placeholder="Sélectionner un destinataire"
-                            options={{
-                              filteredOptions: allOptions.destinataires?.map(dest => dest.value.nomBoite || '') || [],
-                              allOptions: []
-                            }}
-                            value={selectedFields.destinataire?.value?.nomBoite || ''}
-                            onChange={(e) => {
-                              const selectedDestinataire = allOptions.destinataires?.find(d => d.value.nomBoite === e.target.value);
-                              handleFieldChange(index, 'destinataire', selectedDestinataire || null);
-                            }}
-                            enableText={true}
-                            stylePrimary={true}
-                          />
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <button
-                            type="button"
-                            onClick={() => handleFieldChange(index, 'showNegociant', !selectedFields.showNegociant)}
-                            className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1"
-                          >
-                            <span>{selectedFields.showNegociant ? 'Masquer' : 'Afficher +'}</span>
-                            <BoxIcon name={selectedFields.showNegociant ? 'chevron-up' : 'chevron-down'} type="solid" size="xs" />
-                          </button>
-                          <select
-                            value={selectedFields.destinataireMail}
-                            onChange={(e) => handleFieldChange(index, 'destinataireMail', e.target.value)}
-                            className="text-sm text-gray-600 bg-transparent border-0 focus:outline-none focus:ring-0"
-                          >
-                            <option value="transporteur">Transporteur</option>
-                            <option value="destinataire">Destinataire</option>
-                            <option value="negociant">Négociant</option>
-                            <option value="courtier">Courtier</option>
-                            <option value="ecoorganisme">Ecoorganisme</option>
-                          </select>
-                          <select
-                            value={selectedFields.typePrestation}
-                            onChange={(e) => handleFieldChange(index, 'typePrestation', e.target.value)}
-                            className="text-sm text-gray-600 bg-transparent border-0 focus:outline-none focus:ring-0"
-                          >
-                            <option value="enlevement">Enlèvement de déchets</option>
-                            <option value="camion_journee">Camion à la journée</option>
-                            <option value="camion_demie">Camion à la demi-journée</option>
-                            <option value="livraison">Livraison de contenants vides</option>
-                          </select>
-                        </div>
-                        {selectedFields.showNegociant && (
+                        {(affichage_conditionnel[index] === 'affichage_dechet' || affichage_conditionnel[index] === 'affichage_maximum') && (
                           <>
-                            <div className={inputClasses}>
-                              <InputFull
-                                name="negociant"
-                                titre="Négociant"
-                                placeholder="Sélectionner un négociant"
-                                options={{
-                                  filteredOptions: allOptions.negociants?.map(nego => nego.value.nomBoite || '') || [],
-                                  allOptions: []
+                        <div className="flex justify-start items-center gap-2">
+                          <div>
+                            <InputFull
+                              name="contenant"
+                              titre="Contenant"
+                              placeholder="Contenant"
+                              options={{
+                                filteredOptions: allOptions.contenants.map(contenant => contenant.value.nom),
+                                allOptions: []
+                              }}
+                              value={selectedFields.contenant?.value?.nom || ''}
+                              onChange={(e) => {
+                                const selectedContenant = allOptions.contenants.find(c => c.value.nom === e.target.value);
+                                handleFieldChange(index, 'contenant', selectedContenant || null);
+                              }}
+                              enableText={true}
+                              stylePrimary={true}
+                            />
+
+                          </div>
+                          <div className="flex items-center justify-center gap-0"> 
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentNumber = selectedFields.nombreContenant || 1;
+                                  if (currentNumber > 1) {
+                                    handleFieldChange(index, 'nombreContenant', currentNumber - 1);
+                                  }
                                 }}
-                                value={selectedFields.negociant?.value?.nomBoite || ''}
-                                onChange={(e) => {
-                                  const selectedNegociant = allOptions.negociants?.find(nego => nego.value.nomBoite === e.target.value);
-                                  handleFieldChange(index, 'negociant', selectedNegociant || null);
+                                className="w-5 h-5 flex items-center justify-center bg-green-700 text-white rounded-full hover:bg-green-800 transition-colors"
+                              >
+                                -
+                              </button>
+                              <span className="w-6 text-center">{selectedFields.nombreContenant || 1}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentNumber = selectedFields.nombreContenant || 1;
+                                  handleFieldChange(index, 'nombreContenant', currentNumber + 1);
                                 }}
-                                enableText={true}
-                                stylePrimary={true}
-                              />
+                                className="w-5 h-5 flex items-center justify-center bg-green-700 text-white rounded-full hover:bg-green-800 transition-colors"
+                              >
+                                +
+                              </button>
+                            </div>                        
+                        </div>
+                        <div className="ml-[80px] flex justify-start items-center gap-2">
+                          <div className="text-gray-500 text-sm">Collecte le</div>
+                          <DatePicker
+                            selected={selectedFields.date || null}
+                            onChange={(date) => handleFieldChange(index, 'date', date)}
+                            className="w-[70%] h-1/2 p-1 border rounded-md text-sm"
+                            placeholderText="Dès que possible"
+                            showTimeSelect={true}
+                          />
+                        </div>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bouton Afficher + */}
+                <div className="flex justify-end mt-2">
+                  <button
+                    type="button"
+                    onClick={() => handleShowMore(index)}
+                    className="text-sm text-gray-600 hover:text-gray-800 flex items-start gap-1"
+                  >
+                    <span>{affichage_conditionnel[index] === 'affichage_maximum' ? 'Masquer' : 'Afficher plus'}</span>
+                    <div className="mt-0.5"><BoxIcon name={affichage_conditionnel[index] === 'affichage_maximum' ? 'chevron-up' : 'chevron-down'} type="solid" size="xs" /></div>
+                  </button>
+                </div>
+
+                {/* Section Transport */}
+                <div className={sectionClasses}>
+                  <div className="flex flex-wrap gap-4">
+                    {isMobile ? (
+                      <>
+                        {affichage_conditionnel[index] === 'affichage_maximum' && (
+                          <>
+                            {/* Première ligne : Transporteur, Destinataire, DestinataireMail */}
+                            <div className="flex flex-wrap gap-2">
+                              <div className={inputClasses}>
+                                <InputMobile
+                                  name="transporteur"
+                                  titre="Transport."
+                                  placeholder="Transporteur"
+                                  options={{
+                                    filteredOptions: allOptions.transporteurs.map(transporteur => transporteur.value.nomBoite || ''),
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.transporteur?.value?.nomBoite || ''}
+                                  onChange={(e) => {
+                                    const selectedTransporteur = allOptions.transporteurs.find(t => t.value.nomBoite === e.target.value);
+                                    handleFieldChange(index, 'transporteur', selectedTransporteur || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                  onMobile={true}
+                                />
+                              </div>
+                              <div className={inputClasses}>
+                                <InputMobile
+                                  name="destinataire"
+                                  titre="Destinat."
+                                  placeholder="Destinataire"
+                                  options={{
+                                    filteredOptions: allOptions.destinataires?.map(dest => dest.value.nomBoite || '') || [],
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.destinataire?.value?.nomBoite || ''}
+                                  onChange={(e) => {
+                                    const selectedDestinataire = allOptions.destinataires?.find(d => d.value.nomBoite === e.target.value);
+                                    handleFieldChange(index, 'destinataire', selectedDestinataire || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                  onMobile={true}
+                                />
+                              </div>
+                              <div className={inputClasses}>
+                                <div className="flex items-center gap-4 ml-[60px]">
+                                  <div className="text-gray-500 text-sm">Mail pour le</div>
+                                  <select
+                                    value={selectedFields.destinataireMail}
+                                    onChange={(e) => handleFieldChange(index, 'destinataireMail', e.target.value)}
+                                    className="text-sm text-gray-600 bg-transparent border-0 focus:outline-none focus:ring-0"
+                                  >
+                                    <option value="transporteur">Transporteur</option>
+                                    <option value="destinataire">Destinataire</option>
+                                    <option value="negociant">Négociant</option>
+                                    <option value="courtier">Courtier</option>
+                                    <option value="ecoorganisme">Ecoorganisme</option>
+                                  </select>
+                                </div>
+                              </div>
                             </div>
-                            <div className={inputClasses}>
-                              <InputFull
-                                name="courtier"
-                                titre="Courtier"
-                                placeholder="Sélectionner un courtier"
-                                options={{
-                                  filteredOptions: allOptions.courtiers?.map(court => court.value.nomBoite || '') || [],
-                                  allOptions: []
-                                }}
-                                value={selectedFields.courtier?.value?.nomBoite || ''}
-                                onChange={(e) => {
-                                  const selectedCourtier = allOptions.courtiers?.find(court => court.value.nomBoite === e.target.value);
-                                  handleFieldChange(index, 'courtier', selectedCourtier || null);
-                                }}
-                                enableText={true}
-                                stylePrimary={true}
-                              />
+
+                            {/* Deuxième ligne : Négociant, Courtier, Eco Organisme */}
+                            <div className="flex flex-wrap gap-2">
+                              <div className={inputClasses}>
+                                <InputMobile
+                                  name="negociant"
+                                  titre="Négociant"
+                                  placeholder="Négociant"
+                                  options={{
+                                    filteredOptions: allOptions.negociants?.map(nego => nego.value.nomBoite || '') || [],
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.negociant?.value?.nomBoite || ''}
+                                  onChange={(e) => {
+                                    const selectedNegociant = allOptions.negociants?.find(nego => nego.value.nomBoite === e.target.value);
+                                    handleFieldChange(index, 'negociant', selectedNegociant || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                  onMobile={true}
+                                />
+                              </div>
+                              <div className={inputClasses}>
+                                <InputMobile
+                                  name="courtier"
+                                  titre="Courtier"
+                                  placeholder="Courtier"
+                                  options={{
+                                    filteredOptions: allOptions.courtiers?.map(court => court.value.nomBoite || '') || [],
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.courtier?.value?.nomBoite || ''}
+                                  onChange={(e) => {
+                                    const selectedCourtier = allOptions.courtiers?.find(court => court.value.nomBoite === e.target.value);
+                                    handleFieldChange(index, 'courtier', selectedCourtier || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                  onMobile={true}
+                                />
+                              </div>
+                              <div className={inputClasses}>
+                                <InputMobile
+                                  name="ecoorganisme"
+                                  titre="EcoOrg."
+                                  placeholder="Ecoorganisme"
+                                  options={{
+                                    filteredOptions: allOptions.ecoorganismes?.map(eco => eco.value.nomBoite || '') || [],
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.ecoorganisme?.value?.nomBoite || ''}
+                                  onChange={(e) => {
+                                    const selectedEcoorganisme = allOptions.ecoorganismes?.find(eco => eco.value.nomBoite === e.target.value);
+                                    handleFieldChange(index, 'ecoorganisme', selectedEcoorganisme || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                  onMobile={true}
+                                />
+                              </div>
                             </div>
-                            <div className={inputClasses}>
-                              <InputFull
-                                name="ecoorganisme"
-                                titre="Ecoorganisme"
-                                placeholder="Sélectionner un ecoorganisme"
-                                options={{
-                                  filteredOptions: allOptions.ecoorganismes?.map(eco => eco.value.nomBoite || '') || [],
-                                  allOptions: []
-                                }}
-                                value={selectedFields.ecoorganisme?.value?.nomBoite || ''}
-                                onChange={(e) => {
-                                  const selectedEcoorganisme = allOptions.ecoorganismes?.find(eco => eco.value.nomBoite === e.target.value);
-                                  handleFieldChange(index, 'ecoorganisme', selectedEcoorganisme || null);
-                                }}
-                                enableText={true}
-                                stylePrimary={true}
-                              />
+
+                            {/* Troisième ligne : Contrat, Code de traitement */}
+                            <div className="flex flex-wrap gap-2">
+                              <div className={inputClasses}>
+                                <InputMobile
+                                  name="contrat"
+                                  titre="Contrat"
+                                  placeholder="Contrat"
+                                  options={{
+                                    filteredOptions: allOptions.contrats?.map(contrat => contrat.value.nom || '') || [],
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.contrat?.value?.nom || ''}
+                                  onChange={(e) => {
+                                    const selectedContrat = allOptions.contrats?.find(contrat => contrat.value.nom === e.target.value);
+                                    handleFieldChange(index, 'contrat', selectedContrat || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                  onMobile={true}
+                                />
+                              </div>
+                              <div className={inputClasses}>
+                                <InputMobile
+                                  name="codeTraitement"
+                                  titre="Traitement"
+                                  placeholder="Code de traitement"
+                                  options={{
+                                    filteredOptions: allOptions.codeTraitements?.map(code => code.value.nom || '') || [],
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.codeTraitement?.value?.nom || ''}
+                                  onChange={(e) => {
+                                    const selectedCodeTraitement = allOptions.codeTraitements?.find(code => code.value.nom === e.target.value);
+                                    handleFieldChange(index, 'codeTraitement', selectedCodeTraitement || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                  onMobile={true}
+                                />
+                              </div>
                             </div>
-                            <div className={inputClasses}>
-                              <InputFull
-                                name="codeTraitement"
-                                titre="Code traitement"
-                                placeholder="Sélectionner un code traitement"
-                                options={{
-                                  filteredOptions: allOptions.codeTraitements?.map(code => code.value.nom || '') || [],
-                                  allOptions: []
-                                }}
-                                value={selectedFields.codeTraitement?.value?.nom || ''}
-                                onChange={(e) => {
-                                  const selectedCodeTraitement = allOptions.codeTraitements?.find(code => code.value.nom === e.target.value);
-                                  handleFieldChange(index, 'codeTraitement', selectedCodeTraitement || null);
-                                }}
-                                enableText={true}
-                                stylePrimary={true}
-                              />
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {affichage_conditionnel[index] === 'affichage_maximum' && (
+                          <>
+                            {/* Première ligne : Transporteur, Destinataire, DestinataireMail */}
+                            <div className="flex flex-wrap gap-4 items-center">
+                              <div className={inputClasses}>
+                                <InputFull
+                                  name="transporteur"
+                                  titre="Transporteur"
+                                  placeholder="Transporteur"
+                                  options={{
+                                    filteredOptions: allOptions.transporteurs.map(transporteur => transporteur.value.nomBoite || ''),
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.transporteur?.value?.nomBoite || ''}
+                                  onChange={(e) => {
+                                    const selectedTransporteur = allOptions.transporteurs.find(t => t.value.nomBoite === e.target.value);
+                                    handleFieldChange(index, 'transporteur', selectedTransporteur || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                />
+                              </div>
+                              <div className={inputClasses}>
+                                <InputFull
+                                  name="destinataire"
+                                  titre="Destinataire"
+                                  placeholder="Destinataire"
+                                  options={{
+                                    filteredOptions: allOptions.destinataires?.map(dest => dest.value.nomBoite || '') || [],
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.destinataire?.value?.nomBoite || ''}
+                                  onChange={(e) => {
+                                    const selectedDestinataire = allOptions.destinataires?.find(d => d.value.nomBoite === e.target.value);
+                                    handleFieldChange(index, 'destinataire', selectedDestinataire || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                />
+                              </div>
+                              <div className={inputClasses}>
+                                <div className="flex items-center gap-2 ml-[40px]">
+                                  <div className="text-gray-500 text-sm">Mail pour le</div>
+                                  <select
+                                    value={selectedFields.destinataireMail}
+                                    onChange={(e) => handleFieldChange(index, 'destinataireMail', e.target.value)}
+                                    className="text-sm text-gray-600 bg-transparent border-0 focus:outline-none focus:ring-0"
+                                  >
+                                    <option value="transporteur">Transporteur</option>
+                                    <option value="destinataire">Destinataire</option>
+                                    <option value="negociant">Négociant</option>
+                                    <option value="courtier">Courtier</option>
+                                    <option value="ecoorganisme">Ecoorganisme</option>
+                                  </select>
+                                </div>
+                              </div>
                             </div>
-                            <div className={inputClasses}>
-                              <InputFull
-                                name="contrat"
-                                titre="Contrat"
-                                placeholder="Sélectionner un contrat"
-                                options={{
-                                  filteredOptions: allOptions.contrats?.map(contrat => contrat.value.nom || '') || [],
-                                  allOptions: []
-                                }}
-                                value={selectedFields.contrat?.value?.nom || ''}
-                                onChange={(e) => {
-                                  const selectedContrat = allOptions.contrats?.find(contrat => contrat.value.nom === e.target.value);
-                                  handleFieldChange(index, 'contrat', selectedContrat || null);
-                                }}
-                                enableText={true}
-                                stylePrimary={true}
-                              />
+
+                            {/* Deuxième ligne : Négociant, Courtier, Eco Organisme */}
+                            <div className="flex flex-wrap gap-4">
+                              <div className={inputClasses}>
+                                <InputFull
+                                  name="negociant"
+                                  titre="Négociant"
+                                  placeholder="Négociant"
+                                  options={{
+                                    filteredOptions: allOptions.negociants?.map(nego => nego.value.nomBoite || '') || [],
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.negociant?.value?.nomBoite || ''}
+                                  onChange={(e) => {
+                                    const selectedNegociant = allOptions.negociants?.find(nego => nego.value.nomBoite === e.target.value);
+                                    handleFieldChange(index, 'negociant', selectedNegociant || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                />
+                              </div>
+                              <div className={inputClasses}>
+                                <InputFull
+                                  name="courtier"
+                                  titre="Courtier"
+                                  placeholder="Courtier"
+                                  options={{
+                                    filteredOptions: allOptions.courtiers?.map(court => court.value.nomBoite || '') || [],
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.courtier?.value?.nomBoite || ''}
+                                  onChange={(e) => {
+                                    const selectedCourtier = allOptions.courtiers?.find(court => court.value.nomBoite === e.target.value);
+                                    handleFieldChange(index, 'courtier', selectedCourtier || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                />
+                              </div>
+                              <div className={inputClasses}>
+                                <InputFull
+                                  name="ecoorganisme"
+                                  titre="Ecoorganisme"
+                                  placeholder="Ecoorganisme"
+                                  options={{
+                                    filteredOptions: allOptions.ecoorganismes?.map(eco => eco.value.nomBoite || '') || [],
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.ecoorganisme?.value?.nomBoite || ''}
+                                  onChange={(e) => {
+                                    const selectedEcoorganisme = allOptions.ecoorganismes?.find(eco => eco.value.nomBoite === e.target.value);
+                                    handleFieldChange(index, 'ecoorganisme', selectedEcoorganisme || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Troisième ligne : Contrat, Code de traitement */}
+                            <div className="flex flex-wrap gap-4">
+                              <div className={inputClasses}>
+                                <InputFull
+                                  name="contrat"
+                                  titre="Contrat"
+                                  placeholder="Contrat"
+                                  options={{
+                                    filteredOptions: allOptions.contrats?.map(contrat => contrat.value.nom || '') || [],
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.contrat?.value?.nom || ''}
+                                  onChange={(e) => {
+                                    const selectedContrat = allOptions.contrats?.find(contrat => contrat.value.nom === e.target.value);
+                                    handleFieldChange(index, 'contrat', selectedContrat || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                />
+                              </div>
+                              <div className={inputClasses}>
+                                <InputFull
+                                  name="codeTraitement"
+                                  titre="Code traitement"
+                                  placeholder="Code de traitement"
+                                  options={{
+                                    filteredOptions: allOptions.codeTraitements?.map(code => code.value.nom || '') || [],
+                                    allOptions: []
+                                  }}
+                                  value={selectedFields.codeTraitement?.value?.code || ''}
+                                  onChange={(e) => {
+                                    const selectedCodeTraitement = allOptions.codeTraitements?.find(code => code.value.nom === e.target.value);
+                                    handleFieldChange(index, 'codeTraitement', selectedCodeTraitement || null);
+                                  }}
+                                  enableText={true}
+                                  stylePrimary={true}
+                                />
+                              </div>
+                              <div className="flex items-center gap-2 ml-8">
+                                <div className="text-gray-500 text-sm">Mentionner le {selectedFields.destinataireMail === 'transporteur' ? 'destinataire' : 'transporteur'}</div>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedFields.mention?.toMentionned || false}
+                                  onChange={(e) => {
+                                    const mention = {
+                                      toMentionned: e.target.checked,
+                                      mentionType: selectedFields.destinataireMail === 'transporteur' ? 'recipient' : 'transporteur',
+                                      mentionCompany: '',
+                                      mentionAddress: ''
+                                    };
+                                    handleFieldChange(index, 'mention', mention);
+                                  }}
+                                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                              </div>
                             </div>
                           </>
                         )}
@@ -843,8 +999,8 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
             <div className="flex justify-center mt-3">
               <button
                 type="button"
-                onClick={addNewLine}
-                className="px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--green-medium)] transition-colors duration-200"
+                onClick={handleAddNewLine}
+                className="px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--green-medium)] transition-colors duration-200 mb-2"
               >
                 Ajouter une ligne
               </button>
