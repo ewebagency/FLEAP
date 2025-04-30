@@ -17,6 +17,7 @@ import { useMediaQuery } from 'react-responsive';
 import dynamic from 'next/dynamic';
 import { invalidateCache } from "@/app/utils/invalidateCache";
 import { useBSDs } from "../BSDsProvider";
+import { code_ced_DICTIONNAIRE } from "@/app/component/CodeCED";
 
 // Charger dynamiquement le composant mobile
 const ValidateCollecteMobile = dynamic(() => import('./ValidateCollecteMobile'), { ssr: false });
@@ -95,7 +96,7 @@ interface ValidateCollecteProps {
 }
 
 // Ajouter ces constantes au début du fichier, après les imports
-const dic_json_ced_masse_volumique = [
+/*const dic_json_ced_masse_volumique = [
     { "code_CED": "17 01 01", "masse_volumique": 2300 },
     { "code_CED": "17 01 02", "masse_volumique": 1900 },
     { "code_CED": "17 01 07", "masse_volumique": 2000 },
@@ -106,7 +107,12 @@ const dic_json_ced_masse_volumique = [
     { "code_CED": "15 01 07", "masse_volumique": 35 },
     { "code_CED": "20 02 01", "masse_volumique": 500 },
     { "code_CED": "17 09 04", "masse_volumique": 1500 }
-];
+];*/
+
+const dic_json_ced_masse_volumique = code_ced_DICTIONNAIRE.map(item => ({
+    code_CED: item.ced,
+    masse_volumique: item.masse_volumique*1000
+}));
 
 // Ajouter ces fonctions de calcul avant le composant ValidateCollecte
 const calculateEstimatedWeight = (

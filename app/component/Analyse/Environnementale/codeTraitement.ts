@@ -65,3 +65,37 @@ export const typeTraitement = {
   "Réemploi": ['RX'],
   "Inconnu": ['']
 }
+
+
+export const codeTraitementDefinitions = [
+  { groupe: 'Élimination', code: 'D1', nom: 'Mise en décharge' },
+  { groupe: 'Élimination', code: 'D2', nom: 'Traitement en sol' },
+  { groupe: 'Élimination', code: 'D3', nom: 'Injection en profondeur' },
+  { groupe: 'Élimination', code: 'D4', nom: 'Lagunage' },
+  { groupe: 'Élimination', code: 'D5', nom: 'Décharge aménagée' },
+  { groupe: 'Élimination', code: 'D6', nom: 'Rejet en eau (hors immersion)' },
+  { groupe: 'Élimination', code: 'D7', nom: 'Immersion en mer' },
+  { groupe: 'Élimination', code: 'D8', nom: 'Traitement bio. avant élimination' },
+  { groupe: 'Élimination', code: 'D9', nom: 'Traitement physico-chimique avant élimination' },
+  { groupe: 'Élimination', code: 'D10', nom: 'Incinération à terre' },
+  { groupe: 'Élimination', code: 'D11', nom: 'Incinération en mer (interdit)' },
+  { groupe: 'Élimination', code: 'D12', nom: 'Stockage permanent' },
+  { groupe: 'Élimination', code: 'D13', nom: 'Regroupement/mélange avant D1-D12' },
+  { groupe: 'Élimination', code: 'D14', nom: 'Reconditionnement avant D1-D13' },
+  { groupe: 'Élimination', code: 'D15', nom: 'Stockage avant D1-D14' },
+  { groupe: 'Valorisation énergétique', code: 'R1', nom: 'Valorisation énergétique' },
+  { groupe: 'Valorisation matière', code: 'R2', nom: 'Régénération solvants' },
+  { groupe: 'Valorisation matière', code: 'R3', nom: 'Recyclage organique (hors solvants)' },
+  { groupe: 'Valorisation matière', code: 'R4', nom: 'Recyclage métaux' },
+  { groupe: 'Valorisation matière', code: 'R5', nom: 'Recyclage inorganique' },
+  { groupe: 'Valorisation matière', code: 'R6', nom: 'Régénération acides/bases' },
+  { groupe: 'Valorisation matière', code: 'R7', nom: 'Récup. agents de dépollution' },
+  { groupe: 'Valorisation matière', code: 'R8', nom: 'Récup. catalyseurs' },
+  { groupe: 'Valorisation matière', code: 'R9', nom: 'Régénération huiles' },
+  { groupe: 'Valorisation matière', code: 'R10', nom: 'Épandage agricole/écologique' },
+  { groupe: 'Valorisation matière', code: 'R11', nom: 'Réutilisation résidus R1-R10' },
+  { groupe: 'Préparation à la valorisation', code: 'R12', nom: 'Échange de déchets avant R1-R11' },
+  { groupe: 'Préparation à la valorisation', code: 'R13', nom: 'Stockage avant R1-R12' },
+  { groupe: 'Réutilisation', code: 'PR', nom: 'Réutilisation' },
+  { groupe: 'Réemploi', code: 'RX', nom: 'Réemploi' }
+];

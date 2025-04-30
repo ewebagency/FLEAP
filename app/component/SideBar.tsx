@@ -28,7 +28,7 @@ interface SideBarProps {
     className_props: string;
 }
 
-const cofounders_user_id = (user_id:string|null) => {
+export const cofounders_user_id = (user_id:string|null) => {
     if (user_id){
         if (user_id == "a0542794-bbae-4132-9dde-485595bfa2aa" || user_id == "8f05a291-f8b3-429d-839e-6f0b12f1bede" || user_id == "dd9acb15-4678-442f-af72-79331bc43d91"){
             return true;

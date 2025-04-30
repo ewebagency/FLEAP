@@ -14,7 +14,7 @@ import { toast } from "react-hot-toast";
 import { createRoot } from "react-dom/client";
 import DatePicker from "react-datepicker";
 import { invalidateCache } from "@/app/utils/invalidateCache";
-import { codeTraitementDefinitions } from "@/app/component/Analyse/Environnementale/codeTraitement";
+import { typeTraitement } from "@/app/component/Analyse/Environnementale/codeTraitement";
 
 const initialToogleData: FormInput = {
     emitter: {
@@ -85,36 +85,18 @@ const initialOtherInfos: OtherInfos = {
   automaticMode: true
 };
 
-// Définition des types et interfaces
-interface NestedObject {
-    [key: string]: string | number | boolean | NestedObject | NestedArray | undefined | null;
-}
-
-interface NestedArray extends Array<NestedObject> {
-    [index: number]: NestedObject;
-}
-
-type NestedValue = string | number | boolean | NestedObject | NestedArray | undefined | null;
-
-interface FieldMapping {
-    entity: keyof AutocompletionData;
-    field: string;
-}
-
-// Définition des dépendances
+// Définition de la structure des dépendances
 interface InputDependency {
-    children: string[];
-    filterFields?: string[];
+  children: string[];
+  filterFields?: string[]; // Rendre filterFields optionnel
 }
-
 interface InputDependencies {
     [key: string]: InputDependency;
 }
-
 const inputDependencies: InputDependencies = {
     'filiere': {
         children: ['wasteDetails.code'],
-        filterFields: []
+        filterFields: [] // Ajout d'un tableau vide pour satisfaire le type
     },
     'emitter.company.name': {
         children: ['emitter.company.siret', 'emitter.company.address'],
@@ -156,32 +138,25 @@ const inputDependencies: InputDependencies = {
     }
 };
 
-// Fonction pour vérifier si un champ est un ancêtre d'un autre
+// Ajouter cette fonction helper
 const shouldDisplayField = (currentField: string, changedField: string, parentDependencies=inputDependencies) => {
+    // Si le champ est le même que celui qui a changé
     if (currentField === changedField) return true;
     
+    // Vérifier si le champ changé est un ancêtre du champ actuel
     const condition = isAncestor(changedField, currentField, parentDependencies);
     if (condition) {
         return true;
     }
 
-    const parentField = Object.entries(parentDependencies).find(([_, config]) => 
-        config.children.includes(currentField)
-    )?.[0];
-
-    if (parentField && parentField === changedField) {
-        return true;
-    }
-
-    if (currentField.startsWith('transporter.company.') && changedField === 'transporter.company.name') {
-        return true;
-    }
-
+    // Cas spécial pour les champs de other_infos
     const otherInfosFields = ['containerDescription', 'volume', 'volumeUnit'];
     if (otherInfosFields.includes(currentField)) {
+        // Si le champ changé est le type de contenant, afficher tous les champs de other_infos
         if (changedField === 'wasteDetails.packagingInfos[0].type') {
             return true;
         }
+        // Si le champ changé est un autre champ de other_infos, afficher les champs liés
         if (otherInfosFields.includes(changedField)) {
             return true;
         }
@@ -190,12 +165,14 @@ const shouldDisplayField = (currentField: string, changedField: string, parentDe
     return false;
 };
 
-// Fonction pour vérifier si un champ est un ancêtre d'un autre
-const isAncestor = (potentialAncestor: string, field: string, inputDependencies: InputDependencies) => {   
-    return inputDependencies[potentialAncestor]?.children.includes(field);
-};
+interface NestedObject {
+    [key: string]: string | number | boolean | NestedObject | NestedArray | undefined | null;
+}
 
-// Fonction pour mettre à jour une valeur imbriquée
+interface NestedArray extends Array<NestedObject> {
+    [index: number]: NestedObject;
+}
+
 const updateNestedValue = (obj: NestedObject, path: string, value: string | number | boolean): void => {
     const pathSegments = path.split('.');
     let current: NestedObject = obj;
@@ -208,11 +185,10 @@ const updateNestedValue = (obj: NestedObject, path: string, value: string | numb
             if (!current[arrayName]) {
                 current[arrayName] = [] as NestedArray;
             }
-            const array = current[arrayName] as NestedArray;
-            if (!array[index]) {
-                array[index] = {};
+            if (!(current[arrayName] as NestedArray)[index]) {
+                (current[arrayName] as NestedArray)[index] = {};
             }
-            current = array[index];
+            current = (current[arrayName] as NestedArray)[index];
         } else {
             if (!current[segment]) {
                 current[segment] = {};
@@ -224,185 +200,43 @@ const updateNestedValue = (obj: NestedObject, path: string, value: string | numb
     const lastSegment = pathSegments[pathSegments.length - 1];
     let convertedValue: string | boolean | number = value;
     
+    // Conversion des valeurs selon le type attendu
     if (value === 'true') convertedValue = true;
     else if (value === 'false') convertedValue = false;
+    //else if (!isNaN(Number(value)) && value !== '') convertedValue = Number(value);
     
     current[lastSegment] = convertedValue;
 };
 
-// Table de mapping entre les champs du dataToogle et la structure Supabase
-const fieldMapping: Record<string, FieldMapping> = {
-    // Site
-    'emitter.company.name': { entity: 'site', field: 'nom' },
-    'emitter.company.siret': { entity: 'site', field: 'siret' },
-    'emitter.company.address': { entity: 'site', field: 'adresseSiege' },
-    'emitter.company.contact': { entity: 'site', field: 'contacts[0].nom' },
-    'emitter.company.phone': { entity: 'site', field: 'contacts[0].telephone' },
-    'emitter.company.mail': { entity: 'site', field: 'contacts[0].email' },
-    
-    // Point de collecte (WorkSite)
-    'emitter.workSite.name': { entity: 'site', field: 'pointsCollecte[0].nom' },
-    'emitter.workSite.fullAddress': { entity: 'site', field: 'pointsCollecte[0].adresse' },
+type NestedValue = string | number | boolean | NestedObject | NestedArray | undefined | null;
 
-    // Transporteur
-    'transporter.company.name': { entity: 'transporteur', field: 'nomBoite' },
-    'transporter.company.siret': { entity: 'transporteur', field: 'siret' },
-    'transporter.company.address': { entity: 'transporteur', field: 'adresse' },
-    'transporter.company.contact': { entity: 'transporteur', field: 'nomPrenom' },
-    'transporter.company.phone': { entity: 'transporteur', field: 'telephone' },
-    'transporter.company.mail': { entity: 'transporteur', field: 'email' },
-    'transporter.receipt': { entity: 'transporteur', field: 'recépissé' },
-
-    // Destinataire
-    'recipient.company.name': { entity: 'destinataire', field: 'nomBoite' },
-    'recipient.company.siret': { entity: 'destinataire', field: 'siret' },
-    'recipient.company.address': { entity: 'destinataire', field: 'adresse' },
-    'recipient.company.contact': { entity: 'destinataire', field: 'nomPrenom' },
-    'recipient.company.phone': { entity: 'destinataire', field: 'telephone' },
-    'recipient.company.mail': { entity: 'destinataire', field: 'email' },
-
-    // Déchet
-    'wasteDetails.name': { entity: 'dechet', field: 'nom' },
-    'wasteDetails.code': { entity: 'dechet', field: 'codeCED' },
-    'wasteDetails.onuCode': { entity: 'dechet', field: 'onu' },
-
-    // Contenant
-    'other_infos.containerDescription': { entity: 'contenant', field: 'nom' },
-    'other_infos.volume': { entity: 'contenant', field: 'volume' },
-    'other_infos.volumeUnit': { entity: 'contenant', field: 'uniteVolume' }
+const getNestedValue = (obj: FormInput | NestedObject, path: string): string => {
+    try {
+        const value = path.split('.').reduce<unknown>((obj, key) => 
+            typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+            obj as unknown as Record<string, unknown>
+        );
+        
+        if (typeof value === 'boolean' || typeof value === 'number') {
+            return String(value);
+        }
+        return value?.toString() || '';
+    } catch (error) {
+        console.error(`Erreur lors de l'accès au chemin ${path}:`, error);
+        return '';
+    }
 };
 
-// Interface pour les données d'autocomplétion
-interface AutocompletionData {
-    site?: {
-        nom: string;
-        siret: string;
-        contacts: Array<{
-            nom: string;
-            email: string;
-            telephone: string;
-        }>;
-        adresseSiege: string;
-        pointsCollecte: Array<{
-            nom: string;
-            adresse: string;
-            codePostal?: string;
-            ville?: string;
-        }>;
-    };
-    transporteur?: {
-        nomBoite: string;
-        siret: string;
-        adresse: string;
-        nomPrenom: string;
-        telephone: string;
-        email: string;
-        recépissé?: string;
-    };
-    destinataire?: {
-        nomBoite: string;
-        siret: string;
-        adresse: string;
-        nomPrenom: string;
-        telephone: string;
-        email: string;
-        cap?: string;
-        operation?: string;
-    };
-    dechet?: {
-        nom: string;
-        codeCED: string;
-        onu: string;
-        isADR: boolean;
-        isDangerous: boolean;
-        isPOP: boolean;
-    };
-    contenant?: {
-        nom: string;
-        quantite: number;
-        volume: string;
-        uniteVolume: string;
-    };
+// Définir une interface pour le type d'option
+interface OptionType {
+    json_row: FormInput;
+    other_infos?: OtherInfos;
 }
 
-// Fonction pour mettre à jour le dataToogle avec les données d'autocomplétion
-const updateDataToogleWithAutocompletion = (dataToogle: FormInput, autocompletionData: AutocompletionData[], changedField: string) => {
-    const newDataToogle = { ...dataToogle };
-    const mapping = fieldMapping[changedField];
-
-    if (!mapping) return newDataToogle;
-
-    // Trouver toutes les entrées correspondantes
-    const matchingEntries = autocompletionData.filter(entry => {
-        const value = getNestedValue(entry[mapping.entity], mapping.field);
-        const currentValue = getNestedValue(newDataToogle as unknown as Record<string, unknown>, changedField);
-        return value === currentValue;
-    });
-
-    if (matchingEntries.length === 0) return newDataToogle;
-
-    // Pour chaque champ lié à l'entité
-    Object.entries(fieldMapping).forEach(([field, config]) => {
-        if (config.entity === mapping.entity && field !== changedField) {
-            // Trouver la valeur la plus fréquente
-            const values = matchingEntries.map(entry => getNestedValue(entry[config.entity], config.field));
-            const valueCounts = values.reduce<Record<string, number>>((acc, val) => {
-                if (val !== undefined && val !== null) {
-                    acc[String(val)] = (acc[String(val)] || 0) + 1;
-                }
-                return acc;
-            }, {});
-
-            const mostFrequentValue = Object.entries(valueCounts)
-                .sort(([,a], [,b]) => b - a)[0]?.[0];
-
-            if (mostFrequentValue) {
-                setNestedValue(newDataToogle, field, mostFrequentValue);
-            }
-        }
-    });
-
-    return newDataToogle;
-};
-
-// Fonction pour obtenir une valeur imbriquée
-const getNestedValue = (obj: unknown, path: string): unknown => {
-    return path.split('.').reduce<unknown>((current, key) => {
-        if (!current || typeof current !== 'object') return undefined;
-        if (key.includes('[')) {
-            const [arrayKey, indexStr] = key.split(/[\[\]]/);
-            const index = parseInt(indexStr);
-            const array = (current as Record<string, unknown>)[arrayKey] as unknown[];
-            return array?.[index];
-        }
-        return (current as Record<string, unknown>)[key];
-    }, obj);
-};
-
-// Fonction pour définir une valeur imbriquée
-const setNestedValue = (obj: FormInput, path: string, value: string | number | boolean) => {
-    const keys = path.split('.');
-    const lastKey = keys.pop()!;
-    const target = keys.reduce<Record<string, unknown>>((current, key) => {
-        if (key.includes('[')) {
-            const [arrayKey, indexStr] = key.split(/[\[\]]/);
-            const index = parseInt(indexStr);
-            if (!current[arrayKey]) {
-                current[arrayKey] = [];
-            }
-            const array = current[arrayKey] as unknown[];
-            if (!array[index]) {
-                array[index] = {};
-            }
-            return array[index] as Record<string, unknown>;
-        }
-        if (!current[key]) {
-            current[key] = {};
-        }
-        return current[key] as Record<string, unknown>;
-    }, obj as unknown as Record<string, unknown>);
-    (target as Record<string, unknown>)[lastKey] = value;
-};
+interface FormulaireFullProps {
+    options: CompleteFormInput[];
+    allOptions: CompleteFormInput[];
+}
 
 const FormulaireFull = () => {
 
@@ -495,7 +329,6 @@ useEffect(() => {
 //HandleChange -> AUTOCOMPLETION
 const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => {
     const { name, value } = e.target;
-    
     // Mettre à jour le champ qui a changé
     if(Object.keys(inputDependencies).includes(name)) {
         setChangedField(name);
@@ -527,14 +360,8 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: 
     }
     updateNestedValue(newData as unknown as NestedObject, name, convertedValue);
     
-    // Si l'autocomplétion n'est pas désactivée, mettre à jour les champs liés
-    if (!disableAutocompletion && entreprise_id) {
-        const autocompletionData = await getAutocompletionData(entreprise_id);
-        const updatedData = updateDataToogleWithAutocompletion(newData, autocompletionData, name);
-        setDataToogle(updatedData);
-    } else {
+    // Mettre à jour dataToogle avec les nouvelles valeurs
     setDataToogle(newData);
-    }
 
     // Mise à jour de dataFilter seulement si ce n'est pas un champ désactivant l'autocomplétion
     if (!disablingFields.includes(name)) {
@@ -1005,17 +832,17 @@ useEffect(() => {
                                     />
                                     <InputFull
                                         titre="Quantité (t)"
-                                        placeholder="Quantité en tonnes"
-                                        options={{
-                                            filteredOptions: [],
-                                            allOptions: ['0.5', '1', '1.5', '2', '2.5', '3', '4', '5', '10', '15', '20', '25', '30']
-                                        }}
-                                        width={40}
+                                        placeholder="Quantité (en tonnes)"
                                         name="wasteDetails.quantity"
                                         value={String(dataToogle.wasteDetails.quantity)}
                                         onChange={handleChange}
+                                        options={{
+                                            filteredOptions: [],
+                                            allOptions: ['0.5', '1', '1.5', '2', '2.5', '3']
+                                        }}
                                         enableText={true}
-                                        display={true}
+                                        display={displayAll || shouldDisplayField("wasteDetails.quantity", changedField)}
+                                        width={40}
                                     />
                                     <InputFull
                                         titre="Remplissage"
@@ -1184,7 +1011,7 @@ useEffect(() => {
                                     value={dataToogle.transporter.company.contact}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("transporter.company.contact", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("transporter.company.contact", changedField))}
                                 />
                                 <InputFull
                                     titre="Adresse"
@@ -1195,7 +1022,7 @@ useEffect(() => {
                                     value={dataToogle.transporter.company.address}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("transporter.company.address", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("transporter.company.address", changedField))}
                                 />
                                 <InputFull
                                     titre="Téléphone"
@@ -1206,7 +1033,7 @@ useEffect(() => {
                                     value={dataToogle.transporter.company.phone}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("transporter.company.phone", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("transporter.company.phone", changedField))}
                                 />
                                 <InputFull
                                     titre="Mail"
@@ -1228,7 +1055,7 @@ useEffect(() => {
                                     value={dataToogle.transporter.isExemptedOfReceipt}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("transporter.isExemptedOfReceipt", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("transporter.isExemptedOfReceipt", changedField))}
                                 />
                                 <InputFull
                                     titre="Numéro de plaque"
@@ -1250,7 +1077,7 @@ useEffect(() => {
                                     value={dataToogle.transporter.customInfo || ''}
                                     onChange={handleChange}
                                     enableText={false}
-                                    display={displayAll || shouldDisplayField("transporter.customInfo", changedField)}
+                                    display={displayAll || (false && shouldDisplayField("transporter.customInfo", changedField))}
                                 />
                             </div>
                             {/*Destinataire*/}
@@ -1333,22 +1160,24 @@ useEffect(() => {
                                     display={displayAll || shouldDisplayField("recipient.cap", changedField)}
                                 />
                                 <InputFull
-                                    titre="Code de Traitement"
-                                    placeholder="Code de Traitement"
+                                    titre="Opération d'élimination"
+                                    placeholder="Opération d'élimination"
                                     options={{
                                         filteredOptions: [],
-                                        allOptions: codeTraitementDefinitions.map(item => `${item.groupe} : ${item.code} - ${item.nom}`)
+                                        allOptions: Object.entries(typeTraitement).flatMap(([group, codes]) => 
+                                            codes.map(code => `${group} - ${code}`)
+                                        )
                                     }}
                                     width={40}
                                     name="recipient.processingOperation"
                                     value={dataToogle.recipient.processingOperation || ''}
                                     onChange={(e) => {
                                         const value = typeof e === 'object' && 'target' in e ? e.target.value : e;
-                                        const code = value.split(' : ')[1].split(' - ')[0] || '';
+                                        const code = value.split(' - ')[1] || '';
                                         handleChange({ target: { name: 'recipient.processingOperation', value: code } });
                                     }}
                                     enableText={false}
-                                    display={true}
+                                    display={displayAll || shouldDisplayField("recipient.processingOperation", changedField)}
                                 />
                                 <InputFull
                                     titre="Stockage provisoire"
@@ -1450,148 +1279,37 @@ interface Ced {
     filiere: string;
 }
 const getDataAutocompletionFull = async (dataFilter: {name: string, value: string}[], entreprise_id: string, cedTable: Ced[]): Promise<CompleteFormInput[]> => { 
-    // Récupérer toutes les données d'autocomplétion
-    const { data: autocompletionData, error } = await supabase
-        .from('table_autocompletion')
-        .select('*')
+    
+    let query = supabase
+        .from('table_parametrage')
+        .select('json_row, other_infos')
         .eq('entreprise_id', entreprise_id);
 
-    if (error) {
-        console.error('Error fetching autocompletion data:', error);
-        return [];
+    for (const {name, value} of dataFilter) {
+        if(name === "filiere"){
+            const table_ceds = cedTable.filter(ced => ced.filiere === value);
+            const ceds = table_ceds.map(ced => ced.ced);
+            const ceds_all_types = ceds.map(ced => [
+                ced,
+                ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim(),
+                ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim() + '*'
+            ]);
+            const ced_all = ceds_all_types.flatMap(ced_types => ced_types);
+            query = query.filter('json_row->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
+        } else if (name.startsWith('other_infos.')) {
+            // Gestion spéciale pour les champs other_infos
+            const fieldName = name.replace('other_infos.', '');
+            query = query.eq(`other_infos->>${fieldName}`, value);
+        } else if (value && typeof value === 'string') {
+            const name_prefilter = name.replaceAll('.', '->');
+            const name_filter = replaceLastOccurrence(name_prefilter, '->', '->>')
+            query = query.eq(`json_row->${name_filter}`, value);
+        }
     }
 
-    if (!autocompletionData) return [];
-
-    // Convertir les données d'autocomplétion en format CompleteFormInput
-    const result: CompleteFormInput[] = [];
-
-    // Pour chaque entrée dans table_autocompletion
-    autocompletionData.forEach(item => {
-        // Créer un objet CompleteFormInput avec les données de l'entrée
-        const formInput: CompleteFormInput = {
-            json_row: {
-                emitter: {
-                    type: "PRODUCER",
-                    workSite: { 
-                        name: item.site?.pointsCollecte?.[0]?.nom || "", 
-                        fullAddress: item.site?.pointsCollecte?.[0]?.adresse || "", 
-                        address: item.site?.pointsCollecte?.[0]?.adresse || "", 
-                        postalCode: item.site?.pointsCollecte?.[0]?.codePostal || "", 
-                        city: item.site?.pointsCollecte?.[0]?.ville || "", 
-                        infos: "" 
-                    },
-                    company: { 
-                        name: item.site?.nom || "", 
-                        siret: item.site?.siret || "", 
-                        address: item.site?.adresseSiege || "", 
-                        country: "", 
-                        contact: item.site?.contacts?.[0]?.nom || "", 
-                        phone: item.site?.contacts?.[0]?.telephone || "", 
-                        mail: item.site?.contacts?.[0]?.email || "" 
-                    },
-                    isPrivateIndividual: false,
-                    isForeignShip: false,
-                },
-                recipient: {
-                    company: { 
-                        name: item.destinataire?.nomBoite || "", 
-                        siret: item.destinataire?.siret || "", 
-                        address: item.destinataire?.adresse || "", 
-                        country: "", 
-                        contact: item.destinataire?.nomPrenom || "", 
-                        phone: item.destinataire?.telephone || "", 
-                        mail: item.destinataire?.email || "" 
-                    },
-                    cap: "",
-                    processingOperation: "",
-                    isTempStorage: false,
-                },
-                transporter: {
-                    company: { 
-                        name: item.transporteur?.nomBoite || "", 
-                        siret: item.transporteur?.siret || "", 
-                        address: item.transporteur?.adresse || "", 
-                        country: "", 
-                        contact: item.transporteur?.nomPrenom || "", 
-                        phone: item.transporteur?.telephone || "", 
-                        mail: item.transporteur?.email || "" 
-                    },
-                    isExemptedOfReceipt: false,
-                    receipt: item.transporteur?.recépissé || "",
-                    numberPlate: "",
-                    customInfo: "",
-                },
-                wasteDetails: {
-                    code: item.dechet?.codeCED || "",
-                    name: item.dechet?.nom || "",
-                    isSubjectToADR: false,
-                    onuCode: item.dechet?.onu || "",
-                    packagingInfos: [{ type: "AUTRE", quantity: 1, other: "" }],
-                    quantity: 0,
-                    quantityType: "ESTIMATED",
-                    consistence: "",
-                    pop: false,
-                    isDangerous: false,
-                    parcelNumbers: { city: "", postalCode: "", prefix: "", section: "", number: "" },
-                    analysisReferences: "",
-                    landIdentifiers: "",
-                    sampleNumber: "",
-                },
-                trader: {
-                    receipt: "",
-                    department: "",
-                    //validityLimit: "",
-                    company: { 
-                        name: item.negociant?.nomBoite || "", 
-                        siret: item.negociant?.siret || "", 
-                        address: item.negociant?.adresse || "", 
-                        country: "", 
-                        contact: item.negociant?.nomPrenom || "", 
-                        phone: item.negociant?.telephone || "", 
-                        mail: item.negociant?.email || "" 
-                    },
-                },
-                broker: {
-                    receipt: "",
-                    department: "",
-                    //validityLimit: "",
-                    company: { 
-                        name: item.courtier?.nomBoite || "", 
-                        siret: item.courtier?.siret || "", 
-                        address: item.courtier?.adresse || "", 
-                        country: "", 
-                        contact: item.courtier?.nomPrenom || "", 
-                        phone: item.courtier?.telephone || "", 
-                        mail: item.courtier?.email || "" 
-                    },
-                },
-                ecoOrganisme: { 
-                    name: item.eco_organisme?.nomBoite || "", 
-                    siret: item.eco_organisme?.siret || "" 
-                },
-                temporaryStorageDetail: {
-                    company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
-                    cap: "",
-                    processingOperation: "",
-                },
-            },
-            other_infos: {
-                containerDescription: item.contenant?.nom || "",
-                volume: item.contenant?.volume || "",
-                volumeUnit: item.contenant?.uniteVolume || "",
-                fillRate: "",
-                inputMode: "volume",
-                automaticMode: true
-            }
-        };
-
-        // Ajouter l'entrée au résultat
-        result.push(formInput);
-    });
-
-    return result;
-};
+    const data = await query;
+    return data?.data || [];
+}
 
 function replaceLastOccurrence(str: string, search: string, replacement: string) {
     const lastIndex = str.lastIndexOf(search);
@@ -1605,19 +1323,26 @@ export const getUniqueOptions = (
     allOptions: CompleteFormInput[],
     selector: (opt: CompleteFormInput) => string
 ) => {
-    // Extraire les valeurs uniques
-    const filtered = filteredOptions
-        .map(selector)
-        .filter(Boolean);
+    const filtered = Array.from(new Set(filteredOptions.map(selector))).filter(Boolean);
+    const all = Array.from(new Set(allOptions.map(selector))).filter(Boolean);
     
-    const all = allOptions
-        .map(selector)
-        .filter(Boolean);
+    // Si le sélecteur est pour un champ other_infos, on filtre différemment
+    if (selector.toString().includes('other_infos')) {
+        return {
+            filteredOptions: filtered,
+            allOptions: all.filter(opt => !filtered.includes(opt))
+        };
+    }
     
     return {
         filteredOptions: filtered,
-        allOptions: []
+        allOptions: all.filter(opt => !filtered.includes(opt))
     };
+};
+
+// Fonction pour vérifier si un champ est un ancêtre d'un autre
+const isAncestor = (potentialAncestor: string, field: string, inputDependencies: {[key: string]: {children: string[], filterFields?: string[]}}) => {   
+    return inputDependencies[potentialAncestor]?.children.includes(field);
 };
 
 const dataFilterUpdate = (setCurrentFiliere: (filiere: string) => void, ced_table: { ced: string; filiere: string; }[], name: string, value: string, dataFilter: {name: string, value: string}[], setDataFilter: (dataFilter: {name: string, value: string}[]) => void, inputDependencies: InputDependencies) => {
@@ -1746,30 +1471,6 @@ const preciseFilter = (
         console.warn('Error in preciseFilter:', error);
         return '';
     }
-};
-
-// Fonction pour récupérer les données d'autocomplétion depuis Supabase
-const getAutocompletionData = async (entreprise_id: string): Promise<AutocompletionData[]> => {
-    const { data, error } = await supabase
-        .from('table_autocompletion')
-        .select('*')
-        .eq('entreprise_id', entreprise_id);
-
-    if (error) {
-        console.error('Error fetching autocompletion data:', error);
-        return [];
-    }
-
-    if (!data) return [];
-
-    // Convertir les données en format AutocompletionData
-    return data.map(item => ({
-        site: item.site,
-        transporteur: item.transporteur,
-        destinataire: item.destinataire,
-        dechet: item.dechet,
-        contenant: item.contenant
-    }));
 };
 
 

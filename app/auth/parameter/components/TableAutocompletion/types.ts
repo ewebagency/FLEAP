@@ -39,6 +39,7 @@ export interface Site extends BaseEntity {
 export interface Dechet extends BaseEntity {
   codeCED: string;
   adr: string;
+  masseVolumique: number;
 }
 
 export interface Transporteur extends BaseEntity {

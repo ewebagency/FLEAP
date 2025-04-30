@@ -795,12 +795,12 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                   titre="Traitement"
                                   placeholder="Code de traitement"
                                   options={{
-                                    filteredOptions: allOptions.codeTraitements?.map(code => code.value.nom || '') || [],
+                                    filteredOptions: allOptions.codeTraitements?.map(code => `${code.value.code} - ${code.value.nom}` || '') || [],
                                     allOptions: []
                                   }}
-                                  value={selectedFields.codeTraitement?.value?.nom || ''}
+                                  value={selectedFields.codeTraitement?.value?.code || ''}
                                   onChange={(e) => {
-                                    const selectedCodeTraitement = allOptions.codeTraitements?.find(code => code.value.nom === e.target.value);
+                                    const selectedCodeTraitement = allOptions.codeTraitements?.find(code => `${code.value.code} - ${code.value.nom}` === e.target.value);
                                     handleFieldChange(index, 'codeTraitement', selectedCodeTraitement || null);
                                   }}
                                   enableText={true}
@@ -956,12 +956,12 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                   titre="Code traitement"
                                   placeholder="Code de traitement"
                                   options={{
-                                    filteredOptions: allOptions.codeTraitements?.map(code => code.value.nom || '') || [],
+                                    filteredOptions: allOptions.codeTraitements?.map(code => `${code.value.code} - ${code.value.nom}` || '') || [],
                                     allOptions: []
                                   }}
                                   value={selectedFields.codeTraitement?.value?.code || ''}
                                   onChange={(e) => {
-                                    const selectedCodeTraitement = allOptions.codeTraitements?.find(code => code.value.nom === e.target.value);
+                                    const selectedCodeTraitement = allOptions.codeTraitements?.find(code => `${code.value.code} - ${code.value.nom}` === e.target.value);
                                     handleFieldChange(index, 'codeTraitement', selectedCodeTraitement || null);
                                   }}
                                   enableText={true}

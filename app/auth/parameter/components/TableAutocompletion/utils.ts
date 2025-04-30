@@ -226,3 +226,9 @@ export const fetchAutocompletionData = async (
     console.error('Error in fetchAutocompletionData:', error);
   }
 };
+
+
+
+
+
+

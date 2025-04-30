@@ -1,6 +1,6 @@
-import { FormInput, OtherInfos } from "@/app/register/interface/BSD_Interface";
+import { FormInput } from "@/app/register/interface/BSD_Interface";
 import { useModalContextNew } from "../ContextModal";
-import InputFull from "./InputFull";
+import InputMobile from "./InputMobile";
 import { formatText, getDataAutocompletion, getMappingTableFiliere, getFiliere, filter_dependencies } from "./utils_new";
 import { useEffect, useState, useRef } from "react";
 import { useSession } from "@/app/component/SessionProvider";
@@ -9,12 +9,12 @@ import ModifyCardInFormulaireNew from "./ModifyCardInFormulaireNew";
 import { supabase } from "@/app/database/supabaseClient";
 import BoxIcon from "@/app/component/BoxIconWrapper";
 import { useFilterContext } from "@/app/FilterContext";
-import PopUp from "./PopUp";
+import { OtherInfos, CompleteFormInput } from "@/app/register/interface/BSD_Interface";
 import { toast } from "react-hot-toast";
 import { createRoot } from "react-dom/client";
-import InputMobile from "./InputMobile";
 import DatePicker from "react-datepicker";
 import { invalidateCache } from "@/app/utils/invalidateCache";
+import { codeTraitementDefinitions } from "@/app/component/Analyse/Environnementale/codeTraitement";
 
 const initialToogleData: FormInput = {
     emitter: {
@@ -77,26 +77,44 @@ const initialToogleData: FormInput = {
 
 
 const initialOtherInfos: OtherInfos = {
-    containerDescription: "",
-    volume: "",
-    volumeUnit: "",
-    fillRate: "",
-    automaticMode: true,
-    inputMode: "volume",
+  containerDescription: "",
+  volume: "",
+  volumeUnit: "",
+  fillRate: "",
+  inputMode: "volume",
+  automaticMode: true
 };
 
-// Définition de la structure des dépendances
-interface InputDependency {
-  children: string[];
-  filterFields?: string[]; // Rendre filterFields optionnel
+// Définition des types et interfaces
+interface NestedObject {
+    [key: string]: string | number | boolean | NestedObject | NestedArray | undefined | null;
 }
+
+interface NestedArray extends Array<NestedObject> {
+    [index: number]: NestedObject;
+}
+
+type NestedValue = string | number | boolean | NestedObject | NestedArray | undefined | null;
+
+interface FieldMapping {
+    entity: keyof AutocompletionData;
+    field: string;
+}
+
+// Définition des dépendances
+interface InputDependency {
+    children: string[];
+    filterFields?: string[];
+}
+
 interface InputDependencies {
     [key: string]: InputDependency;
 }
+
 const inputDependencies: InputDependencies = {
     'filiere': {
         children: ['wasteDetails.code'],
-        filterFields: [] // Ajout d'un tableau vide pour satisfaire le type
+        filterFields: []
     },
     'emitter.company.name': {
         children: ['emitter.company.siret', 'emitter.company.address'],
@@ -117,10 +135,10 @@ const inputDependencies: InputDependencies = {
             'wasteDetails.consistence',
             'wasteDetails.pop',
             'wasteDetails.isDangerous',
-            'volume',
-            'volumeUnit',
-            'containerDescription',
-            'fillRate'
+            'other_infos.volume',
+            'other_infos.volumeUnit',
+            'other_infos.containerDescription',
+            'other_infos.fillRate'
         ]
     },
     'emitter.company.contact': {
@@ -131,30 +149,53 @@ const inputDependencies: InputDependencies = {
     },
     'recipient.company.name': {
         children: ['recipient.company.siret', 'recipient.company.address', 'recipient.company.contact', 'recipient.company.phone', 'recipient.company.mail', 'recipient.cap', 'recipient.processingOperation', 'recipient.isTempStorage']
+    },
+    'other_infos.containerDescription': {
+        children: ['other_infos.volume', 'other_infos.volumeUnit'],
+        filterFields: ['other_infos.containerDescription']
     }
 };
 
-// Ajouter cette fonction helper
+// Fonction pour vérifier si un champ est un ancêtre d'un autre
 const shouldDisplayField = (currentField: string, changedField: string, parentDependencies=inputDependencies) => {
-    // Si le champ est le même que celui qui a changé
     if (currentField === changedField) return true;
     
-    // Vérifier si le champ changé est un ancêtre du champ actuel
     const condition = isAncestor(changedField, currentField, parentDependencies);
     if (condition) {
         return true;
     }
+
+    const parentField = Object.entries(parentDependencies).find(([_, config]) => 
+        config.children.includes(currentField)
+    )?.[0];
+
+    if (parentField && parentField === changedField) {
+        return true;
+    }
+
+    if (currentField.startsWith('transporter.company.') && changedField === 'transporter.company.name') {
+        return true;
+    }
+
+    const otherInfosFields = ['containerDescription', 'volume', 'volumeUnit'];
+    if (otherInfosFields.includes(currentField)) {
+        if (changedField === 'wasteDetails.packagingInfos[0].type') {
+            return true;
+        }
+        if (otherInfosFields.includes(changedField)) {
+            return true;
+        }
+    }
+
     return false;
 };
 
-interface NestedObject {
-    [key: string]: string | number | boolean | NestedObject | NestedArray | undefined | null;
-}
+// Fonction pour vérifier si un champ est un ancêtre d'un autre
+const isAncestor = (potentialAncestor: string, field: string, inputDependencies: InputDependencies) => {   
+    return inputDependencies[potentialAncestor]?.children.includes(field);
+};
 
-interface NestedArray extends Array<NestedObject> {
-    [index: number]: NestedObject;
-}
-
+// Fonction pour mettre à jour une valeur imbriquée
 const updateNestedValue = (obj: NestedObject, path: string, value: string | number | boolean): void => {
     const pathSegments = path.split('.');
     let current: NestedObject = obj;
@@ -167,10 +208,11 @@ const updateNestedValue = (obj: NestedObject, path: string, value: string | numb
             if (!current[arrayName]) {
                 current[arrayName] = [] as NestedArray;
             }
-            if (!(current[arrayName] as NestedArray)[index]) {
-                (current[arrayName] as NestedArray)[index] = {};
+            const array = current[arrayName] as NestedArray;
+            if (!array[index]) {
+                array[index] = {};
             }
-            current = (current[arrayName] as NestedArray)[index];
+            current = array[index];
         } else {
             if (!current[segment]) {
                 current[segment] = {};
@@ -182,43 +224,185 @@ const updateNestedValue = (obj: NestedObject, path: string, value: string | numb
     const lastSegment = pathSegments[pathSegments.length - 1];
     let convertedValue: string | boolean | number = value;
     
-    // Conversion des valeurs selon le type attendu
     if (value === 'true') convertedValue = true;
     else if (value === 'false') convertedValue = false;
-    //else if (!isNaN(Number(value)) && value !== '') convertedValue = Number(value);
     
     current[lastSegment] = convertedValue;
 };
 
-type NestedValue = string | number | boolean | NestedObject | NestedArray | undefined | null;
+// Table de mapping entre les champs du dataToogle et la structure Supabase
+const fieldMapping: Record<string, FieldMapping> = {
+    // Site
+    'emitter.company.name': { entity: 'site', field: 'nom' },
+    'emitter.company.siret': { entity: 'site', field: 'siret' },
+    'emitter.company.address': { entity: 'site', field: 'adresseSiege' },
+    'emitter.company.contact': { entity: 'site', field: 'contacts[0].nom' },
+    'emitter.company.phone': { entity: 'site', field: 'contacts[0].telephone' },
+    'emitter.company.mail': { entity: 'site', field: 'contacts[0].email' },
+    
+    // Point de collecte (WorkSite)
+    'emitter.workSite.name': { entity: 'site', field: 'pointsCollecte[0].nom' },
+    'emitter.workSite.fullAddress': { entity: 'site', field: 'pointsCollecte[0].adresse' },
 
-const getNestedValue = (obj: FormInput | NestedObject, path: string): string => {
-    try {
-        const value = path.split('.').reduce((acc: Record<string, NestedValue>, part) => {
-            if (part.includes('[')) {
-                const [arrayName, indexStr] = part.split(/[\[\]]/);
-                const index = parseInt(indexStr);
-                const array = acc[arrayName] as NestedArray;
-                return array?.[index] as Record<string, NestedValue>;
-            }
-            return acc[part] as Record<string, NestedValue>;
-        }, obj as Record<string, NestedValue>);
-        
-        if (typeof value === 'boolean' || typeof value === 'number') {
-            return String(value);
-        }
-        return value?.toString() || '';
-    } catch (error) {
-        console.error(`Erreur lors de l'accès au chemin ${path}:`, error);
-        return '';
-    }
+    // Transporteur
+    'transporter.company.name': { entity: 'transporteur', field: 'nomBoite' },
+    'transporter.company.siret': { entity: 'transporteur', field: 'siret' },
+    'transporter.company.address': { entity: 'transporteur', field: 'adresse' },
+    'transporter.company.contact': { entity: 'transporteur', field: 'nomPrenom' },
+    'transporter.company.phone': { entity: 'transporteur', field: 'telephone' },
+    'transporter.company.mail': { entity: 'transporteur', field: 'email' },
+    'transporter.receipt': { entity: 'transporteur', field: 'recépissé' },
+
+    // Destinataire
+    'recipient.company.name': { entity: 'destinataire', field: 'nomBoite' },
+    'recipient.company.siret': { entity: 'destinataire', field: 'siret' },
+    'recipient.company.address': { entity: 'destinataire', field: 'adresse' },
+    'recipient.company.contact': { entity: 'destinataire', field: 'nomPrenom' },
+    'recipient.company.phone': { entity: 'destinataire', field: 'telephone' },
+    'recipient.company.mail': { entity: 'destinataire', field: 'email' },
+
+    // Déchet
+    'wasteDetails.name': { entity: 'dechet', field: 'nom' },
+    'wasteDetails.code': { entity: 'dechet', field: 'codeCED' },
+    'wasteDetails.onuCode': { entity: 'dechet', field: 'onu' },
+
+    // Contenant
+    'other_infos.containerDescription': { entity: 'contenant', field: 'nom' },
+    'other_infos.volume': { entity: 'contenant', field: 'volume' },
+    'other_infos.volumeUnit': { entity: 'contenant', field: 'uniteVolume' }
 };
 
-// Définir une interface pour le type d'option
-interface OptionType {
-    json_row: FormInput;
-    other_infos?: OtherInfos;
+// Interface pour les données d'autocomplétion
+interface AutocompletionData {
+    site?: {
+        nom: string;
+        siret: string;
+        contacts: Array<{
+            nom: string;
+            email: string;
+            telephone: string;
+        }>;
+        adresseSiege: string;
+        pointsCollecte: Array<{
+            nom: string;
+            adresse: string;
+            codePostal?: string;
+            ville?: string;
+        }>;
+    };
+    transporteur?: {
+        nomBoite: string;
+        siret: string;
+        adresse: string;
+        nomPrenom: string;
+        telephone: string;
+        email: string;
+        recépissé?: string;
+    };
+    destinataire?: {
+        nomBoite: string;
+        siret: string;
+        adresse: string;
+        nomPrenom: string;
+        telephone: string;
+        email: string;
+        cap?: string;
+        operation?: string;
+    };
+    dechet?: {
+        nom: string;
+        codeCED: string;
+        onu: string;
+        isADR: boolean;
+        isDangerous: boolean;
+        isPOP: boolean;
+    };
+    contenant?: {
+        nom: string;
+        quantite: number;
+        volume: string;
+        uniteVolume: string;
+    };
 }
+
+// Fonction pour mettre à jour le dataToogle avec les données d'autocomplétion
+const updateDataToogleWithAutocompletion = (dataToogle: FormInput, autocompletionData: AutocompletionData[], changedField: string) => {
+    const newDataToogle = { ...dataToogle };
+    const mapping = fieldMapping[changedField];
+
+    if (!mapping) return newDataToogle;
+
+    // Trouver toutes les entrées correspondantes
+    const matchingEntries = autocompletionData.filter(entry => {
+        const value = getNestedValue(entry[mapping.entity], mapping.field);
+        const currentValue = getNestedValue(newDataToogle as unknown as Record<string, unknown>, changedField);
+        return value === currentValue;
+    });
+
+    if (matchingEntries.length === 0) return newDataToogle;
+
+    // Pour chaque champ lié à l'entité
+    Object.entries(fieldMapping).forEach(([field, config]) => {
+        if (config.entity === mapping.entity && field !== changedField) {
+            // Trouver la valeur la plus fréquente
+            const values = matchingEntries.map(entry => getNestedValue(entry[config.entity], config.field));
+            const valueCounts = values.reduce<Record<string, number>>((acc, val) => {
+                if (val !== undefined && val !== null) {
+                    acc[String(val)] = (acc[String(val)] || 0) + 1;
+                }
+                return acc;
+            }, {});
+
+            const mostFrequentValue = Object.entries(valueCounts)
+                .sort(([,a], [,b]) => b - a)[0]?.[0];
+
+            if (mostFrequentValue) {
+                setNestedValue(newDataToogle, field, mostFrequentValue);
+            }
+        }
+    });
+
+    return newDataToogle;
+};
+
+// Fonction pour obtenir une valeur imbriquée
+const getNestedValue = (obj: unknown, path: string): unknown => {
+    return path.split('.').reduce<unknown>((current, key) => {
+        if (!current || typeof current !== 'object') return undefined;
+        if (key.includes('[')) {
+            const [arrayKey, indexStr] = key.split(/[\[\]]/);
+            const index = parseInt(indexStr);
+            const array = (current as Record<string, unknown>)[arrayKey] as unknown[];
+            return array?.[index];
+        }
+        return (current as Record<string, unknown>)[key];
+    }, obj);
+};
+
+// Fonction pour définir une valeur imbriquée
+const setNestedValue = (obj: FormInput, path: string, value: string | number | boolean) => {
+    const keys = path.split('.');
+    const lastKey = keys.pop()!;
+    const target = keys.reduce<Record<string, unknown>>((current, key) => {
+        if (key.includes('[')) {
+            const [arrayKey, indexStr] = key.split(/[\[\]]/);
+            const index = parseInt(indexStr);
+            if (!current[arrayKey]) {
+                current[arrayKey] = [];
+            }
+            const array = current[arrayKey] as unknown[];
+            if (!array[index]) {
+                array[index] = {};
+            }
+            return array[index] as Record<string, unknown>;
+        }
+        if (!current[key]) {
+            current[key] = {};
+        }
+        return current[key] as Record<string, unknown>;
+    }, obj as unknown as Record<string, unknown>);
+    (target as Record<string, unknown>)[lastKey] = value;
+};
 
 const FormulaireMobile = () => {
 
@@ -230,7 +414,7 @@ const FormulaireMobile = () => {
         setOptions,
         modalType } = useModalContextNew();
     const [currentFiliere, setCurrentFiliere] = useState("");
-    const {entreprise_id, user_id} = useSession();
+    const {entreprise_id, user_id, user_email, user_contact, user_phone} = useSession();
     const [ced_table, setCedTable] = useState<{ ced: string, filiere: string }[]>([]);
     const [displayAll, setDisplayAll] = useState(false);
     const [dataFilter, setDataFilter] = useState<{name: string, value: string}[]>([]);
@@ -245,44 +429,39 @@ const FormulaireMobile = () => {
     // Ajouter un état pour tracker si l'autocomplétion est désactivée
     const [disableAutocompletion, setDisableAutocompletion] = useState(false);
 
-    // Référence des valeurs initiales
-    const initialValues = useRef({
-        emitter: {
-            company: { 
-                name: dataToogle.emitter.company.name,
-                siret: dataToogle.emitter.company.siret 
-            },
-            workSite: { 
-                name: dataToogle.emitter.workSite.name,
-                fullAddress: dataToogle.emitter.workSite.fullAddress
-            }
-        },
-        wasteDetails: { 
-            name: dataToogle.wasteDetails.name,
-            code: dataToogle.wasteDetails.code 
-        },
-        transporter: {
-            company: { 
-                name: dataToogle.transporter.company.name,
-                siret: dataToogle.transporter.company.siret 
-            }
-        },
-        recipient: {
-            company: { 
-                name: dataToogle.recipient.company.name,
-                siret: dataToogle.recipient.company.siret 
-            }
-        }
+    // Définition des champs qui désactivent l'autocomplétion
+    const disablingFields = [
+        'wasteDetails.quantity',
+        'wasteDetails.packagingInfos[0].quantity',
+        'volume',
+        'volumeUnit',
+        'fillRate'
+    ];
+
+    const getDisplayConditions = () => ({
+        site: true,
+        workSite: true,
+        waste: true,
+        transporter: true,
+        recipient: true
     });
 
-    // Fonction pour déterminer quels champs afficher
-    const getDisplayConditions = () => ({
-        site: !initialValues.current.emitter.company.name || !initialValues.current.emitter.company.siret,
-        workSite: !initialValues.current.emitter.workSite.name || !initialValues.current.emitter.workSite.fullAddress,
-        waste: !initialValues.current.wasteDetails.name || !initialValues.current.wasteDetails.code,
-        transporter: !initialValues.current.transporter.company.name || !initialValues.current.transporter.company.siret,
-        recipient: !initialValues.current.recipient.company.name || !initialValues.current.recipient.company.siret
-    });
+    useEffect(() => {
+        if(user_email) {
+            setDataToogle(prev => ({
+                ...prev,
+                emitter: {
+                    ...prev.emitter,
+                    company: {
+                        ...prev.emitter.company,
+                        mail: user_email,
+                        contact: user_contact || '',
+                        phone: user_phone || ''
+                    }
+                }
+            }));
+        }
+    }, [user_email, user_contact, user_phone]);
 
 //Initialisation des options
 useEffect(() => {
@@ -303,7 +482,7 @@ useEffect(() => {
 }, [entreprise_id]);
 
 // Ajouter un useEffect pour initialiser les données avec le site sélectionné
-useEffect(() => {
+/*useEffect(() => {
     // Trouver le premier site coché
     const checkedSite = sites.find(site => site.checked);
     if (checkedSite) {
@@ -319,11 +498,12 @@ useEffect(() => {
             }
         }));
     }
-}, [sites]); // Se déclenche quand les sites changent
+}, [sites]); // Se déclenche quand les sites changent*/
 
 //HandleChange -> AUTOCOMPLETION
 const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => {
     const { name, value } = e.target;
+    
     // Mettre à jour le champ qui a changé
     if(Object.keys(inputDependencies).includes(name)) {
         setChangedField(name);
@@ -349,10 +529,20 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: 
     const newData = JSON.parse(JSON.stringify(dataToogle)) as FormInput;
     
     // Mettre à jour la valeur dans newData
-    updateNestedValue(newData as unknown as NestedObject, name, value);
+    let convertedValue: string | number | boolean = value;
+    if (name === 'wasteDetails.quantity') {
+        convertedValue = value ? parseFloat(value) : 0;
+    }
+    updateNestedValue(newData as unknown as NestedObject, name, convertedValue);
     
-    // Mettre à jour dataToogle avec les nouvelles valeurs
+    // Si l'autocomplétion n'est pas désactivée, mettre à jour les champs liés
+    if (!disableAutocompletion && entreprise_id) {
+        const autocompletionData = await getAutocompletionData(entreprise_id);
+        const updatedData = updateDataToogleWithAutocompletion(newData, autocompletionData, name);
+        setDataToogle(updatedData);
+    } else {
     setDataToogle(newData);
+    }
 
     // Mise à jour de dataFilter seulement si ce n'est pas un champ désactivant l'autocomplétion
     if (!disablingFields.includes(name)) {
@@ -371,9 +561,9 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: 
         try {
                 const [filteredOptions, allOptionsData] = await Promise.all([
                     getDataAutocompletionFull(newDataFilter, entreprise_id, ced_table),
-                    getDataAutocompletionFull([], entreprise_id, ced_table)
+                getDataAutocompletionFull([], entreprise_id, ced_table)
             ]);
-
+            
                 setOptions(filteredOptions);
                 setAllOptions(allOptionsData);
         } catch (error) {
@@ -411,53 +601,92 @@ const handleOtherInfosChange = async (updates: Partial<{
     volumeUnit: string;
     fillRate: string;
 }>) => {
-    // Mettre à jour l'état local
+    // Mettre à jour other_infos
     setOtherInfos(prev => ({
         ...prev,
         ...updates
     }));
 
-    // Si nous avons des options et que nous sommes dans le mode d'autocomplétion
-    if (!disableAutocompletion && allOptions.length > 0) {
-        // Filtrer les options en fonction des champs déjà remplis
-        const filteredOptions = allOptions.filter(option => {
-            return Object.entries(updates).every(([key, value]) => {
-                return option.other_infos?.[key as keyof OtherInfos] === value;
-            });
-        });
+    // Mettre à jour le champ changé pour l'affichage
+    const changedFieldName = Object.keys(updates)[0];
+    setChangedField(changedFieldName);
 
-        // Si nous avons des options filtrées, utiliser la première pour l'autocomplétion
-        if (filteredOptions.length > 0) {
-            const firstOption = filteredOptions[0];
-            const newUpdates: Partial<OtherInfos> = {};
-            
-            // Pour chaque champ dans other_infos qui n'a pas été mis à jour
-            Object.keys(firstOption.other_infos || {}).forEach(key => {
-                if (!(key in updates)) {
-                    const value = firstOption.other_infos?.[key as keyof OtherInfos];
-                    if (value !== undefined) {
-                        if (key === 'melange' && Array.isArray(value)) {
-                            newUpdates.melange = value;
-                        } else if (key === 'inputMode' && (value === 'volume' || value === 'tonnage')) {
-                            newUpdates.inputMode = value;
-                        } else if (key === 'automaticMode' && typeof value === 'boolean') {
-                            newUpdates.automaticMode = value;
-                        } else if (typeof value === 'string') {
-                            if (key === 'volume') newUpdates.volume = value;
-                            else if (key === 'volumeUnit') newUpdates.volumeUnit = value;
-                            else if (key === 'fillRate') newUpdates.fillRate = value;
-                            else if (key === 'containerDescription') newUpdates.containerDescription = value;
+    // Mise à jour de dataFilter pour l'autocomplétion
+    if (!disablingFields.includes(changedFieldName)) {
+        const newDataFilter = [...dataFilter];
+        const fieldValue = updates[changedFieldName as keyof typeof updates] || '';
+        
+        // Mettre à jour ou ajouter le filtre pour le champ other_infos
+        const filterName = `other_infos.${changedFieldName}`;
+        const existingFilterIndex = newDataFilter.findIndex(f => f.name === filterName);
+        
+        if (existingFilterIndex !== -1) {
+            newDataFilter[existingFilterIndex].value = fieldValue;
+        } else {
+            newDataFilter.push({ name: filterName, value: fieldValue });
+        }
+
+        setDataFilter(newDataFilter);
+
+        // Mise à jour des options si nécessaire
+        if (entreprise_id) {
+            try {
+                const [filteredOptions, allOptionsData] = await Promise.all([
+                    getDataAutocompletionFull(newDataFilter, entreprise_id, ced_table),
+                    getDataAutocompletionFull([], entreprise_id, ced_table)
+                ]);
+                
+                setOptions(filteredOptions);
+                setAllOptions(allOptionsData);
+
+                // Si le champ changé est containerDescription, mettre à jour volume et volumeUnit
+                if (changedFieldName === 'containerDescription') {
+                    // Filtrer les options sur le containerDescription
+                    const filteredByContainer = allOptionsData.filter(opt => 
+                        opt.other_infos?.containerDescription === fieldValue
+                    );
+
+                    if (filteredByContainer.length > 0) {
+                        // Calculer les valeurs les plus fréquentes pour volume et volumeUnit
+                        const volumeCounts = filteredByContainer.reduce((acc, opt) => {
+                            const volume = opt.other_infos?.volume;
+                            if (volume) {
+                                acc[volume] = (acc[volume] || 0) + 1;
+                            }
+                            return acc;
+                        }, {} as Record<string, number>);
+
+                        const volumeUnitCounts = filteredByContainer.reduce((acc, opt) => {
+                            const unit = opt.other_infos?.volumeUnit;
+                            if (unit) {
+                                acc[unit] = (acc[unit] || 0) + 1;
+                            }
+                            return acc;
+                        }, {} as Record<string, number>);
+
+                        // Trouver les valeurs les plus fréquentes
+                        const mostFrequentVolume = Object.entries(volumeCounts)
+                            .sort(([,a], [,b]) => b - a)[0]?.[0];
+                        const mostFrequentUnit = Object.entries(volumeUnitCounts)
+                            .sort(([,a], [,b]) => b - a)[0]?.[0];
+
+                        // Mettre à jour les valeurs si elles existent
+                        if (mostFrequentVolume) {
+                            setOtherInfos(prev => ({
+                                ...prev,
+                                volume: mostFrequentVolume
+                            }));
+                        }
+                        if (mostFrequentUnit) {
+                            setOtherInfos(prev => ({
+                                ...prev,
+                                volumeUnit: mostFrequentUnit
+                            }));
                         }
                     }
                 }
-            });
-
-            // Mettre à jour les champs non modifiés
-            if (Object.keys(newUpdates).length > 0) {
-                setOtherInfos(prev => ({
-                    ...prev,
-                    ...newUpdates
-                }));
+            } catch (error) {
+                console.error("Erreur lors de la mise à jour des options:", error);
             }
         }
     }
@@ -472,10 +701,16 @@ useEffect(() => {
 
     Object.entries(filter_dependencies).forEach(([key, config]) => {
         const allParentsHaveValues = config.parent.every(parentField => {
-            const parentValue = parentField.split('.').reduce<unknown>((obj, key) => 
-                typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
-                dataToogle as unknown as Record<string, unknown>
-            );
+            let parentValue;
+            if (parentField.startsWith('other_infos.')) {
+                const fieldName = parentField.replace('other_infos.', '');
+                parentValue = other_infos[fieldName as keyof OtherInfos];
+            } else {
+                parentValue = parentField.split('.').reduce<unknown>((obj, key) => 
+                    typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                    dataToogle as unknown as Record<string, unknown>
+                );
+            }
             return parentValue && parentValue !== '';
         });
 
@@ -484,10 +719,17 @@ useEffect(() => {
             let hasUpdates = false;
 
             config.children.forEach(childField => {
-                const currentValue = childField.split('.').reduce<unknown>((obj, key) => 
-                    typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
-                    dataToogle as unknown as Record<string, unknown>
-                );
+                let currentValue;
+                if (childField.startsWith('other_infos.')) {
+                    const fieldName = childField.replace('other_infos.', '');
+                    currentValue = other_infos[fieldName as keyof OtherInfos];
+                } else {
+                    currentValue = childField.split('.').reduce<unknown>((obj, key) => 
+                        typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                        dataToogle as unknown as Record<string, unknown>
+                    );
+                }
+
                 if (!currentValue || currentValue === '') {
                     const suggestedValue = preciseFilter(
                         allOptions,
@@ -497,7 +739,15 @@ useEffect(() => {
                     );
                     
                     if (suggestedValue) {
-                        updateNestedValue(newData as unknown as NestedObject, childField, suggestedValue);
+                        if (childField.startsWith('other_infos.')) {
+                            const fieldName = childField.replace('other_infos.', '');
+                            setOtherInfos(prev => ({
+                                ...prev,
+                                [fieldName]: suggestedValue
+                            }));
+                        } else {
+                            updateNestedValue(newData as unknown as NestedObject, childField, suggestedValue);
+                        }
                         hasUpdates = true;
                     }
                 }
@@ -508,7 +758,7 @@ useEffect(() => {
             }
         }
     });
-}, [dataToogle, allOptions, disableAutocompletion]);
+}, [dataToogle, allOptions, disableAutocompletion, other_infos]);
 
 //Render
     return (
@@ -517,27 +767,27 @@ useEffect(() => {
                 {/* Header */}
                 <div className="sticky top-0 bg-white p-3 border-b border-gray-200 z-10">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                    <h3 className="font-bold text-base flex items-center gap-2">
-                        <BoxIcon className="mb-1 w-4 h-4" name='truck' type='solid' />
-                        <span className="text-green-medium mt-1">
-                            {modalType === 'create_line' ? 'Créer une ligne' : 'Demande de collecte mobile'}
+                        <h3 className="font-bold text-base flex items-center gap-2">
+                            <BoxIcon className="mb-1 w-4 h-4" name='truck' type='solid' />
+                            <span className="text-green-medium mt-1">
+                                {modalType === 'create_line' ? 'Créer une ligne nouvelle' : 'Demande de collecte mobile'}
                         </span>
                     </h3>
-                    <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                        <button 
-                            type="button" 
-                            className="flex-1 sm:flex-none text-xs h-8 bg-[var(--green-medium)] rounded-md px-3 text-white font-thin hover:bg-[var(--green-dark)] active:font-bold" 
-                            onClick={() => toogleFunction()}
-                        >
-                            Afficher/Masquer
-                        </button>
-                        <button 
-                            type="button" 
-                            className="flex-1 sm:flex-none text-xs h-8 bg-[var(--green-medium)] rounded-md px-3 text-white font-thin hover:bg-[var(--green-dark)] active:font-bold" 
-                            onClick={ResetData}
-                        >
-                            Réinitialiser
-                        </button>
+                        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                            <button 
+                                type="button" 
+                                className="flex-1 sm:flex-none text-xs h-8 bg-[var(--green-medium)] rounded-md px-3 text-white font-thin hover:bg-[var(--green-dark)] active:font-bold" 
+                                onClick={() => toogleFunction()}
+                            >
+                                Afficher/Masquer
+                            </button>
+                            <button 
+                                type="button" 
+                                className="flex-1 sm:flex-none text-xs h-8 bg-[var(--green-medium)] rounded-md px-3 text-white font-thin hover:bg-[var(--green-dark)] active:font-bold" 
+                                onClick={ResetData}
+                            >
+                                Réinitialiser
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -545,541 +795,539 @@ useEffect(() => {
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-3">
                     <form className="space-y-4 pb-32 pr-6">
-                    {/* Section Point de départ */}
+                        {/* Section Point de départ */}
                         <div className="border-b border-gray-200 pb-4">
-                        <div className="text-sm font-semibold mb-2 text-gray-700">Point de départ</div>
+                            <div className="text-sm font-semibold mb-2 text-gray-700">Point de départ</div>
                             <div className="space-y-2">
-                        {/* Site */}
+                                {/* Site */}
                                 {getDisplayConditions().site && (
                                     <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Site"
+                                        <InputMobile
+                                titre="Site"
                                             placeholder="Nom du Site"
-                            name="emitter.company.name"
+                                name="emitter.company.name"
                                             options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.name)}
                                             width={1}
-                            value={dataToogle.emitter.company.name}
-                            onChange={handleChange}
-                            enableText={true}
-                            stylePrimary={true}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="Siret"
+                                value={dataToogle.emitter.company.name}
+                                onChange={handleChange}
+                                enableText={true}
+                                stylePrimary={true}
+                                            onMobile={true}
+                            />
+                                        <InputMobile
+                                titre="Siret"
                                             placeholder="SIRET"
-                            name="emitter.company.siret"
+                                name="emitter.company.siret"
                                             options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.siret)}
                                             width={1}
-                            value={dataToogle.emitter.company.siret}
-                            onChange={handleChange}
-                            enableText={true}
+                                value={dataToogle.emitter.company.siret}
+                                onChange={handleChange}
+                                enableText={true}
                                             display={displayAll}
-                            onMobile={true}
-                        />
-                                    </div>
+                                            onMobile={true}
+                                        />
+                        </div>
                                 )}
-                        
-                        {/* Point de Collecte */}
+                                
+                                {/* Point de Collecte */}
                                 {getDisplayConditions().workSite && (
                                     <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Collecte"
-                            placeholder="Point de collecte"
-                            name="emitter.workSite.name"
+                                        <InputMobile
+                                            titre="Collecte"
+                                            placeholder="Point de collecte"
+                                    name="emitter.workSite.name"
                                             options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.workSite.name)}
                                             width={1}
-                            value={dataToogle.emitter.workSite.name}
-                            onChange={handleChange}
-                            enableText={true}
-                            stylePrimary={true}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="Adresse"
-                            placeholder="d'enlèvement"
-                                            options={getUniqueOptions(options, allOptions, opt => `${formatText(opt.json_row.emitter.workSite.fullAddress ?? "")}`)}
-                            width={1}
-                            name="emitter.workSite.fullAddress"
-                            value={`${formatText(dataToogle.emitter.workSite.fullAddress ?? "")}`}
-                            onChange={handleChange}
-                            enableText={true}
+                                    value={dataToogle.emitter.workSite.name}
+                                    onChange={handleChange}
+                                    enableText={true}
+                                    stylePrimary={true}
+                                            onMobile={true}
+                                />
+                                        <InputMobile
+                                            titre="Adresse"
+                                            placeholder="d'enlèvement"
+                                    options={getUniqueOptions(options, allOptions, opt => `${formatText(opt.json_row.emitter.workSite.fullAddress ?? "")}`)}
+                                            width={1}
+                                    name="emitter.workSite.fullAddress"
+                                    value={`${formatText(dataToogle.emitter.workSite.fullAddress ?? "")}`}
+                                    onChange={handleChange}
+                                    enableText={true}
                                             display={displayAll}
-                            onMobile={true}
-                        />
-                                    </div>
+                                            onMobile={true}
+                                />
+                            </div>
                                 )}
-                        
+                                
                                 {/* Contact */}
                                 <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Contact"
-                            placeholder="Contact"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.contact)}
-                            width={1}
-                            name="emitter.company.contact"
-                            value={dataToogle.emitter.company.contact}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={false}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="Téléphone"
-                            placeholder="Téléphone"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.phone)}
-                            width={1}
-                            name="emitter.company.phone"
-                            value={dataToogle.emitter.company.phone}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={false}
-                            onMobile={true}
-                        />
+                                    <InputMobile
+                                        titre="Contact"
+                                    placeholder="Contact"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.contact)}
+                                        width={1}
+                                    name="emitter.company.contact"
+                                    value={dataToogle.emitter.company.contact}
+                                    onChange={handleChange}
+                                        enableText={false}
+                                        display={false}
+                                        onMobile={true}
+                                />
+                                    <InputMobile
+                                    titre="Téléphone"
+                                    placeholder="Téléphone"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.phone)}
+                                        width={1}
+                                    name="emitter.company.phone"
+                                    value={dataToogle.emitter.company.phone}
+                                    onChange={handleChange}
+                                        enableText={false}
+                                        display={false}
+                                        onMobile={true}
+                                />
                                 </div>
                                 <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Mail"
-                            placeholder="Mail"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.mail)}
-                            width={1}
-                            name="emitter.company.mail"
-                            value={dataToogle.emitter.company.mail}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={false}
-                            onMobile={true}
-                        />
-                                </div>
+                                    <InputMobile
+                                    titre="Mail"
+                                    placeholder="Mail"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.emitter.company.mail)}
+                                        width={1}
+                                    name="emitter.company.mail"
+                                    value={dataToogle.emitter.company.mail}
+                                    onChange={handleChange}
+                                        enableText={false}
+                                        display={false}
+                                        onMobile={true}
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    {/* Section Déchet */}
+                        {/* Section Déchet */}
                         <div className="border-b border-gray-200 pb-4">
-                        <div className="text-sm font-semibold mb-2 text-gray-700">Déchet</div>
+                            <div className="text-sm font-semibold mb-2 text-gray-700">Déchet</div>
                             <div className="space-y-1">
-                        {/* Filière */}
+                                {/* Filière */}
                                 <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Filière"
-                            placeholder="Sélectionner une filière"
-                            options={getUniqueOptions(options, allOptions, opt => getFiliere(opt.json_row.wasteDetails.code, ced_table))}
-                            width={1}
-                            name="filiere"
-                            value={currentFiliere}
-                            onChange={handleChange}
-                            enableText={false}
-                            stylePrimary={true}
-                            onMobile={true}
-                            display={false}
-                        />
+                                    <InputMobile
+                                    titre="Filière"
+                                    placeholder="Sélectionner une filière"
+                                    options={getUniqueOptions(options, allOptions, opt => getFiliere(opt.json_row.wasteDetails.code, ced_table))}
+                                        width={1}
+                                    name="filiere"
+                                    value={currentFiliere}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                    stylePrimary={true}
+                                        onMobile={true}
+                                    display={false}
+                                />                                
                                 </div>
-                        
-                        {/* Déchet */}
+                                
+                                {/* Déchet */}
                                 <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Déchet"
-                            placeholder="Nom du déchet"
-                            options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.name}`)}
-                            width={1}
-                            name="wasteDetails.name"
-                            value={dataToogle.wasteDetails.name}
-                            onChange={handleChange}
-                            enableText={false}
-                            stylePrimary={true}
-                            onMobile={true}
-                        />
-                        {displayAll && (
-                        <InputMobile
-                                titre="CED"
-                                placeholder="Sélectionner un code"
-                                options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.code}`)}
-                            width={1}
-                                name="wasteDetails.code"
-                                value={dataToogle.wasteDetails.code}
-                            onChange={handleChange}
-                            enableText={false}
-                                display={displayAll || shouldDisplayField("wasteDetails.code", changedField)}
-                            onMobile={true}
-                        />
-                        )}
+                                    <InputMobile
+                                    titre="Déchet"
+                                    placeholder="Nom du déchet"
+                                    options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.name}`)}
+                                        width={1}
+                                    name="wasteDetails.name"
+                                    value={dataToogle.wasteDetails.name}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                    stylePrimary={true}
+                                        onMobile={true}
+                                />
+                                    {displayAll && (
+                                        <InputMobile
+                                            titre="CED"
+                                    placeholder="Sélectionner un code"
+                                    options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.code}`)}
+                                            width={1}
+                                    name="wasteDetails.code"
+                                    value={dataToogle.wasteDetails.code}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                    display={displayAll || shouldDisplayField("wasteDetails.code", changedField)}
+                                            onMobile={true}
+                                        />
+                                    )}
                                 </div>
 
                                 {/* Sujet à l'ADR */}
                                 {displayAll && (
                                     <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="ADR"
-                            placeholder="Sujet à l'ADR"
+                                        <InputMobile
+                                            titre="ADR"
+                                            placeholder="Sujet à l'ADR"
                                             options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.isSubjectToADR}`)}
-                            width={1}
-                            name="wasteDetails.isSubjectToADR"
-                            value={dataToogle.wasteDetails.isSubjectToADR}
-                            onChange={handleChange}
-                            enableText={false}
+                                            width={1}
+                                            name="wasteDetails.isSubjectToADR"
+                                            value={dataToogle.wasteDetails.isSubjectToADR}
+                                            onChange={handleChange}
+                                            enableText={false}
                                             display={true}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="ONU"
-                            placeholder="Code ONU"
-                                            options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.onuCode}`)}
-                            width={1}
-                            name="wasteDetails.onuCode"
-                            value={dataToogle.wasteDetails.onuCode}
-                            onChange={handleChange}
-                            enableText={false}
-                                            display={true}
-                            onMobile={true}
-                        />
-                        </div>
+                                            onMobile={true}
+                                />      
+                                        <InputMobile
+                                            titre="ONU"
+                                    placeholder="Code ONU"
+                                    options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.onuCode}`)}
+                                            width={1}
+                                    name="wasteDetails.onuCode"
+                                    value={dataToogle.wasteDetails.onuCode}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                        display={true}
+                                            onMobile={true}
+                                    />
+                                    </div>
                                 )}
 
                                 {/* Remplissage et Nombre */}
                                 <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Rempli."
-                            placeholder="Taux de remplissage"
-                            name="fillRate"
-                            value={other_infos.fillRate || ''}
-                            onChange={(e: string | { target: { name: string; value: string } }) => {
-                                const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
-                                handleOtherInfosChange({ fillRate: String(newValue) })
-                            }}
-                            options={{
-                                filteredOptions: [],
-                                allOptions: ['50', '75', '95']
-                            }}
-                            enabled={true}
-                            display={false}
-                            width={1}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="Nombre"
-                            placeholder="Nombre"
-                            options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.packagingInfos[0].quantity}`)}
-                            width={1}
-                            name="wasteDetails.packagingInfos[0].quantity"
-                            value={String(dataToogle.wasteDetails.packagingInfos[0].quantity)}
-                            onChange={handleChange}
-                            enableText={true}
-                            display={false}
-                            onMobile={true}
-                        />
+                                    <InputMobile
+                                        titre="Rempli."
+                                        placeholder="Taux de remplissage"
+                                        name="fillRate"
+                                        value={other_infos.fillRate || ''}
+                                        onChange={(e: string | { target: { name: string; value: string } }) => {
+                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                            handleOtherInfosChange({ fillRate: String(newValue) })
+                                        }}
+                                        options={{
+                                            filteredOptions: [],
+                                            allOptions: ['50', '75', '95']
+                                        }}
+                                        enabled={true}
+                                        display={false}
+                                        width={1}
+                                        onMobile={true}
+                                    />
+                                    <InputMobile
+                                    titre="Nombre"
+                                    placeholder="Nombre"
+                                    options={getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.packagingInfos[0].quantity}`)}
+                                        width={1}
+                                    name="wasteDetails.packagingInfos[0].quantity"
+                                    value={String(dataToogle.wasteDetails.packagingInfos[0].quantity)}
+                                    onChange={handleChange}
+                                    enableText={true}
+                                        display={false}
+                                        onMobile={true}
+                                    />
                                 </div>
 
                                 {/* Poids et Type */}
                                 <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Poids"
-                            placeholder="Poids en tonnes"
-                            options={{
-                                filteredOptions: [],
-                                allOptions: ['0.5', '1', '1.5', '2', '2.5', '3']
-                            }}
-                            width={1}
-                            name="wasteDetails.quantity"
-                            value={String(dataToogle.wasteDetails.quantity)}
-                            onChange={handleChange}
-                            enableText={true}
-                            display={false}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="Consist."
-                            placeholder="Consistance"
-                            options={{
-                                filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.consistence}`).filteredOptions,
-                                allOptions: ['SOLID', 'LIQUID', 'GASEOUS', 'DOUGHY']
-                            }}
-                            width={1}
-                            name="wasteDetails.consistence"
-                            value={String(dataToogle.wasteDetails.consistence)}
-                            onChange={handleChange}
-                            enableText={true}
-                            display={displayAll}
-                            onMobile={true}
-                        />                        
-                        <InputMobile
-                            titre="Type"
-                            placeholder="Type de quantité"
-                            options={{
-                                filteredOptions: ['ESTIMATED'],
-                                allOptions: ['REAL']
-                            }}
-                            width={1}
-                            name="wasteDetails.quantityType"
-                            value={String(dataToogle.wasteDetails.quantityType)}
-                            onChange={handleChange}
-                            enableText={true}
-                            display={displayAll}
-                            onMobile={true}
-                        />
+                                    <InputMobile
+                                    titre="Poids (t)"
+                                    placeholder="Poids en tonnes"
+                                    options={{
+                                        filteredOptions: [],
+                                        allOptions: ['0.5', '1', '1.5', '2', '2.5', '3']
+                                    }}
+                                        width={1}
+                                    name="wasteDetails.quantity"
+                                    value={String(dataToogle.wasteDetails.quantity)}
+                                    onChange={handleChange}
+                                    enableText={true}
+                                        display={true}
+                                        onMobile={true}
+                                />
+                                    <InputMobile
+                                        titre="Consist."
+                                    placeholder="Consistance"
+                                    options={{
+                                        filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.consistence}`).filteredOptions,
+                                        allOptions: ['SOLID', 'LIQUID', 'GASEOUS', 'DOUGHY']
+                                    }}
+                                        width={1}
+                                    name="wasteDetails.consistence"
+                                    value={String(dataToogle.wasteDetails.consistence)}
+                                    onChange={handleChange}
+                                    enableText={true}
+                                        display={displayAll}
+                                        onMobile={true}
+                                />                                
+                                    <InputMobile
+                                        titre="Type"
+                                    placeholder="Type de quantité"
+                                    options={{
+                                        filteredOptions: ['ESTIMATED'],
+                                        allOptions: ['REAL']
+                                    }}
+                                        width={1}
+                                    name="wasteDetails.quantityType"
+                                    value={String(dataToogle.wasteDetails.quantityType)}
+                                    onChange={handleChange}
+                                    enableText={true}
+                                        display={displayAll}
+                                        onMobile={true}
+                                />
                                 </div>
 
                                 {/* Consistance et Pop */}
                                 <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Pop"
-                            placeholder="Pop"
-                            options={{
-                                filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.pop}`).filteredOptions,
-                                allOptions: ['true', 'false']
-                            }}
-                            width={1}
-                            name="wasteDetails.pop"
-                            value={String(dataToogle.wasteDetails.pop)}
-                            onChange={handleChange}
-                            enableText={true}
-                            display={displayAll}
-                            onMobile={true}
-                        />
+                                    <InputMobile
+                                        titre="Pop"
+                                        placeholder="Pop"
+                                        options={{
+                                            filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.pop}`).filteredOptions,
+                                            allOptions: ['true', 'false']
+                                        }}
+                                        width={1}
+                                        name="wasteDetails.pop"
+                                        value={String(dataToogle.wasteDetails.pop)}
+                                        onChange={handleChange}
+                                        enableText={true}
+                                        display={displayAll}
+                                        onMobile={true}
+                                    />
                                 </div>
                             </div>
-                    
-
-                                {/* Contenant */}
-                                <div className="flex flex-col gap-0 mt-2">
-                                    <InputMobile
-                                        titre="Contenant"
-                                        placeholder="Sélectionner un contenant"
+                            
+                            {/* Contenant */}
+                            <div className="flex flex-col gap-0 mt-2">
+                                <InputMobile
+                                    titre="Contenant"
+                                    placeholder="Sélectionner un contenant"
                                         options={{
-                                            filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.packagingInfos[0].type}`).filteredOptions,
-                                            allOptions: ['FUT', 'GRV', 'CITERNE', 'BENNE', 'PIPELINE', 'AUTRE']
+                                        filteredOptions: getUniqueOptions(options, allOptions, opt => `${opt.json_row.wasteDetails.packagingInfos[0].type}`).filteredOptions,
+                                        allOptions: ['FUT', 'GRV', 'CITERNE', 'BENNE', 'PIPELINE', 'AUTRE']
                                         }}
-                                        width={1}
-                                        name="wasteDetails.packagingInfos[0].type"
-                                        value={dataToogle.wasteDetails.packagingInfos[0].type}
+                                    width={1}
+                                    name="wasteDetails.packagingInfos[0].type"
+                                    value={dataToogle.wasteDetails.packagingInfos[0].type}
                                         onChange={handleChange}
-                                        enableText={false}
-                                        stylePrimary={true}
-                                        display={false}
-                                        onMobile={true}
-                                    />
-                                     {/* Nouveaux champs pour other_infos */}
-                                    <InputMobile
-                                        titre="Contenant"
-                                        placeholder="Description du contenant"
-                                        name="containerDescription"
-                                        value={other_infos.containerDescription || ''}
-                                        onChange={(e: string | { target: { name: string; value: string } }) => {
-                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
-                                            handleOtherInfosChange({ containerDescription: String(newValue) })
-                                        }}
-                                        options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.containerDescription || '')}
-                                        enabled={true}
-                                        width={1}
-                                        onMobile={true}
-                                        stylePrimary={true}
-                                    />                        
-                                    <InputMobile
-                                        titre="Volume"
-                                        placeholder="Volume"
-                                        name="volume"
-                                        value={other_infos.volume || ''}
-                                        onChange={(e: string | { target: { name: string; value: string } }) => {
-                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
-                                            handleOtherInfosChange({ volume: String(newValue) })
-                                        }}
-                                        options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.volume || '')}
-                                        enabled={true}
-                                        display={displayAll}
-                                        width={1}
-                                        onMobile={true}
+                                    enableText={false}
+                                    stylePrimary={true}
+                                    display={false}
+                                    onMobile={true}
+                                />
+                                {/* Nouveaux champs pour other_infos */}
+                                <InputMobile
+                                    titre="Contenant"
+                                    placeholder="Description du contenant"
+                                    name="containerDescription"
+                                    value={other_infos.containerDescription || ''}
+                                    onChange={(e: string | { target: { name: string; value: string } }) => {
+                                        const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                        handleOtherInfosChange({ containerDescription: String(newValue) })
+                                    }}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.containerDescription || '')}
+                                    enabled={true}
+                                    width={1}
+                                    onMobile={true}
+                                    stylePrimary={true}
+                                />                        
+                                <InputMobile
+                                    titre="Volume"
+                                    placeholder="Volume"
+                                    name="volume"
+                                    value={other_infos.volume || ''}
+                                    onChange={(e: string | { target: { name: string; value: string } }) => {
+                                        const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                        handleOtherInfosChange({ volume: String(newValue) })
+                                    }}
+                                    options={getUniqueOptions(options, allOptions, opt => opt.other_infos?.volume || '')}
+                                    enabled={true}
+                                    display={displayAll}
+                                    width={1}
+                                    onMobile={true}
                                     />
                                 </div>
 
-                                {/* Unité et Description */}
-                                <div className="flex flex-col gap-0">
-                                    <InputMobile
-                                        titre="Unité"
-                                        placeholder="Unité de volume"
-                                        name="volumeUnit"
-                                        value={other_infos.volumeUnit || ''}
-                                        onChange={(e: string | { target: { name: string; value: string } }) => {
-                                            const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
-                                            handleOtherInfosChange({ volumeUnit: String(newValue) })
-                                        }}
-                                        options={{
-                                            filteredOptions: [],
-                                            allOptions: ['m3', 'L']
-                                        }}
-                                        enabled={true}
-                                        display={displayAll}
-                                        width={1}
-                                        onMobile={true}
-                                    />
-                                </div>   
-                        </div>                 
+                            {/* Unité et Description */}
+                            <div className="flex flex-col gap-0">
+                                <InputMobile
+                                    titre="Unité"
+                                    placeholder="Unité de volume"
+                                    name="volumeUnit"
+                                    value={other_infos.volumeUnit || ''}
+                                    onChange={(e: string | { target: { name: string; value: string } }) => {
+                                        const newValue = typeof e === 'object' && 'target' in e ? e.target.value : e
+                                        handleOtherInfosChange({ volumeUnit: String(newValue) })
+                                    }}
+                                    options={{
+                                        filteredOptions: [],
+                                        allOptions: ['m3', 'L']
+                                    }}
+                                    enabled={true}
+                                    display={displayAll}
+                                    width={1}
+                                    onMobile={true}
+                                />
+                        </div>
+                    </div>
 
-
-                    {/* Section Prestataires */}
+                        {/* Section Prestataires */}
                         <div className="border-b border-gray-200 pb-4">
                             <div className="text-sm font-semibold mb-2 text-gray-700">Prestataires</div>
                             <div className="space-y-2">
-                        {/* Transporteur */}
+                                {/* Transporteur */}
                                 <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Transport"
-                            placeholder="Transporteur"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.name)}
-                            width={1}
-                            name="transporter.company.name"
-                            value={dataToogle.transporter.company.name}
-                            onChange={handleChange}
-                            enableText={false}
-                            stylePrimary={true}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="Siret"
-                            placeholder="SIRET"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.siret)}
-                            width={1}
-                            name="transporter.company.siret"
-                            value={dataToogle.transporter.company.siret}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={displayAll}
-                            onMobile={true}
-                        />           
-                        <InputMobile
-                            titre="Contact"
-                            placeholder="Contact"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.contact)}
-                            width={1}
-                            name="transporter.company.contact"
-                            value={dataToogle.transporter.company.contact}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={displayAll}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="Téléphone"
-                            placeholder="Téléphone"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.phone)}
-                            width={1}
-                            name="transporter.company.phone"
-                            value={dataToogle.transporter.company.phone}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={displayAll}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="Mail"
-                            placeholder="Mail"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.mail)}
-                            width={1}
-                            name="transporter.company.mail"
-                            value={dataToogle.transporter.company.mail}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={displayAll}
-                            onMobile={true}
-                        />  
-                        <InputMobile
-                            titre="Exemption"
-                            placeholder="de récépissé"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.isExemptedOfReceipt ? 'true' : 'false')}
-                            width={1}
-                            name="transporter.isExemptedOfReceipt"
-                            value={dataToogle.transporter.isExemptedOfReceipt ? 'true' : 'false'}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={displayAll}
-                            onMobile={true}
-                        />                               
-                        <InputMobile
-                            titre="Plaque"
-                            placeholder="d'immatriculation"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.numberPlate || '')}
-                            width={1}
-                            name="transporter.numberPlate"
-                            value={dataToogle.transporter.numberPlate || '' }
-                            onChange={handleChange}
-                            enableText={false}
-                            display={displayAll}
-                            onMobile={true}
-                        />   
-                        <InputMobile
-                            titre="Infos"
-                            placeholder="Complémentaires"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.customInfo || '')}
-                            width={1}
-                            name="transporter.customInfo"
-                            value={dataToogle.transporter.customInfo || ''}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={displayAll}
-                            onMobile={true}
-                        />                                                                             
-                    </div>
+                                    <InputMobile
+                                        titre="Transport"
+                                        placeholder="Transporteur"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.name)}
+                                        width={1}
+                                    name="transporter.company.name"
+                                    value={dataToogle.transporter.company.name}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                    stylePrimary={true}
+                                        onMobile={true}
+                                />
+                                    <InputMobile
+                                    titre="Siret"
+                                        placeholder="SIRET"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.siret)}
+                                        width={1}
+                                    name="transporter.company.siret"
+                                    value={dataToogle.transporter.company.siret}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                        display={displayAll}
+                                        onMobile={true}
+                                />
+                                    <InputMobile
+                                    titre="Contact"
+                                    placeholder="Contact"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.contact)}
+                                        width={1}
+                                    name="transporter.company.contact"
+                                    value={dataToogle.transporter.company.contact}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                        display={displayAll}
+                                        onMobile={true}
+                                />
+                                    <InputMobile
+                                    titre="Téléphone"
+                                    placeholder="Téléphone"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.phone)}
+                                        width={1}
+                                    name="transporter.company.phone"
+                                    value={dataToogle.transporter.company.phone}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                        display={displayAll}
+                                        onMobile={true}
+                                />
+                                    <InputMobile
+                                    titre="Mail"
+                                    placeholder="Mail"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.company.mail)}
+                                        width={1}
+                                    name="transporter.company.mail"
+                                    value={dataToogle.transporter.company.mail}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                        display={displayAll}
+                                        onMobile={true}
+                                />
+                                    <InputMobile
+                                    titre="Exemption"
+                                        placeholder="de récépissé"
+                                        options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.isExemptedOfReceipt ? 'true' : 'false')}
+                                        width={1}
+                                    name="transporter.isExemptedOfReceipt"
+                                        value={dataToogle.transporter.isExemptedOfReceipt ? 'true' : 'false'}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                        display={displayAll}
+                                        onMobile={true}
+                                />
+                                    <InputMobile
+                                        titre="Plaque"
+                                        placeholder="d'immatriculation"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.numberPlate || '')}
+                                        width={1}
+                                    name="transporter.numberPlate"
+                                        value={dataToogle.transporter.numberPlate || '' }
+                                    onChange={handleChange}
+                                    enableText={false}
+                                        display={displayAll}
+                                        onMobile={true}
+                                />
+                                    <InputMobile
+                                        titre="Infos"
+                                        placeholder="Complémentaires"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.transporter.customInfo || '')}
+                                        width={1}
+                                    name="transporter.customInfo"
+                                    value={dataToogle.transporter.customInfo || ''}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                        display={displayAll}
+                                        onMobile={true}
+                                />
+                            </div>
 
                                 {/* Destinataire */}
                                 <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Dest."
-                            placeholder="Destinataire"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.name)}
-                            width={1}
-                            name="recipient.company.name"
-                            value={dataToogle.recipient.company.name}
-                            onChange={handleChange}
-                            enableText={false}
-                            stylePrimary={true}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="Siret"
-                            placeholder="SIRET"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.siret)}
-                            width={1}
-                            name="recipient.company.siret"
-                            value={dataToogle.recipient.company.siret}
-                            onChange={handleChange}
-                            enableText={false}
-                            display={displayAll}
-                            onMobile={true}
-                        />
+                                    <InputMobile
+                                        titre="Dest."
+                                        placeholder="Destinataire"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.name)}
+                                        width={1}
+                                    name="recipient.company.name"
+                                    value={dataToogle.recipient.company.name}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                    stylePrimary={true}
+                                        onMobile={true}
+                                />
+                                    <InputMobile
+                                    titre="Siret"
+                                        placeholder="SIRET"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.siret)}
+                                        width={1}
+                                    name="recipient.company.siret"
+                                    value={dataToogle.recipient.company.siret}
+                                    onChange={handleChange}
+                                    enableText={false}
+                                        display={displayAll}
+                                        onMobile={true}
+                                />
                                 </div>
 
                                 {/* Contact Destinataire */}
                                 <div className="flex flex-col gap-0">
                                     <InputMobile
-                                        titre="Contact"
-                                        placeholder="Contact"
-                                        options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.contact)}
+                                    titre="Contact"
+                                    placeholder="Contact"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.contact)}
                                         width={1}
-                                        name="recipient.company.contact"
-                                        value={dataToogle.recipient.company.contact}
-                                        onChange={handleChange}
-                                        enableText={false}
+                                    name="recipient.company.contact"
+                                    value={dataToogle.recipient.company.contact}
+                                    onChange={handleChange}
+                                    enableText={false}
                                         display={displayAll}
                                         onMobile={true}
-                                    />
+                                />
                                     <InputMobile
-                                        titre="Téléphone"
-                                        placeholder="Téléphone"
-                                        options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.phone)}
+                                    titre="Téléphone"
+                                    placeholder="Téléphone"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.phone)}
                                         width={1}
-                                        name="recipient.company.phone"
-                                        value={dataToogle.recipient.company.phone}
-                                        onChange={handleChange}
-                                        enableText={false}
+                                    name="recipient.company.phone"
+                                    value={dataToogle.recipient.company.phone}
+                                    onChange={handleChange}
+                                    enableText={false}
                                         display={displayAll}
                                         onMobile={true}
-                                    />
+                                />
                                     <InputMobile
-                                        titre="Mail"
-                                        placeholder="Mail"
-                                        options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.mail)}
+                                    titre="Mail"
+                                    placeholder="Mail"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.company.mail)}
                                         width={1}
-                                        name="recipient.company.mail"
-                                        value={dataToogle.recipient.company.mail}
-                                        onChange={handleChange}
-                                        enableText={false}
+                                    name="recipient.company.mail"
+                                    value={dataToogle.recipient.company.mail}
+                                    onChange={handleChange}
+                                    enableText={false}
                                         display={displayAll}
                                         onMobile={true}
                                     />
@@ -1097,64 +1345,71 @@ useEffect(() => {
                                         onChange={handleChange}
                                         enableText={false}
                                         display={displayAll}
-                            onMobile={true}
-                        />
-                        <InputMobile
-                            titre="CAP"
-                            placeholder="CAP"
-                                        options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.cap || '')}
-                            width={1}
-                            name="recipient.cap"
-                            value={dataToogle.recipient.cap || ''}
-                            onChange={handleChange}
-                            enableText={false}
+                                        onMobile={true}
+                                />
+                                    <InputMobile
+                                    titre="CAP"
+                                    placeholder="CAP"
+                                    options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.cap || '')}
+                                        width={1}
+                                    name="recipient.cap"
+                                    value={dataToogle.recipient.cap || ''}
+                                    onChange={handleChange}
+                                    enableText={false}
                                         display={displayAll}
-                            onMobile={true}
-                        />
+                                        onMobile={true}
+                                />
                                 </div>
 
                                 {/* Opération d'élimination */}
                                 <div className="flex flex-col gap-0">
-                        <InputMobile
-                            titre="Traitement"
-                            placeholder="Code de Traitement"
-                            options={getUniqueOptions(options, allOptions, opt => opt.json_row.recipient.processingOperation || '')}
-                            width={1}
-                            name="recipient.processingOperation"
-                            value={dataToogle.recipient.processingOperation || ''}
-                            onChange={handleChange}
-                            enableText={false}
-                                        display={displayAll}
-                            onMobile={true}
-                        />
-                        <InputMobile
+                                    <InputMobile
+                                        titre="Traitement"
+                                        placeholder="Code de Traitement"
+                                    options={{
+                                        filteredOptions: [],
+                                            allOptions: codeTraitementDefinitions.map(item => `${item.groupe} : ${item.code} - ${item.nom}`)
+                                    }}
+                                        width={1}
+                                    name="recipient.processingOperation"
+                                    value={dataToogle.recipient.processingOperation || ''}
+                                    onChange={(e) => {
+                                        const value = typeof e === 'object' && 'target' in e ? e.target.value : e;
+                                            const code = value.split(' : ')[1].split(' - ')[0] || '';
+                                        handleChange({ target: { name: 'recipient.processingOperation', value: code } });
+                                    }}
+                                    enableText={false}
+                                        display={true}
+                                        onMobile={true}
+                                />
+                                    <InputMobile
                                         titre="Stockage"
-                                        placeholder="Est un stockage provisoire"
-                            options={{
-                                filteredOptions: ['false'],
-                                allOptions: ['true']
-                            }}
-                            width={1}
-                            name="recipient.isTempStorage"
-                            value={dataToogle.recipient.isTempStorage || ''}
-                            onChange={handleChange}
-                            enableText={false}
+                                    placeholder="Est un stockage provisoire"
+                                    options={{
+                                        filteredOptions: ['false'],
+                                        allOptions: ['true']
+                                    }}
+                                        width={1}
+                                    name="recipient.isTempStorage"
+                                    value={dataToogle.recipient.isTempStorage || ''}
+                                    onChange={handleChange}
+                                    enableText={false}
                                         display={displayAll}
-                            onMobile={true}
-                        />
-                                </div>
+                                        onMobile={true}
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    {/* Section Date de collecte */}
-                    <div>
-                        <div className="text-sm font-semibold mb-2 text-gray-700">Date de collecte</div>
-                        <div className="flex flex-col gap-0">
-                            <div className="flex items-center justify-between gap-2">
-                                <label className="block text-md text-gray-500 font-medium mb-1 md:w-[90px] text-right">
+                        {/* Section Date de collecte */}
+                        <div>
+                            <div className="text-sm font-semibold mb-2 text-gray-700">Date de collecte</div>
+                            <div className="flex flex-col gap-0">
+                                <div className="flex items-center justify-between gap-2">
+                                    <label className="block text-md text-gray-500 font-medium mb-1 md:w-[90px] text-right">
                                     Collecté le
                                 </label>
-                                <div className="flex-1">
+                                    <div className="flex-1">
                                     <DatePicker
                                         selected={dataToogle.takenOverAt ? new Date(dataToogle.takenOverAt + 'T00:00:00') : null}
                                         onChange={(date) => {
@@ -1173,19 +1428,19 @@ useEffect(() => {
                                         }}
                                         dateFormat="dd/MM/yyyy"
                                         placeholderText="Remplir la date"
-                                        className="w-[100%] mb-1 min-h-[32px] text-sm px-3 py-2 border border-green-600 rounded-md tracking-wide"
+                                            className="w-[100%] mb-1 min-h-[32px] text-sm px-3 py-2 border border-green-600 rounded-md tracking-wide"
                                         isClearable
                                     />
                                 </div>
                             </div>
                         </div>
-                    </div>                    
+                    </div>
 
-                    {/* Composants de bas de page */}
-                    <div className="space-y-4 mt-6">
-                        {(entreprise_id && modalType !== 'create_line') && (
-                            <div className="border-t border-gray-200 pt-4">
-                                <MailComponent 
+                        {/* Composants de bas de page */}
+                        <div className="space-y-4 mt-6">
+                            {(entreprise_id && modalType !== 'create_line') && (
+                                <div className="border-t border-gray-200 pt-4">
+                                    <MailComponent 
                             params={{
                                 wasteCode: dataToogle.wasteDetails.code,
                                 responsibleName: dataToogle.emitter.company.contact,
@@ -1200,11 +1455,11 @@ useEffect(() => {
                                 wasteDescription: dataToogle.wasteDetails.name,
                                 containerCount: dataToogle.wasteDetails.packagingInfos[0].quantity,
                             }}
-                                onMobile={true}
-                            />
+                                        onMobile={true}
+                                    />
                     </div>
-                        )}
-                        <div className="border-t border-gray-200 pt-4">
+                            )}
+                            <div className="border-t border-gray-200 pt-4">
                         <ModifyCardInFormulaireNew 
                             onClose={() => {setDisplayFormulaire(false); ResetData();}}
                             dataText={dataToogle}
@@ -1217,9 +1472,9 @@ useEffect(() => {
                             allOptions={allOptions}
                             handleChange={handleChange}
                             ced_table={ced_table}
-                            onMobile={true}
+                                    onMobile={true}
                         />
-                        </div>
+                            </div>
                     </div>
                 </form>
                 </div>
@@ -1236,34 +1491,149 @@ interface Ced {
     ced: string;
     filiere: string;
 }
-const getDataAutocompletionFull = async (dataFilter: {name: string, value: string}[], entreprise_id: string, cedTable: Ced[]): Promise<{json_row: FormInput, other_infos?: OtherInfos}[]> => { 
-    
-    let query = supabase
-        .from('table_parametrage')
-        .select('json_row, other_infos')
+const getDataAutocompletionFull = async (dataFilter: {name: string, value: string}[], entreprise_id: string, cedTable: Ced[]): Promise<CompleteFormInput[]> => { 
+    // Récupérer toutes les données d'autocomplétion
+    const { data: autocompletionData, error } = await supabase
+        .from('table_autocompletion')
+        .select('*')
         .eq('entreprise_id', entreprise_id);
 
-    for (const {name, value} of dataFilter) {
-        if(name === "filiere"){
-            const table_ceds = cedTable.filter(ced => ced.filiere === value);
-            const ceds = table_ceds.map(ced => ced.ced);
-            const ceds_all_types = ceds.map(ced => [
-                ced,
-                ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim(),
-                ced.replace(/(\d{2})(?=\d)/g, '$1 ').trim() + '*'
-            ]);
-            const ced_all = ceds_all_types.flatMap(ced_types => ced_types);
-            query = query.filter('json_row->wasteDetails->>code', 'in', `(${ced_all.join(',')})`);
-        } else if (value && typeof value === 'string') {
-            const name_prefilter = name.replaceAll('.', '->');
-            const name_filter = replaceLastOccurrence(name_prefilter, '->', '->>')
-            query = query.eq(`json_row->${name_filter}`, value);
-        }
+    if (error) {
+        console.error('Error fetching autocompletion data:', error);
+        return [];
     }
 
-    const data = await query;
-    return data?.data || [];
-}
+    if (!autocompletionData) return [];
+
+    // Convertir les données d'autocomplétion en format CompleteFormInput
+    const result: CompleteFormInput[] = [];
+
+    // Pour chaque entrée dans table_autocompletion
+    autocompletionData.forEach(item => {
+        // Créer un objet CompleteFormInput avec les données de l'entrée
+        const formInput: CompleteFormInput = {
+            json_row: {
+                emitter: {
+                    type: "PRODUCER",
+                    workSite: { 
+                        name: item.site?.pointsCollecte?.[0]?.nom || "", 
+                        fullAddress: item.site?.pointsCollecte?.[0]?.adresse || "", 
+                        address: item.site?.pointsCollecte?.[0]?.adresse || "", 
+                        postalCode: item.site?.pointsCollecte?.[0]?.codePostal || "", 
+                        city: item.site?.pointsCollecte?.[0]?.ville || "", 
+                        infos: "" 
+                    },
+                    company: { 
+                        name: item.site?.nom || "", 
+                        siret: item.site?.siret || "", 
+                        address: item.site?.adresseSiege || "", 
+                        country: "", 
+                        contact: item.site?.contacts?.[0]?.nom || "", 
+                        phone: item.site?.contacts?.[0]?.telephone || "", 
+                        mail: item.site?.contacts?.[0]?.email || "" 
+                    },
+                    isPrivateIndividual: false,
+                    isForeignShip: false,
+                },
+                recipient: {
+                    company: { 
+                        name: item.destinataire?.nomBoite || "", 
+                        siret: item.destinataire?.siret || "", 
+                        address: item.destinataire?.adresse || "", 
+                        country: "", 
+                        contact: item.destinataire?.nomPrenom || "", 
+                        phone: item.destinataire?.telephone || "", 
+                        mail: item.destinataire?.email || "" 
+                    },
+                    cap: "",
+                    processingOperation: "",
+                    isTempStorage: false,
+                },
+                transporter: {
+                    company: { 
+                        name: item.transporteur?.nomBoite || "", 
+                        siret: item.transporteur?.siret || "", 
+                        address: item.transporteur?.adresse || "", 
+                        country: "", 
+                        contact: item.transporteur?.nomPrenom || "", 
+                        phone: item.transporteur?.telephone || "", 
+                        mail: item.transporteur?.email || "" 
+                    },
+                    isExemptedOfReceipt: false,
+                    receipt: item.transporteur?.recépissé || "",
+                    numberPlate: "",
+                    customInfo: "",
+                },
+                wasteDetails: {
+                    code: item.dechet?.codeCED || "",
+                    name: item.dechet?.nom || "",
+                    isSubjectToADR: false,
+                    onuCode: item.dechet?.onu || "",
+                    packagingInfos: [{ type: "AUTRE", quantity: 1, other: "" }],
+                    quantity: 0,
+                    quantityType: "ESTIMATED",
+                    consistence: "",
+                    pop: false,
+                    isDangerous: false,
+                    parcelNumbers: { city: "", postalCode: "", prefix: "", section: "", number: "" },
+                    analysisReferences: "",
+                    landIdentifiers: "",
+                    sampleNumber: "",
+                },
+                trader: {
+                    receipt: "",
+                    department: "",
+                    //validityLimit: "",
+                    company: { 
+                        name: item.negociant?.nomBoite || "", 
+                        siret: item.negociant?.siret || "", 
+                        address: item.negociant?.adresse || "", 
+                        country: "", 
+                        contact: item.negociant?.nomPrenom || "", 
+                        phone: item.negociant?.telephone || "", 
+                        mail: item.negociant?.email || "" 
+                    },
+                },
+                broker: {
+                    receipt: "",
+                    department: "",
+                    //validityLimit: "",
+                    company: { 
+                        name: item.courtier?.nomBoite || "", 
+                        siret: item.courtier?.siret || "", 
+                        address: item.courtier?.adresse || "", 
+                        country: "", 
+                        contact: item.courtier?.nomPrenom || "", 
+                        phone: item.courtier?.telephone || "", 
+                        mail: item.courtier?.email || "" 
+                    },
+                },
+                ecoOrganisme: { 
+                    name: item.eco_organisme?.nomBoite || "", 
+                    siret: item.eco_organisme?.siret || "" 
+                },
+                temporaryStorageDetail: {
+                    company: { name: "", siret: "", address: "", country: "", contact: "", phone: "", mail: "" },
+                    cap: "",
+                    processingOperation: "",
+                },
+            },
+            other_infos: {
+                containerDescription: item.contenant?.nom || "",
+                volume: item.contenant?.volume || "",
+                volumeUnit: item.contenant?.uniteVolume || "",
+                fillRate: "",
+                inputMode: "volume",
+                automaticMode: true
+            }
+        };
+
+        // Ajouter l'entrée au résultat
+        result.push(formInput);
+    });
+
+    return result;
+};
 
 function replaceLastOccurrence(str: string, search: string, replacement: string) {
     const lastIndex = str.lastIndexOf(search);
@@ -1273,44 +1643,23 @@ function replaceLastOccurrence(str: string, search: string, replacement: string)
 }
 
 export const getUniqueOptions = (
-    filteredOptions: OptionType[] = [], 
-    allOptions: OptionType[] = [], 
-    selector: (opt: OptionType) => string
+    filteredOptions: CompleteFormInput[], 
+    allOptions: CompleteFormInput[],
+    selector: (opt: CompleteFormInput) => string
 ) => {
-    // Vérification et initialisation des paramètres
-    const safeFilteredOptions = Array.isArray(filteredOptions) ? filteredOptions : [];
-    const safeAllOptions = Array.isArray(allOptions) ? allOptions : [];
-
-    try {
-        // Gestion sécurisée des valeurs filtrées
-        const filteredValues = Array.from(new Set(
-            safeFilteredOptions
-                .filter(opt => opt && opt.json_row && typeof selector(opt) === 'string')
-                .map(selector)
-        )).filter(Boolean) as string[];
-
-        // Gestion sécurisée des valeurs totales - ne plus filtrer les doublons
-        const allValues = Array.from(new Set(
-            safeAllOptions
-                .filter(opt => opt && opt.json_row && typeof selector(opt) === 'string')
-                .map(selector)
-        )).filter(Boolean) as string[];
+    // Extraire les valeurs uniques
+    const filtered = filteredOptions
+        .map(selector)
+        .filter(Boolean);
+    
+    const all = allOptions
+        .map(selector)
+        .filter(Boolean);
+    
     return {
-        filteredOptions: filteredValues,
-        allOptions: allValues.filter(val => !filteredValues.includes(val))
+        filteredOptions: filtered,
+        allOptions: []
     };
-    } catch (error) {
-        console.warn('Error in getUniqueOptions:', error);
-        return {
-            filteredOptions: [],
-            allOptions: []
-        };
-    }
-};
-
-// Fonction pour vérifier si un champ est un ancêtre d'un autre
-const isAncestor = (potentialAncestor: string, field: string, inputDependencies: {[key: string]: {children: string[], filterFields?: string[]}}) => {   
-    return inputDependencies[potentialAncestor]?.children.includes(field);
 };
 
 const dataFilterUpdate = (setCurrentFiliere: (filiere: string) => void, ced_table: { ced: string; filiere: string; }[], name: string, value: string, dataFilter: {name: string, value: string}[], setDataFilter: (dataFilter: {name: string, value: string}[]) => void, inputDependencies: InputDependencies) => {
@@ -1372,14 +1721,24 @@ const preciseFilter = (
         // 1. Filtrer les options qui correspondent aux champs déjà remplis
         const filteredOptions = allOptions.filter(option => {
             return fieldsForFilter.every(field => {
-                const value = field.split('.').reduce<unknown>((obj, key) => 
-                    typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
-                    option.json_row as unknown as Record<string, unknown>
-                );
-                const chosenValue = field.split('.').reduce<unknown>((obj, key) => 
-                    typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
-                    alreadyChosenData as unknown as Record<string, unknown>
-                );
+                let value, chosenValue;
+                
+                if (field.startsWith('other_infos.')) {
+                    // Gestion spéciale pour les champs other_infos
+                    const fieldName = field.replace('other_infos.', '');
+                    value = option.other_infos?.[fieldName as keyof OtherInfos];
+                    chosenValue = (alreadyChosenData as FormInput & { other_infos?: OtherInfos }).other_infos?.[fieldName as keyof OtherInfos];
+                } else {
+                    // Gestion normale pour les champs json_row
+                    value = field.split('.').reduce<unknown>((obj, key) => 
+                        typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                        option.json_row as unknown as Record<string, unknown>
+                    );
+                    chosenValue = field.split('.').reduce<unknown>((obj, key) => 
+                        typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                        alreadyChosenData as unknown as Record<string, unknown>
+                    );
+                }
                 
                 if (!chosenValue) return true;
                 return value === chosenValue;
@@ -1389,12 +1748,16 @@ const preciseFilter = (
         // 2. Si aucune option ne correspond, retourner une chaîne vide
         if (filteredOptions.length === 0) return '';
 
-        // 3. Extraire les valeurs du champ d'intérêt avec gestion spéciale pour fullAddress
+        // 3. Extraire les valeurs du champ d'intérêt
         const interestValues = filteredOptions.map(option => {
             if (interestField === 'emitter.workSite.fullAddress') {
                 const workSite = option.json_row.emitter.workSite;
                 return workSite.fullAddress || 
                     `${workSite.address || ''} ${workSite.postalCode || ''} ${workSite.city || ''}`.trim();
+            } else if (interestField.startsWith('other_infos.')) {
+                // Gestion spéciale pour les champs other_infos
+                const fieldName = interestField.replace('other_infos.', '');
+                return option.other_infos?.[fieldName as keyof OtherInfos];
             }
             return interestField.split('.').reduce<unknown>((obj, key) => 
                 typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
@@ -1427,6 +1790,29 @@ const preciseFilter = (
     }
 };
 
+// Fonction pour récupérer les données d'autocomplétion depuis Supabase
+const getAutocompletionData = async (entreprise_id: string): Promise<AutocompletionData[]> => {
+    const { data, error } = await supabase
+        .from('table_autocompletion')
+        .select('*')
+        .eq('entreprise_id', entreprise_id);
+
+    if (error) {
+        console.error('Error fetching autocompletion data:', error);
+        return [];
+    }
+
+    if (!data) return [];
+
+    // Convertir les données en format AutocompletionData
+    return data.map(item => ({
+        site: item.site,
+        transporteur: item.transporteur,
+        destinataire: item.destinataire,
+        dechet: item.dechet,
+        contenant: item.contenant
+    }));
+};
 
 
 

@@ -110,7 +110,7 @@ ${params.mention.toMentionned ? (
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.
-Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).` : ''}`;
 
                 case TYPES_PRESTATION.ENLEVEMENT_SANS_DEPOT:
                     return `Bonjour,
@@ -130,7 +130,7 @@ params.mention.mentionType === 'recipient' ? `L'installation de destination pré
                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.
-Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).` : ''}`;
 
 
                 case TYPES_PRESTATION.CAMION_JOURNEE:
@@ -152,7 +152,7 @@ ${params.mention.toMentionned ? (
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la disponibilité du camion pour la journée en répondant à tous.
-Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).` : ''}`;
 
                 case TYPES_PRESTATION.CAMION_DEMIE:
                     return `Bonjour,
@@ -172,7 +172,7 @@ ${params.mention.toMentionned ? (
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la disponibilité du camion pour la demi-journée en répondant à tous.
-Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).` : ''}`;
 
                 case TYPES_PRESTATION.DEPOT_UNIQUEMENT:
                     return `Bonjour,
@@ -192,7 +192,7 @@ ${params.mention.toMentionned ? (
                                                 : `Le transporteur qui livrera les contenants sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.
-Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).` : ''}`;
 
                 case TYPES_PRESTATION.CAMION_TOURNEE:
                     return `Bonjour,
@@ -212,7 +212,7 @@ params.mention.mentionType === 'recipient' ? `L'installation de destination pré
                                 : `Le transporteur qui livrera les contenants sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.
-Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).` : ''}`;
 
 
                 default:
@@ -233,7 +233,7 @@ ${params.mention.toMentionned ? (
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.
-Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).`;
+${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params.respoTerrain.nom} (${params.respoTerrain.email} / ${params.respoTerrain.telephone}).` : ''}`;
             }
         };
 

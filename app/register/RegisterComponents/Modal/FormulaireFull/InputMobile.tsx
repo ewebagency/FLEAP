@@ -12,7 +12,7 @@ interface SelectGroup {
   options: SelectOption[];
 }
 
-interface InputFullProps {
+interface InputMobileProps {
     titre: string;
     placeholder: string;
     options: {
@@ -39,7 +39,7 @@ interface InputFullProps {
     hideIndicators?: boolean;
 }
 
-const InputFull: React.FC<InputFullProps> = ({
+const InputMobile: React.FC<InputMobileProps> = ({
     titre, 
     placeholder, 
     options, 
@@ -56,7 +56,7 @@ const InputFull: React.FC<InputFullProps> = ({
     onMobile = false,
     popup = false,
     hideIndicators = false,
-}: InputFullProps) => {
+}: InputMobileProps) => {
     const [isTextMode, setIsTextMode] = useState(false);
 
     const getBackgroundColor = () => {
@@ -71,7 +71,6 @@ const InputFull: React.FC<InputFullProps> = ({
         }
     };
 
-    //console.log("options", options);
     // Convertir les options en format attendu par CreatableSelect avec distinction des sources
     const selectOptions = [
         {
@@ -249,23 +248,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                             ...base,
                                             paddingTop: 4,
                                             paddingBottom: 4
-                                        }),
-                                        groupHeading: (base) => ({
-                                            ...base,
-                                            fontSize: '16px',
-                                            color: '#666',
-                                            fontWeight: 600,
-                                            marginBottom: 2,
-                                            padding: '2px 8px'
-                                        }),
-                                        dropdownIndicator: (base) => ({
-                                            ...base,
-                                            display: 'flex',
-                                            padding: 2
                                         })
-                                    }}
-                                    isValidNewOption={(inputValue) => {
-                                        return inputValue.length > 0;
                                     }}
                                 />
                             ) : (
@@ -281,4 +264,4 @@ const InputFull: React.FC<InputFullProps> = ({
     );
 };
 
-export default InputFull;
+export default InputMobile;

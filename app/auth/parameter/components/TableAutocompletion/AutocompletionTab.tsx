@@ -33,7 +33,9 @@ import {
 } from './LinkHandlers';
 import { fetchAutocompletionData } from './utils';
 import { siteAttributes, transporteurAttributes, dechetAttributes, destinataireAttributes, contenantAttributes, negociantAttributes, courtierAttributes, ecoorganismeAttributes, codeTraitementAttributes, codeTraitementOptions, contratAttributes } from './definitions';
-
+import ImportEntityFromExcel from './ImportEntityFromExcel';
+import { cofounders_user_id } from '@/app/component/SideBar';
+import { code_ced_DICTIONNAIRE } from '@/app/component/CodeCED';
 interface AutocompletionRecord {
   id: string;
   transport_link?: BaseLink[];
@@ -59,6 +61,7 @@ const AutocompletionTab: React.FC = () => {
   const [ecoorganismes, setEcoorganismes] = useState<Ecorganisme[]>([]);
   const [codeTreatments, setCodeTreatments] = useState<CodeTreatment[]>([]);
   const [contrats, setContrats] = useState<Contrat[]>([]);
+  const [filteredCedOptions, setFilteredCedOptions] = useState<Array<{ ced: string; nom: string; masse_volumique: number; icone: string }>>([]);
   //on va chercher les liens
   const [transportLinks, setTransportLinks] = useState<BaseLink[]>([]);
   const [destLinks, setDestLinks] = useState<BaseLink[]>([]);
@@ -83,7 +86,7 @@ const AutocompletionTab: React.FC = () => {
   });
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [editingItems, setEditingItems] = useState<Set<string>>(new Set());
-  const {entreprise_id} = useSession();
+  const {entreprise_id, user_id} = useSession();
 
   //on va chercher les données allOptions
   useEffect(() => {
@@ -197,9 +200,13 @@ const AutocompletionTab: React.FC = () => {
         ));
         break;
       case 'Dechet':
-        setDechets(prev => prev.map(dechet => 
-          dechet.id === id ? { ...dechet, [field]: value } : dechet
-        ));
+        setDechets(prev => prev.map(dechet => {
+          if (dechet.id !== id) return dechet;
+          if (field === 'masseVolumique') {
+            return { ...dechet, [field]: Number(value) };
+          }
+          return { ...dechet, [field]: value };
+        }));
         break;
       case 'Destinataire':
         setDestinataires(prev => prev.map(destinataire => 
@@ -601,6 +608,7 @@ const AutocompletionTab: React.FC = () => {
           nom: data.nom as string,
           codeCED: data.codeCED as string,
           adr: data.adr as string,
+          masseVolumique: Number(data.masseVolumique),
         };
         setDechets(prev => [...prev, newDechet]);
         break;
@@ -961,6 +969,28 @@ const AutocompletionTab: React.FC = () => {
                           </div>
                         );
                       }
+                      // Ajout de la gestion spéciale pour les déchets
+                      if (type === 'Dechet' && key === 'masseVolumique') {
+                        return (
+                          <div key={key} className="flex items-center gap-3">
+                            <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
+                              {getAttributeLabel('masseVolumique', type)}
+                            </span>
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                value={String(value)}
+                                onChange={(e) => handleFieldChange(type, entity.id, key, e.target.value)}
+                                step="0.01"
+                                min="0"
+                                className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                              />
+                            ) : (
+                              <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{String(value)}</span>
+                            )}
+                          </div>
+                        );
+                      }
                       return (
                         <div key={key} className="flex items-center gap-3">
                           <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
@@ -1163,12 +1193,107 @@ const AutocompletionTab: React.FC = () => {
                   </div>
                 )}
                 {showNewForm.dechet ? (
-                  <EntityForm
-                    title="Nouveau déchet"
-                    mainAttribute={dechetAttributes.mainAttribute}
-                    secondaryAttributes={dechetAttributes.secondaryAttributes}
-                    onSave={(data) => handleSave('Dechet', data)}
-                  />
+                  <div className="bg-white rounded-xl shadow-sm p-5">
+                    <h3 className="text-xl font-semibold text-gray-800 mb-4">Nouveau déchet</h3>
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.currentTarget);
+                      const nom = formData.get('nom') as string;
+                      const codeCED = formData.get('codeCED') as string;
+                      const masseVolumique = formData.get('masseVolumique') as string;
+                      const adr = formData.get('adr') as string;
+                      handleSave('Dechet', { nom, codeCED, masseVolumique: Number(masseVolumique), adr });
+                    }} className="space-y-4">
+                      <div className="w-full">
+                        <label className="block text-md font-medium text-gray-500 mb-1">
+                          Nom du déchet
+                        </label>
+                        <input
+                          type="text"
+                          name="nom"
+                          required
+                          className="w-full px-2 py-1.5 text-md border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                          placeholder="Entrez le nom du déchet"
+                        />
+                      </div>
+                      <div className="w-full">
+                        <label className="block text-md font-medium text-gray-500 mb-1">
+                          Code CED
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            name="codeCED"
+                            required
+                            className="w-full px-2 py-1.5 text-md border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                            placeholder="Rechercher un code CED..."
+                            onChange={(e) => {
+                              const searchValue = e.target.value.toLowerCase();
+                              const filteredOptions = code_ced_DICTIONNAIRE.filter(d => 
+                                d.ced.toLowerCase().includes(searchValue) || 
+                                d.nom.toLowerCase().includes(searchValue)
+                              );
+                              setFilteredCedOptions(filteredOptions);
+                            }}
+                          />
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            {filteredCedOptions.map((dechet) => (
+                              <div
+                                key={dechet.ced}
+                                className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                                onClick={() => {
+                                  const codeCEDInput = document.querySelector('input[name="codeCED"]') as HTMLInputElement;
+                                  const masseVolumiqueInput = document.querySelector('input[name="masseVolumique"]') as HTMLInputElement;
+                                  if (codeCEDInput && masseVolumiqueInput) {
+                                    codeCEDInput.value = dechet.ced;
+                                    masseVolumiqueInput.value = dechet.masse_volumique.toString();
+                                    setFilteredCedOptions([]);
+                                  }
+                                }}
+                              >
+                                <div className="font-medium">{dechet.ced}</div>
+                                <div className="text-sm text-gray-600">{dechet.nom}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="w-full">
+                        <label className="block text-md font-medium text-gray-500 mb-1">
+                          Masse volumique (t/m³)
+                        </label>
+                        <input
+                          type="number"
+                          name="masseVolumique"
+                          required
+                          step="0.01"
+                          min="0"
+                          className="w-full px-2 py-1.5 text-md border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                          placeholder="Masse volumique"
+                        />
+                      </div>
+                      <div className="w-full">
+                        <label className="block text-md font-medium text-gray-500 mb-1">
+                          ADR
+                        </label>
+                        <input
+                          type="text"
+                          name="adr"
+                          required
+                          className="w-full px-2 py-1.5 text-md border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                          placeholder="Entrez le numéro ADR"
+                        />
+                      </div>
+                      <div className="flex justify-end">
+                        <button 
+                          type="submit" 
+                          className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+                        >
+                          Enregistrer
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 ) : (
                   renderEntityList(dechets, 'Dechet', 'nom')
                 )}
@@ -1342,7 +1467,7 @@ const AutocompletionTab: React.FC = () => {
                           <option value="">Sélectionnez le code de traitement</option>
                           {codeTraitementOptions.map((option) => (
                             <option key={option.code} value={option.code}>
-                              {option.code} | {option.nom}
+                              {option.groupe} | {option.code} - {option.nom}
                             </option>
                           ))}
                         </select>
@@ -1388,6 +1513,7 @@ const AutocompletionTab: React.FC = () => {
                 )}
               </>
             )}
+            {(cofounders_user_id(user_id)===true) && <ImportEntityFromExcel />}
           </>
         ) : (
           <div className="mt-8">

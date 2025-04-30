@@ -1,3 +1,5 @@
+import { codeTraitementDefinitions } from "@/app/component/Analyse/Environnementale/codeTraitement";
+
 export const siteAttributes = {
     mainAttribute: {
       name: 'nom',
@@ -103,6 +105,13 @@ export const dechetAttributes = {
         type: 'string' as const,
         required: true,
         placeholder: 'Entrez le code CED',
+      },
+      {
+        name: 'masseVolumique',
+        label: 'Masse volumique (t/m³)',
+        type: 'number' as const,
+        required: true,
+        placeholder: 'Entrez la masse volumique',
       },
       {
         name: 'adr',
@@ -321,38 +330,8 @@ export const ecoorganismeAttributes = {
     ],
   };
 
-export const codeTraitementOptions = [
-  { code: 'D1', nom: 'Mise en décharge' },
-  { code: 'D2', nom: 'Traitement en sol' },
-  { code: 'D3', nom: 'Injection en profondeur' },
-  { code: 'D4', nom: 'Lagunage' },
-  { code: 'D5', nom: 'Décharge aménagée' },
-  { code: 'D6', nom: 'Rejet en eau (hors immersion)' },
-  { code: 'D7', nom: 'Immersion en mer' },
-  { code: 'D8', nom: 'Traitement bio. avant élimination' },
-  { code: 'D9', nom: 'Traitement physico-chimique avant élimination' },
-  { code: 'D10', nom: 'Incinération à terre' },
-  { code: 'D11', nom: 'Incinération en mer (interdit)' },
-  { code: 'D12', nom: 'Stockage permanent' },
-  { code: 'D13', nom: 'Regroupement/mélange avant D1-D12' },
-  { code: 'D14', nom: 'Reconditionnement avant D1-D13' },
-  { code: 'D15', nom: 'Stockage avant D1-D14' },
-  { code: 'R1', nom: 'Valorisation énergétique' },
-  { code: 'R2', nom: 'Régénération solvants' },
-  { code: 'R3', nom: 'Recyclage organique (hors solvants)' },
-  { code: 'R4', nom: 'Recyclage métaux' },
-  { code: 'R5', nom: 'Recyclage inorganique' },
-  { code: 'R6', nom: 'Régénération acides/bases' },
-  { code: 'R7', nom: 'Récup. agents de dépollution' },
-  { code: 'R8', nom: 'Récup. catalyseurs' },
-  { code: 'R9', nom: 'Régénération huiles' },
-  { code: 'R10', nom: 'Épandage agricole/écologique' },
-  { code: 'R11', nom: 'Réutilisation résidus R1-R10' },
-  { code: 'R12', nom: 'Échange de déchets avant R1-R11' },
-  { code: 'R13', nom: 'Stockage avant R1-R12' },
-  { code: 'PR', nom: 'Réutilisation' },
-  { code: 'RX', nom: 'Réemploi' }
-];
+
+export const codeTraitementOptions = codeTraitementDefinitions;
 
 export const codeTraitementAttributes = {
   mainAttribute: {
@@ -361,9 +340,9 @@ export const codeTraitementAttributes = {
     type: 'select' as const,
     required: true,
     placeholder: 'Sélectionnez le code de traitement',
-    options: codeTraitementOptions.map(option => ({
+    options: codeTraitementDefinitions.map(option => ({
       value: option.code,
-      label: `${option.code} | ${option.nom}`
+      label: `${option.groupe} | ${option.code} - ${option.nom}`
     }))
   },
   secondaryAttributes: []
