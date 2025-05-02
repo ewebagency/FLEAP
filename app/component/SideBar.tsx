@@ -10,6 +10,7 @@ import dynamic from 'next/dynamic';
 import FiltreDate from './FiltreDate';
 import CreationFiltrePerso from './FiltresPerso/CreationFiltrePerso';
 import { FiltresPersoProvider } from './FiltresPerso/FiltresPersoProvider';
+import Image from 'next/image';
 
 // Chargement dynamique de boxicons sans SSR
 const BoxIcon = dynamic(
@@ -116,7 +117,8 @@ const SideBar = (props:SideBarProps) => {
                 <div className={`menu h-screen bg-gray-100 ${isCollapsed ? 'w-16' : 'w-47'} p-4 flex flex-col transition-all duration-300 hidden md:flex ${props.className_props}`}>
                     <div className="flex-grow">
                         <div className="flex justify-between items-center mb-4">
-                            {!isCollapsed && <h1 className="font-bold text-xl ml-4">{entreprise_name}</h1>}
+                            {/*{!isCollapsed && <h1 className="font-bold text-xl ml-4">{entreprise_name}</h1>}*/}
+                            {!isCollapsed && <Image src="/logo/logo_fleap.png" alt="Logo" width={140} height={60} className="ml-2" />}
                             <button 
                                 onClick={() => setIsCollapsed(!isCollapsed)}
                                 className="hover:bg-gray-300 p-2 rounded-full"
@@ -147,7 +149,7 @@ const SideBar = (props:SideBarProps) => {
                                         } ${isCollapsed ? 'justify-center' : ''}`}
                                     >
                                         <BoxIcon name='stats' color={pathname === '/analysis' ? 'var(--green-medium)' : 'currentColor'} />
-                                        {!isCollapsed && <span className="ml-2 text-sm font-semibold">Analyses</span>}
+                                        {!isCollapsed && <span className={`${pathname === '/analysis' ? 'text-[var(--green-medium)] font-bold' : ''} ml-2 text-sm`}>Analyses</span>}
                                     </a>
                                 </li>
                             )}
@@ -159,7 +161,7 @@ const SideBar = (props:SideBarProps) => {
                                     } ${isCollapsed ? 'justify-center' : ''}`}
                                 >
                                     <BoxIcon name='data' color={pathname === '/register' ? 'var(--green-medium)' : 'currentColor'} />
-                                    {!isCollapsed && <span className="ml-2 text-sm font-semibold">Registre</span>}
+                                    {!isCollapsed && <span className={`${pathname === '/register' ? 'text-[var(--green-medium)] font-bold' : ''} ml-2 text-sm`}>Registre</span>}
                                 </a>
                             </li>
                             <li>
@@ -170,7 +172,7 @@ const SideBar = (props:SideBarProps) => {
                                     } ${isCollapsed ? 'justify-center' : ''}`}
                                 >
                                     <BoxIcon name='import' color={pathname === '/import_page' ? 'var(--green-medium)' : 'currentColor'} />
-                                    {!isCollapsed && <span className="ml-2 text-sm font-semibold">Imports</span>}
+                                    {!isCollapsed && <span className={`${pathname === '/import_page' ? 'text-[var(--green-medium)] font-bold' : ''} ml-2 text-sm`}>Imports</span>}
                                 </a>
                             </li>
                             {cofounderPermission && (
@@ -182,7 +184,7 @@ const SideBar = (props:SideBarProps) => {
                                         } ${isCollapsed ? 'justify-center' : ''}`}
                                     >
                                         <BoxIcon name='file' color={pathname === '/interface_admin_2' ? 'var(--green-medium)' : 'currentColor'} />
-                                        {!isCollapsed && <span className="ml-2 text-sm font-semibold">Vérification</span>}
+                                        {!isCollapsed && <span className={`${pathname === '/interface_admin_2' ? 'text-[var(--green-medium)] font-bold' : ''} ml-2 text-sm font-semibold`}>Vérification</span>}
                                     </a>
                                 </li>
                             )}
@@ -195,12 +197,13 @@ const SideBar = (props:SideBarProps) => {
                                         } ${isCollapsed ? 'justify-center' : ''}`}
                                     >
                                         <BoxIcon type='solid' name='cross' color={pathname === '/lien' ? 'white' : 'currentColor'} />
-                                        {!isCollapsed && <span className="ml-2 text-sm font-semibold">Factures - BSDs</span>}
+                                        {!isCollapsed && <span className={`${pathname === '/lien' ? 'text-[var(--green-medium)] font-bold' : ''} ml-2 text-sm`}>Factures - BSDs</span>}
                                     </a>
                                 </li>
                             )}
                         </ul>
                     </div>
+                    {!isCollapsed && <h1 className="w-[200px] font-bold text-xl ml-2">{entreprise_name}</h1>}
                     {!isCollapsed && <DetailsSideBar 
                         session={!!session}
                         userNames={userNames} 

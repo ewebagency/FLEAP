@@ -11,7 +11,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { TooltipItem as ChartTooltipItem, Chart as ChartJS, ChartOptions, ChartDataset, ScaleOptionsByType, Scale, ScaleType } from 'chart.js';
 import { Context } from 'chartjs-plugin-datalabels';
-import { typeTraitement } from './codeTraitement';
+import { typeTraitement, codeTraitementDefinitions } from './codeTraitement';
 
 const { Bar } = DynamicCharts;
 
@@ -72,19 +72,22 @@ export const treatmentLabels = {
   "default": "Méthode de traitement inconnue" // Autre traitement
 };
 
-  
-
-const treatmentColors = {
-    // Catégories de traitement
-    'Élimination': 'rgba(244, 63, 94, 0.8)',  // Rouge
-    'Valorisation énergétique': 'rgba(34, 197, 94, 0.8)',  // Vert
-    'Valorisation matière': 'rgba(59, 130, 246, 0.8)',  // Bleu
-    'Préparation à la valorisation': 'rgba(168, 85, 247, 0.8)',  // Violet
-    'Réutilisation': 'rgba(249, 115, 22, 0.8)',  // Orange
-    'Réemploi': 'rgba(139, 92, 246, 0.8)',  // Violet foncé
-    'Inconnu': 'rgba(156, 163, 175, 0.8)',  // Gris
-    'default': 'rgba(156, 163, 175, 0.8)' // Gris
-};
+// Générer les couleurs à partir de codeTraitementDefinitions
+const treatmentColors = Object.fromEntries(
+    Object.keys(typeTraitement).map(category => {
+        // Trouver la première définition pour cette catégorie
+        const definition = codeTraitementDefinitions.find(def => def.groupe === category);
+        if (definition) {
+            // Convertir le code hexadécimal en rgba
+            const hex = definition.couleur;
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return [category, `rgba(${r}, ${g}, ${b}, 0.8)`];
+        }
+        return [category, 'rgba(156, 163, 175, 0.8)']; // Couleur par défaut
+    })
+);
 
 const EnvBarChart = () => {
     const { bsds, mappingTable, filieres_ou_prestataires, siretToName } = useAnalysis();
@@ -467,7 +470,7 @@ const EnvBarChart = () => {
             datalabels: {
                 display(context: Context) {
                     const value = Number(context.dataset.data[context.dataIndex]);
-                    return value > 20; // Afficher le label si la valeur est supérieure à 20%
+                    return value >= 4; // Afficher le label si la valeur est supérieure ou égale à 4%
                 },
                 color: 'white',
                 font: {
@@ -475,7 +478,9 @@ const EnvBarChart = () => {
                     size: 11
                 },
                 formatter: function(value: number, context: Context) {
-                    return value > 20 ? `${context.dataset.label} (${value.toFixed(1)}%)` : '';
+                    if (value < 4) return '';
+                    if (value < 20) return `${value.toFixed(1)}%`;
+                    return `${context.dataset.label} (${value.toFixed(1)}%)`;
                 },
                 align: 'center',
                 anchor: 'center',

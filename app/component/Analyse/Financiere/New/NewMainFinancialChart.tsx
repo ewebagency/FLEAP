@@ -29,6 +29,16 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
     const [viewType, setViewType] = useState<'chart' | 'table'>('chart');
     const [aggregation, setAggregation] = useState<'month' | 'year'>('month');
     
+    // Fonction pour normaliser les types d'opérations
+    const normalizeOperationType = (type: string): string => {
+        const normalized = type.toLowerCase().replace(/ /g, '_');
+        if (normalized === 'gestion_global') return 'gestion_globale';
+        if (normalized === 'préparation') return 'preparation';
+        if (normalized === 'non_expliqués') return 'non_expliques';
+        if (normalized.includes('contenant')) return 'autres_contenant';
+        return normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    };
+
     const handleDateChange = (date: Date | null, type: 'debut' | 'fin') => {
         if (date) {
             setSegmentDates({
@@ -59,11 +69,19 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             };
         }
 
+        // Normaliser les dates de début et de fin au premier jour du mois
+        const normalizedStartDate = new Date(segmentDates.debut || new Date());
+        normalizedStartDate.setDate(1);
+        normalizedStartDate.setHours(0, 0, 0, 0);
+
+        const normalizedEndDate = new Date(segmentDates.fin || new Date());
+        normalizedEndDate.setDate(1);
+        normalizedEndDate.setHours(0, 0, 0, 0);
+
         const monthLabels: string[] = [];
-        const currentDate = new Date(segmentDates.debut || new Date());
-        const endDate = segmentDates.fin || new Date();
+        const currentDate = new Date(normalizedStartDate);
         
-        while (currentDate <= endDate) {
+        while (currentDate <= normalizedEndDate) {
             const label = currentDate.toLocaleString('fr-FR', { 
                 month: 'short',
                 year: '2-digit'
@@ -72,8 +90,18 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             currentDate.setMonth(currentDate.getMonth() + 1);
         }
 
-        const positiveAmountsByFiliere: { [key: string]: number[] } = {};
-        const negativeAmountsByFiliere: { [key: string]: number[] } = {};
+        console.log('All month labels:', monthLabels);
+        console.log('Month labels mapping:', monthLabels.map(label => {
+            const [monthStr, yearStr] = label.split(' ');
+            return {
+                original: label,
+                monthStr,
+                yearStr
+            };
+        }));
+
+        const positiveAmountsByFiliere: { [key: string]: { [key: string]: number } } = {};
+        const negativeAmountsByFiliere: { [key: string]: { [key: string]: number } } = {};
 
         factures.forEach(facture => {
             facture.infos_json.departs.forEach(depart => {
@@ -95,34 +123,61 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                     filiere = 'Autres';
                 }
 
-                const amount = facture.infos_json.footer.total_ht;
-                const monthIndex = Math.floor(
-                    (new Date(header?.date_depart).getTime() - (segmentDates.debut || new Date(0)).getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-                );
+                // Calcul des montants ligne par ligne
+                depart.line_body.forEach(line => {
+                    const montant = line.montant_ht || 0;
+                    const dateDepart = new Date(header?.date_depart);
+                    dateDepart.setDate(1);
+                    dateDepart.setHours(0, 0, 0, 0);
 
-                if (monthIndex >= 0 && monthIndex < monthLabels.length) {
-                    if (amount >= 0) {
-                        if (!positiveAmountsByFiliere[filiere]) {
-                            positiveAmountsByFiliere[filiere] = Array(monthLabels.length).fill(0);
+                    // Vérifier si la date est dans l'intervalle
+                    if (dateDepart >= normalizedStartDate && dateDepart <= normalizedEndDate) {
+                        const monthKey = dateDepart.toISOString().slice(0, 7); // Format YYYY-MM
+                        const normalizedType = normalizeOperationType(line.type_operation);
+
+                        // Les rachats sont considérés comme négatifs
+                        if (normalizedType === 'rachat') {
+                            if (!negativeAmountsByFiliere[filiere]) {
+                                negativeAmountsByFiliere[filiere] = {};
+                            }
+                            negativeAmountsByFiliere[filiere][monthKey] = (negativeAmountsByFiliere[filiere][monthKey] || 0) + montant;
+                        } else {
+                            if (!positiveAmountsByFiliere[filiere]) {
+                                positiveAmountsByFiliere[filiere] = {};
+                            }
+                            positiveAmountsByFiliere[filiere][monthKey] = (positiveAmountsByFiliere[filiere][monthKey] || 0) + montant;
                         }
-                        positiveAmountsByFiliere[filiere][monthIndex] += amount;
-                    } else {
-                        if (!negativeAmountsByFiliere[filiere]) {
-                            negativeAmountsByFiliere[filiere] = Array(monthLabels.length).fill(0);
-                        }
-                        negativeAmountsByFiliere[filiere][monthIndex] += Math.abs(amount);
                     }
-                }
+                });
             });
         });
+
+        console.log('Positive amounts:', positiveAmountsByFiliere);
+        console.log('Negative amounts:', negativeAmountsByFiliere);
 
         const datasets = [
             ...Object.entries(positiveAmountsByFiliere).map(([filiere, data]) => {
                 const filiereColor = filieres.find(f => f.name === filiere)?.color || '#000000';
                 const color = tailwindToRgb(filiereColor);
+                const mappedData = monthLabels.map(label => {
+                    const [monthStr, yearStr] = label.split(' ');
+                    const cleanMonthStr = monthStr.replace('.', '');
+                    const monthMap = {
+                        'Janv': 0, 'Févr': 1, 'Mars': 2, 'Avr': 3, 'Mai': 4, 'Juin': 5,
+                        'Juil': 6, 'Août': 7, 'Sept': 8, 'Oct': 9, 'Nov': 10, 'Déc': 11
+                    };
+                    const monthIndex = monthMap[cleanMonthStr as keyof typeof monthMap];
+                    const year = parseInt(yearStr, 10) + 2000;
+                    const date = new Date(year, monthIndex, 1, 12, 0, 0, 0);
+                    const monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+                    const value = data[monthKey] || 0;
+                    
+                    return value;
+                });
+                
                 return {
                     label: filiere,
-                    data: data,
+                    data: mappedData,
                     backgroundColor: color,
                     stack: 'negative',
                     hidden: false,
@@ -132,9 +187,26 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             ...Object.entries(negativeAmountsByFiliere).map(([filiere, data]) => {
                 const filiereColor = filieres.find(f => f.name === filiere)?.color || '#000000';
                 const color = tailwindToRgb(filiereColor);
+                const mappedData = monthLabels.map(label => {
+                    const [monthStr, yearStr] = label.split(' ');
+                    const cleanMonthStr = monthStr.replace('.', '');
+                    const monthMap = {
+                        'Janv': 0, 'Févr': 1, 'Mars': 2, 'Avr': 3, 'Mai': 4, 'Juin': 5,
+                        'Juil': 6, 'Août': 7, 'Sept': 8, 'Oct': 9, 'Nov': 10, 'Déc': 11
+                    };
+                    const monthIndex = monthMap[cleanMonthStr as keyof typeof monthMap];
+                    const year = parseInt(yearStr, 10) + 2000;
+                    const date = new Date(year, monthIndex, 1, 12, 0, 0, 0);
+                    const monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+                    // Les rachats sont comptés négativement dans le total
+                    const value = -(data[monthKey] || 0);
+                    
+                    return value;
+                });
+                
                 return {
                     label: filiere,
-                    data: data.map(val => -val),
+                    data: mappedData,
                     backgroundColor: color,
                     stack: 'positive',
                     hidden: false,
@@ -143,14 +215,39 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             })
         ];
 
+        // Calcul des totaux pour le tableau
+        const tableData = monthLabels.map((label, index) => {
+            const [monthStr, yearStr] = label.split(' ');
+            const cleanMonthStr = monthStr.replace('.', '');
+            const monthMap = {
+                'Janv': 0, 'Févr': 1, 'Mars': 2, 'Avr': 3, 'Mai': 4, 'Juin': 5,
+                'Juil': 6, 'Août': 7, 'Sept': 8, 'Oct': 9, 'Nov': 10, 'Déc': 11
+            };
+            const monthIndex = monthMap[cleanMonthStr as keyof typeof monthMap];
+            const year = parseInt(yearStr, 10) + 2000;
+            const monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+
+            const positiveTotal = Object.values(positiveAmountsByFiliere).reduce((sum, data) => sum + (data[monthKey] || 0), 0);
+            const negativeTotal = Object.values(negativeAmountsByFiliere).reduce((sum, data) => sum + (data[monthKey] || 0), 0);
+
+            return {
+                label,
+                positive: positiveTotal,
+                negative: -negativeTotal, // Les rachats sont comptés négativement
+                total: positiveTotal - negativeTotal
+            };
+        });
+
+        console.log('Final datasets:', datasets);
+
         // Calculate min and max values for the first time
         if (ENABLE_FIXED_SCALE && (minScale === null || maxScale === null)) {
             let allValues: number[] = [];
             Object.values(positiveAmountsByFiliere).forEach(data => {
-                allValues = [...allValues, ...data];
+                allValues = [...allValues, ...Object.values(data)];
             });
             Object.values(negativeAmountsByFiliere).forEach(data => {
-                allValues = [...allValues, ...data.map(v => -v)];
+                allValues = [...allValues, ...Object.values(data).map(v => -v)];
             });
             
             if (allValues.length > 0) {

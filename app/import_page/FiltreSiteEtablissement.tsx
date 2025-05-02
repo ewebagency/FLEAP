@@ -91,6 +91,7 @@ const FiltreSiteEtablissement = () => {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const { sites, setSites, toggleSite } = useFilterContext();
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
 
     const {modalReload, setFilterPendingBSDs} = useModalContextNew();
     const {entreprise_id, user_id} = useSession();
@@ -222,6 +223,8 @@ const FiltreSiteEtablissement = () => {
                 }
             } catch (error) {
                 console.error('Erreur lors de la récupération des accès aux sites:', error);
+            } finally {
+                setIsInitialLoading(false);
             }
         };
 
@@ -230,9 +233,11 @@ const FiltreSiteEtablissement = () => {
 
     // Effet pour mettre à jour les sites quand les données changent
     useEffect(() => {
+        if (isInitialLoading) {
+            return; // Ne pas mettre à jour les sites tant que le chargement initial n'est pas terminé
+        }
 
         if (!entreprise_id) {
-            //console.log('[Effect 3] Pas d\'entreprise_id, retour');
             return;
         }
 
@@ -242,7 +247,6 @@ const FiltreSiteEtablissement = () => {
 
         // Si l'utilisateur a des accès aux sites définis dans Supabase, on écrase les données du localStorage
         if (userSiteAccess.length > 0) {
-            
             // Créer un nouvel objet pour stocker les états des sites
             const newSavedSiteStates: { [key: string]: { checked: boolean } } = {};
             
@@ -622,7 +626,25 @@ const FiltreSiteEtablissement = () => {
     // Mise à jour du renderSite pour utiliser handleSiteToggle
     const renderSite = (site: ContextSite) => (
         <div key={site.orgId}>
-            <div className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md mb-0">
+            <div 
+                className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md mb-0 cursor-pointer"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.innerWidth <= 768) {
+                        sites.forEach(s => {
+                            if (s.orgId !== site.orgId && s.checked) {
+                                handleSiteToggle(s.orgId);
+                            }
+                        });
+                        if (!site.checked) {
+                            handleSiteToggle(site.orgId);
+                        }
+                    } else {
+                        handleSiteToggle(site.orgId);
+                    }
+                    setFilterPendingBSDs(false);
+                }}
+            >
                 <div className="flex items-center">
                     <div className="flex items-center mr-2">
                         {site.isTrackDechets && (
@@ -640,7 +662,8 @@ const FiltreSiteEtablissement = () => {
                     type="checkbox"
                     name="site-selection"
                     checked={site.checked}
-                    onChange={() => {
+                    onChange={(e) => {
+                        e.stopPropagation();
                         if (window.innerWidth <= 768) {
                             sites.forEach(s => {
                                 if (s.orgId !== site.orgId && s.checked) {
@@ -666,8 +689,7 @@ const FiltreSiteEtablissement = () => {
     );
 
     // Mise à jour de la condition de rendu pour le chargement
-    if ((isLoadingSWR || isLoadingTrack) && additionnalSites.length === 0) {
-        //console.log('Affichage du chargement - États:', { isLoadingSWR, isLoadingTrack });
+    if (isInitialLoading || (isLoadingSWR || isLoadingTrack) && additionnalSites.length === 0) {
         return <div className="text-sm text-gray-500 ml-2">Chargement des sites...</div>;
     }
     
@@ -686,8 +708,10 @@ const FiltreSiteEtablissement = () => {
         <div
             ref={containerRef}
             className="my-1 relative"
-            onMouseEnter={() => setIsOpen(true)}
-            onMouseLeave={() => setIsOpen(false)}
+            onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(!isOpen);
+            }}
         >
             <div className="btn flex items-center justify-between px-2 py-0 bg-white rounded-lg hover:bg-gray-50 transition-all duration-200 w-full">
                 <div className="flex items-center space-x-4">
@@ -718,13 +742,12 @@ const FiltreSiteEtablissement = () => {
                 <>
                     <div
                         className="absolute left-0 w-full h-2 -bottom-2"
-                        onMouseEnter={() => setIsOpen(true)}
+                        onClick={(e) => e.stopPropagation()}
                     />
 
                     <div
                         className="absolute top-full left-0 w-80 mt-0 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
-                        onMouseEnter={() => setIsOpen(true)}
-                        onMouseLeave={() => setIsOpen(false)}
+                        onClick={(e) => e.stopPropagation()}
                     >
                         <div className="p-3 border-b border-gray-200">
                             <span className="text-sm font-semibold text-gray-700">

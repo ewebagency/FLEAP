@@ -211,8 +211,10 @@ const FiltreDate = () => {
         <div 
             ref={containerRef}
             className="my-1 relative"
-            onMouseEnter={() => setIsOpen(true)}
-            onMouseLeave={() => setIsOpen(false)}
+            onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(!isOpen);
+            }}
         >
             <div className="btn flex items-center justify-between px-2 py-1 bg-white rounded-lg hover:bg-gray-50 transition-all duration-200 w-full">
                 <div className="flex items-center space-x-2">
@@ -230,8 +232,8 @@ const FiltreDate = () => {
 
             {isOpen && (
                 <>
-                    <div className="absolute left-0 w-full h-2 -bottom-2" />
-                    <div className="absolute top-full left-0 w-64 mt-0 bg-white rounded-lg border border-gray-200 z-50">
+                    <div className="absolute left-0 w-full h-2 -bottom-2" onClick={(e) => e.stopPropagation()} />
+                    <div className="absolute top-full left-0 w-64 mt-0 bg-white rounded-lg border border-gray-200 z-50" onClick={(e) => e.stopPropagation()}>
                         <div className="p-2 border-b border-gray-200">
                             <div className="flex flex-col space-y-2">
                                 <div className="flex items-center justify-between space-x-2">

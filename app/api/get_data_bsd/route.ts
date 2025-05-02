@@ -1,4 +1,3 @@
-
 import { supabase } from '@/app/database/supabaseClient';
 import { redis } from '@/app/database/redisClient';
 import { NextResponse } from 'next/server';
@@ -167,7 +166,7 @@ export async function GET(request: Request) {
   const entreprise_id = searchParams.get('entreprise_id');
   const user_id = searchParams.get('user_id');
   const fastLoad = searchParams.get('fastLoad') === 'true';
-  const lastId = searchParams.get('lastId');
+  const lastDate = searchParams.get('lastDate');
 
   if (!entreprise_id || !user_id) {
     return NextResponse.json({ error: 'entreprise_id and user_id are required' }, { status: 400 });
@@ -176,7 +175,7 @@ export async function GET(request: Request) {
   try {
     const cachedData = await getCachedData(entreprise_id, user_id);
     
-    if (cachedData && !lastId) {
+    if (cachedData && !lastDate) {
       if (fastLoad && !cachedData.fullDataLoaded) {
         return NextResponse.json({ 
           data: cachedData.data.slice(0, 50), 
@@ -218,13 +217,13 @@ export async function GET(request: Request) {
         id_track_dechets
       `)
       .eq('entreprise_id', entreprise_id)
-      .order('id', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(200);
 
-    if (lastId) {
-      console.log('Received lastId:', lastId);
-      query = query.lt('id', lastId);
-      console.log('Query with id filter applied');
+    if (lastDate) {
+      console.log('Received lastDate:', lastDate);
+      query = query.lt('created_at', lastDate);
+      console.log('Query with date filter applied');
     }
 
     const { data, error } = await query;
@@ -286,7 +285,7 @@ export async function GET(request: Request) {
     }));
 
     // Si c'est le premier chargement, mettre en cache
-    if (!lastId) {
+    if (!lastDate) {
       const { count } = await supabase
       .from('bsd')
       .select('*', { count: 'exact', head: true })
@@ -296,21 +295,21 @@ export async function GET(request: Request) {
     }
 
     // Vérifier s'il y a plus de données à charger
-    const lastLoadedId = lastId || formattedData[formattedData.length - 1]?.id;
-    console.log('Last loaded id:', lastLoadedId);
+    const lastLoadedDate = lastDate || formattedData[formattedData.length - 1]?.created_at;
+    console.log('Last loaded date:', lastLoadedDate);
 
     const { count: remainingCount, error: countError } = await supabase
         .from('bsd')
         .select('*', { count: 'exact', head: true })
         .eq('entreprise_id', entreprise_id)
-        .lt('id', lastLoadedId);
+        .lt('created_at', lastLoadedDate);
 
     if (countError) {
         console.error('Error counting remaining BSDs:', countError);
     }
 
     console.log('Query details:', {
-        lastLoadedId,
+        lastLoadedDate,
         remainingCount,
         formattedDataLength: formattedData.length
     });

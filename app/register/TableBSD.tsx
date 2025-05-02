@@ -892,7 +892,7 @@ const TableBSD = () => {
                                         "bg-[var(--gray-light)]" : ""}`}>
                                 <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px'}}>
                                     <div className="absolute top-1 left-2 w-full">
-                                        <div className="font-medium text-[10px] text-gray-600">
+                                        <div className="font-medium text-[10px] text-gray-600 md:block hidden">
                                             {bsd.readable_id_track_dechets ? 
                                                 (bsd.readable_id_track_dechets.startsWith('BSD-') ? 
                                                     `${bsd.readable_id_track_dechets.substring(0, 15)}...` : 
@@ -903,7 +903,7 @@ const TableBSD = () => {
                                     </div>
                                     <div className="h-full flex items-center mt-2">
                                         <div className="flex items-center justify-start gap-4">
-                                            <div className="text-2xl h-full">
+                                            <div className="text-2xl h-full mt-4">
                                                 {(() => {
                                                     const icon = getWasteIcon(getFiliere(
                                                         bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
@@ -914,9 +914,11 @@ const TableBSD = () => {
                                             </div>
                                             <div className="space-y-0.5">
                                                 {/* Informations sur le déchet */}
-                                                <div className="text-sm font-bold mb-[-5px]">
-                                                    <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.code}</div>
-                                                </div>
+                                                {bsd.infos_json.formAPI.createFormInput.wasteDetails.name && (
+                                                        <div className="text-sm mt-2 mb-1 truncate overflow-hidden whitespace-nowrap md:w-[180px] w-[90px]">
+                                                            {bsd.infos_json.formAPI.createFormInput.wasteDetails.name}
+                                                        </div>
+                                                    )}                                                
 
                                                 <div>
                                                     <div className="text-blue-500 mb-0 hidden">
@@ -925,11 +927,9 @@ const TableBSD = () => {
                                                             mappingTable
                                                         )}
                                                     </div>
-                                                    {bsd.infos_json.formAPI.createFormInput.wasteDetails.name && (
-                                                        <div className="text-xs mt-0 truncate overflow-hidden whitespace-nowrap w-[180px]">
-                                                            {bsd.infos_json.formAPI.createFormInput.wasteDetails.name}
-                                                        </div>
-                                                    )}
+                                                    <div className="text-xs font-bold ml-[-1px] mt-[-4px]">
+                                                        <div>{bsd.infos_json.formAPI.createFormInput.wasteDetails.code}</div>
+                                                    </div>
                                                     
                                                     {bsd.status_track_dechets === "Ligne créée automatiquement" ?
                                                         <div className="text-xs mt-0">
@@ -959,9 +959,9 @@ const TableBSD = () => {
                                     </div>
                                 </td>
                                 <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px' }}>
-                                    <div className="absolute top-1 left-2 w-full">
-                                        <div className="text-[10px] text-gray-600 ml-4 flex justify-start gap-2">
-                                            {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p>Collecté le {new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>{bsd.status_track_dechets === "Ligne demandée" ? <p>Attendu le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p> : <p>Créé le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}</p>}
+                                    <div className="absolute top-1 left-1.5 w-full">
+                                        <div className="text-[13px] text-gray-600 ml-4 flex justify-start gap-2">
+                                            {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p><span className="md:inline hidden">Collecté le </span>{new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>{bsd.status_track_dechets === "Ligne demandée" ? <p><span className="md:inline hidden">Attendu le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p> : <p><span className="md:inline hidden">Créé le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}</p>}
                                             {/*<p>CREE le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>*/}
                                             {/* {bsd.infos_json.formAPI.createFormInput.emittedAt} */}
                                             {/* {bsd.infos_json.formAPI.createFormInput.createdAt} */}

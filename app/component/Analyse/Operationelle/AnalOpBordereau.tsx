@@ -62,7 +62,7 @@ const AnalOpBordereau = () => {
                         <TauxTri />
                     </div>
                 </div>
-                <div className="block">
+                <div className="block hidden">
                     <div className="text-sm text-gray-600 font-thin hidden">Taux de remplissage</div>
                     <div className="flex items-center mt-0">
                         <TauxRemplissage />

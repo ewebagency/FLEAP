@@ -18,9 +18,11 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '../database/supabaseClient';
 import BoxIcon from '../component/BoxIconWrapper';
 import { FiltresPersoProvider } from "../component/FiltresPerso/FiltresPersoProvider";
+import { useSession } from "../component/SessionProvider";
 
 const RegisterPage = () => {
     const router = useRouter();
+    const {user_id} = useSession();
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -40,12 +42,12 @@ const RegisterPage = () => {
                     <div className="flex-[5]">
                         <FiltreSiteEtablissement />
                     </div>
-                    <button 
+                    {(user_id === "a0542794-bbae-4132-9dde-485595bfa2aa") && <button 
                         onClick={handleLogout}
                         className="flex-1 px-1 py-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-all duration-200"
                     >
                         <BoxIcon name='log-out' size="24px" color="#666666" />
-                    </button>
+                    </button>}
                 </div>
                 <BordereauxRegister />
                 <div className="hidden md:flex justify-between items-center mb-0">

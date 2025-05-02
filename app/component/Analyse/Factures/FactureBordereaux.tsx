@@ -20,6 +20,9 @@ const FactureBordereaux = () => {
                         </div>*/}
                     </div>
                 </div>
+                <div className="text-sm text-gray-600 mt-8">
+                            Les tarifs des prestataires sont inconnus - les factures ne peuvent pas être vérifiées
+                </div>
                 <div className="flex gap-12">
                     <div className="block">
                         <div className="text-sm text-gray-600 font-thin">Factures vérifiées</div>

@@ -82,8 +82,10 @@ const CreationFiltrePerso = () => {
             <div 
                 ref={containerRef}
                 className="relative"
-                onMouseEnter={() => setIsOpen(true)}
-                onMouseLeave={() => setIsOpen(false)}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setIsOpen(!isOpen);
+                }}
             >
                 <div className="flex items-center justify-between px-4 py-2 bg-white shadow-xs border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
                     <div className="flex items-center space-x-2">
@@ -96,7 +98,7 @@ const CreationFiltrePerso = () => {
                 </div>
             
             {isOpen && (
-                    <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+                    <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-lg" onClick={(e) => e.stopPropagation()}>
                         <div className="max-h-64 overflow-y-auto">
                     {filterFields.map((field) => (
                                 <label 

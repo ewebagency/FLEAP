@@ -10,12 +10,13 @@ import { RowBSD } from "../interface/BSD_Interface";
 import NewFormulaireDemande from '../DemandeCollecteNew/NewFormulaireDemande';
 import OpenFormulaireButton from '../DemandeCollecteAutocompletion/OpenFormulaireButton';
 import Formulaire from '../DemandeCollecteAutocompletion/Formulaire';
+import { checkIsOnDemandRevalidate } from 'next/dist/server/api-utils';
 
 
 export const ListStatusEnAttente = ['Ligne créée automatiquement', 'Ligne demandée', 'Collecte demandée', 'REFUSED', 'CANCELED'];
 
 const BordereauxRegister = () => {
-    const session = useSession();
+    const {entreprise_id, user_id} = useSession();
     const { filterPendingBSDs, setFilterPendingBSDs } = useModalContextNew();
     const [showFormulaire, setShowFormulaire] = useState(false);
     const [stats, setStats] = useState({
@@ -24,17 +25,37 @@ const BordereauxRegister = () => {
         anomalies: 0
     });
 
+
     useEffect(() => {
         const fetchStats = async () => {
-            if (!session?.entreprise_id) return;
+            if (!entreprise_id) return;
 
+            const { data: siteAccess, error: siteAccessError } = await supabase
+                .from('profiles')
+                .select('site_access')
+                .eq('user_id', user_id)
+                .single();
+
+            if (siteAccessError) {
+                console.error('Erreur lors de la récupération des sites :', siteAccessError);
+                return;
+            }
             
-            const { data: pendingData, error: pendingError } = await supabase
+            let query = supabase
                 .from('bsd')
                 .select('count')
-                .eq('entreprise_id', session.entreprise_id)
+                .eq('entreprise_id', entreprise_id)
                 .in('status_track_dechets', ListStatusEnAttente);
-            
+
+            // Si site_access existe et n'est pas vide, on ajoute le filtre sur les siret
+            if (siteAccess?.site_access?.length > 0) {
+                const siretConditions = siteAccess.site_access
+                    .map((site: string) => `infos_json->formAPI->createFormInput->emitter->company->>siret.eq.${site}`)
+                    .join(',');
+                query = query.or(siretConditions);
+            }
+
+            const { data: pendingData, error: pendingError } = await query;
             
 
             /*const response = await fetch(`/api/get_data_bsd?entreprise_id=${session.entreprise_id}&forceReload=${false}`);
@@ -53,7 +74,7 @@ const BordereauxRegister = () => {
         };
 
         fetchStats();
-    }, [session?.entreprise_id]);
+    }, [entreprise_id]);
 
     return (
         <>

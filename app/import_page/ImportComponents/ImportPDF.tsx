@@ -6,6 +6,7 @@ import { useImport } from './ImportContext';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 import { handleExcelUpload } from './ImportExcel';
 import {ExcelIcon} from './TableImportedFiles';
+import { cofounders_user_id } from '@/app/component/SideBar';
 
 const sanitizeFileName = (fileName: string): string => {
     return fileName
@@ -175,6 +176,50 @@ const ImportPDF = () => {
         });
 
         const results = await Promise.all(uploadPromises);
+
+        // Envoyer un email de notification si l'utilisateur n'est pas 1234
+        if (cofounders_user_id(user_id) === false) {
+            const { data: userData, error: userError } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('user_id', user_id)
+            .single();
+
+            if (userError) {
+                console.error('Erreur lors de la récupération des informations utilisateur:', userError);
+            }
+
+            // Récupérer les informations de l'entreprise
+            const { data: entrepriseData, error: entrepriseError } = await supabase
+                .from('entreprise')
+                .select('name')
+                .eq('id', entreprise_id)
+                .single();       
+
+            if (entrepriseError) {
+                console.error('Erreur lors de la récupération des informations de l\'entreprise:', entrepriseError);
+            }
+
+            const successfulUploads = results.filter(result => result.success);
+            if (successfulUploads.length > 0) {
+                const fileType = selectedFileType === 'pdf' ? 'PDF' : 'Excel';
+                const response = await fetch('/api/send_mail', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        to: "asohm@fleap.fr",
+                        subject: `Nouveau(x) fichier(s) ${fileType} importé(s) sur Fleap`,
+                        text: `${successfulUploads.length} fichier(s) ${fileType} a/ont été importé(s) par l'utilisateur ${userData?.first_name} ${userData?.last_name} de l'entreprise ${entrepriseData?.name} : ${successfulUploads.map(result => result.file).join(', ')}`,
+                    }),
+                });
+
+                if (!response.ok) {
+                    console.error('Erreur lors de l\'envoi de l\'email de notification');
+                }
+            }
+        }
 
         results.forEach(result => {
             if (result.success) {
