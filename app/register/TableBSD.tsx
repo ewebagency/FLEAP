@@ -1135,7 +1135,7 @@ const TableBSD = () => {
                                             {openMenuId === bsd.id && (
                                                 <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg z-50 top-8">
                                                     <div className="py-1">
-                                                        <button 
+                                                        {/*<button 
                                                             className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-green-50 hover:text-green-600 text-left"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -1144,7 +1144,7 @@ const TableBSD = () => {
                                                             }}
                                                         >
                                                             Voir
-                                                        </button>
+                                                        </button>*/}
 
                                                         {canModify(bsd.id_track_dechets, bsd.status_track_dechets) && (
                                                             <button 

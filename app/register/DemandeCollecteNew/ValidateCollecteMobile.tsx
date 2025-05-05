@@ -17,6 +17,7 @@ import { useMediaQuery } from 'react-responsive';
 import dynamic from 'next/dynamic';
 import { invalidateCache } from "@/app/utils/invalidateCache";
 import { useBSDs } from "../BSDsProvider";
+import { code_ced_DICTIONNAIRE } from "@/app/component/CodeCED";
 
 
 // Définition de la structure des dépendances
@@ -106,7 +107,7 @@ interface ValidateCollecteProps {
 }
 
 // Ajouter ces constantes au début du fichier, après les imports
-const dic_json_ced_masse_volumique = [
+/*const dic_json_ced_masse_volumique = [
     { "code_CED": "17 01 01", "masse_volumique": 2300 },
     { "code_CED": "17 01 02", "masse_volumique": 1900 },
     { "code_CED": "17 01 07", "masse_volumique": 2000 },
@@ -117,7 +118,13 @@ const dic_json_ced_masse_volumique = [
     { "code_CED": "15 01 07", "masse_volumique": 35 },
     { "code_CED": "20 02 01", "masse_volumique": 500 },
     { "code_CED": "17 09 04", "masse_volumique": 1500 }
-];
+];*/
+
+const dic_json_ced_masse_volumique = code_ced_DICTIONNAIRE.map(item => ({
+    code_CED: item.ced,
+    masse_volumique: item.masse_volumique*1000
+}));
+
 
 // Ajouter ces fonctions de calcul avant le composant ValidateCollecte
 const calculateEstimatedWeight = (
@@ -125,21 +132,15 @@ const calculateEstimatedWeight = (
     fillRate: string | undefined, 
     wasteCode: string | undefined,
     volumeUnit: string = 'm3',
-    numberOfContainers: number = 1
+    numberOfContainers: number = 1,
+    currentMasseVolumique: number | null = null
 ): number | null => {
     if (!volume) return null;
 
     const volumeInM3 = volumeUnit === 'L' ? parseFloat(volume) / 1000 : parseFloat(volume);
-    
-    const wasteInfo = wasteCode ? 
-        dic_json_ced_masse_volumique.find(
-            item => item.code_CED.replace(/\s/g, '') === wasteCode.replace(/\s/g, '')
-        ) : null;
-    
-    const masseVolumique = wasteInfo?.masse_volumique || 1000;
     const fillRateMultiplier = fillRate ? parseInt(fillRate) / 100 : 1;
     
-    return (volumeInM3 * masseVolumique * fillRateMultiplier * numberOfContainers) / 1000;
+    return (volumeInM3 * (currentMasseVolumique || 1000) * fillRateMultiplier * numberOfContainers) / 1000;
 };
 
 const calculateFillRate = (
@@ -270,6 +271,7 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
     const {entreprise_id, user_id} = useSession();
     const [ced_table, setCedTable] = useState<{ ced: string, filiere: string }[]>([]);
     const [displayAll, setDisplayAll] = useState(false);
+    const [masseVolumique, setMasseVolumique] = useState<number | null>(null);
     
     // Initialiser dataFilter avec les données du BSD
     const [dataFilter, setDataFilter] = useState<{name: string, value: string}[]>(() => {
@@ -423,7 +425,8 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: 
                 fieldName === 'fillRate' ? value : other_infos.fillRate,
                 dataToogle.wasteDetails.code,
                 fieldName === 'volumeUnit' ? value : other_infos.volumeUnit,
-                other_infos.automaticMode ? 1 : 0
+                other_infos.automaticMode ? 1 : 0,
+                masseVolumique
             );
             if (weight !== null) {
                 const newData = { ...dataToogle };
@@ -509,7 +512,8 @@ const handleOtherInfosChange = (updates: Partial<OtherInfos>) => {
             updatedOtherInfos.fillRate,
             dataToogle.wasteDetails.code,
             updatedOtherInfos.volumeUnit,
-            updatedOtherInfos.automaticMode ? 1 : 0
+            updatedOtherInfos.automaticMode ? 1 : 0,
+            masseVolumique
         );
         if (weight !== null) {
             const newData = { ...dataToogle };
@@ -874,6 +878,39 @@ useEffect(() => {
         };
     }
 }, []);
+
+// Ajouter le useEffect pour mettre à jour la masse volumique
+useEffect(() => {
+    const fetchMasseVolumique = async () => {
+        if (!dataToogle.wasteDetails.code || !entreprise_id) return;
+
+        // Chercher d'abord dans la table d'autocomplétion
+        const { data: autocompletionData } = await supabase
+            .from('table_autocompletion')
+            .select('dechet')
+            .eq('entreprise_id', entreprise_id)
+            .eq('dechet->>codeCED', dataToogle.wasteDetails.code)
+            .single();
+
+        if (autocompletionData?.dechet?.masseVolumique) {
+            setMasseVolumique(autocompletionData.dechet.masseVolumique*1000);
+            return;
+        }
+
+        // Si pas trouvé dans l'autocomplétion, chercher dans le dictionnaire
+        const wasteInfo = dic_json_ced_masse_volumique.find(
+            item => item.code_CED.replace(/\s/g, '') === dataToogle.wasteDetails.code.replace(/\s/g, '')
+        );
+        
+        if (wasteInfo) {
+            setMasseVolumique(wasteInfo.masse_volumique);
+        } else {
+            setMasseVolumique(1000); // Valeur par défaut
+        }
+    };
+
+    fetchMasseVolumique();
+}, [dataToogle.wasteDetails.code, entreprise_id]);
 
     return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center overflow-y-auto py-0 sm:py-4 z-50">
@@ -1329,7 +1366,8 @@ useEffect(() => {
                                                 newFillRate.toString(),
                                                 dataToogle.wasteDetails.code,
                                                 other_infos.volumeUnit,
-                                                other_infos.automaticMode ? 1 : 0
+                                                other_infos.automaticMode ? 1 : 0,
+                                                masseVolumique
                                             );
                                             if (weight !== null) {
                                                 const newData = { ...dataToogle };
@@ -1357,7 +1395,8 @@ useEffect(() => {
                                                 newFillRate.toString(),
                                                 dataToogle.wasteDetails.code,
                                                 other_infos.volumeUnit,
-                                                other_infos.automaticMode ? 1 : 0
+                                                other_infos.automaticMode ? 1 : 0,
+                                                masseVolumique
                                             );
                                             if (weight !== null) {
                                                 const newData = { ...dataToogle };
@@ -1452,7 +1491,8 @@ useEffect(() => {
                                                                     other_infos.volumeUnit,
                                                                     Number(newValue),
                                                                     setDataToogle,
-                                                                    newData
+                                                                    newData,
+                                                                    masseVolumique
                                                                 );
                                                             } else {
                                                                 setDataToogle(newData);
@@ -1480,7 +1520,8 @@ useEffect(() => {
                                                                 other_infos.volumeUnit,
                                                                 value,
                                                                 setDataToogle,
-                                                                newData
+                                                                newData,
+                                                                masseVolumique
                                                             );
                                                         } else {
                                                             setDataToogle(newData);
@@ -1504,7 +1545,8 @@ useEffect(() => {
                                                                 other_infos.volumeUnit,
                                                                 Number(newValue),
                                                                 setDataToogle,
-                                                                newData
+                                                                newData,
+                                                                masseVolumique
                                                             );
                                                         } else {
                                                             setDataToogle(newData);
@@ -1689,14 +1731,16 @@ const updateWeight = (
     volumeUnit: string | undefined,
     numberOfContainers: number,
     setDataToogle: (data: FormInput) => void,
-    dataToogle: FormInput
+    dataToogle: FormInput,
+    currentMasseVolumique: number | null = null
 ) => {
     const weight = calculateEstimatedWeight(
         volume,
         fillRate,
         wasteCode,
         volumeUnit,
-        numberOfContainers
+        numberOfContainers,
+        currentMasseVolumique
     );
     
     if (weight !== null) {

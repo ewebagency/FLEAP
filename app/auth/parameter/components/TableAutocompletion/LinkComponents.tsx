@@ -988,7 +988,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div className="flex flex-col gap-2">
-                    <span>Code Traitement</span>
+                    <span>Traitement</span>
                     <select
                       value={codeTreatmentFilter}
                       onChange={(e) => setCodeTreatmentFilter(e.target.value)}
@@ -1094,7 +1094,7 @@ const MultiLinkForm: React.FC<MultiLinkFormProps> = ({
 
                 return (
                   <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center truncate max-w-[250px]">
                       {site?.nom} + {dechet?.nom}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

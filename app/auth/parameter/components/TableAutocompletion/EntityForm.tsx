@@ -365,7 +365,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
                       onChange={(e) => handleContactChange(contact.id, 'respoTerrain', e.target.checked)}
                       className="w-4 h-4 text-[var(--green-medium)] border-gray-300 rounded focus:ring-[var(--green-medium)]"
                     />
-                    Responsable terrain
+                    Mentionner comme référent à contacter lors d&apos;enlèvement sur site
                   </label>
                 </div>
               </div>
@@ -601,7 +601,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
                           onChange={(e) => handleContactChange(contact.id, 'respoTerrain', e.target.checked)}
                           className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                         />
-                        Responsable terrain
+                        Mentionner comme référent à contacter lors d&apos;enlèvement sur site
                       </label>
                     </div>
                   ))}

@@ -72,9 +72,10 @@ export interface NegociantInterface {
     nomBoite?: string;
     adresse?: string;
     siret?: string;
-    nomPrenom?: string;
+    //nomPrenom?: string;
     email?: string;
     telephone?: string;
+    recepisse?: string;
   }
 }
 
@@ -84,9 +85,10 @@ export interface CourtierInterface {
     nomBoite?: string;
     adresse?: string;
     siret?: string;
-    nomPrenom?: string;
+    //nomPrenom?: string;
     email?: string;
     telephone?: string;
+    recepisse?: string;
   }
 } 
 

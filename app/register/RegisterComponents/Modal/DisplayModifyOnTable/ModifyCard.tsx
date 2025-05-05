@@ -9,20 +9,23 @@ import { getMappingTableFiliere, getFiliere } from "../FormulaireFull/utils_new"
 import { OtherInfos } from "../../../interface/BSD_Interface";
 import { useBSDs } from "@/app/register/BSDsProvider";
 import { BSD } from "@/app/register/TableBSD";
+import Image from "next/image";
 
-const LabelInput = ({ label, value, onChange, path }: { 
+const LabelInput = ({ label, value, onChange, path, readOnly }: { 
     label: string, 
     value?: string | number | null,
     onChange: (path: string, value: string) => void,
-    path: string
+    path: string,
+    readOnly?: boolean
 }) => (
     <div className="flex items-center text-sm">
         <span className="font-medium text-gray-700 w-[120px] text-right mr-2">{label}: </span>
         <input 
             type="text"
-            value={value ?? ''}
+            value={value?.toString() ?? ''}
             onChange={(e) => onChange(path, e.target.value)}
             className="text-gray-600 rounded-md px-2 py-[3px] w-[320px]"
+            readOnly={readOnly}
         />
     </div>
 );
@@ -31,6 +34,7 @@ const ModifyCard = () => {
     const { modalId, modalType, setModalType, setDataToogle, modalReload, setModalReload } = useModalContextNew();
     const {setAllBSDs, setAllFilteredBSDs, setDisplayedBSDs} = useBSDs();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [readableId, setReadableId] = useState<string>("");
     const [localData, setLocalData] = useState<FormInput>({
         emitter: {
           type: "PRODUCER",
@@ -95,9 +99,11 @@ const ModifyCard = () => {
         comments: "",
     });
     const [createdAt, setCreatedAt] = useState<string>("");
+    const [photo, setPhoto] = useState<string>("");
 
     const session = useSession();
     const [filiere, setFiliere] = useState<string>("");
+    const [masseVolumique, setMasseVolumique] = useState<string>("");
 
     const getBSD = async (entrepriseId: string) => {
         const result = await supabase
@@ -109,7 +115,9 @@ const ModifyCard = () => {
 
         if (result.data) {
             setLocalData(result.data.infos_json.formAPI.createFormInput);
+            setReadableId(result.data.readable_id_track_dechets);
             setCreatedAt(result.data.created_at);
+            setPhoto(result.data.photo || "");
             setOtherInfos(result.data.other_infos || {
                 containerDescription: "",
                 volume: "",
@@ -117,6 +125,20 @@ const ModifyCard = () => {
                 fillRate: "",
                 comments: "",
             });
+
+            // Récupérer la masse volumique
+            if (result.data.infos_json.formAPI.createFormInput.wasteDetails?.code) {
+                const { data: autocompletionData } = await supabase
+                    .from('table_autocompletion')
+                    .select('dechet')
+                    .eq('entreprise_id', entrepriseId)
+                    .eq('dechet->>codeCED', result.data.infos_json.formAPI.createFormInput.wasteDetails.code)
+                    .single();
+
+                if (autocompletionData?.dechet?.masseVolumique) {
+                    setMasseVolumique(autocompletionData.dechet.masseVolumique);
+                }
+            }
         }
     }
 
@@ -218,7 +240,8 @@ const ModifyCard = () => {
                     formAPI: { createFormInput: dataToSend }
                 },
                 created_at: createdAt,
-                other_infos: otherInfos
+                other_infos: otherInfos,
+                readable_id_track_dechets: readableId
             };
 
             const response = await fetch('/api/demande_collecte/modify_bsd', {
@@ -266,6 +289,12 @@ const ModifyCard = () => {
                         <h2 className="text-lg md:text-xl font-bold text-gray-800">Bordereau de Suivi des Déchets</h2>
                         <div className="mt-2 grid grid-cols-2 gap-4 ml-2 md:ml-6">
                             <div className="space-y-1">
+                                <LabelInput 
+                                    label="ID TrackDéchets"
+                                    value={readableId}
+                                    onChange={(_, value) => setReadableId(value)}
+                                    path="readable_id_track_dechets"
+                                />
                                 <div className="flex items-center text-sm">
                                     <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Filière: </span>
                                     <span className="text-gray-600">{filiere}</span>
@@ -400,6 +429,12 @@ const ModifyCard = () => {
                                     onChange={handleChange}
                                     path="transporter.company.mail"
                                 />
+                                <LabelInput 
+                                    label="Récépissé"
+                                    value={localData.transporter?.receipt || ""}
+                                    onChange={handleChange}
+                                    path="transporter.receipt"
+                                />
                             </div>
                         </div>
 
@@ -433,6 +468,124 @@ const ModifyCard = () => {
                                 />
                             </div>
                         </div>
+
+                        {/* Négociant */}
+                        <div className="bg-pink-50 p-3 rounded border border-pink-100">
+                            <h3 className="font-semibold text-pink-800 mb-2">Négociant</h3>
+                            <div className="space-y-2 mr-4">
+                                <LabelInput 
+                                    label="Nom"
+                                    value={localData.trader?.company?.name || ""}
+                                    onChange={handleChange}
+                                    path="trader.company.name"
+                                />
+                                <LabelInput 
+                                    label="Adresse"
+                                    value={localData.trader?.company?.address || ""}
+                                    onChange={handleChange}
+                                    path="trader.company.address"
+                                />
+                                <LabelInput 
+                                    label="SIRET"
+                                    value={localData.trader?.company?.siret || ""}
+                                    onChange={handleChange}
+                                    path="trader.company.siret"
+                                />
+                                <LabelInput 
+                                    label="Téléphone"
+                                    value={localData.trader?.company?.phone || ""}
+                                    onChange={handleChange}
+                                    path="trader.company.phone"
+                                />
+                                <LabelInput 
+                                    label="Email"
+                                    value={localData.trader?.company?.mail || ""}
+                                    onChange={handleChange}
+                                    path="trader.company.mail"
+                                />
+                                <LabelInput 
+                                    label="Récépissé"
+                                    value={localData.trader?.receipt || ""}
+                                    onChange={handleChange}
+                                    path="trader.receipt"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Courtier */}
+                        <div className="bg-cyan-50 p-3 rounded border border-cyan-100">
+                            <h3 className="font-semibold text-cyan-800 mb-2">Courtier</h3>
+                            <div className="space-y-2 mr-4">
+                                <LabelInput 
+                                    label="Nom"
+                                    value={localData.broker?.company?.name || ""}
+                                    onChange={handleChange}
+                                    path="broker.company.name"
+                                />
+                                <LabelInput 
+                                    label="Adresse"
+                                    value={localData.broker?.company?.address || ""}
+                                    onChange={handleChange}
+                                    path="broker.company.address"
+                                />
+                                <LabelInput 
+                                    label="SIRET"
+                                    value={localData.broker?.company?.siret || ""}
+                                    onChange={handleChange}
+                                    path="broker.company.siret"
+                                />
+                                <LabelInput 
+                                    label="Téléphone"
+                                    value={localData.broker?.company?.phone || ""}
+                                    onChange={handleChange}
+                                    path="broker.company.phone"
+                                />
+                                <LabelInput 
+                                    label="Email"
+                                    value={localData.broker?.company?.mail || ""}
+                                    onChange={handleChange}
+                                    path="broker.company.mail"
+                                />
+                                <LabelInput 
+                                    label="Récépissé"
+                                    value={localData.broker?.receipt || ""}
+                                    onChange={handleChange}
+                                    path="broker.receipt"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Éco-organisme */}
+                        <div className="bg-lime-50 p-3 rounded border border-lime-100">
+                            <h3 className="font-semibold text-lime-800 mb-2">Éco-organisme</h3>
+                            <div className="space-y-2 mr-4">
+                                <LabelInput 
+                                    label="Nom"
+                                    value={localData.ecoOrganisme?.name || ""}
+                                    onChange={handleChange}
+                                    path="ecoOrganisme.name"
+                                />
+                                <LabelInput 
+                                    label="SIRET"
+                                    value={localData.ecoOrganisme?.siret || ""}
+                                    onChange={handleChange}
+                                    path="ecoOrganisme.siret"
+                                />
+                                <LabelInput 
+                                    label="Téléphone"
+                                    value={localData.ecoOrganisme?.phone || ""}
+                                    onChange={handleChange}
+                                    path="ecoOrganisme.phone"
+                                />
+                                <LabelInput 
+                                    label="Email"
+                                    value={localData.ecoOrganisme?.mail || ""}
+                                    onChange={handleChange}
+                                    path="ecoOrganisme.mail"
+                                />
+                            </div>
+                        </div>                        
+
                     </div>
 
                     {/* Colonne droite */}
@@ -553,75 +706,186 @@ const ModifyCard = () => {
                             </div>
                         </div>
 
-                {/* Ajout de la section other_infos */}
-                <div className="bg-indigo-50 p-3 rounded border border-indigo-100 mt-4">
-                    <div className="flex justify-start items-center space-x-2">
-                        <h3 className="font-semibold text-indigo-800 mb-2">Informations contenant</h3>
-                        <p className="text-sm text-gray-600 mb-2 hidden">- Cette partie n&apos;est pas sur TrackDéchets</p>
-                    </div>
-                    <div className="space-y-2 mr-4">
-                        <LabelInput 
-                            label="Infos supp."
-                            value={otherInfos.containerDescription}
-                            onChange={(_, value) => {
-                                setOtherInfos((prev: OtherInfos) => ({
-                                    ...prev,
-                                    containerDescription: value
-                                }));
-                            }}
-                            path="containerDescription"
-                        />
-                        <LabelInput 
-                            label="Volume"
-                            value={otherInfos.volume}
-                            onChange={(_, value) => {
-                                setOtherInfos((prev: OtherInfos) => ({
-                                    ...prev,
-                                    volume: value
-                                }));
-                            }}
-                            path="volume"
-                        />
-                        <LabelInput 
-                            label="Unité"
-                            value={otherInfos.volumeUnit}
-                            onChange={(_, value) => {
-                                setOtherInfos((prev: OtherInfos) => ({
-                                    ...prev,
-                                    volumeUnit: value
-                                }));
-                            }}
-                            path="volumeUnit"
-                        />
+                        {/* Section photo du déchet */}
+                        {photo && (
+                            <div className="bg-orange-50 p-3 rounded border border-orange-100">
+                                <h3 className="font-semibold text-orange-800 mb-2">Photo du déchet</h3>
+                                <div className="relative w-full h-48 rounded-lg overflow-hidden">
+                                    <Image
+                                        src={photo}
+                                        alt="Photo du déchet"
+                                        fill
+                                        className="object-contain"
+                                        onError={(e) => {
+                                            const target = e.target as HTMLImageElement;
+                                            target.src = "/placeholder-image.jpg";
+                                            console.error("Erreur de chargement de l'image");
+                                        }}
+                                    />
+                                </div>
+                                <a 
+                                    href={photo} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-blue-600 hover:text-blue-800 mt-2 inline-block"
+                                >
+                                    Voir la photo en taille réelle
+                                </a>
+                            </div>
+                        )}
+
+                        {/* Ajout de la section other_infos */}
+                        <div className="bg-indigo-50 p-3 rounded border border-indigo-100 mt-4">
+                            <div className="flex justify-start items-center space-x-2">
+                                <h3 className="font-semibold text-indigo-800 mb-2">Informations contenant</h3>
+                                <p className="text-sm text-gray-600 mb-2 hidden">- Cette partie n&apos;est pas sur TrackDéchets</p>
+                            </div>
+                            <div className="space-y-2 mr-4">
+                                <LabelInput 
+                                    label="Infos supp."
+                                    value={otherInfos.containerDescription}
+                                    onChange={(_, value) => {
+                                        setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                            ...prev,
+                                            containerDescription: value
+                                        }));
+                                    }}
+                                    path="containerDescription"
+                                />
+                                <LabelInput 
+                                    label="Volume"
+                                    value={otherInfos.volume}
+                                    onChange={(_, value) => {
+                                        setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                            ...prev,
+                                            volume: value
+                                        }));
+                                    }}
+                                    path="volume"
+                                />
+                                <LabelInput 
+                                    label="Unité"
+                                    value={otherInfos.volumeUnit}
+                                    onChange={(_, value) => {
+                                        setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                            ...prev,
+                                            volumeUnit: value
+                                        }));
+                                    }}
+                                    path="volumeUnit"
+                                />
+                                <LabelInput 
+                                    label="Taux de remplissage (%)"
+                                    value={otherInfos.fillRate}
+                                    onChange={(_, value) => {
+                                        setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                            ...prev,
+                                            fillRate: value
+                                        }));
+                                    }}
+                                    path="fillRate"
+                                />
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Masse volumique: </span>
+                                    <span className="text-gray-600">{masseVolumique || "Non renseignée"}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Section déclassement */}
+                        <div className="bg-indigo-50 p-3 rounded border border-indigo-100 mt-4">
+                            <h3 className="font-semibold text-indigo-800 mb-2">Déclassement</h3>
+                            <div className="space-y-2 mr-4">
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[200px] text-right mr-2">Déclassement: </span>
+                                    <input
+                                        type="checkbox"
+                                        checked={otherInfos.declassement?.declassement_boolean || false}
+                                        onChange={(e) => {
+                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                ...prev,
+                                                declassement: {
+                                                    ...prev.declassement,
+                                                    declassement_boolean: e.target.checked,
+                                                    pourcentage_masse_declassee: prev.declassement?.pourcentage_masse_declassee || "",
+                                                    montant_declasse: prev.declassement?.montant_declasse || ""
+                                                }
+                                            }));
+                                        }}
+                                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                    />
+                                </div>
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[200px] text-right mr-2">Pourcentage masse déclassée: </span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="1"
+                                        value={otherInfos.declassement?.pourcentage_masse_declassee || ""}
+                                        onChange={(e) => {
+                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                ...prev,
+                                                declassement: {
+                                                    ...prev.declassement,
+                                                    declassement_boolean: prev.declassement?.declassement_boolean || false,
+                                                    pourcentage_masse_declassee: e.target.value,
+                                                    montant_declasse: prev.declassement?.montant_declasse || ""
+                                                }
+                                            }));
+                                        }}
+                                        placeholder="0-100%"
+                                        className="text-gray-600 rounded-md px-2 py-[3px] w-[320px]"
+                                    />
+                                </div>
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[200px] text-right mr-2">Montant déclassé: </span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={otherInfos.declassement?.montant_declasse || ""}
+                                        onChange={(e) => {
+                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                ...prev,
+                                                declassement: {
+                                                    ...prev.declassement,
+                                                    declassement_boolean: prev.declassement?.declassement_boolean || false,
+                                                    pourcentage_masse_declassee: prev.declassement?.pourcentage_masse_declassee || "",
+                                                    montant_declasse: e.target.value
+                                                }
+                                            }));
+                                        }}
+                                        placeholder="Montant en euros"
+                                        className="text-gray-600 rounded-md px-2 py-[3px] w-[320px]"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Section des commentaires */}
+                        <div className="bg-teal-50 p-3 rounded border border-teal-100 mt-4">
+                            <div className="flex justify-start items-center space-x-2">
+                                <h3 className="font-semibold text-teal-800 mb-2">Commentaires</h3>
+                                <p className="text-sm text-gray-600 mb-2 hidden">- Cette partie n&apos;est pas sur TrackDéchets</p>
+                            </div>
+                            <div className="space-y-2 mr-4">
+                                <LabelInput 
+                                    label="Commentaires"
+                                    value={otherInfos.comments || ""}
+                                    onChange={(_, value) => {
+                                        setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                            ...prev,
+                                            comments: value
+                                        }));
+                                    }}
+                                    path="comments"
+                                />
+                            </div>
+                        </div>
+
                     </div>
                 </div>
-
-                {/* Section des commentaires */}
-                <div className="bg-teal-50 p-3 rounded border border-teal-100 mt-4">
-                    <div className="flex justify-start items-center space-x-2">
-                        <h3 className="font-semibold text-teal-800 mb-2">Commentaires</h3>
-                        <p className="text-sm text-gray-600 mb-2 hidden">- Cette partie n&apos;est pas sur TrackDéchets</p>
-                    </div>
-                    <div className="space-y-2 mr-4">
-                        <LabelInput 
-                            label="Commentaires"
-                            value={otherInfos.comments || ""}
-                            onChange={(_, value) => {
-                                setOtherInfos((prev: OtherInfos) => ({
-                                    ...prev,
-                                    comments: value
-                                }));
-                            }}
-                            path="comments"
-                        />
-                    </div>
-                </div>
-
-                </div>
-
-                </div>
-
-                {/* Ajuster les inputs pour mobile */}
                 <style jsx global>{`
                     @media (max-width: 768px) {
                         .text-sm input {
@@ -649,6 +913,6 @@ const ModifyCard = () => {
             </div>
         </div>
     );
-};
+}
 
-export default ModifyCard; 
+export default ModifyCard;

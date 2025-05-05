@@ -165,7 +165,7 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                     validityLimit: row["limiteValiditeTransporteur"]?.toString() || "",
                     numberPlate: row["immatriculationTransporteur"]?.toString() || "",
                     //customInfo: "",
-                    mode: row["modeTransportTransporteur"]?.toString() || "",
+                    //mode: row["modeTransportTransporteur"]?.toString() || "",
                     takenOverAt: convertToISO(row["dateCollecteTransporteur"]),
                     takenOverBy: row["prenomContactTransporteur"]?.toString() + " " + row["nomContactTransporteur"]?.toString() || ""    
                 },

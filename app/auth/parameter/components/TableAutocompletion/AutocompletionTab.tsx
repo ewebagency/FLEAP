@@ -773,7 +773,16 @@ const AutocompletionTab: React.FC = () => {
             <div key={uniqueId} className="bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-200 transition-all shadow-sm hover:shadow-md">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2 justify-between w-full">
-                  <h3 className="text-sm font-semibold text-gray-800">{String(entity[mainField as keyof typeof entity])}</h3>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={String(entity[mainField as keyof typeof entity])}
+                      onChange={(e) => handleFieldChange(type, entity.id, mainField, e.target.value)}
+                      className="text-sm font-semibold text-gray-800 bg-white px-2 py-1 rounded-lg border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                    />
+                  ) : (
+                    <h3 className="text-sm font-semibold text-gray-800">{String(entity[mainField as keyof typeof entity])}</h3>
+                  )}
                   <button
                     onClick={() => toggleItem(itemId, type)}
                     className="text-gray-400 hover:text-gray-600 text-sm mr-6"
@@ -823,21 +832,39 @@ const AutocompletionTab: React.FC = () => {
                       {/* Contacts */}
                       {(entity as Site).contacts && Array.isArray((entity as Site).contacts) && (
                         <div className="bg-gray-50 rounded-xl p-4">
-                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Contacts</p>
+                          <div className="flex justify-between items-center mb-3">
+                            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Contacts</p>
+                            {isEditing && (
+                              <button
+                                onClick={() => handleAddContact(entity.id)}
+                                className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-2 py-1 rounded-lg text-xs font-medium shadow-sm hover:shadow-md transition-all"
+                              >
+                                + Ajouter un contact
+                              </button>
+                            )}
+                          </div>
                           <ul className="space-y-3">
                             {(entity as Site).contacts.map((contact: Contact, index: number) => (
-                              <li key={index} className="flex flex-col gap-2">
+                              <li key={contact.id} className="flex flex-col gap-2">
                                 <div className="flex items-center gap-3">
                                   <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Contact {index + 1}:</span>
                                   {isEditing ? (
                                     <div className="flex flex-col gap-2 w-full">
-                                      <input
-                                        type="text"
-                                        value={contact.nom}
-                                        onChange={(e) => handleFieldChange(type, entity.id, `contacts.${index}.nom`, e.target.value)}
-                                        className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
-                                        placeholder="Nom"
-                                      />
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="text"
+                                          value={contact.nom}
+                                          onChange={(e) => handleFieldChange(type, entity.id, `contacts.${index}.nom`, e.target.value)}
+                                          className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                                          placeholder="Nom"
+                                        />
+                                        <button
+                                          onClick={() => handleRemoveContact(entity.id, contact.id)}
+                                          className="bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded-lg text-xs font-medium hover:bg-red-100 transition-all"
+                                        >
+                                          Supprimer
+                                        </button>
+                                      </div>
                                       <input
                                         type="email"
                                         value={contact.email}
@@ -859,7 +886,7 @@ const AutocompletionTab: React.FC = () => {
                                           onChange={(e) => handleFieldChange(type, entity.id, `contacts.${index}.respoTerrain`, e.target.checked)}
                                           className="rounded border-gray-300 text-[var(--green-medium)] focus:ring-[var(--green-medium)]"
                                         />
-                                        <label className="text-xs text-gray-600">Responsable terrain</label>
+                                        <label className="text-xs text-gray-600">Mentionner comme référent à contacter lors d&apos;enlèvement sur site</label>
                                       </div>
                                     </div>
                                   ) : (
@@ -867,7 +894,7 @@ const AutocompletionTab: React.FC = () => {
                                       <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.nom}</span>
                                       <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.email}</span>
                                       <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{contact.telephone}</span>
-                                      {contact.respoTerrain && <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">Terrain ✅</span>}
+                                      {contact.respoTerrain && <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">Référent ✅</span>}
                                     </div>
                                   )}
                                 </div>
@@ -880,21 +907,39 @@ const AutocompletionTab: React.FC = () => {
                       {/* Points de collecte */}
                       {(entity as Site).pointsCollecte && Array.isArray((entity as Site).pointsCollecte) && (
                         <div className="bg-gray-50 rounded-xl p-4">
-                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Points de collecte</p>
+                          <div className="flex justify-between items-center mb-3">
+                            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Points de collecte</p>
+                            {isEditing && (
+                              <button
+                                onClick={() => handleAddCollectionPoint(entity.id)}
+                                className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-2 py-1 rounded-lg text-xs font-medium shadow-sm hover:shadow-md transition-all"
+                              >
+                                + Ajouter un point
+                              </button>
+                            )}
+                          </div>
                           <ul className="space-y-3">
                             {(entity as Site).pointsCollecte.map((point: CollectionPoint, index: number) => (
-                              <li key={index} className="flex flex-col gap-2">
+                              <li key={point.id} className="flex flex-col gap-2">
                                 <div className="flex items-center gap-3">
                                   <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">Point {index + 1}:</span>
                                   {isEditing ? (
                                     <div className="flex flex-col gap-2 w-full">
-                                      <input
-                                        type="text"
-                                        value={point.nom}
-                                        onChange={(e) => handleFieldChange(type, entity.id, `pointsCollecte.${index}.nom`, e.target.value)}
-                                        className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
-                                        placeholder="Nom du point de collecte"
-                                      />
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="text"
+                                          value={point.nom}
+                                          onChange={(e) => handleFieldChange(type, entity.id, `pointsCollecte.${index}.nom`, e.target.value)}
+                                          className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                                          placeholder="Nom du point de collecte"
+                                        />
+                                        <button
+                                          onClick={() => handleRemoveCollectionPoint(entity.id, point.id)}
+                                          className="bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded-lg text-xs font-medium hover:bg-red-100 transition-all"
+                                        >
+                                          Supprimer
+                                        </button>
+                                      </div>
                                       <input
                                         type="text"
                                         value={point.adresse}
@@ -1043,6 +1088,61 @@ const AutocompletionTab: React.FC = () => {
         })}
       </div>
     );
+  };
+
+  // Ajout des fonctions pour gérer les contacts et points de collecte
+  const handleAddContact = (siteId: string) => {
+    setSites(prev => prev.map(site => {
+      if (site.id !== siteId) return site;
+      const newContact = {
+        id: Date.now().toString(),
+        nom: '',
+        email: '',
+        telephone: '',
+        respoTerrain: false
+      };
+      return {
+        ...site,
+        contacts: [...site.contacts, newContact]
+      };
+    }));
+  };
+
+  const handleRemoveContact = (siteId: string, contactId: string) => {
+    setSites(prev => prev.map(site => {
+      if (site.id !== siteId) return site;
+      return {
+        ...site,
+        contacts: site.contacts.filter(contact => contact.id !== contactId)
+      };
+    }));
+  };
+
+  const handleAddCollectionPoint = (siteId: string) => {
+    setSites(prev => prev.map(site => {
+      if (site.id !== siteId) return site;
+      const newPoint = {
+        id: Date.now().toString(),
+        nom: '',
+        adresse: '',
+        codePostal: '',
+        ville: ''
+      };
+      return {
+        ...site,
+        pointsCollecte: [...site.pointsCollecte, newPoint]
+      };
+    }));
+  };
+
+  const handleRemoveCollectionPoint = (siteId: string, pointId: string) => {
+    setSites(prev => prev.map(site => {
+      if (site.id !== siteId) return site;
+      return {
+        ...site,
+        pointsCollecte: site.pointsCollecte.filter(point => point.id !== pointId)
+      };
+    }));
   };
 
   //Chaque Carte d'entités
@@ -1274,14 +1374,14 @@ const AutocompletionTab: React.FC = () => {
                       </div>
                       <div className="w-full">
                         <label className="block text-md font-medium text-gray-500 mb-1">
-                          ADR
+                          Mention ADR
                         </label>
                         <input
                           type="text"
                           name="adr"
                           required
                           className="w-full px-2 py-1.5 text-md border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
-                          placeholder="Entrez le numéro ADR"
+                          placeholder="Entrez la mention ADR"
                         />
                       </div>
                       <div className="flex justify-end">

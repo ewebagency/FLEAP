@@ -191,6 +191,7 @@ const cleanData = (data: {formAPI:{createFormInput:BSDD_TrackDechets}}) => {
    if(data_clean.formAPI.createFormInput?.wasteDetails?.packagingInfos[0]?.type && data_clean.formAPI.createFormInput.wasteDetails.packagingInfos[0].type !== 'AUTRE'){
     delete data_clean.formAPI.createFormInput.wasteDetails.packagingInfos[0].other;
    }
+   
    delete data_clean.formAPI.createFormInput.transporter.takenOverBy;
    delete data_clean.formAPI.createFormInput.transporter.takenOverAt;
    delete data_clean.formAPI.createFormInput.transporter.id;

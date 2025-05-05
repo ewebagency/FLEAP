@@ -20,7 +20,7 @@ export const siteAttributes = {
         name: 'adresseSiege',
         label: 'Adresse du siège',
         type: 'address' as const,
-        required: true,
+        required: false,
       },
       {
         name: 'pointsCollecte',
@@ -57,7 +57,7 @@ export const transporteurAttributes = {
         name: 'recepisse',
         label: 'Récépissé',
         type: 'string' as const,
-        required: true,
+        required: false,
         placeholder: 'Entrez le numéro de récépissé',
       },
       {
@@ -71,14 +71,14 @@ export const transporteurAttributes = {
         name: 'nomPrenom',
         label: 'Prénom Nom',
         type: 'string' as const,
-        required: true,
+        required: false,
         placeholder: 'Entrez le nom et prénom',
       },
       {
         name: 'telephone',
         label: 'Téléphone',
         type: 'string' as const,
-        required: true,
+        required: false,
         placeholder: 'Entrez le téléphone',
       },
       {
@@ -115,7 +115,7 @@ export const dechetAttributes = {
       },
       {
         name: 'adr',
-        label: 'ADR',
+        label: 'Mention ADR',
         type: 'string' as const,
         required: false,
         placeholder: 'Entrez le code ADR',
@@ -150,21 +150,21 @@ export const destinataireAttributes = {
         name: 'nomPrenom',
         label: 'Prénom Nom',
         type: 'string' as const,
-        required: true,
+        required: false,
         placeholder: 'Entrez le nom et prénom',
       },
       {
         name: 'telephone',
         label: 'Téléphone',
         type: 'string' as const,
-        required: true,
+        required: false,
         placeholder: 'Entrez le téléphone',
       },
       {
         name: 'adresse',
         label: 'Adresse',
         type: 'address' as const,
-        required: true,
+        required: false,
       },
     ],
   };
@@ -219,7 +219,7 @@ export const negociantAttributes = {
         name: 'recepisse',
         label: 'Récépissé',
         type: 'string' as const,
-        required: true,
+        required: false,
         placeholder: 'Entrez le numéro de récépissé',
       },
       {
@@ -233,7 +233,7 @@ export const negociantAttributes = {
         name: 'telephone',
         label: 'Téléphone',
         type: 'string' as const,
-        required: true,
+        required: false,
         placeholder: 'Entrez le téléphone',
       },
       {
@@ -265,7 +265,7 @@ export const courtierAttributes = {
         name: 'recepisse',
         label: 'Récépissé',
         type: 'string' as const,
-        required: true,
+        required: false,
         placeholder: 'Entrez le numéro de récépissé',
       },
       {
@@ -279,14 +279,14 @@ export const courtierAttributes = {
         name: 'telephone',
         label: 'Téléphone',
         type: 'string' as const,
-        required: true,
+        required: false,
         placeholder: 'Entrez le téléphone',
       },
       {
         name: 'adresse',
         label: 'Adresse',
         type: 'address' as const,
-        required: true,
+        required: false,
       },
     ],
   };
@@ -318,7 +318,7 @@ export const ecoorganismeAttributes = {
         name: 'telephone',
         label: 'Téléphone',
         type: 'string' as const,
-        required: true,
+        required: false,
         placeholder: 'Entrez le téléphone',
       },
       {

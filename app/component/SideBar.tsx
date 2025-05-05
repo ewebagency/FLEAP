@@ -49,10 +49,29 @@ const SideBar = (props:SideBarProps) => {
     const [connected, setConnected] = useState(true);
 
     useEffect(()=>{
-        if (session?.user_id){
-            setConnected(true);
-        }
-    }, [session]);
+        let timeoutId: NodeJS.Timeout;
+        
+        const checkSession = () => {
+            if (session?.user_id) {
+                setConnected(true);
+            } else {
+                // On attend 1 seconde avant de considérer que l'utilisateur est vraiment déconnecté
+                timeoutId = setTimeout(() => {
+                    setConnected(false);
+                    router.push('/auth/signin');
+                }, 1000);
+            }
+        };
+
+        checkSession();
+
+        // Cleanup function pour éviter les fuites de mémoire
+        return () => {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+        };
+    }, [session, router]);
 
     useEffect(()=>{
         if (session?.user_id && cofounders_user_id(session.user_id)){
@@ -118,7 +137,7 @@ const SideBar = (props:SideBarProps) => {
                     <div className="flex-grow">
                         <div className="flex justify-between items-center mb-4">
                             {/*{!isCollapsed && <h1 className="font-bold text-xl ml-4">{entreprise_name}</h1>}*/}
-                            {!isCollapsed && <Image src="/logo/logo_fleap.png" alt="Logo" width={140} height={60} className="ml-2" />}
+                            {!isCollapsed && <Image src="/logo/logo_fleap.png" alt="Logo" width={100} height={40} className="ml-2" />}
                             <button 
                                 onClick={() => setIsCollapsed(!isCollapsed)}
                                 className="hover:bg-gray-300 p-2 rounded-full"

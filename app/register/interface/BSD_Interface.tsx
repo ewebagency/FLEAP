@@ -64,6 +64,8 @@ interface Contenant {
 interface EcoOrganisme {
     nom: FieldOptions<string>;
     siret: FieldOptions<string>;
+    phone?: string;
+    mail?: string;
 }
 
 interface Negociant {
@@ -86,6 +88,8 @@ interface Transporteur {
     firstname: FieldOptions<string>;
     tel: FieldOptions<string>;
     email: FieldOptions<string>;
+    department?: string;
+    validityLimit?: string;
 }
 
 interface InstallationIntermediaire {
@@ -696,17 +700,16 @@ infos: string;
 }
 
 interface Transporter {
-id?: string;
-company: Company;
-isExemptedOfReceipt: boolean;
-receipt: string;
-department: string;
-validityLimit: string;
-numberPlate: string;
-customInfo?: string;
-mode: string;
-takenOverAt?: string;
-takenOverBy?: string;
+    company: Company;
+    isExemptedOfReceipt: boolean;
+    receipt?: string;
+    numberPlate?: string;
+    customInfo?: string;
+    department?: string;
+    validityLimit?: string;
+    takenOverBy?: string;
+    takenOverAt?: string;
+    id?: string;
 }
 
 interface WasteDetails {
@@ -776,8 +779,10 @@ lastActionOn: string;
 }
 
 interface EcoOrganism {
-name: string;
-siret: string;
+    name: string;
+    siret: string;
+    phone?: string;
+    mail?: string;
 }
 
 interface NextDestination {
@@ -914,6 +919,8 @@ export interface FormInput {
     createdAt?: string;
     updatedAt?: string;
     takenOverAt?: string;
+    photo?: string; // URL de la photo du déchet
+    readable_id_track_dechets?: string;
   
     emitter: {
       type: string;
@@ -972,7 +979,7 @@ export interface FormInput {
     };
 
     grouping?: Grouping;
-    ecoOrganisme?: {name: string,  siret: string};
+    ecoOrganisme?: {name: string,  siret: string, phone?: string, mail?: string};
     temporaryStorageDetail?: {
         company: Company; // L'entreprise de destination
         cap?: string; // Numéro de CAP (obligatoire pour les déchets dangereux)
@@ -994,6 +1001,17 @@ export interface OtherInfos {
     containerDescription: string;      
     recipientEmail?: string;
     comments?: string;
+    num_client?: string;
+    ecoorganisme?: string;
+    contrat?: string;
+    filiere?: string;
+    typePrestation?: string;
+    entreprise_name?: string;
+    declassement?: {
+        declassement_boolean: boolean;
+        pourcentage_masse_declassee: string;
+        montant_declasse: string;
+    };
 }
 
 export interface CompleteFormInput{

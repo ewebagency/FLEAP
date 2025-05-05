@@ -555,6 +555,40 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
                 numberPlate: '',
                 isExemptedOfReceipt: false
               },
+              trader: line.negociant?.value ? {
+                company: {
+                  name: line.negociant.value.nomBoite || '',
+                  siret: line.negociant.value.siret || '',
+                  address: line.negociant.value.adresse || '',
+                  contact: '',
+                  phone: line.negociant.value.telephone || '',
+                  mail: line.negociant.value.email || '',
+                  country: ''
+                },
+                receipt: line.negociant.value.recepisse || '',
+                department: '',
+                validityLimit: ''
+              } : undefined,
+              broker: line.courtier?.value ? {
+                company: {
+                  name: line.courtier.value.nomBoite || '',
+                  siret: line.courtier.value.siret || '',
+                  address: line.courtier.value.adresse || '',
+                  contact: '',
+                  phone: line.courtier.value.telephone || '',
+                  mail: line.courtier.value.email || '',
+                  country: ''
+                },
+                receipt: line.courtier.value.recepisse || '',
+                department: '',
+                validityLimit: ''
+              } : undefined,
+              ecoOrganisme: line.ecoorganisme?.value ? {
+                name: line.ecoorganisme.value.nomBoite || '',
+                siret: line.ecoorganisme.value.siret || '',
+                phone: line.ecoorganisme.value.telephone || '',
+                mail: line.ecoorganisme.value.email || '',
+              } : undefined,
               wasteDetails: {
                 code: line.dechet?.value?.codeCED || '',
                 name: line.dechet?.value?.nom || '',
