@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: fleap-ocr-api
+    env: docker
+    repo: https://github.com/ArthurPouzCS/FLEAP
+    plan: free
+    buildCommand: cd backend-python && docker build -t fleap-backend .
+    startCommand: docker run -p 10000:10000 fleap-backend
