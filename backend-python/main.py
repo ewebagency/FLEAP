@@ -26,7 +26,7 @@ origins = [
 # Configurer CORS pour autoriser les requêtes du frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],  # Permet toutes les méthodes HTTP
     allow_headers=["*"],  # Permet tous les headers
