@@ -697,14 +697,26 @@ const EntityForm: React.FC<EntityFormProps> = ({
                 {attr.label}
                 {attr.required && <span className="text-red-500 ml-1">*</span>}
               </label>
-              <input
-                type={attr.type === 'number' ? 'number' : 'text'}
-                value={formData[attr.name] as string || ''}
-                onChange={(e) => handleInputChange(attr.name, e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                placeholder={attr.placeholder}
-                required={attr.required}
-              />
+              {title.toLowerCase().includes('destinataire') && attr.name === 'mention' ? (
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData[attr.name] as boolean || false}
+                    onChange={(e) => handleInputChange(attr.name, e.target.checked)}
+                    className="w-4 h-4 text-[var(--green-medium)] border-gray-300 rounded focus:ring-[var(--green-medium)]"
+                  />
+                  <span className="text-sm text-gray-600">Mentionner comme destinataire</span>
+                </label>
+              ) : (
+                <input
+                  type={attr.type === 'number' ? 'number' : 'text'}
+                  value={formData[attr.name] as string || ''}
+                  onChange={(e) => handleInputChange(attr.name, e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder={attr.placeholder}
+                  required={attr.required}
+                />
+              )}
             </div>
           );
         })}

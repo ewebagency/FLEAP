@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { useMailContext } from '../MailComponents/MailContext';
 import { getMappingTableFiliere, getFiliere } from '../RegisterComponents/Modal/FormulaireFull/utils_new';
 import { TYPES_PRESTATION } from './utils';
+import { useSession } from '@/app/component/SessionProvider';
 
 interface EmailTemplate {
     name: string;
@@ -40,6 +41,9 @@ interface EmailParams {
     entrepriseId: string;
     entrepriseName: string;
     entrepriseGlobalName: string;
+    userContact: string;
+    userPhone: string;
+    userEmail: string;
     wasteLines: {
         code: string;
         description: string;
@@ -67,7 +71,7 @@ const emailTemplate: EmailTemplate = {
         const filieres = new Set(params.wasteLines.map(line => 
             getFiliere(line.code, mappingTable)
         ));
-        return `Demande de collecte - ${Array.from(filieres).join(', ')} | ${params.entrepriseName}`;
+        return `Demande de prestation déchet - ${Array.from(filieres).join(', ')} | ${params.entrepriseName}`;
     },
     getBody: (params: EmailParams) => {
         // Construire l'adresse complète du point de collecte
@@ -95,14 +99,14 @@ const emailTemplate: EmailTemplate = {
                 case TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT:
                     return `Bonjour,
 Je souhaite organiser des collectes de déchets.
-Client : ${params.entrepriseName}
-${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
-Site : ${params.emitter.workSite.name}
+Client : ${params.entrepriseName}${params.numClient ? `
+Numéro de client : ${params.numClient}` : ''}
+Site : ${params.emitter.name}
 Adresse : ${collectAddress}
 
-${Object.entries(wastesByDate).map(([date, lines]) => `
+${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 Prestation d'enlèvement de déchet avec dépot de contenant ${formatDate(date)}
-${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
@@ -120,9 +124,9 @@ ${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
 Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
-${Object.entries(wastesByDate).map(([date, lines]) => `
+${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 Prestation d'enlèvement de déchet sans dépot de contenant ${formatDate(date)}
-${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
@@ -141,9 +145,9 @@ ${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
 Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
-${Object.entries(wastesByDate).map(([date, lines]) => `
+${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 Prestation de camion à la journée ${formatDate(date)}
-${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 
@@ -162,9 +166,9 @@ ${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
 Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
-${Object.entries(wastesByDate).map(([date, lines]) => `
+${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 Prestation de camion à la demi-journée ${formatDate(date)}
-${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
@@ -182,9 +186,9 @@ ${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
 Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
-${Object.entries(wastesByDate).map(([date, lines]) => `
+${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 Prestation de livraison de contenants ${formatDate(date)}
-${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
@@ -202,9 +206,9 @@ ${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
 Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
-${Object.entries(wastesByDate).map(([date, lines]) => `
+${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 Prestation de camion pour une tournée ${formatDate(date)}
-${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
@@ -223,9 +227,9 @@ ${params.numClient ? `Numéro de client : ${params.numClient}` : ''}
 Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
-${Object.entries(wastesByDate).map(([date, lines]) => `
+${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 Prestation ${formatDate(date)}
-${lines.map(line => `Contenant : ${line.nombreContenant} ${line.container}
+Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
@@ -242,16 +246,12 @@ ${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params
         const mailBody = getMailBodyByPrestationType(prestationType);
 
         return `${mailBody}
-
 Cordialement,
 
 ${params.entrepriseGlobalName}
-
-Tel : ${params.emitter.phone}
-Email : ${params.emitter.email}
+${params.userContact} : ${params.userEmail} / ${params.userPhone}
 
 PS: Merci de « Répondre à tous »
-
 Email envoyé depuis FLEAP`;
     }
 };
@@ -271,6 +271,7 @@ const MailDifferentType: React.FC<MailComponentProps> = ({
     const [emailBody, setEmailBody] = useState<string>('');
     const { setIsValidMail, setSendMailFunction } = useMailContext();
     const [userEditedBody, setUserEditedBody] = useState<boolean>(false);
+    //const { user_email, user_contact, user_phone } = useSession();
 
     useEffect(() => {
         setTo(params.destinataire || '');

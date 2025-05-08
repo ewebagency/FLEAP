@@ -16,12 +16,12 @@ export const siteAttributes = {
         required: true,
         placeholder: 'Entrez le numéro SIRET',
       },
-      {
+      /*{
         name: 'adresseSiege',
         label: 'Adresse du siège',
         type: 'address' as const,
         required: false,
-      },
+      },*/
       {
         name: 'pointsCollecte',
         label: 'Points de collecte',
@@ -67,13 +67,13 @@ export const transporteurAttributes = {
         required: true,
         placeholder: 'Entrez l\'email',
       },
-      {
+      /*{
         name: 'nomPrenom',
         label: 'Prénom Nom',
         type: 'string' as const,
         required: false,
         placeholder: 'Entrez le nom et prénom',
-      },
+      },*/
       {
         name: 'telephone',
         label: 'Téléphone',
@@ -81,12 +81,12 @@ export const transporteurAttributes = {
         required: false,
         placeholder: 'Entrez le téléphone',
       },
-      {
+      /*{
         name: 'adresse',
         label: 'Adresse',
         type: 'address' as const,
         required: false,
-      },
+      },*/
     ],
   };
 
@@ -143,16 +143,16 @@ export const destinataireAttributes = {
         name: 'email',
         label: 'Email',
         type: 'string' as const,
-        required: true,
+        required: false,
         placeholder: 'Entrez l\'email',
       },
-      {
+      /*{
         name: 'nomPrenom',
         label: 'Prénom Nom',
         type: 'string' as const,
         required: false,
         placeholder: 'Entrez le nom et prénom',
-      },
+      },*/
       {
         name: 'telephone',
         label: 'Téléphone',
@@ -166,6 +166,12 @@ export const destinataireAttributes = {
         type: 'address' as const,
         required: false,
       },
+      {
+        name: 'mention',
+        label: 'Mention',
+        type: 'boolean' as const,
+        required: false,
+      }
     ],
   };
 

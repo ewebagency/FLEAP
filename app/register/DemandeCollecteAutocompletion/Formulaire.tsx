@@ -132,6 +132,27 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
     addNewLine();
   };
 
+  // Fonction pour vérifier si tous les mails requis sont présents
+  const areAllMailsPresent = () => {
+    return selectedFieldsList.every(field => {
+      const destinataireMail = field.destinataireMail;
+      switch (destinataireMail) {
+        case 'transporteur':
+          return field.transporteur?.value?.email;
+        case 'destinataire':
+          return field.destinataire?.value?.email;
+        case 'negociant':
+          return field.negociant?.value?.email;
+        case 'courtier':
+          return field.courtier?.value?.email;
+        case 'ecoorganisme':
+          return field.ecoorganisme?.value?.email;
+        default:
+          return false;
+      }
+    });
+  };
+
   const handleSubmit = async () => {
     if (mailsPartRef.current) {
       try {
@@ -190,13 +211,13 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
             <button
               type="button"
               onClick={() => setAutocompletionEnabled(!autocompletionEnabled)}
-              className="md:w-[170px] px-2 py-1 text-sm font-medium bg-gray-100 rounded-md px-2 pb-1 cursor-pointer active:bg-gray-200 flex items-center gap-2"
+              className="md:w-[190px] px-2 py-1 text-sm font-medium bg-gray-100 rounded-md px-2 pb-1 cursor-pointer active:bg-gray-200 flex items-center gap-2"
               title={autocompletionEnabled 
                 ? "Les informations ne sont pas modifiables quand l'autocomplétion est activée, vous pouvez la désactiver." 
                 : "Activer l'autocomplétion"}
             >
               <BoxIcon name='pencil' type='solid' size='sm' color='green'></BoxIcon>
-              <p>{autocompletionEnabled ? "Remplissage auto" : "Remplissage manuel"}</p>
+              <p>{autocompletionEnabled ? "Remplissage manuel" : "Remplissage auto"}</p>
               {/*<BoxIcon 
                 name={autocompletionEnabled ? "check-circle" : "x-circle"} 
                 type="solid" 
@@ -320,7 +341,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                             onMobile={true}
                           />
                         </div>
-                        <div className={inputClasses}>
+                        <div className={`${inputClasses} hidden`}>
                           <InputMobile
                             name="contactEmetteur"
                             titre="Respo"
@@ -374,7 +395,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                           <div className={inputClasses}>
                             <InputFull
                               name="pointCollecte"
-                              titre="Point de collecte"
+                              titre="Enlèvement"
                               placeholder="Point de collecte"
                               options={{
                                 filteredOptions: selectedFieldsList[0]?.site?.value?.pointsCollecte?.map(point => point.nom) || [],
@@ -389,7 +410,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                               stylePrimary={true}
                             />
                           </div>
-                          <div className="flex justify-start items-center gap-2">
+                          <div className="flex justify-start items-center gap-2 hidden">
                             <InputFull
                               name="contactEmetteur"
                               titre="Respo Terrain"
@@ -430,7 +451,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                     <select
                       value={selectedFields.typePrestation}
                       onChange={(e) => handleFieldChange(index, 'typePrestation', e.target.value)}
-                      className="text-sm text-gray-600 bg-transparent border-0 focus:outline-none focus:ring-0"
+                      className="text-sm text-gray-600 bg-transparent rounded-md p-1 focus:outline-none focus:ring-0 font-bold hover:cursor-pointer bg-white hover:bg-gray-100"
                     >
                       {Object.entries(TYPES_PRESTATION_LABELS).map(([value, label]) => (
                         <option key={value} value={value}>
@@ -466,7 +487,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                   <div className="flex md:flex-row flex-col gap-2 items-center">
                     {isMobile ? (
                       <>
-                        <div className={inputClasses}>
+                        <div className={`${inputClasses} ml-[-50px]`}>
                           <InputMobile
                             name="dechet"
                             titre="Déchet"
@@ -487,7 +508,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                         </div>
                         {(affichage_conditionnel[index] === 'affichage_dechet' || affichage_conditionnel[index] === 'affichage_maximum') && (
                           <>
-                        <div className={inputClasses}>
+                        <div className={`${inputClasses} ml-[-50px]`}>
                           <InputMobile
                             name="contenant"
                             titre="Contenant"
@@ -506,7 +527,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                             onMobile={true}
                           />
                           {/* Date et nombre de contenant */}
-                          <div className="w-full flex items-center justify-between mt-2">
+                          <div className="ml-[74px] w-[80%] flex items-center justify-between mt-2">
                             {/* Nombre de contenant */}
                             <div className="flex items-center justify-center gap-0">
                               <button
@@ -536,9 +557,18 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                             {/* Date */}
                             <DatePicker
                               selected={selectedFields.date || null}
-                              onChange={(date) => handleFieldChange(index, 'date', date)}
-                              className="ml-[70px] w-[70%] p-1 border rounded-md"
+                              onChange={(date) => {
+                                if (date) {
+                                  // Ajuster la date pour le fuseau horaire local
+                                  const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+                                  handleFieldChange(index, 'date', localDate);
+                                } else {
+                                  handleFieldChange(index, 'date', null);
+                                }
+                              }}
+                              className="ml-[20px] w-[80%] p-1 border rounded-md"
                               placeholderText="Dès que possible"
+                              dateFormat="dd/MM/yyyy"
                             />                       
                           </div>
                         </div>
@@ -567,7 +597,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                         </div>
                         {(affichage_conditionnel[index] === 'affichage_dechet' || affichage_conditionnel[index] === 'affichage_maximum') && (
                           <>
-                        <div className="flex justify-start items-center gap-2">
+                        <div className="flex justify-start items-center gap-2 ml-[-20px]">
                           <div>
                             <InputFull
                               name="contenant"
@@ -613,14 +643,22 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                               </button>
                             </div>                        
                         </div>
-                        <div className="ml-[80px] flex justify-start items-center gap-2">
+                        <div className="ml-[40px] flex justify-start items-center gap-2">
                           <div className="text-gray-500 text-sm">Collecte le</div>
                           <DatePicker
                             selected={selectedFields.date || null}
-                            onChange={(date) => handleFieldChange(index, 'date', date)}
-                            className="w-[70%] h-1/2 p-1 border rounded-md text-sm"
+                            onChange={(date) => {
+                              if (date) {
+                                // Ajuster la date pour le fuseau horaire local
+                                const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+                                handleFieldChange(index, 'date', localDate);
+                              } else {
+                                handleFieldChange(index, 'date', null);
+                              }
+                            }}
+                            className="w-[75%] h-1/2 p-1 border rounded-md text-sm tracking-wide"
                             placeholderText="Dès que possible"
-                            showTimeSelect={true}
+                            dateFormat="dd/MM/yyyy"
                           />
                         </div>
                           </>
@@ -972,13 +1010,13 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                 <div className="text-gray-500 text-sm">Mentionner le {selectedFields.destinataireMail === 'transporteur' ? 'destinataire' : 'transporteur'}</div>
                                 <input
                                   type="checkbox"
-                                  checked={selectedFields.mention?.toMentionned || false}
+                                  checked={selectedFields.mention?.toMentionned || selectedFields.destinataire?.value?.mention || false}
                                   onChange={(e) => {
                                     const mention = {
                                       toMentionned: e.target.checked,
                                       mentionType: selectedFields.destinataireMail === 'transporteur' ? 'recipient' : 'transporteur',
-                                      mentionCompany: '',
-                                      mentionAddress: ''
+                                      mentionCompany: selectedFields.destinataire?.value?.nomBoite || '',
+                                      mentionAddress: selectedFields.destinataire?.value?.adresse || ''
                                     };
                                     handleFieldChange(index, 'mention', mention);
                                   }}
@@ -1021,21 +1059,29 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
               >
                 Annuler
               </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className={`w-full md:w-auto px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--green-medium)] transition-colors duration-200 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {isSubmitting ? (
-                  <div className="flex items-center justify-center">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    Envoi en cours...
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || !areAllMailsPresent()}
+                  className={`w-full md:w-auto px-4 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--green-medium)] transition-colors duration-200 ${(isSubmitting || !areAllMailsPresent()) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isSubmitting ? (
+                    <div className="flex items-center justify-center">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Envoi en cours...
+                    </div>
+                  ) : (
+                    'Envoyer'
+                  )}
+                </button>
+                {!areAllMailsPresent() && (
+                  <div className="absolute right-full top-1/2 -translate-y-1/2 mr-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
+                    Veuillez remplir tous les champs de mail requis
+                    <div className="absolute top-1/2 -translate-y-1/2 -right-2 border-4 border-transparent border-l-gray-900"></div>
                   </div>
-                ) : (
-                  'Envoyer'
                 )}
-              </button>
+              </div>
             </div>
           </form>
         </div>

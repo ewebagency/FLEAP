@@ -87,7 +87,7 @@ export default function UserSettings() {
                     <a role="tab" 
                        className={`tab border-0 ${activeTab === 'tab_autocompletion' ? 'border-b-4 border-green-500' : ''}`}
                        onClick={() => handleTabClick('tab_autocompletion')}>
-                       Table Autocomplétion
+                       Paramétrage demande de collecte
                     </a>
                 </div>
 

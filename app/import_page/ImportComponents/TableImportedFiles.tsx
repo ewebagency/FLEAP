@@ -6,6 +6,7 @@ import ExtractData from './ExtractData';
 import { toast } from 'react-hot-toast';
 import { RowBSD } from '@/app/register/interface/BSD_Interface';
 import { useFilterContext, Site as FilterSite } from '@/app/FilterContext';
+//import ExtractBSD from './ExtractBSD';
 
 export interface PdfInfo {
     status: string;
@@ -254,12 +255,18 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             </div>
                                         )}
                                     </div>
-                                    {cofounders_permission(session?.user_id) && pdf.document_type !== 'excel' && 
+                                    {cofounders_permission(session?.user_id) && pdf.document_type === 'facture' && 
                                         <ExtractData 
                                             pdf_id={pdf.id} 
                                             pdf_path={pdf.name_pdf_in_bucket} 
                                         />
                                     }
+                                    {/*cofounders_permission(session?.user_id) && pdf.document_type === 'bsd' && 
+                                        <ExtractBSD 
+                                            pdf_id={pdf.id} 
+                                            pdf_path={pdf.name_pdf_in_bucket} 
+                                        />
+                                    */}
                                 </div>
                             </td>
                         </tr>

@@ -813,7 +813,7 @@ const AutocompletionTab: React.FC = () => {
                       </div>
                       
                       {/* Adresse du siège */}
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 hidden">
                         <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
                           {getAttributeLabel('adresseSiege', type)}
                         </span>
@@ -964,6 +964,8 @@ const AutocompletionTab: React.FC = () => {
                       if (key === 'id' || key === mainField) return null;
                       if (key === 'onu') return null; // Supprimer le champ ONU pour les déchets
                       if (key === 'tarifs' && type === 'Contrat') return null; // Masquer les tarifs pour les contrats
+                      if (key === 'nomPrenom') return null; // Masquer le champ nomPrenom
+                      if (key === 'adresse' && type === 'Transporteur') return null; // Masquer le champ adresse pour les transporteurs
                       if (key === 'contact' && typeof value === 'object') {
                         return (
                           <div key={key} className="bg-gray-50 rounded-xl p-4">
@@ -1010,6 +1012,31 @@ const AutocompletionTab: React.FC = () => {
                               />
                             ) : (
                               <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{String(value)}</span>
+                            )}
+                          </div>
+                        );
+                      }
+                      // Ajout de la gestion spéciale pour la mention des destinataires
+                      if (type === 'Destinataire' && key === 'mention') {
+                        return (
+                          <div key={key} className="flex items-center gap-3">
+                            <span className="text-[10px] font-medium text-gray-400 min-w-[80px]">
+                              Mention
+                            </span>
+                            {isEditing ? (
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(value)}
+                                  onChange={(e) => handleFieldChange(type, entity.id, key, e.target.checked)}
+                                  className="w-4 h-4 text-[var(--green-medium)] border-gray-300 rounded focus:ring-[var(--green-medium)]"
+                                />
+                                <span className="text-xs text-gray-600">Mentionner comme destinataire</span>
+                              </label>
+                            ) : (
+                              <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">
+                                {Boolean(value) ? '✅ Mentionné dans le mail' : 'Non mentionné'}
+                              </span>
                             )}
                           </div>
                         );
@@ -1162,7 +1189,7 @@ const AutocompletionTab: React.FC = () => {
                   ? 'text-black'
                   : 'text-gray-400'
               }`}>
-                Entités
+                Catalogue des options
               </span>
               <div className={`w-full h-0.5 mt-1 transition-all ${
                 viewMode === 'entities'
@@ -1179,7 +1206,7 @@ const AutocompletionTab: React.FC = () => {
                   ? 'text-black'
                   : 'text-gray-400'
               }`}>
-                Liens
+                Sélections par défaut
               </span>
               <div className={`w-full h-0.5 mt-1 transition-all ${
                 viewMode === 'links'
@@ -1379,7 +1406,6 @@ const AutocompletionTab: React.FC = () => {
                         <input
                           type="text"
                           name="adr"
-                          required
                           className="w-full px-2 py-1.5 text-md border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
                           placeholder="Entrez la mention ADR"
                         />

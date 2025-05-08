@@ -12,7 +12,7 @@ export interface MailsPartComponentRef {
 }
 
 const MailsPartComponent = forwardRef<MailsPartComponentRef, MailsPartComponentProps>(({ aggregatedMailRecipients }, ref) => {
-  const { entreprise_id, user_email, entreprise_name } = useSession();
+  const { entreprise_id, user_email, entreprise_name, user_contact, user_phone } = useSession();
   const mailSendFunctions = useRef<(() => Promise<void>)[]>([]);
 
   useImperativeHandle(ref, () => ({
@@ -73,9 +73,9 @@ const MailsPartComponent = forwardRef<MailsPartComponentRef, MailsPartComponentP
             email: user_email || '',
             address: site?.adresseSiege || '',
             workSite: {
-              name: site?.nom || '',
-              fullAddress: site?.adresseSiege || '',
-              address: site?.adresseSiege || '',
+              name: pointCollecte?.nom || '',
+              fullAddress: pointCollecte?.adresse || '',
+              address: pointCollecte?.adresse || '',
               postalCode: '',
               city: ''
             }
@@ -110,7 +110,10 @@ const MailsPartComponent = forwardRef<MailsPartComponentRef, MailsPartComponentP
           entrepriseId: entreprise_id || '',
           entrepriseName: entreprise_name || '',
           entrepriseGlobalName: entreprise_name || '',
-          wasteLines
+          wasteLines,
+          userContact: user_contact || '',
+          userPhone: user_phone || '',
+          userEmail: user_email || ''
         };
 
         // Debug logs pour les params

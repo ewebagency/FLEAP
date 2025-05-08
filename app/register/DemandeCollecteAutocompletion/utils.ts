@@ -234,9 +234,17 @@ export const checkAutocompletion = (
       const destinataire = allOptions.destinataires.find(d => d.table_id === destinataireLink.table_id);
       if (destinataire) {
         result.destinataire = destinataire;
+        // Initialiser la mention si le destinataire a une mention
+        if (destinataire.value.mention) {
+          result.mention = {
+            toMentionned: true,
+            mentionType: 'recipient',
+            mentionCompany: destinataire.value.nomBoite || '',
+            mentionAddress: destinataire.value.adresse || ''
+          };
+        }
       }
       const destinataireLinkFound = destinataireLink.dest_link.find(item => item.site === selectedFields.site!.table_id.toString() && item.dechet === selectedFields.dechet!.table_id.toString());
-      //console.log('destinataireLinkFound', destinataireLinkFound);
       if(destinataireLinkFound?.mail){
         result.destinataireMail = 'destinataire';
       }
@@ -386,12 +394,13 @@ interface ValueType {
   nomPrenom?: string;
   email?: string;
   telephone?: string;
-  [key: string]: string | { nomPrenom?: string; email?: string; telephone?: string } | undefined;
+  mention?: boolean;
+  [key: string]: string | boolean | { nomPrenom?: string; email?: string; telephone?: string } | undefined;
 }
 
 export const aggregateByMailRecipient = (selectedFieldsList: SelectedFields[]): AggregatedMailRecipient[] => {
   const groupedByRecipient: { [key: string]: AggregatedMailRecipient } = {};
-  //console.log('selectedFieldsList', selectedFieldsList);
+  console.log('selectedFieldsList', selectedFieldsList);
 
   selectedFieldsList.forEach((line) => {
     let recipientEmail = '';

@@ -43,6 +43,7 @@ export interface DestinataireInterface {
     nomPrenom?: string;
     email?: string;
     telephone?: string;
+    mention?: boolean;
   }
 }
 

@@ -5,6 +5,12 @@ from utils import compta_lines_from_text, header_from_text
 from extract_info_xlsx_autocompletion.lecture_excel_autocompletion import data_from_excel
 from extract_info_from_text import extract_all_info
 from typing import Optional
+# Import des nouvelles fonctionnalités OCR et LLM
+from ocr_then_llm.utils import process_pdf_with_llm
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 
@@ -27,6 +33,9 @@ app.add_middleware(
     expose_headers=["*"]  # Expose tous les headers dans la réponse
 )
 
+# =============================================
+# Endpoints existants
+# =============================================
 
 @app.post("/treat-pdf/")
 async def treat_pdf(file: UploadFile = File(...)):
@@ -67,13 +76,13 @@ async def extract_text_only_endpoint(file: UploadFile = File(...)):
     }
 
 
-@app.get("/get-table-demande-collecte/")
-async def get_table_demande_collecte(
-                                    userId: Optional[str] = None,
-                                    site: Optional[str] = None,
-                                    filiere: Optional[str] = None,
-                                    dechet: Optional[str] = None):
-    return data_from_excel(userId, site, filiere, dechet)
+#@app.get("/get-table-demande-collecte/")
+#async def get_table_demande_collecte(
+#                                    userId: Optional[str] = None,
+#                                    site: Optional[str] = None,
+#                                    filiere: Optional[str] = None,
+#                                    dechet: Optional[str] = None):
+#    return data_from_excel(userId, site, filiere, dechet)
 
 
 @app.post("/ai-extract-json-from-pdf/")
@@ -89,5 +98,26 @@ async def ai_extract_json_from_pdf(file: UploadFile = File(...)):
         return invoice_info
     except Exception as e:
         return {"error": f"Failed to process invoice: {str(e)}"}
+
+# =============================================
+# Nouveaux endpoints OCR et LLM (Fusionnés depuis ocr_then_llm/main.py)
+# =============================================
+
+@app.post("/ocr-llm/process-pdf")
+async def process_pdf(pdf_file: UploadFile = File(...)):
+    """
+    Nouvel endpoint pour traiter un PDF avec OCR et LLM
+    Fusionné depuis ocr_then_llm/main.py
+    """
+    result = process_pdf_with_llm(pdf_file)
+    return result
+
+@app.get("/ocr-llm/health")
+async def health_check():
+    """
+    Nouvel endpoint pour vérifier que l'API OCR et LLM est en ligne
+    Fusionné depuis ocr_then_llm/main.py
+    """
+    return {"status": "ok tout va bien"}
 
     
