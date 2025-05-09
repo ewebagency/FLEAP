@@ -110,7 +110,7 @@ Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
-    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany}${params.mention.mentionAddress ? ` à l'adresse suivante : ${params.mention.mentionAddress}` : ''}` 
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.
@@ -130,7 +130,7 @@ Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
-params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany}${params.mention.mentionAddress ? ` à l'adresse suivante : ${params.mention.mentionAddress}` : ''}` 
                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.
@@ -152,7 +152,7 @@ Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 
 ${params.mention.toMentionned ? (
-    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany}${params.mention.mentionAddress ? ` à l'adresse suivante : ${params.mention.mentionAddress}` : ''}` 
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la disponibilité du camion pour la journée en répondant à tous.
@@ -172,7 +172,7 @@ Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
-    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany}${params.mention.mentionAddress ? ` à l'adresse suivante : ${params.mention.mentionAddress}` : ''}` 
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la disponibilité du camion pour la demi-journée en répondant à tous.
@@ -192,7 +192,7 @@ Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
-    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany}${params.mention.mentionAddress ? ` à l'adresse suivante : ${params.mention.mentionAddress}` : ''}` 
                                                 : `Le transporteur qui livrera les contenants sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.
@@ -212,7 +212,7 @@ Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
-params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany}${params.mention.mentionAddress ? ` à l'adresse suivante : ${params.mention.mentionAddress}` : ''}` 
                                 : `Le transporteur qui livrera les contenants sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.
@@ -233,7 +233,7 @@ Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
 ${params.mention.toMentionned ? (
-    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany} à l'adresse suivante : ${params.mention.mentionAddress}` 
+    params.mention.mentionType === 'recipient' ? `L'installation de destination prévu est ${params.mention.mentionCompany}${params.mention.mentionAddress ? ` à l'adresse suivante : ${params.mention.mentionAddress}` : ''}` 
                                                 : `Le transporteur qui collectera les déchets pour vous sera ${params.mention.mentionCompany}`
 ) : ''}
 Merci de confirmer la prise en charge de ces demandes en répondant à tous.

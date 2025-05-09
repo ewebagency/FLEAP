@@ -3,6 +3,7 @@ import { SessionMore, useSession } from "../../SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
 import BoxIcon from '../../BoxIconWrapper';
 import FactureBordereaux from "./FactureBordereaux";
+import { useFilterContext } from "@/app/FilterContext";
 
 interface PdfInfo {
     id: number;
@@ -13,6 +14,7 @@ interface PdfInfo {
     document_type?: string;
     url?: string;
     file_size?: number;
+    site_siret_plus?: string[];
 }
 
 const FacturesAnalyse = ({ active }: { active: boolean }) => {
@@ -20,6 +22,19 @@ const FacturesAnalyse = ({ active }: { active: boolean }) => {
     const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const entreprise_id = session?.entreprise_id;
+    const { sites: filteredSites } = useFilterContext();
+
+    // Filtrer les pdfInfos en fonction des sites cochés
+    const filteredPdfInfos = pdfInfos.filter(pdf => {
+        // Si aucun site n'est défini, on garde le fichier
+        if (!pdf.site_siret_plus || pdf.site_siret_plus.length === 0) return true;
+        
+        // On vérifie si au moins un des sites est coché dans le filtre
+        return pdf.site_siret_plus.some(siret => {
+            const site = filteredSites.find(s => s.orgId === siret);
+            return site?.checked ?? true;
+        });
+    });
 
     const fetchPdfInfos = useCallback(async () => {
         setLoading(true);
@@ -57,7 +72,7 @@ const FacturesAnalyse = ({ active }: { active: boolean }) => {
     if (!active) return null;
     if (loading) return <p>Chargement des documents...</p>;
     
-    if (pdfInfos.length === 0) {
+    if (filteredPdfInfos.length === 0) {
         return (
             <div className="space-y-4 p-2">
                 <FactureBordereaux/>
@@ -103,7 +118,7 @@ const FacturesAnalyse = ({ active }: { active: boolean }) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {pdfInfos.map((pdf) => (
+                        {filteredPdfInfos.map((pdf) => (
                             <tr key={pdf.id} style={{ borderBottom: '1px solid #ddd' }} 
                                 className="hover:bg-gray-50 transition duration-200">
                                 <td style={{ padding: '6px', height: '40px' }} className="align-middle mt-1">
