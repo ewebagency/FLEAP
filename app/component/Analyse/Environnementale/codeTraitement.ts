@@ -97,5 +97,5 @@ export const codeTraitementDefinitions = [
   { groupe: "Préparation à la valorisation", code: "R12", nom: "Échange de déchets avant R1-R11", couleur: "#b4ef6b" },
   { groupe: "Préparation à la valorisation", code: "R13", nom: "Stockage avant R1-R12", couleur: "#c1f381" },
   { groupe: "Réutilisation", code: "PR", nom: "Réutilisation", couleur: "#c9f79a" },
-  { groupe: "Réemploi", code: "RX", nom: "Réemploi", couleur: "#d6fcb1" }
+  { groupe: "Réemploi", code: "RX", nom: "Réemploi", couleur: "#2874a6" }
 ];

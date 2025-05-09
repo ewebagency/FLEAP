@@ -19,6 +19,7 @@ import { supabase } from '../database/supabaseClient';
 import BoxIcon from '../component/BoxIconWrapper';
 import { FiltresPersoProvider } from "../component/FiltresPerso/FiltresPersoProvider";
 import { useSession } from "../component/SessionProvider";
+import ButtonReportAMO from "../component/ReportAMO/ButtonReportAMO";
 
 const RegisterPage = () => {
     const router = useRouter();

@@ -40,7 +40,9 @@ const EMISSIONS_TABLE: EmissionEntry[] = [
     {"CED": "07 02 13", "Méthode": "D9", "Carbone (kg CO₂/tonne)": 400},
     {"CED": "07 02 13", "Méthode": "R3", "Carbone (kg CO₂/tonne)": 150},
     {"CED": "01 03 06", "Méthode": "R5", "Carbone (kg CO₂/tonne)": 15},
-    {"CED": "01 03 06", "Méthode": "D1", "Carbone (kg CO₂/tonne)": 250}
+    {"CED": "01 03 06", "Méthode": "D1", "Carbone (kg CO₂/tonne)": 250},
+    {"CED": "00 00 00", "Méthode": "RX", "Carbone (kg CO₂/tonne)": 0},
+    {"CED": "15 01 01", "Méthode": "PR", "Carbone (kg CO₂/tonne)": 0}
 ];
 
 // Valeurs par défaut pour chaque méthode de traitement
@@ -57,6 +59,8 @@ const DEFAULT_EMISSIONS = {
     'D8': 300,   // Traitement biologique
     'D9': 350,   // Traitement physico-chimique
     'D15': 300,  // Stockage
+    'RX': 0,     // Réemploi
+    'PR': 0,     // Réutilisation
     'default': 0 // Valeur par défaut si code inconnu
 };
 

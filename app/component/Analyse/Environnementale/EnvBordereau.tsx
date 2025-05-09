@@ -3,6 +3,10 @@ import { useAnalysis } from '../../../analysis/AnalysisProvider';
 import { estimerCarbone } from './environnement_utils';
 import TauxRecyclage from './TauxRecyclage';
 import TauxValorisation from './TauxValorisation';
+import ButtonReportAMO from '../../ReportAMO/ButtonReportAMO';
+import { cofounders_user_id } from '../../SideBar';
+import { useSession } from '../../SessionProvider';
+
 const COMPARISONS = [
     {
         threshold: 1000,
@@ -57,6 +61,7 @@ const getComparison = (totalCO2: number): { emoji: string; text: string } => {
 
 const EnvBordereau = () => {
     const { bsds } = useAnalysis();
+    const {user_id} = useSession();
 
     const calculateEmissions = () => {
         if (!bsds || bsds.length === 0) return { total: 0, evolution: 0, average: 0, totalBSDs: 0 };
@@ -133,6 +138,7 @@ const EnvBordereau = () => {
                 </div>
                 {/*<TauxRecyclage />*/}
                 <TauxValorisation />
+                {cofounders_user_id(user_id) && <ButtonReportAMO/>}
             </div>
         </div>
     );

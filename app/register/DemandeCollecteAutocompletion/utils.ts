@@ -13,9 +13,9 @@ export const TYPES_PRESTATION = {
 } as const;
 
 export const TYPES_PRESTATION_LABELS = {
-  [TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT]: 'Enlèvement avec dépot de contenant',
-  [TYPES_PRESTATION.ENLEVEMENT_SANS_DEPOT]: 'Enlèvement sans dépot de contenant',
-  [TYPES_PRESTATION.DEPOT_UNIQUEMENT]: 'Demande de dépôt de contenant',
+  [TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT]: 'Échange (Enlèvement avec dépot de contenant)',
+  [TYPES_PRESTATION.ENLEVEMENT_SANS_DEPOT]: 'Enlèvement (Enlèvement sans dépot de contenant)',
+  [TYPES_PRESTATION.DEPOT_UNIQUEMENT]: 'Dépôt (dépôt de contenant)',
   //[TYPES_PRESTATION.CAMION_DEMIE]: 'Camion à la demi-journée',
   //[TYPES_PRESTATION.CAMION_JOURNEE]: 'Camion à la journée',
   //[TYPES_PRESTATION.CAMION_TOURNEE]: 'Tours de camion'

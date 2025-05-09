@@ -105,7 +105,7 @@ Site : ${params.emitter.name}
 Adresse : ${collectAddress}
 
 ${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
-Prestation d'enlèvement de déchet avec dépot de contenant ${formatDate(date)}
+Prestation d'échange (enlèvement de déchets avec dépot de contenant) ${formatDate(date)}
 Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
@@ -125,7 +125,7 @@ Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
 ${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
-Prestation d'enlèvement de déchet sans dépot de contenant ${formatDate(date)}
+Prestation d'enlèvement (enlèvement de déchets sans dépot de contenant) ${formatDate(date)}
 Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
@@ -187,7 +187,7 @@ Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}
 
 ${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
-Prestation de livraison de contenants ${formatDate(date)}
+Prestation de dépôt (dépôt de contenants) ${formatDate(date)}
 Contenant : ${line.nombreContenant} ${line.container}
 Déchets : ${line.description} (${line.code})`).join('\n')}`).join('\n')}
 
