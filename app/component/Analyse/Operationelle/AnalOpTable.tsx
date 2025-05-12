@@ -19,6 +19,7 @@ const AnalOpTable = () => {
                 pricePerVolume: number[];
                 pricePerTon: number[];
                 pricePerCollection: number[];
+                declassements: number;
             }
         } = {};
 
@@ -45,7 +46,8 @@ const AnalOpTable = () => {
                     weightWithFillRate: 0,
                     pricePerVolume: [],
                     pricePerTon: [],
-                    pricePerCollection: []
+                    pricePerCollection: [],
+                    declassements: 0
                 };
             }
 
@@ -101,6 +103,10 @@ const AnalOpTable = () => {
                 // Prix par collecte
                 stats[segmentKey].pricePerCollection.push(totalHT);
             }
+
+            if (bsd.other_infos?.declassement?.declassement_boolean === true) {
+                stats[segmentKey].declassements++;
+            }
         });
 
         // Calculer les totaux
@@ -108,7 +114,8 @@ const AnalOpTable = () => {
             totalWeight: 0,
             bsdCount: 0,
             weightedFillRateSum: 0,
-            weightWithFillRate: 0
+            weightWithFillRate: 0,
+            totalDeclassements: 0
         };
 
         Object.values(stats).forEach(stat => {
@@ -116,6 +123,7 @@ const AnalOpTable = () => {
             totals.bsdCount += stat.bsdCount;
             totals.weightedFillRateSum += stat.weightedFillRateSum;
             totals.weightWithFillRate += stat.weightWithFillRate;
+            totals.totalDeclassements += stat.declassements;
         });
 
         return { stats, totals };
@@ -174,7 +182,7 @@ const AnalOpTable = () => {
                                         {formatNumber(data.bsdCount, false)}
                                     </td>
                                     <td className="px-2 py-1 text-right">
-                                        0
+                                        {data.declassements}
                                     </td>
                                     {/*<td className="px-2 py-1 text-right">
                                         {data.pricePerVolume.length > 0 
@@ -209,7 +217,7 @@ const AnalOpTable = () => {
                                 {formatNumber(tableData.totals.bsdCount, false)}
                             </td>
                             <td className="px-2 py-1 text-right font-bold">
-                                0
+                                {tableData.totals.totalDeclassements}
                             </td>
                             {/*<td className="px-2 py-1 text-right font-bold">
                                 -

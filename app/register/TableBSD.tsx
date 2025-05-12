@@ -129,6 +129,22 @@ const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres
     return [];
 }
 
+const DateToDisplay = ({ status, created_at, takenOverAt }: { status: string, created_at: string, takenOverAt: string }) => {
+    if (status === "Ligne demandée") {
+        if(takenOverAt !== "") {
+            return <div><p><span className="md:inline hidden">Attendu le </span>{new Date(takenOverAt as string).toLocaleDateString('fr-FR')}</p></div>;
+        } else {
+            return <div><p><span className="md:inline hidden">Crée le </span>{new Date(created_at as string).toLocaleDateString('fr-FR')}</p></div>;
+        }
+    } else {
+        if(takenOverAt !== "") {
+            return <div><p><span className="md:inline hidden">Collecté le </span>{new Date(takenOverAt as string).toLocaleDateString('fr-FR')}</p></div>
+        } else {
+            return <div><p><span className="md:inline hidden">Créé le </span>{new Date(created_at as string).toLocaleDateString('fr-FR')}</p></div>
+        }
+    }
+}
+
 const TableBSD = () => {
     const {entreprise_id, user_id} = useSession();
     
@@ -961,7 +977,8 @@ const TableBSD = () => {
                                 <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px' }}>
                                     <div className="absolute top-1 left-1.5 w-full">
                                         <div className="text-[13px] text-gray-600 ml-4 flex justify-start gap-2">
-                                            {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p><span className="md:inline hidden">Collecté le </span>{new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>{bsd.status_track_dechets === "Ligne demandée" ? <p><span className="md:inline hidden">Attendu le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p> : <p><span className="md:inline hidden">Créé le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}</p>}
+                                            <DateToDisplay status={bsd.status_track_dechets} created_at={bsd.created_at} takenOverAt={bsd.infos_json.formAPI.createFormInput.takenOverAt || ""} />
+                                            {/* {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p><span className="md:inline hidden">Collecté le </span>{new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>{bsd.status_track_dechets === "Ligne demandée" ? <p><span className="md:inline hidden">Attendu le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p> : <p><span className="md:inline hidden">Créé le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}</p>}
                                             {/*<p>CREE le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>*/}
                                             {/* {bsd.infos_json.formAPI.createFormInput.emittedAt} */}
                                             {/* {bsd.infos_json.formAPI.createFormInput.createdAt} */}
@@ -1283,7 +1300,7 @@ const nonDangerousStatut = (statut: string) => {
 }
 
 const canModify = (id_track: string, statut_track: string) => {
-    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED" || statut_track === "DRAFT" || id_track === "Ligne validée" || id_track === "Ligne créée" || id_track === "Ligne automatique") {
+    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED" || statut_track === "DRAFT" || id_track === "Ligne validée" || id_track === "Ligne créée" || id_track === "Ligne automatique" || id_track === "Ligne demandée") {
         return true;
     }
     return false;

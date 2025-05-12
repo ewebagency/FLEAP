@@ -439,6 +439,7 @@ export const aggregateByMailRecipient = (selectedFieldsList: SelectedFields[]): 
 
     // Créer une clé unique pour le regroupement incluant le type de prestation
     const recipientKey = `${recipientType}-${recipientEmail}-${typePrestation}`;
+    
 
     if (!groupedByRecipient[recipientKey]) {
       groupedByRecipient[recipientKey] = {

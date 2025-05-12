@@ -51,42 +51,42 @@ async function generateChartImage(chartData: ReportData['chartData']): Promise<s
         data: {
             labels: chartData.labels,
             datasets: chartData.datasets.map((dataset, index) => ({
-                label: dataset.label,
-                data: dataset.data,
-                backgroundColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.7)`,
-                borderColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 1)`,
+                        label: dataset.label,
+                        data: dataset.data,
+                        backgroundColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.7)`,
+                        borderColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 1)`,
                 borderWidth: 1,
                 stack: 'stack0'
             }))
         },
-        options: {
-            responsive: true,
-            scales: {
-                x: {
-                    stacked: true,
-                    title: {
-                        display: true,
-                        text: 'Mois'
-                    }
-                },
-                y: {
-                    stacked: true,
-                    title: {
-                        display: true,
-                        text: 'Tonnes'
-                    }
-                }
-            },
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Évolution des tonnages par filière'
-                },
-                legend: {
-                    position: 'bottom'
-                }
-            }
-        }
+                            options: {
+                                responsive: true,
+                                scales: {
+                                    x: {
+                                        stacked: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Mois'
+                                        }
+                                    },
+                                    y: {
+                                        stacked: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Tonnes'
+                                        }
+                                    }
+                                },
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: 'Évolution des tonnages par filière'
+                                    },
+                                    legend: {
+                                        position: 'bottom'
+                                    }
+                                }
+                            }
     };
 
     const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=800&height=400`;
@@ -96,10 +96,10 @@ async function generateChartImage(chartData: ReportData['chartData']): Promise<s
         const arrayBuffer = await response.arrayBuffer();
         const base64 = Buffer.from(arrayBuffer).toString('base64');
         return `data:image/png;base64,${base64}`;
-    } catch (error) {
+                } catch (error) {
         console.error('Error generating chart:', error);
         throw new Error('Failed to generate chart');
-    }
+                }
 }
 
 export async function POST(request: Request) {

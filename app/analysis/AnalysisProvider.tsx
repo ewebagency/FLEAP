@@ -84,7 +84,7 @@ interface SupabaseBSD {
     created_on_fleap: string;
     facture_treated: boolean;
     id_track_dechets: string;
-    other_infos: { fillRate: string, volume: string, volumeUnit: string, containerDescription: string };
+    other_infos: { fillRate: string, volume: string, volumeUnit: string, containerDescription: string, declassement?: { declassement_boolean: boolean } };
 }
 
 export const AnalysisProvider = ({ children }: { children: React.ReactNode }) => {

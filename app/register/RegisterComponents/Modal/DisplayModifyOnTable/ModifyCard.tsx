@@ -101,9 +101,35 @@ const ModifyCard = () => {
     const [createdAt, setCreatedAt] = useState<string>("");
     const [photo, setPhoto] = useState<string>("");
 
-    const session = useSession();
+    const {entreprise_id, user_id} = useSession();
     const [filiere, setFiliere] = useState<string>("");
     const [masseVolumique, setMasseVolumique] = useState<string>("");
+    
+
+    const invalidateCache = async () => {
+        if (!entreprise_id || !user_id) return;
+        
+        try {
+            const response = await fetch('/api/invalidate_bsd_cache', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    entreprise_id,
+                    user_id,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to invalidate cache');
+            }
+
+            console.log('Cache invalidated successfully');
+        } catch (error) {
+            console.error('Error invalidating cache:', error);
+        }
+    };    
 
     const getBSD = async (entrepriseId: string) => {
         const result = await supabase
@@ -143,21 +169,21 @@ const ModifyCard = () => {
     }
 
     useEffect(() => {
-        if (session && session.entreprise_id && modalId) {
-            getBSD(session.entreprise_id);
+        if (entreprise_id && user_id && modalId) {
+            getBSD(entreprise_id);
         }
-    }, [modalId, session]);
+    }, [modalId, entreprise_id, user_id]);
 
     useEffect(() => {
         const getFiliereName = async () => {
-            if (session?.entreprise_id && localData?.wasteDetails?.code) {
-                const mapping = await getMappingTableFiliere(session.entreprise_id);
+            if (entreprise_id && localData?.wasteDetails?.code) {
+                const mapping = await getMappingTableFiliere(entreprise_id);
                 const filiereFound = getFiliere(localData.wasteDetails.code, mapping);
                 setFiliere(filiereFound);
             }
         };
         getFiliereName();
-    }, [localData, session]);
+    }, [localData, entreprise_id]);
 
     const handleChange = (path: string, value: string) => {
         console.log("localData", localData);
@@ -197,7 +223,7 @@ const ModifyCard = () => {
     };
 
     const handleSubmit = async () => {
-        if (!session?.user_id || !localData) {
+        if (!user_id || !localData) {
             toast.error("Utilisateur non connecté ou données manquantes");
             return;
         }
@@ -234,7 +260,7 @@ const ModifyCard = () => {
             console.log("dataToSend.recipient.company.name before submit", dataToSend.recipient);
 
             const dataToSendJSON = {
-                user_id: session.user_id,
+                user_id: user_id,
                 bsd_id: modalId,
                 infos_json: {
                     formAPI: { createFormInput: dataToSend }
@@ -258,10 +284,11 @@ const ModifyCard = () => {
                 toast.success(apiResult.message);
                 setModalType("");
 
-                setTimeout(() => {
-                    setAllBSDs(prev => prev.map(bsd => bsd.id === modalId ? {...bsd, infos_json: dataToSendJSON.infos_json} as unknown as BSD : bsd));
-                    setAllFilteredBSDs(prev => prev.map(bsd => bsd.id === modalId ? {...bsd, infos_json: dataToSendJSON.infos_json} as unknown as BSD : bsd));
-                    setDisplayedBSDs(prev => prev.map(bsd => bsd.id === modalId ? {...bsd, infos_json: dataToSendJSON.infos_json} as unknown as BSD : bsd));
+                setTimeout(async () => {
+                    setAllBSDs(prev => prev.map(bsd => bsd.id === modalId ? {...bsd, infos_json: dataToSendJSON.infos_json, created_at: dataToSendJSON.created_at} as unknown as BSD : bsd));
+                    setAllFilteredBSDs(prev => prev.map(bsd => bsd.id === modalId ? {...bsd, infos_json: dataToSendJSON.infos_json, created_at: dataToSendJSON.created_at} as unknown as BSD : bsd));
+                    setDisplayedBSDs(prev => prev.map(bsd => bsd.id === modalId ? {...bsd, infos_json: dataToSendJSON.infos_json, created_at: dataToSendJSON.created_at} as unknown as BSD : bsd));
+                    await invalidateCache();
                 }, 100);
 
                 setModalReload(!modalReload);

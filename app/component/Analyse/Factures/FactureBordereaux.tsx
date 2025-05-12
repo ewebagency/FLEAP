@@ -1,6 +1,10 @@
-import React, { useMemo } from "react";
+import React from "react";
+
+
+
 
 const FactureBordereaux = () => {
+
 
     return (
         <div className="m-4">
@@ -9,7 +13,7 @@ const FactureBordereaux = () => {
                     <div className="text-sm text-gray-600 font-bold">Anomalies</div>
                     <div className="flex items-center mt-2">
                         <div className="font-bold text-xl text-red-600 ml-2">
-                            0
+                        0
                         </div>
                         {/*<div className={`ml-4 px-2 py-1 rounded-full text-xs ${
                             stats.profitPercentage >= 0 

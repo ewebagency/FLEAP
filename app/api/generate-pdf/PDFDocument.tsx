@@ -3,12 +3,10 @@ import { Document, Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/
 
 // Register fonts
 Font.register({
-    family: 'Roboto',
+    family: 'Helvetica',
     fonts: [
-        { src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-light-webfont.ttf', fontWeight: 300 },
-        { src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-regular-webfont.ttf', fontWeight: 400 },
-        { src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-medium-webfont.ttf', fontWeight: 500 },
-        { src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-bold-webfont.ttf', fontWeight: 700 },
+        { src: 'Helvetica' },
+        { src: 'Helvetica-Bold', fontWeight: 'bold' }
     ]
 });
 
@@ -17,7 +15,7 @@ const styles = StyleSheet.create({
     page: {
         padding: 30,
         fontSize: 12,
-        fontFamily: 'Roboto',
+        fontFamily: 'Helvetica',
     },
     header: {
         marginBottom: 20,
@@ -30,7 +28,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 24,
         marginBottom: 10,
-        fontWeight: 700,
+        fontWeight: 'bold',
         color: '#1a365d',
     },
     subtitle: {
@@ -47,7 +45,7 @@ const styles = StyleSheet.create({
     },
     sectionTitle: {
         fontSize: 16,
-        fontWeight: 700,
+        fontWeight: 'bold',
         marginBottom: 10,
         color: '#2d3748',
     },
@@ -80,7 +78,7 @@ const styles = StyleSheet.create({
     tableHeader: {
         backgroundColor: '#2d3748',
         color: '#ffffff',
-        fontWeight: 700,
+        fontWeight: 'bold',
     },
     chart: {
         marginTop: 20,

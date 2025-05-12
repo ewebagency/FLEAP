@@ -6,6 +6,8 @@ import TauxRemplissage from "./TauxRemplissage";
 const AnalOpBordereau = () => {
     const { bsds, loading } = useAnalysis();
 
+    
+
     const stats = useMemo(() => {
         const currentMonth = new Date().getMonth();
         const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
@@ -14,6 +16,7 @@ const AnalOpBordereau = () => {
         let currentMonthWeight = 0;
         let lastMonthWeight = 0;
         const totalBSDs = bsds.length;
+        let totalDeclassements = 0;
 
         bsds.forEach(bsd => {
             const quantity = bsd.infos_json.formAPI.createFormInput.quantityReceived ? Number(bsd.infos_json.formAPI.createFormInput.quantityReceived) : Number(bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity) || 0;
@@ -25,6 +28,10 @@ const AnalOpBordereau = () => {
             } else if (bsdMonth === lastMonth) {
                 lastMonthWeight += quantity;
             }
+
+            if (bsd.other_infos?.declassement?.declassement_boolean === true) {
+                totalDeclassements++;
+            }
         });
 
         const monthlyEvolution = lastMonthWeight === 0 ? 0 : 
@@ -34,7 +41,8 @@ const AnalOpBordereau = () => {
             totalWeight,
             monthlyEvolution,
             averageWeight: totalWeight / 12,
-            totalBSDs
+            totalBSDs,
+            totalDeclassements
         };
     }, [bsds]);
 
@@ -79,7 +87,7 @@ const AnalOpBordereau = () => {
                 <div className="block">
                     <div className="text-sm text-gray-600 font-thin">Déclassements</div>
                     <div className="font-medium text-xl text-gray-700 mt-2 ml-2">
-                        0
+                        {stats.totalDeclassements}
                     </div>
                 </div>
             </div>

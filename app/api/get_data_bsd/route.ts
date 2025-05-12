@@ -208,7 +208,6 @@ export async function GET(request: Request) {
         infos_json->formAPI->createFormInput->recipient,
         infos_json->formAPI->createFormInput->transporter,
         infos_json->formAPI->createFormInput->wasteDetails,
-        infos_json->formAPI->createFormInput->wasteDetails
         infos_json->formAPI->createFormInput->>takenOverAt,
         infos_json->formAPI->createFormInput->other_infos->>fillRate,
         on_track_dechets,
@@ -229,6 +228,8 @@ export async function GET(request: Request) {
     const { data, error } = await query;
 
     if (error) throw error;
+
+    //console.log("probleme dans takenOverAt 6", data[0]);
 
     // Restructurer les données pour correspondre à l'interface FastDataSupa
     const formattedData = (data as unknown as SupabaseFlatResponse[]).map(item => ({
@@ -283,6 +284,7 @@ export async function GET(request: Request) {
       facture_treated: item.facture_treated,
       id_track_dechets: item.id_track_dechets
     }));
+
 
     // Si c'est le premier chargement, mettre en cache
     if (!lastDate) {
