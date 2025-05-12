@@ -93,6 +93,19 @@ const FiltreSiteEtablissement = () => {
     const { sites, setSites, toggleSite } = useFilterContext();
     const [isInitialLoading, setIsInitialLoading] = useState(true);
 
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
     const {modalReload, setFilterPendingBSDs} = useModalContextNew();
     const {entreprise_id, user_id} = useSession();
     const [additionnalSites, setAdditionnalSites] = useState<AdditionalSite[]>([]);
@@ -662,7 +675,7 @@ const FiltreSiteEtablissement = () => {
                     type="checkbox"
                     name="site-selection"
                     checked={site.checked}
-                    onChange={(e) => {
+                    /*onChange={(e) => {
                         e.stopPropagation();
                         if (window.innerWidth <= 768) {
                             sites.forEach(s => {
@@ -677,8 +690,8 @@ const FiltreSiteEtablissement = () => {
                             handleSiteToggle(site.orgId);
                         }
                         setFilterPendingBSDs(false);
-                    }}
-                    className="md:form-checkbox form-radio h-4 w-4 text-blue-600"
+                    }}*/
+                    className="md:form-checkbox form-radio h-4 w-4 text-blue-600 cursor-pointer"
                 />
             </div>
             {site.givenName && (

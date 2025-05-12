@@ -6,6 +6,7 @@ import { supabase } from "../database/supabaseClient";
 import BoxIcon from '@/app/component/BoxIconWrapper';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
+import { usePathname } from 'next/navigation';
 
 interface DateSegment {
     label: string;
@@ -21,6 +22,21 @@ const FiltreDate = () => {
     const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
     const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
     const [activeSegment, setActiveSegment] = useState<string>('');
+    const pathname = usePathname();
+    const isRegisterPage = pathname?.includes('/register');
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     const getDateSegments = (): DateSegment[] => {
         const now = new Date();
@@ -79,40 +95,24 @@ const FiltreDate = () => {
                 return;
             }
 
-
             // Version desktop : comportement existant
             const { data: minData, error: minError } = await supabase
                 .from('bsd')
                 .select('created_at')
                 .eq('entreprise_id', entreprise_id)
-                //.not('status_track_dechets', 'is', 'Ligne demandée')
                 .order('created_at', { ascending: true })
                 .limit(1)
                 .single();
-
-            /*const { data: maxData, error: maxError } = await supabase
-                .from('bsd')
-                .select('created_at')
-                .eq('entreprise_id', entreprise_id)
-                //.not('status_track_dechets', 'is', 'Ligne demandée')
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();*/
             
             if (minError) {
                 console.error('Error fetching dates:', minError);
                 return;
             }
 
-            /*if (maxError) {
-                console.error('Error fetching dates:', maxError);
-                return;
-            }*/
-
             const maxDate = new Date();
-            //const maxDate = new Date(maxData.created_at);
-            //maxDate.setMonth(maxDate.getMonth());
-            //maxDate.setDate(0);
+            if (isRegisterPage) {
+                maxDate.setFullYear(maxDate.getFullYear() + 1);
+            }
             maxDate.setHours(23, 59, 59, 999);
 
             if (minData) {
@@ -271,7 +271,7 @@ const FiltreDate = () => {
                                         }}
                                         className="w-full p-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
                                     >
-                                        Aujourd&apos;hui
+                                        {isRegisterPage ? "Tous" : "Aujourd'hui"}
                                     </button>
                                 </div>
                             </div>
