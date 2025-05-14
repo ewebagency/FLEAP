@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { useAnalysis } from "@/app/analysis/AnalysisProvider";
 import TauxTri from "./TauxTri";
 import TauxRemplissage from "./TauxRemplissage";
+import ObjectifTonnage from "./ObjectifTonnage";
 
 const AnalOpBordereau = () => {
     const { bsds, loading } = useAnalysis();
@@ -62,6 +63,9 @@ const AnalOpBordereau = () => {
                         {stats.monthlyEvolution >= 0 ? '+' : ''}{stats.monthlyEvolution.toFixed(1)}%
                     </div>*/}
                 </div>
+            </div>
+            <div className="block">
+                <ObjectifTonnage/>
             </div>
             <div className="flex gap-9">
                 <div className="block">
