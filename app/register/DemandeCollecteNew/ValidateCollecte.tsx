@@ -265,6 +265,7 @@ const ValidateCollecte = ({ onClose, bsd }: ValidateCollecteProps) => {
             if (response.data) {
                 setDataToogle(response.data.infos_json.formAPI.createFormInput as unknown as FormInput);
                 setOtherInfos(response.data.other_infos as unknown as OtherInfos);
+                setPhotoUrl(response.data.photo as string);
             }
         }
         fetchBSDs();
@@ -334,9 +335,7 @@ const ValidateCollecte = ({ onClose, bsd }: ValidateCollecteProps) => {
     const [disableAutocompletion, setDisableAutocompletion] = useState(false);
 
     // Ajouter cet état après les autres useState
-    const [photoUrl, setPhotoUrl] = useState<string | null>(
-        typeof bsd.photo === 'string' ? bsd.photo : null
-    );
+    const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
     // Ajouter cet état pour stocker le fichier compressé
     const [compressedPhoto, setCompressedPhoto] = useState<File | null>(null);

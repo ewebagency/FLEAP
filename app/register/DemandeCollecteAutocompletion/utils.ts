@@ -477,7 +477,28 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
     // Filtrer les lignes pour exclure le type 'depot uniquement'
     const filteredLines = selectedFieldsList.filter(line => line.typePrestation !== TYPES_PRESTATION.DEPOT_UNIQUEMENT);
     
-    const linesToCreate = filteredLines.map(line => {
+    // Upload photos and create lines
+    const linesToCreate = await Promise.all(filteredLines.map(async line => {
+      let photoPath = '';
+      
+      // Upload photo if exists
+      if (line.photo) {
+        const timestamp = Date.now();
+        const fileName = `${entreprise_id}_${timestamp}_${line.photo.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('photos')
+          .upload(fileName, line.photo);
+
+        if (uploadError) throw uploadError;
+        
+        // Get the public URL for the uploaded photo
+        const { data: { publicUrl } } = supabase.storage
+          .from('photos')
+          .getPublicUrl(fileName);
+          
+        photoPath = publicUrl;
+      }
+
       let recipientEmail = '';
       const getEmailFromValue = (value: ValueType | undefined): string => {
         if (!value) return '';
@@ -505,6 +526,7 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
           recipientEmail = '';
           break;
       }
+
       return {
         user_id: user_id,
         entreprise_id: entreprise_id,
@@ -512,6 +534,7 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
         id_track_dechets: "Ligne demandée",
         status_track_dechets: "Ligne demandée",
         readable_id_track_dechets: "Ligne demandée",
+        photo: photoPath, // Add photo path to BSD
         infos_json: {
           formAPI: {
             createFormInput: {
@@ -632,7 +655,7 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
         },
         created_at: line.date?.toISOString() || new Date().toISOString()
       };
-    });
+    }));
 
     console.log('linesToCreate', linesToCreate);
     // Insérer les lignes dans Supabase

@@ -45,7 +45,8 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
     ecoorganisme: null,
     codeTraitement: null,
     contrat: null,
-    mention: null
+    mention: null,
+    photo: null
   }]);
 
   useEffect(() => {
@@ -124,7 +125,8 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
           destinataireMail: 'transporteur',
           typePrestation: TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT,
           showNegociant: false,
-          mention: null
+          mention: null,
+          photo: null
         }
       ];
     });

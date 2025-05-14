@@ -139,19 +139,20 @@ export interface SelectedFields {
   contactEmetteur: ContactInterface[] | null;
   dechet: DechetInterface | null;
   contenant: ContenantInterface | null;
+  nombreContenant: number;
   date: Date | null;
   transporteur: TransporteurInterface | null;
   destinataire: DestinataireInterface | null;
+  showNegociant: boolean;
+  destinataireMail: string;
+  typePrestation: string;
   negociant: NegociantInterface | null;
   courtier: CourtierInterface | null;
   ecoorganisme: EcorganismeInterface | null;
   codeTraitement: CodeTraitementInterface | null;
   contrat: ContratInterface | null;
-  nombreContenant: number;
-  destinataireMail: string;
-  typePrestation: string;
-  showNegociant: boolean;
   mention: { toMentionned: boolean; mentionType: string; mentionCompany: string; mentionAddress: string } | null;
+  photo: File | null;
 }
 
 export interface AutocompletionData {

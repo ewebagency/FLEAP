@@ -224,6 +224,7 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
         setModalReload
     } = useModalContextNew();
     const {setAllBSDs, setAllFilteredBSDs, setDisplayedBSDs} = useBSDs();
+    const {entreprise_id, user_id} = useSession();
     
     // Initialiser dataToogle avec les données du BSD
     const [dataToogle, setDataToogle] = useState<FormInput>(
@@ -250,25 +251,47 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
         }
     );
 
-    useEffect(() => {
-        const fetchBSDs = async () => {
+    const fetchBSDs = async () => {
+        if (entreprise_id && user_id && bsd.id) {
             const response = await supabase
                 .from('bsd')
                 .select('*')
                 .eq('id', bsd.id)
+                .eq('entreprise_id', entreprise_id)
                 .single();
+
             if (response.data) {
                 setDataToogle(response.data.infos_json.formAPI.createFormInput as unknown as FormInput);
                 setOtherInfos(response.data.other_infos as unknown as OtherInfos);
                 setInitialDataToogle(response.data.infos_json.formAPI.createFormInput as unknown as FormInput);
                 setInitialOtherInfos(response.data.other_infos as unknown as OtherInfos);
+                setPhotoUrl(response.data.photo as string);
+
+                // Récupérer la masse volumique
+                if (response.data.infos_json.formAPI.createFormInput.wasteDetails?.code) {
+                    const { data: autocompletionData } = await supabase
+                        .from('table_autocompletion')
+                        .select('dechet')
+                        .eq('entreprise_id', entreprise_id)
+                        .eq('dechet->>codeCED', response.data.infos_json.formAPI.createFormInput.wasteDetails.code)
+                        .single();
+
+                    if (autocompletionData?.dechet?.masseVolumique) {
+                        setMasseVolumique(autocompletionData.dechet.masseVolumique);
+                    }
+                }
             }
         }
-        fetchBSDs();
-    }, [bsd]);    
+    }
+
+    useEffect(() => {
+        if (entreprise_id && user_id && bsd.id) {
+            fetchBSDs();
+        }
+    }, [bsd.id, entreprise_id, user_id]);
 
     const [currentFiliere, setCurrentFiliere] = useState("");
-    const {entreprise_id, user_id} = useSession();
+    
     const [ced_table, setCedTable] = useState<{ ced: string, filiere: string }[]>([]);
     const [displayAll, setDisplayAll] = useState(false);
     const [masseVolumique, setMasseVolumique] = useState<number | null>(null);
@@ -331,9 +354,7 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
     const [disableAutocompletion, setDisableAutocompletion] = useState(false);
 
     // Ajouter cet état après les autres useState
-    const [photoUrl, setPhotoUrl] = useState<string | null>(
-        typeof bsd.photo === 'string' ? bsd.photo : null
-    );
+    const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
     // Ajouter cet état pour stocker le fichier compressé
     const [compressedPhoto, setCompressedPhoto] = useState<File | null>(null);
@@ -341,91 +362,178 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
     // Ajouter cette ligne pour détecter les appareils mobiles
     const isMobile = useMediaQuery({ maxWidth: 767 });
 
-//Initialisation des options
-useEffect(() => {
-    if(entreprise_id) {
-        getDataAutocompletionFull([], entreprise_id, []).then(data => {
-            setAllOptions(data);
-            setOptions(data);
-        });
-    }
-}, [entreprise_id]);
+    //Initialisation des options
+    useEffect(() => {
+        if(entreprise_id) {
+            getDataAutocompletionFull([], entreprise_id, []).then(data => {
+                setAllOptions(data);
+                setOptions(data);
+            });
+        }
+    }, [entreprise_id]);
 
-//Initialisation de ced_table
-useEffect(() => {
-    //aller chercher la table mapping filiere
-    if(entreprise_id) {
-        getMappingTableFiliere(entreprise_id).then(data => setCedTable(data));
-    }
-}, [entreprise_id]);
+    //Initialisation de ced_table
+    useEffect(() => {
+        //aller chercher la table mapping filiere
+        if(entreprise_id) {
+            getMappingTableFiliere(entreprise_id).then(data => setCedTable(data));
+        }
+    }, [entreprise_id]);
 
-// Ajouter un useEffect pour initialiser les données avec le site sélectionné
-useEffect(() => {
-    // Trouver le premier site coché
-    const checkedSite = sites.find(site => site.checked);
-    if (checkedSite) {
-        setDataToogle(prev => ({
-            ...prev,
-            emitter: {
-                ...prev.emitter,
-                company: {
-                    ...prev.emitter.company,
-                    name: checkedSite.name,
-                    siret: checkedSite.orgId
+    // Ajouter un useEffect pour initialiser les données avec le site sélectionné
+    useEffect(() => {
+        // Trouver le premier site coché
+        const checkedSite = sites.find(site => site.checked);
+        if (checkedSite) {
+            setDataToogle(prev => ({
+                ...prev,
+                emitter: {
+                    ...prev.emitter,
+                    company: {
+                        ...prev.emitter.company,
+                        name: checkedSite.name,
+                        siret: checkedSite.orgId
+                    }
                 }
-            }
-        }));
-    }
-}, [sites]); // Se déclenche quand les sites changent
+            }));
+        }
+    }, [sites]); // Se déclenche quand les sites changent
 
-//HandleChange -> AUTOCOMPLETION
-const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => {
-    const { name, value } = e.target;
-    
-    // Mettre à jour le champ qui a changé
-    if(Object.keys(inputDependencies).includes(name)) {
-        setChangedField(name);
-    }
-
-    // Liste des champs qui désactivent l'autocomplétion
-    const disablingFields = [
-        'wasteDetails.quantity',
-        'wasteDetails.packagingInfos[0].quantity',
-        'other_infos.containerDescription',
-        'other_infos.volume',
-        'other_infos.volumeUnit',
-        'other_infos.fillRate'
-    ];
-
-    // Activer/désactiver l'autocomplétion selon le champ modifié
-    if (disablingFields.includes(name)) {
-        setDisableAutocompletion(true);
-    } else {
-        setDisableAutocompletion(false);
-    }
-
-    // Gérer les champs other_infos séparément
-    if (name.startsWith('other_infos.')) {
-        // Si c'est le champ containerDescription, mettre à jour changedField
-        if (name === 'other_infos.containerDescription') {
+    //HandleChange -> AUTOCOMPLETION
+    const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: { name: string; value: string } }) => {
+        const { name, value } = e.target;
+        
+        // Mettre à jour le champ qui a changé
+        if(Object.keys(inputDependencies).includes(name)) {
             setChangedField(name);
         }
+
+        // Liste des champs qui désactivent l'autocomplétion
+        const disablingFields = [
+            'wasteDetails.quantity',
+            'wasteDetails.packagingInfos[0].quantity',
+            'other_infos.containerDescription',
+            'other_infos.volume',
+            'other_infos.volumeUnit',
+            'other_infos.fillRate'
+        ];
+
+        // Activer/désactiver l'autocomplétion selon le champ modifié
+        if (disablingFields.includes(name)) {
+            setDisableAutocompletion(true);
+        } else {
+            setDisableAutocompletion(false);
+        }
+
+        // Gérer les champs other_infos séparément
+        if (name.startsWith('other_infos.')) {
+            // Si c'est le champ containerDescription, mettre à jour changedField
+            if (name === 'other_infos.containerDescription') {
+                setChangedField(name);
+            }
+            
+            const fieldName = name.replace('other_infos.', '');
+            setOtherInfos(prev => ({
+                ...prev,
+                [fieldName]: value
+            }));
+            
+            // Si le mode automatique est activé et qu'on est en mode volume, mettre à jour la quantité
+            if (other_infos.automaticMode && other_infos.inputMode === 'volume' && 
+                (fieldName === 'fillRate' || fieldName === 'volume' || fieldName === 'volumeUnit')) {
+                const weight = calculateEstimatedWeight(
+                    fieldName === 'volume' ? value : other_infos.volume,
+                    fieldName === 'fillRate' ? value : other_infos.fillRate,
+                    dataToogle.wasteDetails.code,
+                    fieldName === 'volumeUnit' ? value : other_infos.volumeUnit,
+                    other_infos.automaticMode ? 1 : 0,
+                    masseVolumique
+                );
+                if (weight !== null) {
+                    const newData = { ...dataToogle };
+                    updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.quantity', weight.toFixed(3));
+                    setDataToogle(newData);
+                }
+            }
+            
+            return;
+        }
+
+        // Création de newData avant son utilisation
+        const newData = JSON.parse(JSON.stringify(dataToogle)) as FormInput;
         
-        const fieldName = name.replace('other_infos.', '');
-        setOtherInfos(prev => ({
-            ...prev,
-            [fieldName]: value
-        }));
+        // Mettre à jour la valeur dans newData
+        updateNestedValue(newData as unknown as NestedObject, name, value);
         
-        // Si le mode automatique est activé et qu'on est en mode volume, mettre à jour la quantité
-        if (other_infos.automaticMode && other_infos.inputMode === 'volume' && 
-            (fieldName === 'fillRate' || fieldName === 'volume' || fieldName === 'volumeUnit')) {
+        // Mettre à jour dataToogle avec les nouvelles valeurs
+        setDataToogle(newData);
+
+        // Mise à jour de dataFilter seulement si ce n'est pas un champ désactivant l'autocomplétion
+        if (!disablingFields.includes(name)) {
+            const newDataFilter = dataFilterUpdate(
+                setCurrentFiliere, 
+                ced_table, 
+                name, 
+                value, 
+                dataFilter, 
+                setDataFilter, 
+                inputDependencies
+            );
+
+            // Mise à jour des options si nécessaire
+        if (entreprise_id) {
+            try {
+                    const [filteredOptions, allOptionsData] = await Promise.all([
+                        getDataAutocompletionFull(newDataFilter, entreprise_id, ced_table),
+                        getDataAutocompletionFull([], entreprise_id, ced_table)
+                ]);
+                
+                    setOptions(filteredOptions);
+                    setAllOptions(allOptionsData);
+            } catch (error) {
+                console.error("Erreur lors de la mise à jour des options:", error);
+                }
+            }
+        }
+    };
+
+    //ResetData
+    const ResetData = () => {
+        setDataToogle(initialToogleData);
+        setDataFilter([]);
+        setCurrentFiliere("");
+        setChangedField("");
+        setOtherInfos(initialOtherInfos);
+        if(entreprise_id) {
+            getDataAutocompletionFull([], entreprise_id, []).then(data => setOptions(data));
+        }
+    }
+
+    const toogleFunction = () => {
+        if(changedField!=='') {
+            setChangedField('');
+        }
+        else {
+            setDisplayAll(!displayAll); 
+        }
+    }
+
+    // Dans le composant ValidateCollecte, modifier les gestionnaires d'événements
+    const handleOtherInfosChange = (updates: Partial<OtherInfos>) => {
+        const updatedOtherInfos: OtherInfos = {
+            ...other_infos,
+            ...updates
+        };
+        
+        // Si le mode automatique est activé et qu'on est en mode volume
+        if (updatedOtherInfos.automaticMode && updatedOtherInfos.inputMode === 'volume' && 
+            (updates.fillRate || updates.volume || updates.volumeUnit)) {
             const weight = calculateEstimatedWeight(
-                fieldName === 'volume' ? value : other_infos.volume,
-                fieldName === 'fillRate' ? value : other_infos.fillRate,
+                updatedOtherInfos.volume,
+                updatedOtherInfos.fillRate,
                 dataToogle.wasteDetails.code,
-                fieldName === 'volumeUnit' ? value : other_infos.volumeUnit,
-                other_infos.automaticMode ? 1 : 0,
+                updatedOtherInfos.volumeUnit,
+                updatedOtherInfos.automaticMode ? 1 : 0,
                 masseVolumique
             );
             if (weight !== null) {
@@ -435,482 +543,362 @@ const handleChange = async (e: React.ChangeEvent<HTMLSelectElement> | { target: 
             }
         }
         
-        return;
-    }
-
-    // Création de newData avant son utilisation
-    const newData = JSON.parse(JSON.stringify(dataToogle)) as FormInput;
-    
-    // Mettre à jour la valeur dans newData
-    updateNestedValue(newData as unknown as NestedObject, name, value);
-    
-    // Mettre à jour dataToogle avec les nouvelles valeurs
-    setDataToogle(newData);
-
-    // Mise à jour de dataFilter seulement si ce n'est pas un champ désactivant l'autocomplétion
-    if (!disablingFields.includes(name)) {
-        const newDataFilter = dataFilterUpdate(
-            setCurrentFiliere, 
-            ced_table, 
-            name, 
-            value, 
-            dataFilter, 
-            setDataFilter, 
-            inputDependencies
-        );
-
-        // Mise à jour des options si nécessaire
-    if (entreprise_id) {
-        try {
-                const [filteredOptions, allOptionsData] = await Promise.all([
-                    getDataAutocompletionFull(newDataFilter, entreprise_id, ced_table),
-                    getDataAutocompletionFull([], entreprise_id, ced_table)
-            ]);
-            
-                setOptions(filteredOptions);
-                setAllOptions(allOptionsData);
-        } catch (error) {
-            console.error("Erreur lors de la mise à jour des options:", error);
-            }
-        }
-    }
-};
-
-//ResetData
-const ResetData = () => {
-    setDataToogle(initialToogleData);
-    setDataFilter([]);
-    setCurrentFiliere("");
-    setChangedField("");
-    setOtherInfos(initialOtherInfos);
-    if(entreprise_id) {
-        getDataAutocompletionFull([], entreprise_id, []).then(data => setOptions(data));
-    }
-}
-
-const toogleFunction = () => {
-    if(changedField!=='') {
-        setChangedField('');
-    }
-    else {
-        setDisplayAll(!displayAll); 
-    }
-}
-
-// Dans le composant ValidateCollecte, modifier les gestionnaires d'événements
-const handleOtherInfosChange = (updates: Partial<OtherInfos>) => {
-    const updatedOtherInfos: OtherInfos = {
-        ...other_infos,
-        ...updates
+        setOtherInfos(updatedOtherInfos);
     };
-    
-    // Si le mode automatique est activé et qu'on est en mode volume
-    if (updatedOtherInfos.automaticMode && updatedOtherInfos.inputMode === 'volume' && 
-        (updates.fillRate || updates.volume || updates.volumeUnit)) {
-        const weight = calculateEstimatedWeight(
-            updatedOtherInfos.volume,
-            updatedOtherInfos.fillRate,
-            dataToogle.wasteDetails.code,
-            updatedOtherInfos.volumeUnit,
-            updatedOtherInfos.automaticMode ? 1 : 0,
-            masseVolumique
-        );
-        if (weight !== null) {
-            const newData = { ...dataToogle };
-            updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.quantity', weight.toFixed(3));
-            setDataToogle(newData);
+
+    // Modifier le useEffect pour prendre en compte l'état de désactivation
+    useEffect(() => {
+        // Ne pas exécuter l'autocomplétion si elle est désactivée
+        if (disableAutocompletion) {
+            return;
         }
-    }
-    
-    setOtherInfos(updatedOtherInfos);
-};
 
-// Modifier le useEffect pour prendre en compte l'état de désactivation
-useEffect(() => {
-    // Ne pas exécuter l'autocomplétion si elle est désactivée
-    if (disableAutocompletion) {
-        return;
-    }
-
-    Object.entries(filter_dependencies).forEach(([key, config]) => {
-        const allParentsHaveValues = config.parent.every(parentField => {
-            const parentValue = parentField.split('.').reduce<unknown>((obj, key) => 
-                typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
-                dataToogle as unknown as Record<string, unknown>
-            );
-            return parentValue && parentValue !== '';
-        });
-
-        if (allParentsHaveValues) {
-            const newData = { ...dataToogle };
-            let hasUpdates = false;
-
-            config.children.forEach(childField => {
-                const currentValue = childField.split('.').reduce<unknown>((obj, key) => 
+        Object.entries(filter_dependencies).forEach(([key, config]) => {
+            const allParentsHaveValues = config.parent.every(parentField => {
+                const parentValue = parentField.split('.').reduce<unknown>((obj, key) => 
                     typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
                     dataToogle as unknown as Record<string, unknown>
                 );
-                if (!currentValue || currentValue === '') {
-                    const suggestedValue = preciseFilter(
-                        allOptions,
-                        newData,
-                        config.parent,
-                        childField
-                    );
-                    
-                    if (suggestedValue) {
-                        updateNestedValue(newData as unknown as NestedObject, childField, suggestedValue);
-                        hasUpdates = true;
-                    }
-                }
+                return parentValue && parentValue !== '';
             });
 
-            if (hasUpdates) {
-                setDataToogle(newData);
-            }
-        }
-    });
-}, [dataToogle, allOptions, disableAutocompletion]);
+            if (allParentsHaveValues) {
+                const newData = { ...dataToogle };
+                let hasUpdates = false;
 
-// Modifier le handleTakePhoto pour stocker la photo localement
-const handleTakePhoto = async () => {
-    try {
-        if (!entreprise_id) {
-            toast.error('Vous devez être connecté pour prendre une photo');
-            return;
-        }
-
-        // Créer une div de statut pour iOS
-        const statusDiv = document.createElement('div');
-        statusDiv.style.position = 'fixed';
-        statusDiv.style.bottom = '20px';
-        statusDiv.style.left = '50%';
-        statusDiv.style.transform = 'translateX(-50%)';
-        statusDiv.style.backgroundColor = 'rgba(0,0,0,0.8)';
-        statusDiv.style.color = 'white';
-        statusDiv.style.padding = '10px 20px';
-        statusDiv.style.borderRadius = '20px';
-        statusDiv.style.zIndex = '9999';
-        statusDiv.style.display = 'none';
-        document.body.appendChild(statusDiv);
-
-        const updateStatus = (message: string) => {
-            statusDiv.textContent = message;
-            console.log('Status:', message);
-        };
-
-        const cleanupStatus = () => {
-            if (document.body.contains(statusDiv)) {
-                document.body.removeChild(statusDiv);
-            }
-        };
-
-        // Nettoyer après 10 secondes dans tous les cas
-        setTimeout(cleanupStatus, 10000);
-
-        updateStatus('Initialisation de la capture...');
-
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        
-        // Sur iOS, ne pas utiliser capture="environment"
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        if (!isIOS) {
-            input.setAttribute('capture', 'environment');
-        }
-
-        updateStatus('Ouverture de la sélection...');
-        
-        return new Promise((resolve, reject) => {
-            input.onchange = async (e) => {
-                const files = (e.target as HTMLInputElement).files;
-                if (!files || files.length === 0) {
-                    updateStatus('Aucune photo sélectionnée');
-                    setTimeout(cleanupStatus, 2000);
-                    reject(new Error('Aucune photo sélectionnée'));
-                    return;
-                }
-
-                const file = files[0];
-                updateStatus('Photo sélectionnée, compression en cours...');
-                console.log('Type de fichier:', file.type);
-                console.log('Taille originale:', file.size);
-
-                try {
-                    // Compresser l'image
-                    const compressedFile = await compressImage(file);
-                    console.log('Taille après compression:', compressedFile.size);
-                    updateStatus('Photo compressée, création de l\'aperçu...');
-
-                    // Créer un URL temporaire pour l'aperçu
-                    const objectUrl = URL.createObjectURL(compressedFile);
-
-                    // Nettoyer l'ancienne URL si elle existe
-                    if (photoUrl && !photoUrl.startsWith('http')) {
-                        URL.revokeObjectURL(photoUrl);
-                    }
-
-                    // Mettre à jour l'état avec la nouvelle photo compressée
-                    setCompressedPhoto(compressedFile);
-                    setPhotoUrl(objectUrl);
-
-                    updateStatus('Photo chargée avec succès');
-                    setTimeout(cleanupStatus, 2000);
-                    resolve(undefined);
-
-                } catch (error) {
-                    console.error('Erreur lors de la compression:', error);
-                    updateStatus('Tentative de méthode alternative...');
-
-                    // Fallback à FileReader avec une compression basique
-                    const reader = new FileReader();
-                    reader.onloadend = async (event) => {
-                        if (event.target?.result) {
-                            // Créer une image pour la compression basique
-                            const img = document.createElement('img') as HTMLImageElement;
-                            img.onload = () => {
-                                const canvas = document.createElement('canvas');
-                                const MAX_SIZE = 800;
-                                let width = img.width;
-                                let height = img.height;
-
-                                if (width > height) {
-                                    if (width > MAX_SIZE) {
-                                        height *= MAX_SIZE / width;
-                                        width = MAX_SIZE;
-                                    }
-                                } else {
-                                    if (height > MAX_SIZE) {
-                                        width *= MAX_SIZE / height;
-                                        height = MAX_SIZE;
-                                    }
-                                }
-
-                                canvas.width = width;
-                                canvas.height = height;
-                                const ctx = canvas.getContext('2d');
-                                ctx?.drawImage(img, 0, 0, width, height);
-
-                                // Convertir en base64 avec une qualité réduite
-                                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                                setPhotoUrl(compressedDataUrl);
-
-                                // Convertir le base64 en File pour l'upload
-                                fetch(compressedDataUrl)
-                                    .then(res => res.blob())
-                                    .then(blob => {
-                                        const compressedFile = new File([blob], file.name, {
-                                            type: 'image/jpeg',
-                                            lastModified: Date.now()
-                                        });
-                                        setCompressedPhoto(compressedFile);
-                                        updateStatus('Photo chargée via méthode alternative');
-                                        setTimeout(cleanupStatus, 2000);
-                                        resolve(undefined);
-                                    });
-                            };
-                            img.src = event.target.result as string;
+                config.children.forEach(childField => {
+                    const currentValue = childField.split('.').reduce<unknown>((obj, key) => 
+                        typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
+                        dataToogle as unknown as Record<string, unknown>
+                    );
+                    if (!currentValue || currentValue === '') {
+                        const suggestedValue = preciseFilter(
+                            allOptions,
+                            newData,
+                            config.parent,
+                            childField
+                        );
+                        
+                        if (suggestedValue) {
+                            updateNestedValue(newData as unknown as NestedObject, childField, suggestedValue);
+                            hasUpdates = true;
                         }
-                    };
-                    reader.onerror = () => {
-                        updateStatus('Échec du chargement de la photo');
-                        setTimeout(cleanupStatus, 2000);
-                        reject(new Error('Échec de lecture du fichier'));
-                    };
-                    reader.readAsDataURL(file);
-                }
-            };
-
-            input.onerror = (error) => {
-                updateStatus('Erreur lors de la sélection');
-                setTimeout(cleanupStatus, 2000);
-                reject(error);
-            };
-
-            // Déclencher la sélection de fichier
-            input.click();
-        });
-    } catch (error) {
-        console.error('Erreur globale:', error);
-        toast.error('Erreur lors de la prise de photo');
-    }
-};
-
-// Modifier onValidate pour uploader la photo si elle existe
-const onValidate = async () => {
-    try {
-        setSubmitLoading(true);
-        // Vérifier que les champs obligatoires sont remplis
-        /*if (!dataToogle.wasteDetails.quantity) {
-            toast.error("La quantité est obligatoire");
-            setSubmitLoading(false);
-            return;
-        }*/
-
-        /*if (!other_infos.containerDescription) {
-            toast.error("La description du contenant est obligatoire");
-            setSubmitLoading(false);
-            return;
-        }*/
-
-        /*if (!dataToogle.wasteDetails.packagingInfos[0].quantity) {
-            toast.error("Le nombre de contenants est obligatoire");
-            setSubmitLoading(false);
-            return;
-        }*/
-
-        let photoPublicUrl = null;
-
-        // Upload de la photo si elle existe
-        if (compressedPhoto) {
-            const timestamp = Date.now();
-            const fileExtension = compressedPhoto.name.split('.').pop();
-            const fileName = `${bsd.id}_${timestamp}.${fileExtension}`;
-
-            const { data: uploadData, error: uploadError } = await supabase.storage
-                .from('photos')
-                .upload(fileName, compressedPhoto, {
-                    cacheControl: '3600',
-                    upsert: false
+                    }
                 });
 
-            if (uploadError) {
-                throw new Error(`Erreur lors de l'upload: ${uploadError.message}`);
+                if (hasUpdates) {
+                    setDataToogle(newData);
+                }
+            }
+        });
+    }, [dataToogle, allOptions, disableAutocompletion]);
+
+    // Modifier le handleTakePhoto pour stocker la photo localement
+    const handleTakePhoto = async () => {
+        try {
+            if (!entreprise_id) {
+                toast.error('Vous devez être connecté pour prendre une photo');
+                return;
             }
 
-            const { data: { publicUrl } } = supabase.storage
-                .from('photos')
-                .getPublicUrl(fileName);
+            // Créer une div de statut pour iOS
+            const statusDiv = document.createElement('div');
+            statusDiv.style.position = 'fixed';
+            statusDiv.style.bottom = '20px';
+            statusDiv.style.left = '50%';
+            statusDiv.style.transform = 'translateX(-50%)';
+            statusDiv.style.backgroundColor = 'rgba(0,0,0,0.8)';
+            statusDiv.style.color = 'white';
+            statusDiv.style.padding = '10px 20px';
+            statusDiv.style.borderRadius = '20px';
+            statusDiv.style.zIndex = '9999';
+            statusDiv.style.display = 'none';
+            document.body.appendChild(statusDiv);
 
-            photoPublicUrl = publicUrl;
-        }
+            const updateStatus = (message: string) => {
+                statusDiv.textContent = message;
+                console.log('Status:', message);
+            };
 
-        bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity = parseFloat(String(dataToogle.wasteDetails.quantity));
-        // Préparer les données à mettre à jour
-        const updateData = {
-            infos_json: {
-                ...bsd.infos_json,
-                formAPI: {
-                    ...bsd.infos_json.formAPI,
-                    createFormInput: {
-                        ...dataToogle,
-                        takenOverAt: new Date().toISOString()
-                    }
+            const cleanupStatus = () => {
+                if (document.body.contains(statusDiv)) {
+                    document.body.removeChild(statusDiv);
                 }
-            },
-            other_infos: other_infos,
-            status_track_dechets: 'Ligne validée',
-            id_track_dechets: 'Ligne validée',
-            readable_id_track_dechets: 'Ligne validée',
-            ...(photoPublicUrl && { photo: photoPublicUrl }) // Ajouter la photo seulement si elle existe
-        };
+            };
 
-        // Mettre à jour le BSD dans la base de données
-        const { data: pulledUpdatedBSD, error } = await supabase
-            .from('bsd')
-            .update(updateData)
-            .eq('id', bsd.id)
-            .select()
-            .single();
+            // Nettoyer après 10 secondes dans tous les cas
+            setTimeout(cleanupStatus, 10000);
 
-        if (error) {
-            console.error('Erreur lors de la mise à jour:', error);
-            toast.error('Erreur lors de la validation du BSD');
-            throw error;
-        }
+            updateStatus('Initialisation de la capture...');
 
-        setSubmitLoading(false);
-        toast.success('BSD validé avec succès');
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            
+            // Sur iOS, ne pas utiliser capture="environment"
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            if (!isIOS) {
+                input.setAttribute('capture', 'environment');
+            }
 
-        setTimeout(() => {
-            setAllBSDs(prev => prev.map(prevBSD => prevBSD.id === bsd.id ? pulledUpdatedBSD as unknown as BSD : prevBSD));
-            setAllFilteredBSDs(prev => prev.map(prevBSD => prevBSD.id === bsd.id ? pulledUpdatedBSD as unknown as BSD : prevBSD));
-            setDisplayedBSDs(prev => prev.map(prevBSD => prevBSD.id === bsd.id ? pulledUpdatedBSD as unknown as BSD : prevBSD));
-        }, 100);
+            updateStatus('Ouverture de la sélection...');
+            
+            return new Promise((resolve, reject) => {
+                input.onchange = async (e) => {
+                    const files = (e.target as HTMLInputElement).files;
+                    if (!files || files.length === 0) {
+                        updateStatus('Aucune photo sélectionnée');
+                        setTimeout(cleanupStatus, 2000);
+                        reject(new Error('Aucune photo sélectionnée'));
+                        return;
+                    }
 
-        setModalReload(!modalReload);
-        invalidateCache(entreprise_id, user_id);
-        onClose();
+                    const file = files[0];
+                    updateStatus('Photo sélectionnée, compression en cours...');
+                    console.log('Type de fichier:', file.type);
+                    console.log('Taille originale:', file.size);
 
-        // Nettoyer l'URL temporaire à la fermeture
-        if (photoUrl && !photoUrl.startsWith('http')) {
-            URL.revokeObjectURL(photoUrl);
-        }
-    } catch (error) {
-        console.error('Erreur:', error);
-        toast.error('Une erreur est survenue lors de la validation');
-    } finally {
-        setSubmitLoading(false);
-    }
-};
+                    try {
+                        // Compresser l'image
+                        const compressedFile = await compressImage(file);
+                        console.log('Taille après compression:', compressedFile.size);
+                        updateStatus('Photo compressée, création de l\'aperçu...');
 
-// Ajouter un useEffect pour nettoyer l'URL temporaire
-useEffect(() => {
-    return () => {
-        if (photoUrl && !photoUrl.startsWith('http')) {
-            URL.revokeObjectURL(photoUrl);
+                        // Créer un URL temporaire pour l'aperçu
+                        const objectUrl = URL.createObjectURL(compressedFile);
+
+                        // Nettoyer l'ancienne URL si elle existe
+                        if (photoUrl && !photoUrl.startsWith('http')) {
+                            URL.revokeObjectURL(photoUrl);
+                        }
+
+                        // Mettre à jour l'état avec la nouvelle photo compressée
+                        setCompressedPhoto(compressedFile);
+                        setPhotoUrl(objectUrl);
+
+                        updateStatus('Photo chargée avec succès');
+                        setTimeout(cleanupStatus, 2000);
+                        resolve(undefined);
+
+                    } catch (error) {
+                        console.error('Erreur lors de la compression:', error);
+                        updateStatus('Tentative de méthode alternative...');
+
+                        // Fallback à FileReader avec une compression basique
+                        const reader = new FileReader();
+                        reader.onloadend = async (event) => {
+                            if (event.target?.result) {
+                                // Créer une image pour la compression basique
+                                const img = document.createElement('img') as HTMLImageElement;
+                                img.onload = () => {
+                                    const canvas = document.createElement('canvas');
+                                    const MAX_SIZE = 800;
+                                    let width = img.width;
+                                    let height = img.height;
+
+                                    if (width > height) {
+                                        if (width > MAX_SIZE) {
+                                            height *= MAX_SIZE / width;
+                                            width = MAX_SIZE;
+                                        }
+                                    } else {
+                                        if (height > MAX_SIZE) {
+                                            width *= MAX_SIZE / height;
+                                            height = MAX_SIZE;
+                                        }
+                                    }
+
+                                    canvas.width = width;
+                                    canvas.height = height;
+                                    const ctx = canvas.getContext('2d');
+                                    ctx?.drawImage(img, 0, 0, width, height);
+
+                                    // Convertir en base64 avec une qualité réduite
+                                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                                    setPhotoUrl(compressedDataUrl);
+
+                                    // Convertir le base64 en File pour l'upload
+                                    fetch(compressedDataUrl)
+                                        .then(res => res.blob())
+                                        .then(blob => {
+                                            const compressedFile = new File([blob], file.name, {
+                                                type: 'image/jpeg',
+                                                lastModified: Date.now()
+                                            });
+                                            setCompressedPhoto(compressedFile);
+                                            updateStatus('Photo chargée via méthode alternative');
+                                            setTimeout(cleanupStatus, 2000);
+                                            resolve(undefined);
+                                        });
+                                };
+                                img.src = event.target.result as string;
+                            }
+                        };
+                        reader.onerror = () => {
+                            updateStatus('Échec du chargement de la photo');
+                            setTimeout(cleanupStatus, 2000);
+                            reject(new Error('Échec de lecture du fichier'));
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+
+                input.onerror = (error) => {
+                    updateStatus('Erreur lors de la sélection');
+                    setTimeout(cleanupStatus, 2000);
+                    reject(error);
+                };
+
+                // Déclencher la sélection de fichier
+                input.click();
+            });
+        } catch (error) {
+            console.error('Erreur globale:', error);
+            toast.error('Erreur lors de la prise de photo');
         }
     };
-}, [photoUrl]);
 
-// Ajouter un useEffect pour améliorer la gestion des événements tactiles
-useEffect(() => {
-    // Sélectionner l'élément de la jauge
-    const gaugeElement = document.querySelector('.touch-none');
-    
-    if (gaugeElement) {
-        // Fonction pour empêcher le défilement par défaut
-        const preventDefaultTouch = (e: Event) => {
-            e.preventDefault();
-        };
-        
-        // Ajouter les écouteurs d'événements avec passive: false
-        gaugeElement.addEventListener('touchstart', preventDefaultTouch as EventListener, { passive: false });
-        gaugeElement.addEventListener('touchmove', preventDefaultTouch as EventListener, { passive: false });
-        gaugeElement.addEventListener('touchend', preventDefaultTouch as EventListener, { passive: false });
-        
-        // Nettoyer les écouteurs d'événements
+    // Modifier onValidate pour uploader la photo si elle existe
+    const onValidate = async () => {
+        try {
+            setSubmitLoading(true);
+            // Vérifier que les champs obligatoires sont remplis
+            /*if (!dataToogle.wasteDetails.quantity) {
+                toast.error("La quantité est obligatoire");
+                setSubmitLoading(false);
+                return;
+            }*/
+
+            /*if (!other_infos.containerDescription) {
+                toast.error("La description du contenant est obligatoire");
+                setSubmitLoading(false);
+                return;
+            }*/
+
+            /*if (!dataToogle.wasteDetails.packagingInfos[0].quantity) {
+                toast.error("Le nombre de contenants est obligatoire");
+                setSubmitLoading(false);
+                return;
+            }*/
+
+            let photoPublicUrl = null;
+
+            // Upload de la photo si elle existe
+            if (compressedPhoto) {
+                const timestamp = Date.now();
+                const fileExtension = compressedPhoto.name.split('.').pop();
+                const fileName = `${bsd.id}_${timestamp}.${fileExtension}`;
+
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('photos')
+                    .upload(fileName, compressedPhoto, {
+                        cacheControl: '3600',
+                        upsert: false
+                    });
+
+                if (uploadError) {
+                    throw new Error(`Erreur lors de l'upload: ${uploadError.message}`);
+                }
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('photos')
+                    .getPublicUrl(fileName);
+
+                photoPublicUrl = publicUrl;
+            }
+
+            bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity = parseFloat(String(dataToogle.wasteDetails.quantity));
+            // Préparer les données à mettre à jour
+            const updateData = {
+                infos_json: {
+                    ...bsd.infos_json,
+                    formAPI: {
+                        ...bsd.infos_json.formAPI,
+                        createFormInput: {
+                            ...dataToogle,
+                            takenOverAt: new Date().toISOString()
+                        }
+                    }
+                },
+                other_infos: other_infos,
+                status_track_dechets: 'Ligne validée',
+                id_track_dechets: 'Ligne validée',
+                readable_id_track_dechets: 'Ligne validée',
+                ...(photoPublicUrl && { photo: photoPublicUrl }) // Ajouter la photo seulement si elle existe
+            };
+
+            // Mettre à jour le BSD dans la base de données
+            const { data: pulledUpdatedBSD, error } = await supabase
+                .from('bsd')
+                .update(updateData)
+                .eq('id', bsd.id)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Erreur lors de la mise à jour:', error);
+                toast.error('Erreur lors de la validation du BSD');
+                throw error;
+            }
+
+            setSubmitLoading(false);
+            toast.success('BSD validé avec succès');
+
+            setTimeout(() => {
+                setAllBSDs(prev => prev.map(prevBSD => prevBSD.id === bsd.id ? pulledUpdatedBSD as unknown as BSD : prevBSD));
+                setAllFilteredBSDs(prev => prev.map(prevBSD => prevBSD.id === bsd.id ? pulledUpdatedBSD as unknown as BSD : prevBSD));
+                setDisplayedBSDs(prev => prev.map(prevBSD => prevBSD.id === bsd.id ? pulledUpdatedBSD as unknown as BSD : prevBSD));
+            }, 100);
+
+            setModalReload(!modalReload);
+            invalidateCache(entreprise_id, user_id);
+            onClose();
+
+            // Nettoyer l'URL temporaire à la fermeture
+            if (photoUrl && !photoUrl.startsWith('http')) {
+                URL.revokeObjectURL(photoUrl);
+            }
+        } catch (error) {
+            console.error('Erreur:', error);
+            toast.error('Une erreur est survenue lors de la validation');
+        } finally {
+            setSubmitLoading(false);
+        }
+    };
+
+    // Ajouter un useEffect pour nettoyer l'URL temporaire
+    useEffect(() => {
         return () => {
-            gaugeElement.removeEventListener('touchstart', preventDefaultTouch as EventListener);
-            gaugeElement.removeEventListener('touchmove', preventDefaultTouch as EventListener);
-            gaugeElement.removeEventListener('touchend', preventDefaultTouch as EventListener);
+            if (photoUrl && !photoUrl.startsWith('http')) {
+                URL.revokeObjectURL(photoUrl);
+            }
         };
-    }
-}, []);
+    }, [photoUrl]);
 
-// Ajouter le useEffect pour mettre à jour la masse volumique
-useEffect(() => {
-    const fetchMasseVolumique = async () => {
-        if (!dataToogle.wasteDetails.code || !entreprise_id) return;
-
-        // Chercher d'abord dans la table d'autocomplétion
-        const { data: autocompletionData } = await supabase
-            .from('table_autocompletion')
-            .select('dechet')
-            .eq('entreprise_id', entreprise_id)
-            .eq('dechet->>codeCED', dataToogle.wasteDetails.code)
-            .single();
-
-        if (autocompletionData?.dechet?.masseVolumique) {
-            setMasseVolumique(autocompletionData.dechet.masseVolumique*1000);
-            return;
-        }
-
-        // Si pas trouvé dans l'autocomplétion, chercher dans le dictionnaire
-        const wasteInfo = dic_json_ced_masse_volumique.find(
-            item => item.code_CED.replace(/\s/g, '') === dataToogle.wasteDetails.code.replace(/\s/g, '')
-        );
+    // Ajouter un useEffect pour améliorer la gestion des événements tactiles
+    useEffect(() => {
+        // Sélectionner l'élément de la jauge
+        const gaugeElement = document.querySelector('.touch-none');
         
-        if (wasteInfo) {
-            setMasseVolumique(wasteInfo.masse_volumique);
-        } else {
-            setMasseVolumique(1000); // Valeur par défaut
+        if (gaugeElement) {
+            // Fonction pour empêcher le défilement par défaut
+            const preventDefaultTouch = (e: Event) => {
+                e.preventDefault();
+            };
+            
+            // Ajouter les écouteurs d'événements avec passive: false
+            gaugeElement.addEventListener('touchstart', preventDefaultTouch as EventListener, { passive: false });
+            gaugeElement.addEventListener('touchmove', preventDefaultTouch as EventListener, { passive: false });
+            gaugeElement.addEventListener('touchend', preventDefaultTouch as EventListener, { passive: false });
+            
+            // Nettoyer les écouteurs d'événements
+            return () => {
+                gaugeElement.removeEventListener('touchstart', preventDefaultTouch as EventListener);
+                gaugeElement.removeEventListener('touchmove', preventDefaultTouch as EventListener);
+                gaugeElement.removeEventListener('touchend', preventDefaultTouch as EventListener);
+            };
         }
-    };
-
-    fetchMasseVolumique();
-}, [dataToogle.wasteDetails.code, entreprise_id]);
+    }, []);
 
     return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center overflow-y-auto py-0 sm:py-4 z-50">
@@ -1252,59 +1240,43 @@ useEffect(() => {
                     {/* Jauge de remplissage et photo - Agrandis */}
                     <div className="grid grid-cols-2 gap-4 mb-4">
                         {/* Photo */}
-                        <div>
+                        <div className="flex flex-col items-center justify-center w-full h-[180px] border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
                             {photoUrl ? (
-                                <div>
-                                    <div className="relative w-full h-[180px] rounded-lg overflow-hidden border border-gray-200 mb-2">
-                                        <img
-                                            src={photoUrl}
-                                            alt="Photo du déchet"
-                                            className="object-contain w-full h-full"
-                                            key={`img-${Date.now()}`}
-                                            style={{ maxWidth: '100%', maxHeight: '100%' }}
-                                            onLoad={(e) => {
-                                                console.log('Image chargée avec succès:', (e.target as HTMLImageElement).src);
-                                            }}
-                                            onError={(e) => {
-                                                console.error('Erreur de chargement de l\'image:', {
-                                                    src: (e.target as HTMLImageElement).src,
-                                                    error: e
-                                                });
-                                            }}
-                                        />
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <a 
-                                            href={photoUrl || '#'}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-sm text-blue-600"
-                                            onClick={(e) => {
-                                                if (!photoUrl) e.preventDefault();
-                                            }}
-                                        >
-                                            Voir
-                                        </a>
-                                        <button
-                                            type="button"
-                                            className="text-sm bg-gray-100 text-gray-600 px-3 py-1 rounded"
-                                            onClick={handleTakePhoto}
-                                        >
-                                            Changer
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center w-full h-[180px] border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                                <div className="relative w-full h-full">
+                                    <img
+                                        src={photoUrl}
+                                        alt="Photo du déchet"
+                                        className="object-contain w-full h-full"
+                                        key={`img-${Date.now()}`}
+                                        style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                        onLoad={(e) => {
+                                            console.log('Image chargée avec succès:', (e.target as HTMLImageElement).src);
+                                        }}
+                                        onError={(e) => {
+                                            console.error('Erreur de chargement de l\'image:', {
+                                                src: (e.target as HTMLImageElement).src,
+                                                error: e
+                                            });
+                                            setPhotoUrl(null); // Réinitialiser l'URL si l'image ne peut pas être chargée
+                                        }}
+                                    />
                                     <button
                                         type="button"
                                         onClick={handleTakePhoto}
-                                        className="flex flex-col items-center justify-center p-4 text-gray-600 hover:text-gray-800"
+                                        className="absolute bottom-2 right-2 bg-white rounded-full p-2 shadow-md hover:bg-gray-100"
                                     >
-                                        <BoxIcon name="camera" type="solid" className="w-8 h-8 mb-2" />
-                                        <span className="text-sm font-medium">Prendre une photo</span>
+                                        <BoxIcon name="camera" type="solid" className="w-6 h-6" />
                                     </button>
                                 </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={handleTakePhoto}
+                                    className="flex flex-col items-center justify-center p-4 text-gray-600 hover:text-gray-800"
+                                >
+                                    <BoxIcon name="camera" type="solid" className="w-8 h-8 mb-2" />
+                                    <span className="text-sm font-medium">Prendre une photo</span>
+                                </button>
                             )}
                         </div>
 

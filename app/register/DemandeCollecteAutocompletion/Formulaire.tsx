@@ -28,6 +28,7 @@ import {
 } from './types';
 import { invalidateCache } from '@/app/utils/invalidateCache';
 import { useModalContextNew } from '../RegisterComponents/Modal/ContextModal';
+import PhotoCaptureModal from './PhotoCaptureModal';
 
 interface FormulaireProps {
   setDisplayThis: (display: boolean) => void;
@@ -43,6 +44,8 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
   const { allOptions, selectedFieldsList, handleFieldChange: originalHandleFieldChange, addNewLine, removeLine, autocompletionEnabled, setAutocompletionEnabled } = useAutocompletion(entreprise_id, siteAccess);
   const mailsPartRef = useRef<MailsPartComponentRef>(null);
   const { setAllBSDs, setAllFilteredBSDs, setDisplayedBSDs } = useBSDs();
+  const [photoModalOpen, setPhotoModalOpen] = useState(false);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState<number | null>(null);
   
 
   React.useEffect(() => {
@@ -103,6 +106,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
     codeTraitement: CodeTraitementInterface | null;
     contrat: ContratInterface | null;
     mention: { toMentionned: boolean; mentionType: string; mentionCompany: string; mentionAddress: string } | null;
+    photo: File | null;
   };
 
   const handleFieldChange = (index: number, field: keyof FieldValue, value: FieldValue[keyof FieldValue]) => {
@@ -184,6 +188,12 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
       } finally {
         setIsSubmitting(false);
       }
+    }
+  };
+
+  const handlePhotoCapture = (file: File) => {
+    if (currentPhotoIndex !== null) {
+      handleFieldChange(currentPhotoIndex, 'photo', file);
     }
   };
 
@@ -455,10 +465,28 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                     >
                       {Object.entries(TYPES_PRESTATION_LABELS).map(([value, label]) => (
                         <option key={value} value={value}>
-                          {label}
+                          {isMobile ? label.split(' (')[0] : label}
                         </option>
                       ))}
                     </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrentPhotoIndex(index);
+                        setPhotoModalOpen(true);
+                      }}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        selectedFields.photo ? 'bg-green-500' : 'bg-gray-200'
+                      } hover:bg-opacity-80 transition-colors`}
+                      title="Prendre une photo"
+                    >
+                      <BoxIcon 
+                        name="camera" 
+                        type="solid" 
+                        size="sm" 
+                        color={selectedFields.photo ? 'white' : 'gray-600'} 
+                      />
+                    </button>
                   </div>
 
                   {index > 0 && (
@@ -1086,6 +1114,15 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
           </form>
         </div>
       </div>
+
+      <PhotoCaptureModal
+        isOpen={photoModalOpen}
+        onClose={() => {
+          setPhotoModalOpen(false);
+          setCurrentPhotoIndex(null);
+        }}
+        onCapture={handlePhotoCapture}
+      />
     </div>
   );
 };
