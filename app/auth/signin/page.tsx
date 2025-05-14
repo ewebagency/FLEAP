@@ -10,22 +10,47 @@ export default function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
   const router = useRouter();
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (loginAttempts >= 5) {
+      Swal.fire({
+        title: 'Compte bloqué',
+        text: 'Trop de tentatives de connexion. Veuillez réessayer plus tard.',
+        icon: 'error',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#16a34a',
+        background: '#f3f4f6',
+        showClass: {
+          popup: 'animate__animated animate__fadeInDown'
+        },
+        hideClass: {
+          popup: 'animate__animated animate__fadeOutUp'
+        }
+      });
+      return;
+    }
+
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
 
     if (error) {
+      setLoginAttempts(prev => prev + 1);
+      const remainingAttempts = 5 - loginAttempts - 1;
+      
       Swal.fire({
         title: 'Erreur de connexion',
-        text: 'Email ou mot de passe incorrect',
+        text: remainingAttempts > 0 
+          ? `Email ou mot de passe incorrect. Il vous reste ${remainingAttempts} tentative${remainingAttempts > 1 ? 's' : ''}.`
+          : 'Email ou mot de passe incorrect. Compte bloqué après 5 tentatives.',
         icon: 'error',
         confirmButtonText: 'Réessayer',
-        confirmButtonColor: '#16a34a', // green-600
-        background: '#f3f4f6', // gray-100
+        confirmButtonColor: '#16a34a',
+        background: '#f3f4f6',
         showClass: {
           popup: 'animate__animated animate__fadeInDown'
         },
@@ -51,6 +76,7 @@ export default function SignIn() {
             onChange={(e) => setEmail(e.target.value)}
             className="border border-gray-300 p-2 md:p-3 mb-4 w-full rounded"
             required
+            disabled={loginAttempts >= 5}
           />
           <input
             type="password"
@@ -59,15 +85,24 @@ export default function SignIn() {
             onChange={(e) => setPassword(e.target.value)}
             className="border border-gray-300 p-2 md:p-3 mb-6 w-full rounded"
             required
+            disabled={loginAttempts >= 5}
           />
-          <button 
-            type="submit" 
-            className={`w-full p-2 md:p-3 rounded bg-green-600 hover:bg-green-500 text-white text-base md:text-lg border-white hover:border-white
-              ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={loading}
-          >
-            {loading ? 'Chargement...' : 'Se connecter'}
-          </button>
+          <div className="relative group">
+            <button 
+              type="submit" 
+              className={`w-full p-2 md:p-3 rounded bg-green-600 hover:bg-green-500 text-white text-base md:text-lg border-white hover:border-white
+                ${(loading || loginAttempts >= 5) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={loading || loginAttempts >= 5}
+            >
+              {loading ? 'Chargement...' : loginAttempts >= 5 ? 'Compte bloqué' : 'Se connecter'}
+            </button>
+            {loginAttempts >= 5 && (
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                Veuillez envoyer un mail à asohm@fleap.fr ou réessayer plus tard
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-gray-900"></div>
+              </div>
+            )}
+          </div>
         </form>
         <div className="mt-6 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-0">
           <div className="text-sm text-gray-200">Vous n&apos;avez pas de compte ?</div>
