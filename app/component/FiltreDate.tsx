@@ -271,7 +271,7 @@ const FiltreDate = () => {
                                         }}
                                         className="w-full p-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
                                     >
-                                        {isRegisterPage ? "Tous" : "Aujourd'hui"}
+                                        {isRegisterPage ? "Tout voir" : "Aujourd'hui"}
                                     </button>
                                 </div>
                             </div>
