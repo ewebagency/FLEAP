@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { SessionProvider, useSession } from '../../SessionProvider';
 import { supabase } from '@/app/database/supabaseClient';
+import { useSession } from '../../../SessionProvider';
 import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { useFilterContext } from '@/app/FilterContext';
 import { formatNumber } from '@/app/utils/formatNumber';
+import { Facture } from '../types';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -18,7 +18,7 @@ import {
   Scale,
   CoreScaleOptions
 } from 'chart.js';
-import BoxIcon from '../../BoxIconWrapper';
+import BoxIcon from '@/app/component/BoxIconWrapper';
 
 ChartJS.register(
   CategoryScale,
@@ -37,13 +37,13 @@ interface Site {
 
 interface Jalons {
   date: string;
-  tonnage: string;
+  montant: string;
 }
 
 interface ObjectifSite {
   startDate: string;
   endDate: string;
-  tonnage: string;
+  montant: string;
   jalons: Jalons[];
 }
 
@@ -53,52 +53,61 @@ function formatMonthYear(dateStr: string | Date) {
   return date.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
 }
 
-const ObjectifTonnage = () => {
+// Fonction pour trier les dates chronologiquement
+function sortDates(dates: string[]) {
+  return dates.sort((a, b) => {
+    const dateA = new Date(a);
+    const dateB = new Date(b);
+    return dateA.getTime() - dateB.getTime();
+  });
+}
+
+const NewObjectifFinancier = ({ factures }: { factures: Facture[] }) => {
   // Dates fictives pour la jauge (à remplacer plus tard par des données dynamiques)
   const startDate = new Date('2024-01-25');
   const endDate = new Date('2024-09-25');
-  const today = new Date();
 
-  // Calcul de la position du curseur (en pourcentage)
-  const totalDuration = endDate.getTime() - startDate.getTime();
-  const elapsed = Math.max(0, Math.min(today.getTime() - startDate.getTime(), totalDuration));
-  const cursorPosition = (elapsed / totalDuration) * 100;
-
-  // State pour le modal (sera utilisé plus tard)
+  // State pour le modal
   const [openModal, setOpenModal] = useState(false);
   const [openChartModal, setOpenChartModal] = useState(false);
 
   const { user_id, entreprise_id } = useSession();
   
-
   const [sites, setSites] = useState<Site[]>([]);
   const [loadingSites, setLoadingSites] = useState(false);
   const [objectifs, setObjectifs] = useState<{ [siret: string]: ObjectifSite }>({});
   const [modifiedSites, setModifiedSites] = useState<Set<string>>(new Set());
 
-  const { bsds } = useAnalysis();
   const { sites: filterSites } = useFilterContext();
   const selectedSites = filterSites.filter(site => site.checked).map(site => site.orgId);
   
   const siret_dans_les_objectifs = Object.entries(objectifs).filter(([_, v]) => v.startDate && v.endDate).map(([k, _]) => k);
-  console.log('siret_dans_les_objectifs', siret_dans_les_objectifs);
 
-  
-  // 1. Calcul du tonnage réel total pour les sites sélectionnés
-  const tonnageReelTotal = selectedSites.filter(siret => siret_dans_les_objectifs.includes(siret)).reduce((sum, siret) => {
-    const bsdsForSite = bsds.filter(bsd => {
-      const siretBsd = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret;
-      return siretBsd === siret;
+  // Calcul de la date la plus récente parmi les factures
+  const todayDate = new Date(Math.max(...factures.map(facture => {
+    const dateStr = facture.infos_json?.header?.date_facture;
+    return dateStr ? new Date(dateStr).getTime() : 0;
+  })));
+
+  // 1. Calcul du montant réel total pour les sites sélectionnés
+  const montantReelTotal = selectedSites.filter(siret => siret_dans_les_objectifs.includes(siret)).reduce((sum, siret) => {
+    const facturesForSite = factures.filter(facture => {
+      const siretFacture = facture.infos_json?.departs?.[0]?.line_header?.site_siret;
+      return siretFacture === siret;
     });
-    const totalQuantity = bsdsForSite.reduce(
-      (siteSum, bsd) => siteSum + (Number(String(bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity)) || 0),
+    
+    
+    const totalMontant = facturesForSite.reduce(
+      (siteSum, facture) => siteSum + (Number(facture.infos_json?.departs?.reduce((sum, depart) => 
+        sum + (Number(depart.line_body?.reduce((sum, line) => sum + (line.type_operation === 'Rachat' ? -1 : 1) * (Number(line.montant_ht) || 0), 0)) || 0), 0)) || 0),
       0
     );
-    return sum + totalQuantity;
+    return sum + totalMontant;
   }, 0);
+  console.log("montantReelTotal", montantReelTotal);
 
-  // 2. Calcul du tonnage optimal total à la date du jour (interpolation linéaire)
-  function interpolateJalons(jalons: { date: string; tonnage: number }[], date: Date) {
+  // 2. Calcul du montant optimal total à la date du jour (interpolation linéaire)
+  function interpolateJalons(jalons: { date: string; montant: number }[], date: Date) {
     if (!jalons || jalons.length === 0) return 0;
     // Chercher les deux jalons encadrant la date
     let prev = jalons[0];
@@ -115,31 +124,29 @@ const ObjectifTonnage = () => {
     const dPrev = new Date(prev.date).getTime();
     const dNext = new Date(next.date).getTime();
     const dCurrent = date.getTime();
-    if (dNext === dPrev) return Number(prev.tonnage);
+    if (dNext === dPrev) return Number(prev.montant);
     // Interpolation linéaire
     const t = (dCurrent - dPrev) / (dNext - dPrev);
-    return Number(prev.tonnage) + t * (Number(next.tonnage) - Number(prev.tonnage));
+    return Number(prev.montant) + t * (Number(next.montant) - Number(prev.montant));
   }
 
-  const todayDate = new Date();
-  const tonnageOptimalTotal = selectedSites.reduce((sum, siret) => {
+  const montantOptimalTotal = selectedSites.reduce((sum, siret) => {
     const obj = objectifs[siret];
     if (!obj || !obj.startDate || !obj.endDate) return sum;
     // On construit la liste des jalons : début (0), ...jalons, fin
     const jalons = [
-      { date: obj.startDate, tonnage: 0 },
-      ...obj.jalons.map(j => ({ date: j.date, tonnage: Number(j.tonnage) })),
-      { date: obj.endDate, tonnage: Number(obj.tonnage) },
+      { date: obj.startDate, montant: 0 },
+      ...obj.jalons.map(j => ({ date: j.date, montant: Number(j.montant) })),
+      { date: obj.endDate, montant: Number(obj.montant) },
     ];
     const optimal = interpolateJalons(jalons, todayDate);
     return sum + optimal;
   }, 0);
 
   // 3. Calcul de la progression réelle
-  const progression = tonnageOptimalTotal > 0 ? tonnageReelTotal / tonnageOptimalTotal : 0;
-  // La progression peut dépasser 1 (100%)
+  const progression = montantOptimalTotal > 0 ? montantReelTotal / montantOptimalTotal : 0;
 
-  // 4. Calcul de la position du curseur (date du jour entre date de début min et date de fin max)
+  // 4. Calcul de la position du curseur
   const allDates = selectedSites.flatMap(siret => {
     const obj = objectifs[siret];
     if (!obj || !obj.startDate || !obj.endDate) return [];
@@ -153,7 +160,45 @@ const ObjectifTonnage = () => {
   else cursorPos = ((todayDate.getTime() - minDate.getTime()) / (maxDate.getTime() - minDate.getTime())) * 100;
 
   // 5. Largeur de la jauge colorée (progression réelle)
-  const coloredWidth = Math.max(0, Math.min(progression * cursorPos, 200)); // Peut dépasser le curseur
+  const coloredWidth = Math.max(0, Math.min(progression * cursorPos, 200));
+
+  // Calcul de la pente et projection
+  const calculateProjection = () => {
+    if (selectedSites.length === 0 || !minDate || !maxDate) return null;
+
+    // Calcul de la durée totale en jours
+    const totalDuration = (maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24);
+    // Calcul de la durée écoulée en jours
+    const elapsedDuration = (todayDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24);
+    
+    // Calcul de la pente actuelle (€/jour)
+    const currentSlope = elapsedDuration > 0 ? montantReelTotal / elapsedDuration : 0;
+    
+    // Projection jusqu'à la fin
+    const remainingDays = totalDuration - elapsedDuration;
+    const projectedAmount = montantReelTotal + (currentSlope * remainingDays);
+    
+    // Calcul de l'objectif final
+    const finalObjective = selectedSites.reduce((sum, siret) => {
+      const obj = objectifs[siret];
+      return sum + (obj?.montant ? Number(obj.montant) : 0);
+    }, 0);
+
+    // Calcul de la différence
+    const difference = projectedAmount - finalObjective;
+    const percentageDifference = (difference / finalObjective) * 100;
+
+    return {
+      currentSlope,
+      projectedAmount,
+      finalObjective,
+      difference,
+      percentageDifference,
+      isOverObjective: difference > 0
+    };
+  };
+
+  const projection = calculateProjection();
 
   // Couleur de la jauge selon la progression
   let gaugeColor = '';
@@ -169,31 +214,213 @@ const ObjectifTonnage = () => {
     gaugeColor = 'bg-red-500';
   }
 
-  // DEBUG LOGS
-  //console.log('Sites sélectionnés (SIRET):', selectedSites);
-  selectedSites.forEach(siret => {
-    const bsdsForSite = bsds.filter(bsd => {
-      const siretBsd = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret;
-      return siretBsd === siret;
-    });
-    //console.log(`siret des BSDs pour le site ${siret}:`, bsdsForSite.map(bsd => bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret));
-  });
-  console.log('Tonnage réel total:', tonnageReelTotal);
+  // Fonction pour préparer les données du graphique
+  const prepareChartData = () => {
+    if (selectedSites.length === 0 || !minDate || !maxDate) return null;
 
-  selectedSites.forEach(siret => {
-    const obj = objectifs[siret];
-    if (!obj || !obj.startDate || !obj.endDate) return;
-    const jalons = [
-      { date: obj.startDate, tonnage: 0 },
-      ...obj.jalons.map(j => ({ date: j.date, tonnage: Number(j.tonnage) })),
-      { date: obj.endDate, tonnage: Number(obj.tonnage) },
-    ];
-    //console.log(`Jalons pour le site ${siret}:`, jalons);
-    const optimal = interpolateJalons(jalons, todayDate);
-    //console.log(`Tonnage optimal interpolé pour le site ${siret} à la date du jour:`, optimal);
-  });
-  //console.log('Tonnage optimal total à la date du jour:', tonnageOptimalTotal);
-  console.log('Progression réelle (peut dépasser 1):', progression);
+    // Trouver la dernière date de facture
+    const lastInvoiceDate = new Date(Math.max(...factures.map(facture => 
+      new Date(facture.infos_json?.header?.date_facture || 0).getTime()
+    )));
+
+    // Trouver la première et dernière date parmi tous les jalons
+    const allMilestoneDates = selectedSites.flatMap(siret => {
+      const obj = objectifs[siret];
+      if (!obj || !obj.startDate || !obj.endDate) return [];
+      return [
+        new Date(obj.startDate).getTime(),
+        ...obj.jalons.map(j => new Date(j.date).getTime()),
+        new Date(obj.endDate).getTime()
+      ];
+    });
+
+    const firstMilestoneDate = new Date(Math.min(...allMilestoneDates));
+    const lastMilestoneDate = new Date(Math.max(...allMilestoneDates));
+
+    // Créer un tableau de dates mensuelles du début jusqu'à la dernière date de facture pour les données réelles
+    const realMonthlyDates: Date[] = [];
+    const currentDate = new Date(minDate);
+    while (currentDate <= lastInvoiceDate) {
+      realMonthlyDates.push(new Date(currentDate));
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+
+    // Créer un tableau de dates mensuelles du premier jalon jusqu'à la dernière date de jalon pour les données théoriques
+    const theoreticalMonthlyDates: Date[] = [];
+    const currentTheoreticalDate = new Date(firstMilestoneDate);
+    while (currentTheoreticalDate <= lastMilestoneDate) {
+      theoreticalMonthlyDates.push(new Date(currentTheoreticalDate));
+      currentTheoreticalDate.setMonth(currentTheoreticalDate.getMonth() + 1);
+    }
+
+    // Calculer les montants cumulés réels pour chaque mois
+    const realData = realMonthlyDates.map(date => {
+      const facturesUntilDate = factures.filter(facture => {
+        const factureDate = new Date(facture.infos_json?.header?.date_facture || 0);
+        return factureDate <= date;
+      });
+
+      const montant = facturesUntilDate.reduce((sum, facture) => {
+        return sum + (Number(facture.infos_json?.departs?.reduce((sum, depart) => 
+          sum + (Number(depart.line_body?.reduce((sum, line) => 
+            sum + (line.type_operation === 'Rachat' ? -1 : 1) * (Number(line.montant_ht) || 0), 0)) || 0), 0)) || 0);
+      }, 0);
+
+      return {
+        date: date,
+        montant: montant
+      };
+    });
+
+    // Calculer la projection linéaire
+    const firstRealPoint = realData[0];
+    const lastRealPoint = realData[realData.length - 1];
+    const projectionData = theoreticalMonthlyDates.map(date => {
+      if (date <= lastRealPoint.date) {
+        return null; // Pas de projection avant la dernière date réelle
+      }
+
+      // Calcul de la pente
+      const timeDiff = lastRealPoint.date.getTime() - firstRealPoint.date.getTime();
+      const montantDiff = lastRealPoint.montant - firstRealPoint.montant;
+      const slope = timeDiff > 0 ? montantDiff / timeDiff : 0;
+
+      // Calcul du montant projeté
+      const timeFromLast = date.getTime() - lastRealPoint.date.getTime();
+      const projectedMontant = lastRealPoint.montant + (slope * timeFromLast);
+
+      return {
+        date: date,
+        montant: projectedMontant
+      };
+    }).filter(d => d !== null);
+
+    // Calculer les montants théoriques pour chaque mois
+    const theoreticalData = theoreticalMonthlyDates.map(date => {
+      const optimal = selectedSites.reduce((sum, siret) => {
+        const obj = objectifs[siret];
+        if (!obj || !obj.startDate || !obj.endDate) return sum;
+        
+        // Vérifier si la date est avant le premier jalon
+        if (date < new Date(obj.startDate)) {
+          return sum;
+        }
+
+        // Construire la liste des jalons avec les montants
+        const jalons = [
+          { date: obj.startDate, montant: 0 },
+          ...obj.jalons.map(j => ({ date: j.date, montant: Number(j.montant) })),
+          { date: obj.endDate, montant: Number(obj.montant) },
+        ];
+
+        // Trouver les jalons qui encadrent la date
+        let prevJalon = jalons[0];
+        let nextJalon = jalons[jalons.length - 1];
+
+        for (let i = 0; i < jalons.length - 1; i++) {
+          if (new Date(jalons[i].date) <= date && date <= new Date(jalons[i + 1].date)) {
+            prevJalon = jalons[i];
+            nextJalon = jalons[i + 1];
+            break;
+          }
+        }
+
+        // Interpolation linéaire entre les jalons
+        const dPrev = new Date(prevJalon.date).getTime();
+        const dNext = new Date(nextJalon.date).getTime();
+        const dCurrent = date.getTime();
+        
+        if (dNext === dPrev) return sum + Number(prevJalon.montant);
+        
+        const t = (dCurrent - dPrev) / (dNext - dPrev);
+        const montant = Number(prevJalon.montant) + t * (Number(nextJalon.montant) - Number(prevJalon.montant));
+        
+        return sum + montant;
+      }, 0);
+
+      return {
+        date: date,
+        montant: optimal
+      };
+    });
+
+    // Combiner et trier les dates pour l'axe des abscisses
+    const allDates = Array.from(new Set([
+      ...realMonthlyDates.map(d => d.toISOString().split('T')[0]),
+      ...theoreticalMonthlyDates.map(d => d.toISOString().split('T')[0])
+    ].sort((a, b) => new Date(a).getTime() - new Date(b).getTime())));
+    const labels = allDates.map(d => formatMonthYear(d));
+
+    // Calculer la différence entre la projection et l'objectif final
+    const finalProjection = projectionData[projectionData.length - 1]?.montant || 0;
+    const finalObjective = theoreticalData[theoreticalData.length - 1]?.montant || 0;
+    const difference = finalProjection - finalObjective;
+    const percentageDifference = (difference / finalObjective) * 100;
+
+    return {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Montant réel',
+          data: realData.map(d => d.montant),
+          borderColor: 'rgb(75, 192, 192)',
+          tension: 0.1
+        },
+        {
+          label: 'Montant théorique',
+          data: theoreticalData.map(d => d.montant),
+          borderColor: 'rgb(255, 99, 132)',
+          tension: 0.1
+        },
+        /*{
+          label: 'Projection',
+          data: [...Array(realData.length).fill(null), ...projectionData.map(d => d?.montant)],
+          borderColor: 'rgb(75, 192, 192)',
+          borderDash: [5, 5],
+          tension: 0.1
+        }*/
+      ],
+      projectionInfo: {
+        difference,
+        percentageDifference
+      }
+    };
+  };
+
+  const chartData = prepareChartData();
+  const { difference: chartDifference, percentageDifference: chartPercentageDifference } = chartData?.projectionInfo || { difference: 0, percentageDifference: 0 };
+
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: true,
+        text: 'Évolution des montants réels vs théoriques'
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context: { dataset: { label?: string }, parsed: { y: number } }) {
+            const label = context.dataset.label || '';
+            const value = context.parsed.y;
+            return `${label}: ${formatNumber(value)} €`;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function(this: Scale<CoreScaleOptions>, tickValue: number | string) {
+            return formatNumber(Number(tickValue)) + ' €';
+          }
+        }
+      }
+    }
+  };
 
   React.useEffect(() => {
     const fetchSites = async () => {
@@ -215,9 +442,7 @@ const ObjectifTonnage = () => {
       const siretList = profile?.site_access;
       let filteredSiteRows = [];
       if (siteRows) {
-        // On extrait { nom, siret } de chaque site
         const mappedSites = siteRows
-          //.filter(row => row.site!==null)
           .map(row => row.site)
           .filter(site => site && site.nom && site.siret);
 
@@ -243,12 +468,11 @@ const ObjectifTonnage = () => {
             newObj[site.siret] = {
               startDate: '',
               endDate: '',
-              tonnage: '',
+              montant: '',
               jalons: [],
             };
           }
         });
-        // Nettoyer les objectifs des sites qui ne sont plus accessibles
         Object.keys(newObj).forEach((siret) => {
           if (!sites.find((site) => site.siret === siret)) {
             delete newObj[siret];
@@ -266,24 +490,23 @@ const ObjectifTonnage = () => {
       const sirets = sites.map(site => site.siret);
       const { data: objectifsRows, error } = await supabase
         .from('objectifs')
-        .select('siret_site, name_site, objectif_tonnage')
+        .select('siret_site, name_site, objectif_financier')
         .eq('entreprise_id', entreprise_id)
         .in('siret_site', sirets);
       if (error) return;
       setObjectifs(prev => {
         const newObj = { ...prev };
         objectifsRows.forEach(row => {
-          const objTonnage = row.objectif_tonnage || [];
-          if (objTonnage.length > 0) {
-            // Premier = date début, dernier = date fin, le reste = jalons
-            const start = objTonnage[0];
-            const end = objTonnage[objTonnage.length - 1];
-            const jalons = objTonnage.slice(1, objTonnage.length - 1);
+          const objFinancier = row.objectif_financier || [];
+          if (objFinancier.length > 0) {
+            const start = objFinancier[0];
+            const end = objFinancier[objFinancier.length - 1];
+            const jalons = objFinancier.slice(1, objFinancier.length - 1);
             newObj[row.siret_site] = {
               startDate: start.date,
               endDate: end.date,
-              tonnage: end.tonnage,
-              jalons: jalons.map((j: { date: string; tonnage: string }) => ({ date: j.date, tonnage: j.tonnage })),
+              montant: end.montant,
+              jalons: jalons.map((j: { date: string; montant: string }) => ({ date: j.date, montant: j.montant })),
             };
           }
         });
@@ -292,222 +515,6 @@ const ObjectifTonnage = () => {
     };
     fetchObjectifs();
   }, [entreprise_id, sites]);
-
-  // Fonction pour préparer les données du graphique
-  const prepareChartData = () => {
-    if (selectedSites.length === 0 || !minDate || !maxDate) {
-      console.log('No selected sites or dates');
-      return null;
-    }
-
-    // Trouver la dernière date de BSD
-    const lastBsdDate = new Date(Math.max(...bsds.map(bsd => 
-      new Date(bsd.created_at || 0).getTime()
-    )));
-
-    // Trouver la première et dernière date parmi tous les jalons
-    const allMilestoneDates = selectedSites.flatMap(siret => {
-      const obj = objectifs[siret];
-      if (!obj || !obj.startDate || !obj.endDate) return [];
-      return [
-        new Date(obj.startDate).getTime(),
-        ...obj.jalons.map(j => new Date(j.date).getTime()),
-        new Date(obj.endDate).getTime()
-      ];
-    });
-
-    const firstMilestoneDate = new Date(Math.min(...allMilestoneDates));
-    const lastMilestoneDate = new Date(Math.max(...allMilestoneDates));
-
-    // Créer un tableau de dates mensuelles du début jusqu'à la dernière date de BSD pour les données réelles
-    const realMonthlyDates: Date[] = [];
-    const currentDate = new Date(minDate);
-    while (currentDate <= lastBsdDate) {
-      realMonthlyDates.push(new Date(currentDate));
-      currentDate.setMonth(currentDate.getMonth() + 1);
-    }
-
-    // Créer un tableau de dates mensuelles du premier jalon jusqu'à la dernière date de jalon pour les données théoriques
-    const theoreticalMonthlyDates: Date[] = [];
-    const currentTheoreticalDate = new Date(firstMilestoneDate);
-    while (currentTheoreticalDate <= lastMilestoneDate) {
-      theoreticalMonthlyDates.push(new Date(currentTheoreticalDate));
-      currentTheoreticalDate.setMonth(currentTheoreticalDate.getMonth() + 1);
-    }
-
-    // Calculer les tonnages cumulés réels pour chaque mois
-    const realData = realMonthlyDates.map(date => {
-      const bsdsUntilDate = bsds.filter(bsd => {
-        const bsdDate = new Date(bsd.created_at || 0);
-        return bsdDate <= date;
-      });
-
-      const tonnage = bsdsUntilDate.reduce((sum, bsd) => {
-        return sum + (Number(String(bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity)) || 0);
-      }, 0);
-
-      return {
-        date: date,
-        tonnage: tonnage
-      };
-    });
-
-    // Si pas de données réelles, retourner null
-    if (realData.length === 0) {
-      return null;
-    }
-
-    // Calculer la projection linéaire
-    const firstRealPoint = realData[0];
-    const lastRealPoint = realData[realData.length - 1];
-    const projectionData = theoreticalMonthlyDates.map(date => {
-      if (date <= lastRealPoint.date) {
-        return null; // Pas de projection avant la dernière date réelle
-      }
-
-      // Calcul de la pente
-      const timeDiff = lastRealPoint.date.getTime() - firstRealPoint.date.getTime();
-      const tonnageDiff = lastRealPoint.tonnage - firstRealPoint.tonnage;
-      const slope = timeDiff > 0 ? tonnageDiff / timeDiff : 0;
-
-      // Calcul du tonnage projeté
-      const timeFromLast = date.getTime() - lastRealPoint.date.getTime();
-      const projectedTonnage = lastRealPoint.tonnage + (slope * timeFromLast);
-
-      return {
-        date: date,
-        tonnage: projectedTonnage
-      };
-    }).filter(d => d !== null);
-
-    // Calculer les tonnages théoriques pour chaque mois
-    const theoreticalData = theoreticalMonthlyDates.map(date => {
-      const optimal = selectedSites.reduce((sum, siret) => {
-        const obj = objectifs[siret];
-        if (!obj || !obj.startDate || !obj.endDate) return sum;
-        
-        // Vérifier si la date est avant le premier jalon
-        if (date < new Date(obj.startDate)) {
-          return sum;
-        }
-
-        // Construire la liste des jalons avec les tonnages
-        const jalons = [
-          { date: obj.startDate, tonnage: 0 },
-          ...obj.jalons.map(j => ({ date: j.date, tonnage: Number(j.tonnage) })),
-          { date: obj.endDate, tonnage: Number(obj.tonnage) },
-        ];
-
-        // Trouver les jalons qui encadrent la date
-        let prevJalon = jalons[0];
-        let nextJalon = jalons[jalons.length - 1];
-
-        for (let i = 0; i < jalons.length - 1; i++) {
-          if (new Date(jalons[i].date) <= date && date <= new Date(jalons[i + 1].date)) {
-            prevJalon = jalons[i];
-            nextJalon = jalons[i + 1];
-            break;
-          }
-        }
-
-        // Interpolation linéaire entre les jalons
-        const dPrev = new Date(prevJalon.date).getTime();
-        const dNext = new Date(nextJalon.date).getTime();
-        const dCurrent = date.getTime();
-        
-        if (dNext === dPrev) return sum + Number(prevJalon.tonnage);
-        
-        const t = (dCurrent - dPrev) / (dNext - dPrev);
-        const tonnage = Number(prevJalon.tonnage) + t * (Number(nextJalon.tonnage) - Number(prevJalon.tonnage));
-        
-        return sum + tonnage;
-      }, 0);
-
-      return {
-        date: date,
-        tonnage: optimal
-      };
-    });
-
-    // Combiner et trier les dates pour l'axe des abscisses
-    const allDates = Array.from(new Set([
-      ...realMonthlyDates.map(d => d.toISOString().split('T')[0]),
-      ...theoreticalMonthlyDates.map(d => d.toISOString().split('T')[0])
-    ].sort((a, b) => new Date(a).getTime() - new Date(b).getTime())));
-    const labels = allDates.map(d => formatMonthYear(d));
-
-    // Calculer la différence entre la projection et l'objectif final
-    const finalProjection = projectionData[projectionData.length - 1]?.tonnage || 0;
-    const finalObjective = theoreticalData[theoreticalData.length - 1]?.tonnage || 0;
-    const difference = finalProjection - finalObjective;
-    const percentageDifference = (difference / finalObjective) * 100;
-
-
-    return {
-      labels: labels,
-      datasets: [
-        {
-          label: 'Tonnage réel',
-          data: realData.map(d => d.tonnage),
-          borderColor: 'rgb(75, 192, 192)',
-          tension: 0.1
-        },
-        {
-          label: 'Tonnage théorique',
-          data: theoreticalData.map(d => d.tonnage),
-          borderColor: 'rgb(255, 99, 132)',
-          tension: 0.1
-        },
-        /*{
-          label: 'Projection',
-          data: [...Array(realData.length).fill(null), ...projectionData.map(d => d?.tonnage)],
-          borderColor: 'rgb(75, 192, 192)',
-          borderDash: [5, 5],
-          tension: 0.1
-        }*/
-      ],
-      projectionInfo: {
-        difference,
-        percentageDifference
-      }
-    };
-  };
-
-  const chartData = prepareChartData();
-  console.log('Chart Data:', chartData);
-  const { difference: chartDifference, percentageDifference: chartPercentageDifference } = chartData?.projectionInfo || { difference: 0, percentageDifference: 0 };
-
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top' as const,
-      },
-      title: {
-        display: true,
-        text: 'Évolution des tonnages réels vs théoriques'
-      },
-      tooltip: {
-        callbacks: {
-          label: function(context: { dataset: { label?: string }, parsed: { y: number } }) {
-            const label = context.dataset.label || '';
-            const value = context.parsed.y;
-            return `${label}: ${formatNumber(value)} tonnes`;
-          }
-        }
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          callback: function(this: Scale<CoreScaleOptions>, tickValue: number | string) {
-            return formatNumber(Number(tickValue)) + ' tonnes';
-          }
-        }
-      }
-    }
-  };
 
   return (
     <div className="w-[800px] flex justify-between items-center py-4">
@@ -563,23 +570,23 @@ const ObjectifTonnage = () => {
             <div className="w-4 h-4 bg-red-500 rounded-full shadow" />
           </div>
         </div>
-        {/* Labels de dates et tonnage */}
+        {/* Labels de dates et montant */}
         <div className="flex justify-between text-xs text-gray-500 mt-1 items-end opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="flex flex-col items-center">
-            <span className="font-semibold text-gray-900 text-xs">{formatNumber(tonnageReelTotal)} tonnes</span>
+            <span className="font-semibold text-gray-900 text-xs">{formatNumber(montantReelTotal)} €</span>
             <div className="group relative text-gray-500">
                 aujourd&apos;hui
-            </div>            
+            </div>
           </div>
           <div className="flex flex-col items-center" style={{ position: 'absolute', top: '40px', left: `calc(${cursorPos}% - 40px)`, width: '80px', zIndex: 10 }}>
-            <span className="font-semibold text-gray-900 text-xs">{formatNumber(tonnageOptimalTotal)} tonnes</span>
+            <span className="font-semibold text-gray-900 text-xs">{formatNumber(montantOptimalTotal)} €</span>
             <span className="text-xs text-gray-500">en théorie</span>
           </div>
           <span></span>
         </div>
       </div>
-      {/* Bouton Modifier l&apos;objectif */}
       <div className='block flex flex-row items-center gap-2 mt-[-15px]'>
+        {/* Bouton Modifier l'objectif */}
         <button
           className="text-gray-500 text-md px-1 rounded-full hover:bg-white transition flex justify-between items-center gap-2"
           onClick={() => setOpenModal(true)}
@@ -598,7 +605,7 @@ const ObjectifTonnage = () => {
       {openModal && (
         <div className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-xs flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg p-6 min-w-[350px] max-w-lg w-full relative max-h-[70vh] mt-[10%] overflow-y-auto">
-            <h2 className="text-lg font-semibold mb-4 text-center">Définir les objectifs par site</h2>
+            <h2 className="text-lg font-semibold mb-4 text-center">Définir les objectifs financiers par site</h2>
             <button
               className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-xl"
               onClick={() => setOpenModal(false)}
@@ -674,17 +681,17 @@ const ObjectifTonnage = () => {
                           }}
                         />
                       </label>
-                      <label className="text-xs">Tonnage de fin
+                      <label className="text-xs">Montant de fin
                         <input
                           type="number"
                           className="border rounded px-2 py-1 ml-2"
-                          value={objectifs[site.siret]?.tonnage || ''}
+                          value={objectifs[site.siret]?.montant || ''}
                           onChange={e => {
                             setObjectifs(prev => ({
                               ...prev,
                               [site.siret]: {
                                 ...prev[site.siret],
-                                tonnage: e.target.value,
+                                montant: e.target.value,
                               },
                             }));
                             setModifiedSites(prev => {
@@ -708,7 +715,7 @@ const ObjectifTonnage = () => {
                                   ...prev[site.siret],
                                   jalons: [
                                     ...prev[site.siret].jalons,
-                                    { date: '', tonnage: '' },
+                                    { date: '', montant: '' },
                                   ],
                                 },
                               }));
@@ -751,12 +758,12 @@ const ObjectifTonnage = () => {
                               <input
                                 type="number"
                                 className="border rounded px-2 py-1"
-                                placeholder="Tonnage"
-                                value={jalon.tonnage}
+                                placeholder="Montant"
+                                value={jalon.montant}
                                 onChange={e => {
                                   setObjectifs(prev => {
                                     const newJalons = [...prev[site.siret].jalons];
-                                    newJalons[idx] = { ...newJalons[idx], tonnage: e.target.value };
+                                    newJalons[idx] = { ...newJalons[idx], montant: e.target.value };
                                     return {
                                       ...prev,
                                       [site.siret]: {
@@ -808,10 +815,10 @@ const ObjectifTonnage = () => {
                         onClick={async () => {
                           const obj = objectifs[site.siret];
                           if (!obj || !obj.startDate || !obj.endDate) return;
-                          const objectif_tonnage = [
-                            { date: obj.startDate, tonnage: 0 },
-                            ...obj.jalons.map(j => ({ date: j.date, tonnage: Number(j.tonnage) })),
-                            { date: obj.endDate, tonnage: Number(obj.tonnage) },
+                          const objectif_financier = [
+                            { date: obj.startDate, montant: 0 },
+                            ...obj.jalons.map(j => ({ date: j.date, montant: Number(j.montant) })),
+                            { date: obj.endDate, montant: Number(obj.montant) },
                           ];
                           await supabase
                             .from('objectifs')
@@ -820,7 +827,7 @@ const ObjectifTonnage = () => {
                                 entreprise_id,
                                 siret_site: site.siret,
                                 name_site: site.nom,
-                                objectif_tonnage,
+                                objectif_financier,
                               },
                             ], { onConflict: 'entreprise_id,siret_site' });
                           setModifiedSites(prev => {
@@ -844,7 +851,7 @@ const ObjectifTonnage = () => {
       {openChartModal && (
         <div className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-xs flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg p-6 min-w-[800px] max-w-4xl w-full relative max-h-[80vh] mt-[5%] overflow-y-auto">
-            <h2 className="text-lg font-semibold mb-4 text-center">Évolution des tonnages</h2>
+            <h2 className="text-lg font-semibold mb-4 text-center">Évolution des montants</h2>
             <button
               className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-xl"
               onClick={() => setOpenChartModal(false)}
@@ -852,7 +859,7 @@ const ObjectifTonnage = () => {
             >
               ×
             </button>
-            {chartData ? (
+            {chartData && (
               <>
                 <div className="w-full h-[500px]">
                   <Line options={chartOptions} data={chartData} />
@@ -861,30 +868,26 @@ const ObjectifTonnage = () => {
                   {chartDifference > 0 ? (
                     <div>
                       <span className="text-red-500">
-                        Projection: +{formatNumber(chartDifference)} tonnes ({chartPercentageDifference.toFixed(1)}% au-dessus de l&apos;objectif)
+                        Projection: +{formatNumber(chartDifference)} € ({chartPercentageDifference.toFixed(1)}% au-dessus de l&apos;objectif)
                       </span>
                       <br />
                       <span className="text-gray-500">
-                        <br/>La tendance actuelle montre un dépassement du tonnage prédéfini.<br/>Il est recommandé de revoir les objectifs ou d&apos;ajuster les flux.
+                        <br/>La tendance actuelle montre un dépassement du budget prédéfini.<br/>Il est recommandé de revoir les objectifs ou d&apos;ajuster les dépenses.
                       </span>
                     </div>
                   ) : (
                     <div>
                       <span className="text-green-500">
-                        Projection: {formatNumber(chartDifference)} tonnes ({Math.abs(chartPercentageDifference).toFixed(1)}% en dessous de l&apos;objectif)
+                        Projection: {formatNumber(chartDifference)} € ({Math.abs(chartPercentageDifference).toFixed(1)}% en dessous de l&apos;objectif)
                       </span>
                       <br />
                       <span className="text-gray-500">
-                        La tendance actuelle est en accord avec le tonnage prédéfini. Les objectifs sont respectés.
+                        La tendance actuelle est en accord avec le budget prédéfini. Les objectifs financiers sont respectés.
                       </span>
                     </div>
                   )}
                 </div>
               </>
-            ) : (
-              <div className="text-center text-gray-500 py-8">
-                Pas assez de données pour afficher le graphique
-              </div>
             )}
           </div>
         </div>
@@ -893,4 +896,4 @@ const ObjectifTonnage = () => {
   );
 };
 
-export default ObjectifTonnage;
+export default NewObjectifFinancier;

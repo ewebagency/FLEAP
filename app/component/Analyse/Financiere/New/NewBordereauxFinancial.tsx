@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { Facture } from "../types";
+import NewObjectifFinancier from "./NewObjectifFinancier";
 
 interface Props {
     factures: Facture[];
@@ -59,6 +60,9 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
                         {stats.profitPercentage >= 0 ? '+' : ''}{stats.profitPercentage.toFixed(1)}%
                     </div>*/}
                 </div>
+            </div>
+            <div>
+                <NewObjectifFinancier factures={factures} />
             </div>
             <div className="flex gap-12">
                 <div className="block">

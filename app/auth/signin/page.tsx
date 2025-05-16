@@ -6,12 +6,103 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Swal from 'sweetalert2';
 
+interface MFAModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onVerify: (code: string) => void;
+  email: string;
+}
+
+const MFAModal = ({ isOpen, onClose, onVerify, email }: MFAModalProps) => {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code.length !== 6) {
+      setError('Le code doit contenir 6 chiffres');
+      return;
+    }
+    onVerify(code);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+        <h2 className="text-xl font-bold mb-4">Vérification en deux étapes</h2>
+        <p className="mb-4">Un code de vérification a été envoyé à {email}</p>
+        <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => {
+              setCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6));
+              setError('');
+            }}
+            placeholder="Entrez le code à 6 chiffres"
+            className="border border-gray-300 p-2 w-full rounded mb-4"
+            maxLength={6}
+          />
+          {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+          <div className="flex justify-end gap-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500"
+            >
+              Vérifier
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 export default function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [loginAttempts, setLoginAttempts] = useState(0);
+  const [showMFAModal, setShowMFAModal] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpExpiry, setOtpExpiry] = useState<Date | null>(null);
   const router = useRouter();
+
+  const generateOTP = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
+  const sendOTPEmail = async (email: string, code: string) => {
+    try {
+      const response = await fetch('/api/send_mail', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: email,
+          subject: 'Code de vérification FLEAP',
+          text: `Votre code de vérification est : ${code}\n\nCe code est valable pendant 5 minutes.`,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de l\'envoi du code');
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'envoi du code:', error);
+      throw error;
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,10 +126,10 @@ export default function SignIn() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-
-    if (error) {
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    
+    if (authError) {
+      setLoading(false);
       setLoginAttempts(prev => prev + 1);
       const remainingAttempts = 5 - loginAttempts - 1;
       
@@ -58,8 +149,103 @@ export default function SignIn() {
           popup: 'animate__animated animate__fadeOutUp'
         }
       });
+      return;
+    }
+
+    // Récupérer l'entreprise_id depuis profiles
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('entreprise_id')
+      .eq('user_id', authData.user.id)
+      .single();
+
+    if (profileError) {
+      setLoading(false);
+      Swal.fire({
+        title: 'Erreur',
+        text: 'Erreur lors de la récupération du profil.',
+        icon: 'error',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#16a34a',
+        background: '#f3f4f6'
+      });
+      return;
+    }
+
+    // Vérifier si MFA est activé pour l'entreprise
+    const { data: entrepriseData, error: entrepriseError } = await supabase
+      .from('entreprise')
+      .select('mfa')
+      .eq('id', profileData.entreprise_id)
+      .single();
+
+    if (entrepriseError) {
+      setLoading(false);
+      Swal.fire({
+        title: 'Erreur',
+        text: 'Erreur lors de la vérification MFA.',
+        icon: 'error',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#16a34a',
+        background: '#f3f4f6'
+      });
+      return;
+    }
+
+    if (entrepriseData.mfa) {
+      // Générer et envoyer le code OTP
+      const otp = generateOTP();
+      setOtpCode(otp);
+      setOtpExpiry(new Date(Date.now() + 5 * 60 * 1000)); // 5 minutes
+      
+      try {
+        await sendOTPEmail(email, otp);
+        setShowMFAModal(true);
+      } catch (error) {
+        Swal.fire({
+          title: 'Erreur',
+          text: 'Erreur lors de l\'envoi du code de vérification.',
+          icon: 'error',
+          confirmButtonText: 'OK',
+          confirmButtonColor: '#16a34a',
+          background: '#f3f4f6'
+        });
+      }
     } else {
+      // Si MFA n'est pas activé, rediriger directement
+      console.log('Le MFA n\'est pas activé pour cette entreprise');
       router.push('/register');
+    }
+    
+    setLoading(false);
+  };
+
+  const handleMFAVerify = (code: string) => {
+    if (!otpExpiry || Date.now() > otpExpiry.getTime()) {
+      Swal.fire({
+        title: 'Code expiré',
+        text: 'Le code de vérification a expiré. Veuillez vous reconnecter.',
+        icon: 'error',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#16a34a',
+        background: '#f3f4f6'
+      });
+      setShowMFAModal(false);
+      return;
+    }
+
+    if (code === otpCode) {
+      setShowMFAModal(false);
+      router.push('/register');
+    } else {
+      Swal.fire({
+        title: 'Code incorrect',
+        text: 'Le code de vérification est incorrect.',
+        icon: 'error',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#16a34a',
+        background: '#f3f4f6'
+      });
     }
   };
 
@@ -114,6 +300,12 @@ export default function SignIn() {
           </Link>
         </div>
       </div>
+      <MFAModal
+        isOpen={showMFAModal}
+        onClose={() => setShowMFAModal(false)}
+        onVerify={handleMFAVerify}
+        email={email}
+      />
     </div>
   );
 }

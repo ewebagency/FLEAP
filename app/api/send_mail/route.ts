@@ -35,7 +35,7 @@ export async function POST(req: Request) {
         cc: cc,
         subject: subject,
         text: text,
-        encoding: 'base64',
+        textFormat: 'flowed',
         attachments: attachments ? (attachments as Attachment[]).map(attachment => ({
             filename: attachment.filename,
             content: Buffer.from(attachment.content, 'base64'),
