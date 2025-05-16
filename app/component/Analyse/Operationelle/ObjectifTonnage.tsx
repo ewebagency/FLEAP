@@ -86,9 +86,14 @@ const ObjectifTonnage = () => {
   
   // 1. Calcul du tonnage réel total pour les sites sélectionnés
   const tonnageReelTotal = selectedSites.filter(siret => siret_dans_les_objectifs.includes(siret)).reduce((sum, siret) => {
+    const obj = objectifs[siret];
+    if (!obj || !obj.startDate) return sum;
+
     const bsdsForSite = bsds.filter(bsd => {
       const siretBsd = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret;
-      return siretBsd === siret;
+      const bsdDate = new Date(bsd.created_at || 0);
+      const startDate = new Date(obj.startDate);
+      return siretBsd === siret && bsdDate >= startDate;
     });
     const totalQuantity = bsdsForSite.reduce(
       (siteSum, bsd) => siteSum + (Number(String(bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity)) || 0),
@@ -339,7 +344,12 @@ const ObjectifTonnage = () => {
     const realData = realMonthlyDates.map(date => {
       const bsdsUntilDate = bsds.filter(bsd => {
         const bsdDate = new Date(bsd.created_at || 0);
-        return bsdDate <= date;
+        // Vérifier que la date du BSD est après la date de début d'objectif pour le site correspondant
+        const siretBsd = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret;
+        const obj = objectifs[siretBsd];
+        if (!obj || !obj.startDate) return false;
+        const startDate = new Date(obj.startDate);
+        return bsdDate <= date && bsdDate >= startDate;
       });
 
       const tonnage = bsdsUntilDate.reduce((sum, bsd) => {
@@ -568,12 +578,12 @@ const ObjectifTonnage = () => {
           <div className="flex flex-col items-center">
             <span className="font-semibold text-gray-900 text-xs">{formatNumber(tonnageReelTotal)} tonnes</span>
             <div className="group relative text-gray-500">
-                aujourd&apos;hui
+                {formatMonthYear(minDate)} → aujourd&apos;hui
             </div>            
           </div>
           <div className="flex flex-col items-center" style={{ position: 'absolute', top: '40px', left: `calc(${cursorPos}% - 40px)`, width: '80px', zIndex: 10 }}>
             <span className="font-semibold text-gray-900 text-xs">{formatNumber(tonnageOptimalTotal)} tonnes</span>
-            <span className="text-xs text-gray-500">en théorie</span>
+            <span className="text-xs text-gray-500">Objectif à date</span>
           </div>
           <span></span>
         </div>

@@ -91,11 +91,15 @@ const NewObjectifFinancier = ({ factures }: { factures: Facture[] }) => {
 
   // 1. Calcul du montant réel total pour les sites sélectionnés
   const montantReelTotal = selectedSites.filter(siret => siret_dans_les_objectifs.includes(siret)).reduce((sum, siret) => {
+    const obj = objectifs[siret];
+    if (!obj || !obj.startDate) return sum;
+
     const facturesForSite = factures.filter(facture => {
       const siretFacture = facture.infos_json?.departs?.[0]?.line_header?.site_siret;
-      return siretFacture === siret;
+      const factureDate = new Date(facture.infos_json?.header?.date_facture || 0);
+      const startDate = new Date(obj.startDate);
+      return siretFacture === siret && factureDate >= startDate;
     });
-    
     
     const totalMontant = facturesForSite.reduce(
       (siteSum, facture) => siteSum + (Number(facture.infos_json?.departs?.reduce((sum, depart) => 
@@ -257,7 +261,12 @@ const NewObjectifFinancier = ({ factures }: { factures: Facture[] }) => {
     const realData = realMonthlyDates.map(date => {
       const facturesUntilDate = factures.filter(facture => {
         const factureDate = new Date(facture.infos_json?.header?.date_facture || 0);
-        return factureDate <= date;
+        // Vérifier que la date de la facture est après la date de début d'objectif pour le site correspondant
+        const siretFacture = facture.infos_json?.departs?.[0]?.line_header?.site_siret;
+        const obj = objectifs[siretFacture];
+        if (!obj || !obj.startDate) return false;
+        const startDate = new Date(obj.startDate);
+        return factureDate <= date && factureDate >= startDate;
       });
 
       const montant = facturesUntilDate.reduce((sum, facture) => {
@@ -575,12 +584,12 @@ const NewObjectifFinancier = ({ factures }: { factures: Facture[] }) => {
           <div className="flex flex-col items-center">
             <span className="font-semibold text-gray-900 text-xs">{formatNumber(montantReelTotal)} €</span>
             <div className="group relative text-gray-500">
-                aujourd&apos;hui
+                {formatMonthYear(minDate)} → aujourd&apos;hui
             </div>
           </div>
           <div className="flex flex-col items-center" style={{ position: 'absolute', top: '40px', left: `calc(${cursorPos}% - 40px)`, width: '80px', zIndex: 10 }}>
             <span className="font-semibold text-gray-900 text-xs">{formatNumber(montantOptimalTotal)} €</span>
-            <span className="text-xs text-gray-500">en théorie</span>
+            <span className="text-xs text-gray-500">Objectif à date</span>
           </div>
           <span></span>
         </div>
