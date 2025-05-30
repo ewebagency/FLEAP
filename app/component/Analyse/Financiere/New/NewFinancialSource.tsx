@@ -10,6 +10,7 @@ import NewBordereauxFinancial from "./NewBordereauxFinancial";
 import { useFilterContext } from '@/app/FilterContext';
 import { getFiliere, getMappingTableFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import OptiButton from "../../../Analyse/Optimisation/OptiButton";
+import RepComponent from "./RepComponent";
 
 const NewFinancialSource = () => {
     const session = useSession() as SessionMore;
@@ -220,8 +221,13 @@ const NewFinancialSource = () => {
                         <OptiButton validFactures={validFactures} onOptiChange={handleOptiChange} />
                     </div>
                 </div>
-                <div className="bg-white rounded-lg">
-                    <NewMainFinancialChart factures={displayFactures} entreprise_id={entreprise_id} />
+                <div className="flex justify-between bg-white rounded-lg">
+                    <div className="w-[80%]">
+                        <NewMainFinancialChart factures={displayFactures} entreprise_id={entreprise_id} />
+                    </div>
+                    <div className="w-[20%]">
+                        <RepComponent factures={displayFactures} financier_or_tonnage="financier"/>
+                    </div>
                 </div>
                 <div className="flex flex-row justify-between gap-2">
                     <div className="bg-white rounded-lg w-[60%]">

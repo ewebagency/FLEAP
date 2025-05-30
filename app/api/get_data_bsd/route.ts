@@ -59,6 +59,7 @@ interface FastDataSupa {
     created_on_fleap: string;
     facture_treated: boolean;
     id_track_dechets: string;
+    pdf_ids: string[];
 }
 
 interface CacheData {
@@ -115,6 +116,7 @@ interface SupabaseFlatResponse {
     created_on_fleap: string;
     facture_treated: boolean;
     id_track_dechets: string;
+    pdf_ids: string[];
 }
 
 async function getCachedData(entreprise_id: string, user_id: string): Promise<CacheData | null> {
@@ -213,7 +215,8 @@ export async function GET(request: Request) {
         on_track_dechets,
         created_on_fleap,
         facture_treated,
-        id_track_dechets
+        id_track_dechets,
+        pdf_ids
       `)
       .eq('entreprise_id', entreprise_id)
       .order('created_at', { ascending: false })
@@ -282,7 +285,8 @@ export async function GET(request: Request) {
       on_track_dechets: item.on_track_dechets,
       created_on_fleap: item.created_on_fleap,
       facture_treated: item.facture_treated,
-      id_track_dechets: item.id_track_dechets
+      id_track_dechets: item.id_track_dechets,
+      pdf_ids: item.pdf_ids
     }));
 
 

@@ -109,6 +109,8 @@ const FiltreDate = () => {
                 return;
             }
 
+            console.log("minData", minData);
+
             const maxDate = new Date();
             if (isRegisterPage) {
                 maxDate.setFullYear(maxDate.getFullYear() + 1);

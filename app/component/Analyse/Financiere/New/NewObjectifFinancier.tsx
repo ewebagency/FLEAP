@@ -285,6 +285,11 @@ const NewObjectifFinancier = ({ factures }: { factures: Facture[] }) => {
     const firstRealPoint = realData[0];
     const lastRealPoint = realData[realData.length - 1];
     const projectionData = theoreticalMonthlyDates.map(date => {
+      // Vérifier si realData est vide
+      if (!realData.length) {
+        return null;
+      }
+
       if (date <= lastRealPoint.date) {
         return null; // Pas de projection avant la dernière date réelle
       }

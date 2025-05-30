@@ -127,8 +127,14 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                 depart.line_body.forEach(line => {
                     const montant = line.montant_ht || 0;
                     const dateDepart = new Date(header?.date_depart);
-                    dateDepart.setDate(1);
-                    dateDepart.setHours(0, 0, 0, 0);
+                    console.log("header?.date_depart", header?.date_depart);
+                    console.log("dateDepart", dateDepart);
+                    // Extraire les composants de la date en UTC
+                    const utcYear = dateDepart.getUTCFullYear();
+                    const utcMonth = dateDepart.getUTCMonth();
+                    // Créer une nouvelle date avec les composants UTC
+                    dateDepart.setUTCFullYear(utcYear, utcMonth, 1);
+                    dateDepart.setUTCHours(0, 0, 0, 0);
 
                     // Vérifier si la date est dans l'intervalle
                     if (dateDepart >= normalizedStartDate && dateDepart <= normalizedEndDate) {

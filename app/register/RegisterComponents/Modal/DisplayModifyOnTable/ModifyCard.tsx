@@ -10,6 +10,18 @@ import { OtherInfos } from "../../../interface/BSD_Interface";
 import { useBSDs } from "@/app/register/BSDsProvider";
 import { BSD } from "@/app/register/TableBSD";
 import Image from "next/image";
+import BoxIcon from '@/app/component/BoxIconWrapper';
+
+interface PdfInfo {
+    id: number;
+    name_pdf: string;
+    name_pdf_in_bucket: string;
+    created_at: string;
+    status: string;
+    document_type?: string;
+    url?: string;
+    file_size?: number;
+}
 
 const LabelInput = ({ label, value, onChange, path, readOnly }: { 
     label: string, 
@@ -35,6 +47,9 @@ const ModifyCard = () => {
     const {setAllBSDs, setAllFilteredBSDs, setDisplayedBSDs} = useBSDs();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [readableId, setReadableId] = useState<string>("");
+    const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
+    const [loadingUrls, setLoadingUrls] = useState<Record<number, boolean>>({});
+    const [pdfUrls, setPdfUrls] = useState<Record<number, string>>({});
     const [localData, setLocalData] = useState<FormInput>({
         emitter: {
           type: "PRODUCER",
@@ -131,6 +146,33 @@ const ModifyCard = () => {
         }
     };    
 
+    const handleOpenPdf = async (pdf: PdfInfo) => {
+        if (pdfUrls[pdf.id]) {
+            window.open(pdfUrls[pdf.id], '_blank');
+            return;
+        }
+
+        try {
+            setLoadingUrls(prev => ({ ...prev, [pdf.id]: true }));
+            
+            const { data: urlData } = await supabase
+                .storage
+                .from('pdfs_bucket')
+                .createSignedUrl(pdf.name_pdf_in_bucket, 3600);
+
+            if (!urlData?.signedUrl) {
+                throw new Error('URL non générée');
+            }
+
+            setPdfUrls(prev => ({ ...prev, [pdf.id]: urlData.signedUrl }));
+            window.open(urlData.signedUrl, '_blank');
+        } catch (error) {
+            console.error("Erreur lors de la récupération de l'URL:", error);
+        } finally {
+            setLoadingUrls(prev => ({ ...prev, [pdf.id]: false }));
+        }
+    };
+
     const getBSD = async (entrepriseId: string) => {
         const result = await supabase
             .from('bsd')
@@ -152,6 +194,20 @@ const ModifyCard = () => {
                 comments: "",
             });
 
+            // Récupérer les PDFs liés
+            if (result.data.pdf_ids && result.data.pdf_ids.length > 0) {
+                const { data: pdfsData, error: pdfsError } = await supabase
+                    .from('pdf_infos')
+                    .select('*')
+                    .in('id', result.data.pdf_ids);
+
+                if (pdfsError) {
+                    console.error("Erreur lors de la récupération des PDFs:", pdfsError);
+                } else if (pdfsData) {
+                    setPdfInfos(pdfsData);
+                }
+            }
+
             // Récupérer la masse volumique
             if (result.data.infos_json.formAPI.createFormInput.wasteDetails?.code) {
                 const { data: autocompletionData } = await supabase
@@ -172,7 +228,7 @@ const ModifyCard = () => {
         if (entreprise_id && user_id && modalId) {
             getBSD(entreprise_id);
         }
-    }, [modalId, entreprise_id, user_id]);
+    }, [modalId, entreprise_id, user_id, modalType]);
 
     useEffect(() => {
         const getFiliereName = async () => {
@@ -911,6 +967,50 @@ const ModifyCard = () => {
                             </div>
                         </div>
 
+                        {/* Section REP */}
+                        <div className="bg-amber-50 p-3 rounded border border-amber-100 mt-4">
+                            <h3 className="font-semibold text-amber-800 mb-2">REP</h3>
+                            <div className="space-y-2 mr-4">
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[200px] text-right mr-2">Envoyé en REP: </span>
+                                    <input
+                                        type="checkbox"
+                                        checked={otherInfos.rep?.sent_to_rep || false}
+                                        onChange={(e) => {
+                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                ...prev,
+                                                rep: {
+                                                    ...prev.rep,
+                                                    sent_to_rep: e.target.checked
+                                                }
+                                            }));
+                                        }}
+                                        className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded"
+                                    />
+                                </div>
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[200px] text-right mr-2">Montant du rachat: </span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="10"
+                                        value={otherInfos.rep?.montant_rep || 0}
+                                        onChange={(e) => {
+                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                ...prev,
+                                                rep: {
+                                                    ...prev.rep,
+                                                    montant_rep: Number(e.target.value)
+                                                }
+                                            }));
+                                        }}
+                                        placeholder="Montant en euros"
+                                        className="text-gray-600 rounded-md px-2 py-[3px] w-[320px]"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
                 <style jsx global>{`
@@ -922,9 +1022,38 @@ const ModifyCard = () => {
                     }
                 `}</style>
 
+                {/* Ajouter la section PDFs avant le bouton de fermeture */}
+                {pdfInfos.length > 0 && (
+                    <div className="bg-pink-50 p-3 rounded border border-pink-100 mt-4">
+                        <h3 className="font-semibold text-pink-800 mb-2">PDFs liés</h3>
+                        <div className="space-y-2">
+                            {pdfInfos.map((pdf) => (
+                                <div key={pdf.id} className="flex items-center justify-between p-2 bg-white rounded hover:bg-pink-50 transition-colors">
+                                    <div className="flex items-center space-x-2">
+                                        <BoxIcon name='file-pdf' color='red' type='solid' />
+                                        <span className="text-sm text-gray-700">{pdf.name_pdf}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => handleOpenPdf(pdf)}
+                                        disabled={loadingUrls[pdf.id]}
+                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                    >
+                                        {loadingUrls[pdf.id] ? 'Chargement...' : 'Ouvrir'}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 <div className="flex justify-end space-x-2 mt-6">
                     <button
-                        onClick={() => setModalType("")}
+                        onClick={() => {
+                            setModalType("");
+                            setPdfInfos([]);
+                            setPdfUrls({});
+                            setLoadingUrls({});
+                        }}
                         className="px-4 py-2 text-gray-600 border rounded hover:bg-gray-100"
                     >
                         Annuler

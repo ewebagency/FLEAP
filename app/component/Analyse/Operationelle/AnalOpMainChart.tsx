@@ -81,8 +81,8 @@ const AnalOpMainChart = () => {
     // Initialiser les données par segment (filière ou prestataire)
     bsds.forEach(bsd => {
       try {
-      // Convertir la date PostgreSQL en objet Date
-      const date = new Date(bsd.created_at);
+      // Utiliser takenOverAt si disponible, sinon created_at
+      const date = new Date(bsd.infos_json?.formAPI?.createFormInput?.takenOverAt || bsd.created_at);
       // Réinitialiser currentDate car il a été modifié dans la boucle while
       const startDate = new Date(segmentDates.debut || new Date());
       
@@ -107,15 +107,15 @@ const AnalOpMainChart = () => {
         quantitiesBySegment[segmentKey] = Array(monthLabels.length).fill(0);
       }
 
-      // Calculer l'index du mois relatif à la période
-      const monthIndex = Math.floor(
-        (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-      );
-      if (monthIndex >= 0 && monthIndex < monthLabels.length) {
+      // Calculer l'index du mois en utilisant l'année et le mois uniquement
+      const monthDiff = (date.getFullYear() - startDate.getFullYear()) * 12 + 
+                       (date.getMonth() - startDate.getMonth());
+      
+      if (monthDiff >= 0 && monthDiff < monthLabels.length) {
           const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
                           bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
         
-          quantitiesBySegment[segmentKey][monthIndex] += Number(quantity) || 0;
+          quantitiesBySegment[segmentKey][monthDiff] += Number(quantity) || 0;
         }
       } catch (error) {
         console.warn('Erreur lors du traitement d\'un BSD:', error);

@@ -71,7 +71,7 @@ const emailTemplate: EmailTemplate = {
         const filieres = new Set(params.wasteLines.map(line => 
             getFiliere(line.code, mappingTable)
         ));
-        return `Demande de prestation déchet - ${Array.from(filieres).join(', ')} | ${params.entrepriseName}`;
+        return `${params.entrepriseName} | ${params.emitter.name} | Demande de prestation déchet - ${Array.from(filieres).join(', ')}]`;
     },
     getBody: (params: EmailParams) => {
         // Construire l'adresse complète du point de collecte
@@ -101,7 +101,7 @@ const emailTemplate: EmailTemplate = {
 
 Je souhaite organiser des collectes de déchets.
 Client : ${params.entrepriseName}${params.numClient ? `
-Numéro de client : ${params.numClient}` : ''}
+Numéro de contrat : ${params.numClient}` : ''}
 Site : ${params.emitter.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
@@ -123,7 +123,7 @@ ${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params
 
 Je souhaite organiser des collectes de déchets.
 Client : ${params.entrepriseName}
-${params.numClient ? `Numéro de client : ${params.numClient}
+${params.numClient ? `Numéro de contrat : ${params.numClient}
 ` : ''}Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
@@ -145,7 +145,7 @@ ${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params
 
 Je souhaite réserver un camion pour la journée.
 Client : ${params.entrepriseName}
-${params.numClient ? `Numéro de client : ${params.numClient}
+${params.numClient ? `Numéro de contrat : ${params.numClient}
 ` : ''}Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
@@ -167,7 +167,7 @@ ${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params
 
 Je souhaite réserver un camion pour la demi-journée.
 Client : ${params.entrepriseName}
-${params.numClient ? `Numéro de client : ${params.numClient}
+${params.numClient ? `Numéro de contrat : ${params.numClient}
 ` : ''}Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
@@ -189,7 +189,7 @@ ${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params
 
 Je souhaite commander des contenants vides.
 Client : ${params.entrepriseName}
-${params.numClient ? `Numéro de client : ${params.numClient}
+${params.numClient ? `Numéro de contrat : ${params.numClient}
 ` : ''}Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
@@ -211,7 +211,7 @@ ${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params
 
 Je souhaite réserver un camion pour une tournée.
 Client : ${params.entrepriseName}
-${params.numClient ? `Numéro de client : ${params.numClient}
+${params.numClient ? `Numéro de contrat : ${params.numClient}
 ` : ''}Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
@@ -233,7 +233,7 @@ ${params.respoTerrain.email ? `Votre contact sur le terrain si besoin : ${params
 
 Je souhaite organiser une prestation.
 Client : ${params.entrepriseName}
-${params.numClient ? `Numéro de client : ${params.numClient}
+${params.numClient ? `Numéro de contrat : ${params.numClient}
 ` : ''}Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 

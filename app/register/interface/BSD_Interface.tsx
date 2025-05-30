@@ -1012,6 +1012,10 @@ export interface OtherInfos {
         pourcentage_masse_declassee: string;
         montant_declasse: string;
     };
+    rep?: {
+        sent_to_rep?: boolean;
+        montant_rep?: number;
+    };
 }
 
 export interface CompleteFormInput{
