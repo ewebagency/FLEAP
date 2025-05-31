@@ -4,3 +4,4 @@ paddleocr
 paddlepaddle==2.5.2
 pandas
 python-dotenv
+python-multipart==0.0.12
