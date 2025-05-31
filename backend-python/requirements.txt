@@ -19,3 +19,5 @@ requests==2.31.0
 
 paddleocr
 paddlepaddle
+shutil
+tempfile

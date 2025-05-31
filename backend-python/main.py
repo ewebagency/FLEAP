@@ -9,6 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 #from ocr_then_llm.utils import process_pdf_with_llm
 import os
 from dotenv import load_dotenv
+import shutil
+import tempfile
 
 from paddleocr import PaddleOCR
 
@@ -133,7 +135,11 @@ def read_root():
 
 @app.post("/extract-text-with-paddleocr/")
 async def paddle_this(file: UploadFile = File(...)):
-    #Nouvel endpoint pour extraire le texte d'un fichier avec PaddleOCR
-    ocr = PaddleOCR(lang='fr')  # supporte le français
-    result = ocr.ocr(file)
+    ocr = PaddleOCR(lang='fr')
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+
+    result = ocr.ocr(tmp_path)
     return result
