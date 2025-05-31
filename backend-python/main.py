@@ -135,5 +135,5 @@ def read_root():
 async def paddle_this(file: UploadFile = File(...)):
     #Nouvel endpoint pour extraire le texte d'un fichier avec PaddleOCR
     ocr = PaddleOCR(lang='fr')  # supporte le français
-    result = ocr.predict(file)
+    result = ocr.ocr(file)
     return result
