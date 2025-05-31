@@ -126,6 +126,11 @@ async def health_check():
 # Endpoints pour PaddleOCR
 # =============================================
 
+@app.get("/")
+def read_root():
+    return {"status": "OK"}
+
+
 @app.post("/extract-text-with-paddleocr/")
 async def paddle_this(file: UploadFile = File(...)):
     #Nouvel endpoint pour extraire le texte d'un fichier avec PaddleOCR
