@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
 paddleocr
-paddlepaddle==2.5.0
+paddlepaddle==2.5.2
 pandas
 python-dotenv
