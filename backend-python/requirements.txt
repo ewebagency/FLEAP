@@ -13,8 +13,8 @@ uvicorn==0.32.0
 # Pillow==10.4.0
 # fuzzywuzzy==0.18.0
 # invoice2data==0.4.5
-# python-dotenv==1.0.1
-# requests==2.31.0
+python-dotenv==1.0.1
+requests==2.31.0
 # reportlab==4.0.8
 
 paddleocr
