@@ -24,4 +24,4 @@ COPY . .
 RUN pip install --upgrade pip
 RUN pip install paddleocr pandas uvicorn[standard] fastapi
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "main.py"]
