@@ -200,36 +200,39 @@ export const checkAutocompletion = (
     
     // Rechercher un transportLink qui correspond à la paire site/dechet
     const transportLink = links.transportLinks.find(link => {
-      const siteMatch = link.transport_link.some(item => item.site === selectedFields.site!.table_id.toString());
-      const dechetMatch = link.transport_link.some(item => item.dechet === selectedFields.dechet!.table_id.toString());
-      return siteMatch && dechetMatch;
+      const matchingLink = link.transport_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
+      return !!matchingLink;
     });
 
     if (transportLink) {
-      
       // Trouver le transporteur correspondant
       const transporteur = allOptions.transporteurs.find(t => t.table_id === transportLink.table_id);
       if (transporteur) {
         result.transporteur = transporteur;
       }
       
-      const transportLinkFound = transportLink.transport_link.find(item => item.site === selectedFields.site!.table_id.toString() && item.dechet === selectedFields.dechet!.table_id.toString());
-      //console.log('transportLinkFound', transportLinkFound);
+      const transportLinkFound = transportLink.transport_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
       if(transportLinkFound?.mail){
         result.destinataireMail = 'transporteur';
       }
     }
 
-
     // Rechercher un destinataireLink qui correspond à la paire site/dechet
     const destinataireLink = links.destinataireLinks.find(link => {
-      const siteMatch = link.dest_link.some(item => item.site === selectedFields.site!.table_id.toString());
-      const dechetMatch = link.dest_link.some(item => item.dechet === selectedFields.dechet!.table_id.toString());
-      return siteMatch && dechetMatch;
+      const matchingLink = link.dest_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
+      return !!matchingLink;
     });
 
     if (destinataireLink) {
-      
       // Trouver le destinataire correspondant
       const destinataire = allOptions.destinataires.find(d => d.table_id === destinataireLink.table_id);
       if (destinataire) {
@@ -244,22 +247,25 @@ export const checkAutocompletion = (
           };
         }
       }
-      const destinataireLinkFound = destinataireLink.dest_link.find(item => item.site === selectedFields.site!.table_id.toString() && item.dechet === selectedFields.dechet!.table_id.toString());
+      const destinataireLinkFound = destinataireLink.dest_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
       if(destinataireLinkFound?.mail){
         result.destinataireMail = 'destinataire';
       }
     }
 
-    
     // Rechercher un contenantLink qui correspond à la paire site/dechet
     const contenantLink = links.contenantLinks.find(link => {
-      const siteMatch = link.contenant_link.some(item => item.site === selectedFields.site!.table_id.toString());
-      const dechetMatch = link.contenant_link.some(item => item.dechet === selectedFields.dechet!.table_id.toString());
-      return siteMatch && dechetMatch;
+      const matchingLink = link.contenant_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
+      return !!matchingLink;
     });
 
     if (contenantLink) {
-      
       // Trouver le contenant correspondant
       const contenant = allOptions.contenants.find(c => c.table_id === contenantLink.table_id);
       if (contenant) {
@@ -269,9 +275,11 @@ export const checkAutocompletion = (
 
     // Rechercher un negociantLink qui correspond à la paire site/dechet
     const negociantLink = links.negociantLinks.find(link => {
-      const siteMatch = link.negociant_link.some(item => item.site === selectedFields.site!.table_id.toString());
-      const dechetMatch = link.negociant_link.some(item => item.dechet === selectedFields.dechet!.table_id.toString());
-      return siteMatch && dechetMatch;
+      const matchingLink = link.negociant_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
+      return !!matchingLink;
     });
 
     if (negociantLink) {
@@ -280,8 +288,10 @@ export const checkAutocompletion = (
       if (negociant) {
         result.negociant = negociant;
       }
-      const negociantLinkFound = negociantLink.negociant_link.find(item => item.site === selectedFields.site!.table_id.toString() && item.dechet === selectedFields.dechet!.table_id.toString());
-      //console.log('negociantLinkFound', negociantLinkFound);
+      const negociantLinkFound = negociantLink.negociant_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
       if(negociantLinkFound?.mail){
         result.destinataireMail = 'negociant';
       }
@@ -289,9 +299,11 @@ export const checkAutocompletion = (
 
     // Rechercher un courtierLink qui correspond à la paire site/dechet
     const courtierLink = links.courtierLinks.find(link => {
-      const siteMatch = link.courtier_link.some(item => item.site === selectedFields.site!.table_id.toString());
-      const dechetMatch = link.courtier_link.some(item => item.dechet === selectedFields.dechet!.table_id.toString());
-      return siteMatch && dechetMatch;
+      const matchingLink = link.courtier_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
+      return !!matchingLink;
     });
 
     if (courtierLink) {
@@ -300,19 +312,22 @@ export const checkAutocompletion = (
       if (courtier) {
         result.courtier = courtier;
       }
-      const courtierLinkFound = courtierLink.courtier_link.find(item => item.site === selectedFields.site!.table_id.toString() && item.dechet === selectedFields.dechet!.table_id.toString());
-      //console.log('courtierLinkFound', courtierLinkFound);
+      const courtierLinkFound = courtierLink.courtier_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
       if(courtierLinkFound?.mail){
         result.destinataireMail = 'courtier';
       }
     }
 
-    
-    //--- Rechercher un ecoorganismeLink qui correspond à la paire site/dechet
+    // Rechercher un ecoorganismeLink qui correspond à la paire site/dechet
     const ecoorganismeLink = links.ecoorganismeLinks.find(link => {
-      const siteMatch = link.eco_organisme_link.some(item => item.site === selectedFields.site!.table_id.toString());
-      const dechetMatch = link.eco_organisme_link.some(item => item.dechet === selectedFields.dechet!.table_id.toString());
-      return siteMatch && dechetMatch;
+      const matchingLink = link.eco_organisme_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
+      return !!matchingLink;
     });
 
     if (ecoorganismeLink) {
@@ -321,18 +336,22 @@ export const checkAutocompletion = (
       if (ecoorganisme) {
         result.ecoorganisme = ecoorganisme;
       }
-      const ecoorganismeLinkFound = ecoorganismeLink.eco_organisme_link.find(item => item.site === selectedFields.site!.table_id.toString() && item.dechet === selectedFields.dechet!.table_id.toString());
-      //console.log('ecoorganismeLinkFound', ecoorganismeLinkFound);
+      const ecoorganismeLinkFound = ecoorganismeLink.eco_organisme_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
       if(ecoorganismeLinkFound?.mail){
         result.destinataireMail = 'ecoorganisme';
       }
     }
     
-    //--- Rechercher un codeTraitementLink qui correspond à la paire site/dechet
+    // Rechercher un codeTraitementLink qui correspond à la paire site/dechet
     const codeTraitementLink = links.codeTraitementLinks.find(link => {
-      const siteMatch = link.code_traitement_link.some(item => item.site === selectedFields.site!.table_id.toString());
-      const dechetMatch = link.code_traitement_link.some(item => item.dechet === selectedFields.dechet!.table_id.toString());
-      return siteMatch && dechetMatch;
+      const matchingLink = link.code_traitement_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
+      return !!matchingLink;
     });
 
     if (codeTraitementLink) {
@@ -343,12 +362,14 @@ export const checkAutocompletion = (
       }
     }
 
-    //--- Rechercher un contratLink qui correspond à la paire site/dechet
+    // Rechercher un contratLink qui correspond à la paire site/dechet
     const contratLink = links.contratLinks.find(link => {
-      const siteMatch = link.contrat_link.some(item => item.site === selectedFields.site!.table_id.toString());
-      const dechetMatch = link.contrat_link.some(item => item.dechet === selectedFields.dechet!.table_id.toString());
-      return siteMatch && dechetMatch;
-    }); 
+      const matchingLink = link.contrat_link.find(item => 
+        item.site === selectedFields.site!.table_id.toString() && 
+        item.dechet === selectedFields.dechet!.table_id.toString()
+      );
+      return !!matchingLink;
+    });
 
     if (contratLink) {
       // Trouver le contrat correspondant
@@ -357,8 +378,6 @@ export const checkAutocompletion = (
         result.contrat = contrat;
       }
     }
-    
-    
   }
 
   // Vérifier si site
