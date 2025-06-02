@@ -461,7 +461,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                     <select
                       value={selectedFields.typePrestation}
                       onChange={(e) => handleFieldChange(index, 'typePrestation', e.target.value)}
-                      className="text-sm text-gray-600 bg-transparent rounded-md p-1 focus:outline-none focus:ring-0 font-bold hover:cursor-pointer bg-white hover:bg-gray-100"
+                      className="px-1 py-2 text-sm font-medium text-white bg-[var(--green-medium)] rounded-md hover:bg-[var(--green-dark)] focus:outline-none transition-colors duration-200"
                     >
                       {Object.entries(TYPES_PRESTATION_LABELS).map(([value, label]) => (
                         <option key={value} value={value}>
