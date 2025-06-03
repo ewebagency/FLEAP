@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { SessionMore, useSession } from '@/app/component/SessionProvider';
 import { useState, useEffect } from 'react';
 import BoxIcon from '@/app/component/BoxIconWrapper';
+import { cofounders_user_id } from '@/app/component/SideBar';
 
 // Import components
 import PersonalTab from './components/Personal/PersonalTab';
@@ -64,22 +65,26 @@ export default function UserSettings() {
                        onClick={() => handleTabClick('tab_personal')}>
                        Informations personnelles
                     </a>
-                    {/*<a role="tab" 
-                       className={`tab border-0 ${activeTab === 'tab_filiere' ? 'border-b-4 border-green-500' : ''}`}
-                       onClick={() => handleTabClick('tab_filiere')}>
-                       Filière
-                    </a>
-                    <a role="tab" 
-                       className={`tab border-0 ${activeTab === 'tab_site' ? 'border-b-4 border-green-500' : ''}`}
-                       onClick={() => handleTabClick('tab_site')}>
-                       Site
-                    </a>*/}
+                    {cofounders_user_id(session?.user_id) && (
+                        <div>
+                            <a role="tab" 
+                            className={`tab border-0 ${activeTab === 'tab_filiere' ? 'border-b-4 border-green-500' : ''}`}
+                            onClick={() => handleTabClick('tab_filiere')}>
+                            Filière
+                            </a>
+                            <a role="tab" 
+                            className={`tab border-0 ${activeTab === 'tab_site' ? 'border-b-4 border-green-500' : ''}`}
+                            onClick={() => handleTabClick('tab_site')}>
+                            Site
+                            </a>
+                        </div>
+                    )}
                     {/*<a role="tab" 
                        className={`tab border-0 ${activeTab === 'tab_permissions' ? 'border-b-4 border-green-500' : ''}`}
                        onClick={() => handleTabClick('tab_permissions')}>
                        Permissions
-                    </a>
-                    <a role="tab" 
+                    </a>*/}
+                    {/*<a role="tab" 
                        className={`tab border-0 ${activeTab === 'tab_parametrage' ? 'border-b-4 border-green-500' : ''}`}
                        onClick={() => handleTabClick('tab_parametrage')}>
                        Paramétrage
