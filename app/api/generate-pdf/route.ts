@@ -9,6 +9,7 @@ interface ReportData {
         lastDate: Date | string;
         siteAddress?: string;
         entrepriseName: string;
+        selectedSites?: string[];
     };
     filiereStats: Array<{
         filiere: string;
@@ -16,18 +17,20 @@ interface ReportData {
         quantity: number;
         materialValorizationRate: number;
         globalValorizationRate: number;
+        numberOfCollections: number;
+        averageCollectionsPerMonth: number;
     }>;
     transporteurs: Array<{
         name: string;
         siret: string;
-        address?: string;
         type: 'transporteur';
+        percentage: number;
     }>;
     destinataires: Array<{
         name: string;
         siret: string;
-        address?: string;
         type: 'destinataire';
+        percentage: number;
     }>;
     registre: Array<{
         wasteName: string;
@@ -36,6 +39,13 @@ interface ReportData {
         date: string;
         processingCode: string;
     }>;
+    chartData: {
+        labels: string[];
+        datasets: Array<{
+            label: string;
+            data: number[];
+        }>;
+    };
     chartImage: string;
 }
 

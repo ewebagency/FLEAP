@@ -1,6 +1,8 @@
 import { BSD } from '@/app/analysis/AnalysisProvider';
 import { tauxValorisationGlobale, tauxValorisationMatière } from '../Analyse/Environnementale/codeTraitement';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
+import { tailwindToRgba } from '../Analyse/MetaComponent/Colours';
+import { ReportData } from './types';
 
 interface Site {
     orgId: string;
@@ -14,6 +16,8 @@ interface FiliereStats {
     quantity: number;
     materialValorizationRate: number;
     globalValorizationRate: number;
+    numberOfCollections: number;
+    averageCollectionsPerMonth: number;
 }
 
 interface Prestataire {
@@ -21,49 +25,7 @@ interface Prestataire {
     siret: string;
     address?: string;
     type: 'transporteur' | 'destinataire';
-}
-
-interface ReportData {
-    header: {
-        siteName: string;
-        firstDate: Date | string;
-        lastDate: Date | string;
-        siteAddress?: string;
-        entrepriseName: string;
-    };
-    filiereStats: Array<{
-        filiere: string;
-        filiereName: string;
-        quantity: number;
-        materialValorizationRate: number;
-        globalValorizationRate: number;
-    }>;
-    transporteurs: Array<{
-        name: string;
-        siret: string;
-        address?: string;
-        type: 'transporteur';
-    }>;
-    destinataires: Array<{
-        name: string;
-        siret: string;
-        address?: string;
-        type: 'destinataire';
-    }>;
-    registre: Array<{
-        wasteName: string;
-        wasteCode: string;
-        quantity: number;
-        date: string;
-        processingCode: string;
-    }>;
-    chartData: {
-        labels: string[];
-        datasets: Array<{
-            label: string;
-            data: number[];
-        }>;
-    };
+    percentage: number;
 }
 
 export class ReportGenerator {
@@ -130,6 +92,9 @@ export class ReportGenerator {
             globalValorized: number;
             total: number;
             processedCount: number;
+            collections: number;
+            firstDate: Date;
+            lastDate: Date;
         }>();
 
         this.getSiteBSDs().forEach(bsd => {
@@ -137,6 +102,7 @@ export class ReportGenerator {
             const filiereName = this.getFiliereName(wasteCode);
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
             const processingCode = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation?.replace(/\s+/g, '');
+            const date = new Date(bsd.created_at);
 
             const current = filiereMap.get(filiereName) || {
                 filiereName,
@@ -144,11 +110,19 @@ export class ReportGenerator {
                 materialValorized: 0,
                 globalValorized: 0,
                 total: 0,
-                processedCount: 0
+                processedCount: 0,
+                collections: 0,
+                firstDate: date,
+                lastDate: date
             };
 
             current.quantity += quantity;
             current.total += 1;
+            current.collections += 1;
+
+            // Mettre à jour les dates
+            if (date < current.firstDate) current.firstDate = date;
+            if (date > current.lastDate) current.lastDate = date;
 
             if (processingCode) {
                 current.processedCount += 1;
@@ -168,12 +142,20 @@ export class ReportGenerator {
         let totalProcessed = 0;
         let totalMaterialValorized = 0;
         let totalGlobalValorized = 0;
+        let totalCollections = 0;
+        let globalFirstDate = new Date();
+        let globalLastDate = new Date(0);
 
         const stats = Array.from(filiereMap.entries()).map(([filiere, stats]) => {
             totalQuantity += stats.quantity;
             totalProcessed += stats.processedCount;
             totalMaterialValorized += stats.materialValorized;
             totalGlobalValorized += stats.globalValorized;
+            totalCollections += stats.collections;
+
+            // Mettre à jour les dates globales
+            if (stats.firstDate < globalFirstDate) globalFirstDate = stats.firstDate;
+            if (stats.lastDate > globalLastDate) globalLastDate = stats.lastDate;
 
             // Calculer les taux de valorisation pour chaque filière
             const materialValorizationRate = stats.processedCount > 0 
@@ -183,66 +165,117 @@ export class ReportGenerator {
                 ? (stats.globalValorized / stats.processedCount) * 100 
                 : 0;
 
+            // Calculer le nombre de mois entre la première et la dernière collecte
+            const monthsDiff = (stats.lastDate.getFullYear() - stats.firstDate.getFullYear()) * 12 + 
+                             (stats.lastDate.getMonth() - stats.firstDate.getMonth()) + 1;
+            
+            // Calculer la moyenne mensuelle de collectes
+            const averageCollectionsPerMonth = monthsDiff > 0 ? stats.collections / monthsDiff : 0;
+
             return {
                 filiere,
                 filiereName: stats.filiereName,
                 quantity: stats.quantity,
                 materialValorizationRate,
-                globalValorizationRate
+                globalValorizationRate,
+                numberOfCollections: stats.collections,
+                averageCollectionsPerMonth
             };
         });
 
         // Trier les filières par quantité (décroissant)
         stats.sort((a, b) => b.quantity - a.quantity);
 
-        // Ajouter la ligne des totaux avec les taux moyens pondérés
-        const totalMaterialValorizationRate = totalProcessed > 0 
-            ? (totalMaterialValorized / totalProcessed) * 100 
-            : 0;
-        const totalGlobalValorizationRate = totalProcessed > 0 
-            ? (totalGlobalValorized / totalProcessed) * 100 
-            : 0;
+        // Calculer la moyenne mensuelle globale
+        const globalMonthsDiff = (globalLastDate.getFullYear() - globalFirstDate.getFullYear()) * 12 + 
+                               (globalLastDate.getMonth() - globalFirstDate.getMonth()) + 1;
+        const globalAverageCollectionsPerMonth = globalMonthsDiff > 0 ? totalCollections / globalMonthsDiff : 0;
 
+        // Ajouter la ligne des totaux
         stats.push({
             filiere: 'TOTAL',
             filiereName: 'TOTAL',
             quantity: totalQuantity,
-            materialValorizationRate: totalMaterialValorizationRate,
-            globalValorizationRate: totalGlobalValorizationRate
+            materialValorizationRate: totalProcessed > 0 ? (totalMaterialValorized / totalProcessed) * 100 : 0,
+            globalValorizationRate: totalProcessed > 0 ? (totalGlobalValorized / totalProcessed) * 100 : 0,
+            numberOfCollections: totalCollections,
+            averageCollectionsPerMonth: globalAverageCollectionsPerMonth
         });
 
         return stats;
     }
 
     private getPrestataires(): { transporteurs: Prestataire[]; destinataires: Prestataire[] } {
-        const prestataires = new Set<string>();
         const transporteurs: Prestataire[] = [];
         const destinataires: Prestataire[] = [];
 
+        // Maps pour stocker les informations des prestataires et leurs quantités
+        const transporteurMap = new Map<string, {
+            name: string;
+            siret: string;
+            quantity: number;
+        }>();
+        const destinataireMap = new Map<string, {
+            name: string;
+            siret: string;
+            quantity: number;
+        }>();
+
+        // Calculer les quantités totales par prestataire
         this.getSiteBSDs().forEach(bsd => {
             const transporter = bsd.infos_json?.formAPI?.createFormInput?.transporter?.company;
             const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient?.company;
+            const quantity = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
 
-            if (transporter && !prestataires.has(transporter.siret)) {
-                prestataires.add(transporter.siret);
-                transporteurs.push({
+            if (transporter?.siret) {
+                const current = transporteurMap.get(transporter.siret) || {
                     name: transporter.name,
                     siret: transporter.siret,
-                    address: transporter.address,
-                    type: 'transporteur'
-                });
+                    quantity: 0
+                };
+                current.quantity += quantity;
+                transporteurMap.set(transporter.siret, current);
             }
 
-            if (recipient && !prestataires.has(recipient.siret)) {
-                prestataires.add(recipient.siret);
-                destinataires.push({
+            if (recipient?.siret) {
+                const current = destinataireMap.get(recipient.siret) || {
                     name: recipient.name,
                     siret: recipient.siret,
-                    address: recipient.address,
-                    type: 'destinataire'
-                });
+                    quantity: 0
+                };
+                current.quantity += quantity;
+                destinataireMap.set(recipient.siret, current);
             }
         });
+
+        // Calculer les totaux pour les pourcentages
+        const totalTransporteurQuantity = Array.from(transporteurMap.values())
+            .reduce((sum, t) => sum + t.quantity, 0);
+        const totalDestinataireQuantity = Array.from(destinataireMap.values())
+            .reduce((sum, d) => sum + d.quantity, 0);
+
+        // Créer les listes de prestataires avec leurs pourcentages
+        transporteurMap.forEach((info, siret) => {
+            transporteurs.push({
+                name: info.name,
+                siret: info.siret,
+                type: 'transporteur',
+                percentage: totalTransporteurQuantity > 0 ? (info.quantity / totalTransporteurQuantity) * 100 : 0
+            });
+        });
+
+        destinataireMap.forEach((info, siret) => {
+            destinataires.push({
+                name: info.name,
+                siret: info.siret,
+                type: 'destinataire',
+                percentage: totalDestinataireQuantity > 0 ? (info.quantity / totalDestinataireQuantity) * 100 : 0
+            });
+        });
+
+        // Trier par pourcentage décroissant
+        transporteurs.sort((a, b) => b.percentage - a.percentage);
+        destinataires.sort((a, b) => b.percentage - a.percentage);
 
         return { transporteurs, destinataires };
     }
@@ -308,18 +341,30 @@ export class ReportGenerator {
     }
 
     private async generateChartImage(chartData: ReportData['chartData']): Promise<string> {
+        // Couleurs prédéfinies pour les datasets
+        const colors = [
+            'blue-400', 'green-400', 'purple-400', 'yellow-400', 'pink-400',
+            'orange-400', 'teal-400', 'cyan-400', 'indigo-400', 'gray-400',
+            'blue-700', 'green-700', 'purple-700', 'yellow-700', 'pink-700',
+            'orange-700', 'teal-700', 'cyan-700', 'indigo-700', 'gray-700'
+        ];
+
         const chartConfig = {
             type: 'bar',
             data: {
                 labels: chartData.labels,
-                datasets: chartData.datasets.map((dataset: { label: string; data: number[] }, index: number) => ({
-                    label: dataset.label,
-                    data: dataset.data,
-                    backgroundColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.7)`,
-                    borderColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 1)`,
-                    borderWidth: 1,
-                    stack: 'stack0'
-                }))
+                datasets: chartData.datasets.map((dataset: { label: string; data: number[] }, index: number) => {
+                    const colorIndex = index % colors.length;
+                    const color = colors[colorIndex];
+                    return {
+                        label: dataset.label,
+                        data: dataset.data,
+                        backgroundColor: tailwindToRgba(color, 1),
+                        borderColor: tailwindToRgba(color, 1),
+                        borderWidth: 0,
+                        stack: 'stack0'
+                    };
+                })
             },
             options: {
                 responsive: true,
@@ -364,55 +409,68 @@ export class ReportGenerator {
         }
     }
 
+    private async prepareReportData(): Promise<ReportData> {
+        console.log('Getting site BSDs...');
+        const siteBSDs = this.getSiteBSDs();
+        if (siteBSDs.length === 0) {
+            throw new Error('Aucun BSD trouvé pour ce site');
+        }
+
+        console.log('Calculating date range...');
+        const { firstDate, lastDate } = this.getDateRange();
+        if (!firstDate || !lastDate || isNaN(firstDate.getTime()) || isNaN(lastDate.getTime())) {
+            throw new Error('Dates invalides dans les BSDs');
+        }
+
+        console.log('Calculating filiere stats...');
+        const filiereStats = this.calculateFiliereStats();
+        if (filiereStats.length === 0) {
+            throw new Error('Aucune statistique de filière calculée');
+        }
+
+        console.log('Getting prestataires...');
+        const { transporteurs, destinataires } = this.getPrestataires();
+
+        // Filtrer/caster pour garantir le type
+        const transporteursTyped = transporteurs.filter(t => t.type === 'transporteur').map(t => ({
+            name: t.name,
+            siret: t.siret,
+            type: 'transporteur' as const,
+            percentage: t.percentage
+        }));
+        const destinatairesTyped = destinataires.filter(d => d.type === 'destinataire').map(d => ({
+            name: d.name,
+            siret: d.siret,
+            type: 'destinataire' as const,
+            percentage: d.percentage
+        }));
+
+        console.log('Preparing chart data...');
+        const chartData = this.prepareChartData();
+
+        console.log('Generating chart image...');
+        const chartImage = await this.generateChartImage(chartData);
+
+        return {
+            header: {
+                siteName: this.getSiteName(),
+                firstDate,
+                lastDate,
+                siteAddress: this.site.address,
+                entrepriseName: this.entrepriseName
+            },
+            filiereStats,
+            transporteurs: transporteursTyped,
+            destinataires: destinatairesTyped,
+            registre: [],
+            chartData,
+            chartImage
+        };
+    }
+
     public async generateReportData(): Promise<Blob> {
         try {
-            console.log('Getting site BSDs...');
-            const siteBSDs = this.getSiteBSDs();
-            if (siteBSDs.length === 0) {
-                throw new Error('Aucun BSD trouvé pour ce site');
-            }
-
-            console.log('Calculating date range...');
-            const { firstDate, lastDate } = this.getDateRange();
-            if (!firstDate || !lastDate || isNaN(firstDate.getTime()) || isNaN(lastDate.getTime())) {
-                throw new Error('Dates invalides dans les BSDs');
-            }
-
-            console.log('Calculating filiere stats...');
-            const filiereStats = this.calculateFiliereStats();
-            if (filiereStats.length === 0) {
-                throw new Error('Aucune statistique de filière calculée');
-            }
-
-            console.log('Getting prestataires...');
-            const { transporteurs, destinataires } = this.getPrestataires();
-
-            console.log('Preparing chart data...');
-            const chartData = this.prepareChartData();
-
-            console.log('Generating chart image...');
-            const chartImage = await this.generateChartImage(chartData);
-
-            const data = {
-                header: {
-                    siteName: this.getSiteName(),
-                    firstDate,
-                    lastDate,
-                    siteAddress: this.site.address,
-                    entrepriseName: this.entrepriseName
-                },
-                filiereStats,
-                transporteurs,
-                destinataires,
-                chartImage,
-                registre: siteBSDs.map(bsd => ({
-                    wasteName: bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '',
-                    wasteCode: bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '',
-                    quantity: bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0,
-                    date: bsd.created_at || new Date().toISOString(),
-                    processingCode: bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || ''
-                }))
-            };
+            const data = await this.prepareReportData();
 
             console.log('Sending data to PDF generation endpoint...');
             const response = await fetch('/api/generate-pdf', {
@@ -437,5 +495,9 @@ export class ReportGenerator {
             }
             throw error;
         }
+    }
+
+    public async getReportData(): Promise<ReportData> {
+        return this.prepareReportData();
     }
 } 

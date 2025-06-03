@@ -107,6 +107,7 @@ interface PDFReportProps {
             lastDate: Date;
             siteAddress?: string;
             entrepriseName: string;
+            selectedSites?: string[];
         };
         filiereStats: Array<{
             filiere: string;
@@ -158,6 +159,16 @@ const PDFReport: React.FC<PDFReportProps> = ({ data }) => {
                             <Text style={styles.subtitle}>Adresse : {data.header.siteAddress}</Text>
                         )}
                         <Text style={styles.subtitle}>Entreprise : {data.header.entrepriseName}</Text>
+                        {data.header.selectedSites && data.header.selectedSites.length > 1 && (
+                            <View style={{ marginTop: 10 }}>
+                                <Text style={[styles.subtitle, { fontWeight: 'bold' }]}>Sites inclus dans le rapport :</Text>
+                                {data.header.selectedSites.map((site, index) => (
+                                    <Text key={index} style={[styles.subtitle, { marginLeft: 10 }]}>
+                                        • {site}
+                                    </Text>
+                                ))}
+                            </View>
+                        )}
                     </View>
 
                     {/* Filières Stats */}

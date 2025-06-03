@@ -95,6 +95,7 @@ interface PDFDocumentProps {
             lastDate: Date | string;
             siteAddress?: string;
             entrepriseName: string;
+            selectedSites?: string[];
         };
         filiereStats: Array<{
             filiere: string;
@@ -102,18 +103,20 @@ interface PDFDocumentProps {
             quantity: number;
             materialValorizationRate: number;
             globalValorizationRate: number;
+            numberOfCollections: number;
+            averageCollectionsPerMonth: number;
         }>;
         transporteurs: Array<{
             name: string;
             siret: string;
-            address?: string;
             type: 'transporteur';
+            percentage: number;
         }>;
         destinataires: Array<{
             name: string;
             siret: string;
-            address?: string;
             type: 'destinataire';
+            percentage: number;
         }>;
         registre: Array<{
             wasteName: string;
@@ -145,6 +148,16 @@ export function PDFDocument({ data, chartImage }: PDFDocumentProps) {
                         <Text style={styles.subtitle}>Adresse : {data.header.siteAddress}</Text>
                     )}
                     <Text style={styles.subtitle}>Entreprise : {data.header.entrepriseName}</Text>
+                    {Array.isArray(data.header.selectedSites) && data.header.selectedSites.length > 1 && (
+                        <View style={{ marginTop: 10 }}>
+                            <Text style={[styles.subtitle, { fontWeight: 'bold' }]}>Sites inclus dans le rapport :</Text>
+                            {data.header.selectedSites.map((site, index) => (
+                                <Text key={index} style={[styles.subtitle, { marginLeft: 10 }]}>
+                                    • {site}
+                                </Text>
+                            ))}
+                        </View>
+                    )}
                 </View>
 
                 {/* Chart */}
@@ -158,141 +171,106 @@ export function PDFDocument({ data, chartImage }: PDFDocumentProps) {
                     <Text style={styles.sectionTitle}>Tableau récapitulatif des filières</Text>
                     <View style={styles.table}>
                         <View style={[styles.tableRow, styles.tableHeader]}>
-                            <View style={styles.tableCol}>
+                            <View style={[styles.tableCol, { width: '22%' }]}>
                                 <Text style={[styles.tableCell, { color: '#ffffff' }]}>Filière</Text>
                             </View>
-                            <View style={styles.tableCol}>
+                            <View style={[styles.tableCol, { width: '19%' }]}>
                                 <Text style={[styles.tableCell, { color: '#ffffff' }]}>Quantité (t)</Text>
                             </View>
-                            <View style={styles.tableCol}>
+                            <View style={[styles.tableCol, { width: '20%' }]}>
                                 <Text style={[styles.tableCell, { color: '#ffffff' }]}>Val. Matière (%)</Text>
                             </View>
-                            <View style={styles.tableCol}>
+                            <View style={[styles.tableCol, { width: '20%' }]}>
                                 <Text style={[styles.tableCell, { color: '#ffffff' }]}>Val. Globale (%)</Text>
                             </View>
+                            <View style={[styles.tableCol, { width: '19%' }]}>
+                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>Nb Collectes</Text>
+                            </View>
+                            {/*<View style={[styles.tableCol, { width: '13%' }]}>
+                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>Moy./mois</Text>
+                            </View>*/}
                         </View>
                         {data.filiereStats.map((stat, index) => (
                             <View key={index} style={styles.tableRow}>
-                                <View style={styles.tableCol}>
+                                <View style={[styles.tableCol, { width: '22%' }]}>
                                     <Text style={styles.tableCell}>{stat.filiereName}</Text>
                                 </View>
-                                <View style={styles.tableCol}>
+                                <View style={[styles.tableCol, { width: '19%' }]}>
                                     <Text style={styles.tableCell}>{stat.quantity.toFixed(2)}</Text>
                                 </View>
-                                <View style={styles.tableCol}>
+                                <View style={[styles.tableCol, { width: '20%' }]}>
                                     <Text style={styles.tableCell}>{stat.materialValorizationRate.toFixed(1)}</Text>
                                 </View>
-                                <View style={styles.tableCol}>
+                                <View style={[styles.tableCol, { width: '20%' }]}>
                                     <Text style={styles.tableCell}>{stat.globalValorizationRate.toFixed(1)}</Text>
                                 </View>
+                                <View style={[styles.tableCol, { width: '19%' }]}>
+                                    <Text style={styles.tableCell}>{stat.numberOfCollections}</Text>
+                                </View>
+                                {/*<View style={[styles.tableCol, { width: '20%' }]}>
+                                    <Text style={styles.tableCell}>{stat.averageCollectionsPerMonth.toFixed(1)}</Text>
+                                </View>*/}
                             </View>
                         ))}
                     </View>
                 </View>
 
                 {/* Transporteurs */}
-                {data.transporteurs.length > 0 && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Transporteurs</Text>
-                        <View style={styles.table}>
-                            <View style={[styles.tableRow, styles.tableHeader]}>
-                                <View style={styles.tableCol}>
-                                    <Text style={[styles.tableCell, { color: '#ffffff' }]}>Nom</Text>
-                                </View>
-                                <View style={styles.tableCol}>
-                                    <Text style={[styles.tableCell, { color: '#ffffff' }]}>SIRET</Text>
-                                </View>
-                                <View style={styles.tableCol}>
-                                    <Text style={[styles.tableCell, { color: '#ffffff' }]}>Adresse</Text>
-                                </View>
-                            </View>
-                            {data.transporteurs.map((transporteur, index) => (
-                                <View key={index} style={styles.tableRow}>
-                                    <View style={styles.tableCol}>
-                                        <Text style={styles.tableCell}>{transporteur.name}</Text>
-                                    </View>
-                                    <View style={styles.tableCol}>
-                                        <Text style={styles.tableCell}>{transporteur.siret}</Text>
-                                    </View>
-                                    <View style={styles.tableCol}>
-                                        <Text style={styles.tableCell}>{transporteur.address || '-'}</Text>
-                                    </View>
-                                </View>
-                            ))}
-                        </View>
-                    </View>
-                )}
-
-                {/* Destinataires */}
-                {data.destinataires.length > 0 && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Destinataires</Text>
-                        <View style={styles.table}>
-                            <View style={[styles.tableRow, styles.tableHeader]}>
-                                <View style={styles.tableCol}>
-                                    <Text style={[styles.tableCell, { color: '#ffffff' }]}>Nom</Text>
-                                </View>
-                                <View style={styles.tableCol}>
-                                    <Text style={[styles.tableCell, { color: '#ffffff' }]}>SIRET</Text>
-                                </View>
-                                <View style={styles.tableCol}>
-                                    <Text style={[styles.tableCell, { color: '#ffffff' }]}>Adresse</Text>
-                                </View>
-                            </View>
-                            {data.destinataires.map((destinataire, index) => (
-                                <View key={index} style={styles.tableRow}>
-                                    <View style={styles.tableCol}>
-                                        <Text style={styles.tableCell}>{destinataire.name}</Text>
-                                    </View>
-                                    <View style={styles.tableCol}>
-                                        <Text style={styles.tableCell}>{destinataire.siret}</Text>
-                                    </View>
-                                    <View style={styles.tableCol}>
-                                        <Text style={styles.tableCell}>{destinataire.address || '-'}</Text>
-                                    </View>
-                                </View>
-                            ))}
-                        </View>
-                    </View>
-                )}
-
-                {/* Registre des déchets */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Registre des déchets</Text>
+                    <Text style={styles.sectionTitle}>Transporteurs</Text>
                     <View style={styles.table}>
                         <View style={[styles.tableRow, styles.tableHeader]}>
-                            <View style={[styles.tableCol, { width: '30%' }]}>
-                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>Déchet</Text>
+                            <View style={[styles.tableCol, { width: '60%' }]}>
+                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>Nom</Text>
                             </View>
-                            <View style={[styles.tableCol, { width: '15%' }]}>
-                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>Code</Text>
-                            </View>
-                            <View style={[styles.tableCol, { width: '15%' }]}>
-                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>Tonnage</Text>
-                            </View>
-                            <View style={[styles.tableCol, { width: '20%' }]}>
-                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>Date</Text>
-                            </View>
-                            <View style={[styles.tableCol, { width: '20%' }]}>
-                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>Code Traitement</Text>
+                            {/*<View style={[styles.tableCol, { width: '40%' }]}>
+                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>SIRET</Text>
+                            </View>*/}
+                            <View style={[styles.tableCol, { width: '40%' }]}>
+                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>% Tonnage</Text>
                             </View>
                         </View>
-                        {data.registre.map((entry, index) => (
+                        {data.transporteurs.map((transporteur, index) => (
                             <View key={index} style={styles.tableRow}>
-                                <View style={[styles.tableCol, { width: '30%' }]}>
-                                    <Text style={styles.tableCell}>{entry.wasteName}</Text>
+                                <View style={[styles.tableCol, { width: '60%' }]}>
+                                    <Text style={styles.tableCell}>{transporteur.name}</Text>
                                 </View>
-                                <View style={[styles.tableCol, { width: '15%' }]}>
-                                    <Text style={styles.tableCell}>{entry.wasteCode}</Text>
+                                {/*<View style={[styles.tableCol, { width: '40%' }]}>
+                                    <Text style={styles.tableCell}>{transporteur.siret}</Text>
+                                </View>*/}
+                                <View style={[styles.tableCol, { width: '40%' }]}>
+                                    <Text style={styles.tableCell}>{transporteur.percentage.toFixed(1)}%</Text>
                                 </View>
-                                <View style={[styles.tableCol, { width: '15%' }]}>
-                                    <Text style={styles.tableCell}>{entry.quantity.toFixed(2)} T</Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Destinataires */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Destinataires</Text>
+                    <View style={styles.table}>
+                        <View style={[styles.tableRow, styles.tableHeader]}>
+                            <View style={[styles.tableCol, { width: '60%' }]}>
+                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>Nom</Text>
+                            </View>
+                            {/*<View style={[styles.tableCol, { width: '40%' }]}>
+                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>SIRET</Text>
+                            </View>*/}
+                            <View style={[styles.tableCol, { width: '40%' }]}>
+                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>% Tonnage</Text>
+                            </View>
+                        </View>
+                        {data.destinataires.map((destinataire, index) => (
+                            <View key={index} style={styles.tableRow}>
+                                <View style={[styles.tableCol, { width: '60%' }]}>
+                                    <Text style={styles.tableCell}>{destinataire.name}</Text>
                                 </View>
-                                <View style={[styles.tableCol, { width: '20%' }]}>
-                                    <Text style={styles.tableCell}>{new Date(entry.date).toLocaleDateString('fr-FR')}</Text>
-                                </View>
-                                <View style={[styles.tableCol, { width: '20%' }]}>
-                                    <Text style={styles.tableCell}>{entry.processingCode}</Text>
+                                {/*<View style={[styles.tableCol, { width: '40%' }]}>
+                                    <Text style={styles.tableCell}>{destinataire.siret}</Text>
+                                </View>*/}
+                                <View style={[styles.tableCol, { width: '40%' }]}>
+                                    <Text style={styles.tableCell}>{destinataire.percentage.toFixed(1)}%</Text>
                                 </View>
                             </View>
                         ))}
