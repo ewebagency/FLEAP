@@ -23,6 +23,49 @@ interface Prestataire {
     type: 'transporteur' | 'destinataire';
 }
 
+interface ReportData {
+    header: {
+        siteName: string;
+        firstDate: Date | string;
+        lastDate: Date | string;
+        siteAddress?: string;
+        entrepriseName: string;
+    };
+    filiereStats: Array<{
+        filiere: string;
+        filiereName: string;
+        quantity: number;
+        materialValorizationRate: number;
+        globalValorizationRate: number;
+    }>;
+    transporteurs: Array<{
+        name: string;
+        siret: string;
+        address?: string;
+        type: 'transporteur';
+    }>;
+    destinataires: Array<{
+        name: string;
+        siret: string;
+        address?: string;
+        type: 'destinataire';
+    }>;
+    registre: Array<{
+        wasteName: string;
+        wasteCode: string;
+        quantity: number;
+        date: string;
+        processingCode: string;
+    }>;
+    chartData: {
+        labels: string[];
+        datasets: Array<{
+            label: string;
+            data: number[];
+        }>;
+    };
+}
+
 export class ReportGenerator {
     private bsds: BSD[];
     private site: Site;
@@ -264,46 +307,135 @@ export class ReportGenerator {
         };
     }
 
-    public async generateReportData(): Promise<Blob> {
-        const siteBSDs = this.getSiteBSDs();
-        const { firstDate, lastDate } = this.getDateRange();
-        const filiereStats = this.calculateFiliereStats();
-        const { transporteurs, destinataires } = this.getPrestataires();
-        const chartData = this.prepareChartData();
-
-        const data = {
-            header: {
-                siteName: this.getSiteName(),
-                firstDate,
-                lastDate,
-                siteAddress: this.site.address,
-                entrepriseName: this.entrepriseName
+    private async generateChartImage(chartData: ReportData['chartData']): Promise<string> {
+        const chartConfig = {
+            type: 'bar',
+            data: {
+                labels: chartData.labels,
+                datasets: chartData.datasets.map((dataset: { label: string; data: number[] }, index: number) => ({
+                    label: dataset.label,
+                    data: dataset.data,
+                    backgroundColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.7)`,
+                    borderColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 1)`,
+                    borderWidth: 1,
+                    stack: 'stack0'
+                }))
             },
-            filiereStats,
-            transporteurs,
-            destinataires,
-            chartData,
-            registre: siteBSDs.map(bsd => ({
-                wasteName: bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '',
-                wasteCode: bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '',
-                quantity: bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0,
-                date: bsd.created_at || new Date().toISOString(),
-                processingCode: bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || ''
-            }))
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        stacked: true,
+                        title: {
+                            display: true,
+                            text: 'Mois'
+                        }
+                    },
+                    y: {
+                        stacked: true,
+                        title: {
+                            display: true,
+                            text: 'Tonnes'
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Évolution des tonnages par filière'
+                    },
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
         };
 
-        const response = await fetch('/api/generate-pdf', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to generate PDF');
+        const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=800&height=400`;
+        
+        try {
+            const response = await fetch(chartUrl);
+            const arrayBuffer = await response.arrayBuffer();
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+            return `data:image/png;base64,${base64}`;
+        } catch (error) {
+            console.error('Error generating chart:', error);
+            throw new Error('Failed to generate chart');
         }
+    }
 
-        return response.blob();
+    public async generateReportData(): Promise<Blob> {
+        try {
+            console.log('Getting site BSDs...');
+            const siteBSDs = this.getSiteBSDs();
+            if (siteBSDs.length === 0) {
+                throw new Error('Aucun BSD trouvé pour ce site');
+            }
+
+            console.log('Calculating date range...');
+            const { firstDate, lastDate } = this.getDateRange();
+            if (!firstDate || !lastDate || isNaN(firstDate.getTime()) || isNaN(lastDate.getTime())) {
+                throw new Error('Dates invalides dans les BSDs');
+            }
+
+            console.log('Calculating filiere stats...');
+            const filiereStats = this.calculateFiliereStats();
+            if (filiereStats.length === 0) {
+                throw new Error('Aucune statistique de filière calculée');
+            }
+
+            console.log('Getting prestataires...');
+            const { transporteurs, destinataires } = this.getPrestataires();
+
+            console.log('Preparing chart data...');
+            const chartData = this.prepareChartData();
+
+            console.log('Generating chart image...');
+            const chartImage = await this.generateChartImage(chartData);
+
+            const data = {
+                header: {
+                    siteName: this.getSiteName(),
+                    firstDate,
+                    lastDate,
+                    siteAddress: this.site.address,
+                    entrepriseName: this.entrepriseName
+                },
+                filiereStats,
+                transporteurs,
+                destinataires,
+                chartImage,
+                registre: siteBSDs.map(bsd => ({
+                    wasteName: bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '',
+                    wasteCode: bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '',
+                    quantity: bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0,
+                    date: bsd.created_at || new Date().toISOString(),
+                    processingCode: bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || ''
+                }))
+            };
+
+            console.log('Sending data to PDF generation endpoint...');
+            const response = await fetch('/api/generate-pdf', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Erreur serveur (${response.status}): ${errorText}`);
+            }
+
+            console.log('PDF generated successfully');
+            return response.blob();
+        } catch (error) {
+            console.error('Error in generateReportData:', error);
+            if (error instanceof Error) {
+                throw new Error(`Erreur lors de la génération du rapport: ${error.message}`);
+            }
+            throw error;
+        }
     }
 } 

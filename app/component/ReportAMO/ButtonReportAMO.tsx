@@ -59,6 +59,7 @@ export default function ButtonReportAMO() {
         if (!selectedSite || !entreprise_name) return;
 
         try {
+            console.log('Starting report generation for site:', selectedSite.orgId);
             const reportGenerator = new ReportGenerator(
                 bsds,
                 selectedSite,
@@ -66,14 +67,24 @@ export default function ButtonReportAMO() {
                 mappingTable
             );
 
+            console.log('Generating report data...');
             const pdfBlob = await reportGenerator.generateReportData();
+            console.log('PDF blob generated successfully');
+            
             const url = URL.createObjectURL(pdfBlob);
             setPdfUrl(url);
             setShowPDF(true);
             setShowModal(false);
         } catch (error) {
             console.error('Error generating report:', error);
-            alert('Une erreur est survenue lors de la génération du rapport.');
+            if (error instanceof Error) {
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    name: error.name
+                });
+            }
+            alert(`Une erreur est survenue lors de la génération du rapport: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
         }
     };
 

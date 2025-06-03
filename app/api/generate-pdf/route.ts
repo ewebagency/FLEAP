@@ -36,84 +36,36 @@ interface ReportData {
         date: string;
         processingCode: string;
     }>;
-    chartData: {
-        labels: string[];
-        datasets: Array<{
-            label: string;
-            data: number[];
-        }>;
-    };
-}
-
-async function generateChartImage(chartData: ReportData['chartData']): Promise<string> {
-    const chartConfig = {
-        type: 'bar',
-        data: {
-            labels: chartData.labels,
-            datasets: chartData.datasets.map((dataset, index) => ({
-                        label: dataset.label,
-                        data: dataset.data,
-                        backgroundColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.7)`,
-                        borderColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 1)`,
-                borderWidth: 1,
-                stack: 'stack0'
-            }))
-        },
-                            options: {
-                                responsive: true,
-                                scales: {
-                                    x: {
-                                        stacked: true,
-                                        title: {
-                                            display: true,
-                                            text: 'Mois'
-                                        }
-                                    },
-                                    y: {
-                                        stacked: true,
-                                        title: {
-                                            display: true,
-                                            text: 'Tonnes'
-                                        }
-                                    }
-                                },
-                                plugins: {
-                                    title: {
-                                        display: true,
-                                        text: 'Évolution des tonnages par filière'
-                                    },
-                                    legend: {
-                                        position: 'bottom'
-                                    }
-                                }
-                            }
-    };
-
-    const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=800&height=400`;
-    
-    try {
-        const response = await fetch(chartUrl);
-        const arrayBuffer = await response.arrayBuffer();
-        const base64 = Buffer.from(arrayBuffer).toString('base64');
-        return `data:image/png;base64,${base64}`;
-                } catch (error) {
-        console.error('Error generating chart:', error);
-        throw new Error('Failed to generate chart');
-                }
+    chartImage: string;
 }
 
 export async function POST(request: Request) {
     try {
+        console.log('Received PDF generation request');
         const data: ReportData = await request.json();
         
-        // Générer l'image du graphique
-        const chartImage = await generateChartImage(data.chartData);
+        // Validation des données
+        if (!data.header || !data.header.siteName || !data.header.entrepriseName) {
+            throw new Error('Données d\'en-tête manquantes');
+        }
+
+        if (!data.filiereStats || data.filiereStats.length === 0) {
+            throw new Error('Aucune statistique de filière fournie');
+        }
+
+        if (!data.chartImage) {
+            throw new Error('Image du graphique manquante');
+        }
 
         // Créer le document PDF avec react-pdf
-        const pdfDoc = PDFDocument({ data, chartImage });
+        console.log('Creating PDF document...');
+        const pdfDoc = PDFDocument({ data, chartImage: data.chartImage });
+        
+        console.log('Rendering PDF to stream...');
         const stream = await renderToStream(pdfDoc);
 
         // Convertir le stream en buffer
+        console.log('Converting stream to buffer...');
         const chunks: Uint8Array[] = [];
         for await (const chunk of stream) {
             if (chunk instanceof Uint8Array) {
@@ -122,6 +74,7 @@ export async function POST(request: Request) {
         }
         const buffer = Buffer.concat(chunks);
 
+        console.log('PDF generation completed successfully');
         return new NextResponse(buffer, {
             headers: {
                 'Content-Type': 'application/pdf',
@@ -130,6 +83,12 @@ export async function POST(request: Request) {
         });
     } catch (error) {
         console.error('Error generating PDF:', error);
-        return new NextResponse('Error generating PDF', { status: 500 });
+        const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue lors de la génération du PDF';
+        return new NextResponse(JSON.stringify({ error: errorMessage }), { 
+            status: 500,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
     }
 } 

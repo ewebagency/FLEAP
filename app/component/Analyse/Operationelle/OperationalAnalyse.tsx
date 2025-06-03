@@ -14,12 +14,12 @@ const OperationalAnalyse = ({active}: {active: boolean}) => {
                     <div className="pt-5 mb-5 ml-5 mr-5">
                         <AnalOpBordereau/>
                         <div className="flex justify-between gap-2 my-4">
-                            <div className="w-[100%]">
+                            <div className="w-[80%]">
                                 <AnalOpMainChart/>
                             </div>
-                            {/* <div className="w-[20%]">
+                            <div className="w-[20%]">
                                 <RepComponent factures={[]} financier_or_tonnage="tonnage"/>
-                            </div> */}
+                            </div>
                         </div>
                         <div className="flex justify-between gap-2 my-4">
                             <div className="w-[60%]">
