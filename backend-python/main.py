@@ -139,9 +139,5 @@ async def paddle_this(file: UploadFile = File(...)):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         shutil.copyfileobj(file.file, tmp)
         tmp_path = tmp.name
-
-    try:
-        result = ocr.ocr(tmp_path)      
-        return {"result": result}
-    finally:
-        os.remove(tmp_path)
+    result = ocr.ocr(tmp_path)
+    return result
