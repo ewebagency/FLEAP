@@ -178,6 +178,7 @@ const TableBSD = () => {
     const [isLoadingFullData, setIsLoadingFullData] = useState(false);
     const [filtersEnabled, setFiltersEnabled] = useState(false);
     const [isPartialData, setIsPartialData] = useState(false);
+    const [lastLoadedDate, setLastLoadedDate] = useState<string | null>(null);
     const [lastLoadedId, setLastLoadedId] = useState<string | null>(null);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [totalBSDsCount, setTotalBSDsCount] = useState(0);
@@ -306,7 +307,7 @@ const TableBSD = () => {
                 await invalidateCache();
             }
             
-            const url = `/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}${shouldFastLoad ? '&fastLoad=true' : ''}${loadMore && lastLoadedId ? `&lastId=${lastLoadedId}` : ''}`;
+            const url = `/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}${shouldFastLoad ? '&fastLoad=true' : ''}${loadMore && lastLoadedDate && lastLoadedId ? `&lastDate=${encodeURIComponent(lastLoadedDate)}&lastId=${encodeURIComponent(lastLoadedId)}` : ''}`;
             //console.log('Fetching BSDs from:', url);
             const response = await fetch(url);
             const result = await response.json();
@@ -358,7 +359,9 @@ const TableBSD = () => {
             }
             
             if (result.data.length > 0) {
-                setLastLoadedId(result.data[result.data.length - 1].id);
+                const last = result.data[result.data.length - 1];
+                setLastLoadedDate(last.created_at);
+                setLastLoadedId(last.id);
             }
             
         } catch (error) {
@@ -452,7 +455,7 @@ const TableBSD = () => {
             //    totalCount: totalBSDsCount
             //});
         }
-    }, [displayedBSDs.length, hasMore, isLoadingMore, loadingBSDs, lastLoadedId, totalBSDsCount, allBSDs]);
+    }, [displayedBSDs.length, hasMore, isLoadingMore, loadingBSDs, lastLoadedDate, lastLoadedId, totalBSDsCount, allBSDs]);
 
     useEffect(() => {
         // Exécution immédiate
@@ -1166,7 +1169,7 @@ const TableBSD = () => {
                                             {openMenuId === bsd.id && (
                                                 <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg z-50 top-8">
                                                     <div className="py-1">
-                                                        {/*<button 
+                                                        {!canModify(bsd.id_track_dechets, bsd.status_track_dechets) && (<button 
                                                             className="w-full px-2 py-1 text-xs text-gray-700 hover:bg-green-50 hover:text-green-600 text-left"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -1175,7 +1178,7 @@ const TableBSD = () => {
                                                             }}
                                                         >
                                                             Voir
-                                                        </button>*/}
+                                                        </button>)}
 
                                                         {canModify(bsd.id_track_dechets, bsd.status_track_dechets) && (
                                                             <button 
@@ -1282,7 +1285,7 @@ const TableBSD = () => {
                 
                 {!hasMore && allFilteredBSDs.length > 0 && (
                     <div className="text-center mt-4 text-sm text-gray-500">
-                        Tous les BSDs ont été chargés
+                        Tous les BSDs ({allBSDs.length}) ont été chargés
                     </div>
                 )}
                 <div className="text-center mt-4 text-sm text-gray-500">

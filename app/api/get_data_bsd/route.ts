@@ -169,6 +169,7 @@ export async function GET(request: Request) {
   const user_id = searchParams.get('user_id');
   const fastLoad = searchParams.get('fastLoad') === 'true';
   const lastDate = searchParams.get('lastDate');
+  const lastId = searchParams.get('lastId');
 
   if (!entreprise_id || !user_id) {
     return NextResponse.json({ error: 'entreprise_id and user_id are required' }, { status: 400 });
@@ -220,10 +221,14 @@ export async function GET(request: Request) {
       `)
       .eq('entreprise_id', entreprise_id)
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .limit(200);
 
-    if (lastDate) {
-      console.log('Received lastDate:', lastDate);
+    if (lastDate && lastId) {
+      // Pagination composite : (created_at < lastDate) OR (created_at = lastDate AND id < lastId)
+      query = query.or(`created_at.lt.${lastDate},and(created_at.eq.${lastDate},id.lt.${lastId})`);
+      console.log('Query with composite date+id filter applied');
+    } else if (lastDate) {
       query = query.lt('created_at', lastDate);
       console.log('Query with date filter applied');
     }
@@ -301,21 +306,25 @@ export async function GET(request: Request) {
     }
 
     // Vérifier s'il y a plus de données à charger
-    const lastLoadedDate = lastDate || formattedData[formattedData.length - 1]?.created_at;
-    console.log('Last loaded date:', lastLoadedDate);
+    let countQuery = supabase
+      .from('bsd')
+      .select('*', { count: 'exact', head: true })
+      .eq('entreprise_id', entreprise_id);
 
-    const { count: remainingCount, error: countError } = await supabase
-        .from('bsd')
-        .select('*', { count: 'exact', head: true })
-        .eq('entreprise_id', entreprise_id)
-        .lt('created_at', lastLoadedDate);
+    if (lastDate && lastId) {
+      countQuery = countQuery.or(`created_at.lt.${lastDate},and(created_at.eq.${lastDate},id.lt.${lastId})`);
+    } else if (lastDate) {
+      countQuery = countQuery.lt('created_at', lastDate);
+    }
+
+    const { count: remainingCount, error: countError } = await countQuery;
 
     if (countError) {
         console.error('Error counting remaining BSDs:', countError);
     }
 
     console.log('Query details:', {
-        lastLoadedDate,
+        lastLoadedDate: lastDate || formattedData[formattedData.length - 1]?.created_at,
         remainingCount,
         formattedDataLength: formattedData.length
     });
