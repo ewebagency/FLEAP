@@ -18,6 +18,7 @@ from paddleocr import PaddleOCR
 load_dotenv()
 
 app = FastAPI()
+ocr = PaddleOCR(lang='fr')  # Initialisation unique
 
 origins = [
     "http://localhost:3000",  # Development
@@ -135,11 +136,12 @@ def read_root():
 
 @app.post("/extract-text-with-paddleocr/")
 async def paddle_this(file: UploadFile = File(...)):
-    ocr = PaddleOCR(lang='fr')
-    
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         shutil.copyfileobj(file.file, tmp)
         tmp_path = tmp.name
 
-    result = ocr.ocr(tmp_path)
-    return result
+    try:
+        result = ocr.ocr(tmp_path)      
+        return {"result": result}
+    finally:
+        os.remove(tmp_path)
