@@ -414,6 +414,7 @@ interface ValueType {
   email?: string;
   telephone?: string;
   mention?: boolean;
+  recepisse?: string;
   [key: string]: string | boolean | { nomPrenom?: string; email?: string; telephone?: string } | undefined;
 }
 
@@ -602,7 +603,7 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
                   mail: line.transporteur?.value?.email || '',
                   country: ''
                 },
-                receipt: '',
+                receipt: (line.transporteur?.value as ValueType)?.recepisse || '',
                 customInfo: '',
                 numberPlate: '',
                 isExemptedOfReceipt: false
@@ -648,7 +649,7 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
                 isDangerous: false,
                 pop: false,
                 quantity: 0,
-                onuCode: line.dechet?.value?.onu || '',
+                onuCode: line.dechet?.value?.adr || '',
                 quantityType: "ESTIMATED",
                 packagingInfos: [{
                   type: line.contenant?.value?.nom || "AUTRE",

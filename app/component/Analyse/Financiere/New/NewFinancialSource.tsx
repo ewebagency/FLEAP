@@ -11,11 +11,12 @@ import { useFilterContext } from '@/app/FilterContext';
 import { getFiliere, getMappingTableFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import OptiButton from "../../../Analyse/Optimisation/OptiButton";
 import RepComponent from "./RepComponent";
+import { cofounders_user_id } from "@/app/component/SideBar";
 
 const NewFinancialSource = () => {
-    const session = useSession() as SessionMore;
+    const {user_id, entreprise_id} = useSession()
     const { segmentDates, filieres, sites } = useFilterContext();
-    const [entreprise_id, setEntreprise_id] = useState<string | null>(null);
+    //const [entreprise_id, setEntreprise_id] = useState<string | null>(null);
     const [factures, setFactures] = useState<Facture[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
@@ -23,12 +24,12 @@ const NewFinancialSource = () => {
     const [isOptiActive, setIsOptiActive] = useState(false);
     
     useEffect(() => {
-        if (!session?.entreprise_id) return;
+        if (!entreprise_id) return;
         
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                setEntreprise_id(session.entreprise_id);
+                //setEntreprise_id(entreprise_id);
                 
                 let allFactures: Facture[] = [];
                 let page = 0;
@@ -39,7 +40,7 @@ const NewFinancialSource = () => {
                     const { data, error } = await supabase
                         .from('facture')
                         .select('*')
-                        .eq('entreprise_id', session.entreprise_id)
+                        .eq('entreprise_id', entreprise_id)
                         .range(page * pageSize, (page + 1) * pageSize - 1);
                     
                     if (error) {
@@ -64,16 +65,16 @@ const NewFinancialSource = () => {
         };
 
         fetchData();
-    }, [session?.entreprise_id]);
+    }, [entreprise_id]);
 
     useEffect(() => {
         const fetchMappingTable = async () => {
-            if (!session?.entreprise_id) return;
-            const mapping = await getMappingTableFiliere(session.entreprise_id);
+            if (!entreprise_id) return;
+            const mapping = await getMappingTableFiliere(entreprise_id);
             setMappingTable(mapping || []);
         };
         fetchMappingTable();
-    }, [session?.entreprise_id]);
+    }, [entreprise_id]);
 
     // Au début du composant
     console.log('=== Configuration des filtres ===');
@@ -221,14 +222,26 @@ const NewFinancialSource = () => {
                         <OptiButton validFactures={validFactures} onOptiChange={handleOptiChange} />
                     </div>
                 </div>
-                <div className="flex justify-between bg-white rounded-lg">
-                    <div className="w-[100%]">
-                        <NewMainFinancialChart factures={displayFactures} entreprise_id={entreprise_id} />
+
+                {/* Main chart + RepComponent */}
+                {cofounders_user_id(user_id) ?
+                    <div className="flex justify-between bg-white rounded-lg">
+                        <div className="w-[80%]">
+                            <NewMainFinancialChart factures={displayFactures} entreprise_id={entreprise_id} />
+                        </div>
+                        <div className="w-[20%]">
+                            <RepComponent factures={displayFactures} financier_or_tonnage="financier"/>
+                        </div>
                     </div>
-                    {/*<div className="w-[20%]">
-                        <RepComponent factures={displayFactures} financier_or_tonnage="financier"/>
-                    </div>*/}
-                </div>
+                :
+                    <div className="flex justify-between bg-white rounded-lg">
+                        <div className="w-[100%]">
+                            <NewMainFinancialChart factures={displayFactures} entreprise_id={entreprise_id} />
+                        </div>
+                    </div>
+                }
+
+                {/* Tableau + Pie chart */}
                 <div className="flex flex-row justify-between gap-2">
                     <div className="bg-white rounded-lg w-[60%]">
                         <NewTableFinancial factures={displayFactures} entreprise_id={entreprise_id} />

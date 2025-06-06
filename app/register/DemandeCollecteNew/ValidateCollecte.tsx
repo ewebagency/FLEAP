@@ -249,7 +249,7 @@ const ValidateCollecte = ({ onClose, bsd }: ValidateCollecteProps) => {
             containerDescription: "",
             volume: "",
             volumeUnit: "",
-            fillRate: "",
+            fillRate: "100",
             inputMode: "volume",
             automaticMode: true
         }
@@ -264,7 +264,12 @@ const ValidateCollecte = ({ onClose, bsd }: ValidateCollecteProps) => {
                 .single();
             if (response.data) {
                 setDataToogle(response.data.infos_json.formAPI.createFormInput as unknown as FormInput);
-                setOtherInfos(response.data.other_infos as unknown as OtherInfos);
+                const loadedOtherInfos = response.data.other_infos || {};
+                setOtherInfos({
+                    ...initialOtherInfos,
+                    ...loadedOtherInfos,
+                    fillRate: loadedOtherInfos.fillRate || "100"
+                });
                 setPhotoUrl(response.data.photo as string);
             }
         }
@@ -771,6 +776,22 @@ useEffect(() => {
     fetchMasseVolumique();
 }, [dataToogle.wasteDetails.code, entreprise_id]);
 
+// Dans le composant ValidateCollecte, ajouter un useEffect pour le calcul initial
+useEffect(() => {
+    if (other_infos.volume && other_infos.volumeUnit && dataToogle.wasteDetails.code) {
+        updateWeight(
+            other_infos.volume,
+            "100", // Utiliser 100% comme taux de remplissage initial
+            dataToogle.wasteDetails.code,
+            other_infos.volumeUnit,
+            Number(dataToogle.wasteDetails.packagingInfos[0].quantity),
+            setDataToogle,
+            dataToogle,
+            masseVolumique
+        );
+    }
+}, [other_infos.volume, other_infos.volumeUnit, dataToogle.wasteDetails.code, masseVolumique]);
+
 //Render
     if (isMobile) {
         return (
@@ -792,7 +813,7 @@ useEffect(() => {
                             Valider la collecte
                         </span>
                     </h3>
-                <div className="flex gap-2 mr-1 sm:mr-3">
+                <div className="flex gap-2 mr-1 sm:mr-3  hidden">
                         <button type="button" className="text-xs h-[25px] bg-[var(--green-medium)] rounded-md px-2 text-white font-thin hover:bg-[var(--green-dark)] active:font-bold" onClick={() => toogleFunction()}>Afficher/Masquer</button>
                         <button type="button" className="text-xs h-[25px] bg-[var(--green-medium)] rounded-md px-2 text-white font-thin hover:bg-[var(--green-dark)] active:font-bold" onClick={ResetData}>Réinitialiser</button>
                     </div>
@@ -800,7 +821,7 @@ useEffect(() => {
                 
             <form className="ml-0 sm:ml-[10%] pb-4">
                     {/* Première ligne : Site, Point de collecte, Contact émetteur*/}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-0 mb-1 w-full sm:w-[75%] bg-gray-50 rounded-md p-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-0 mb-1 w-full sm:w-[75%] bg-gray-50 rounded-md p-2 hidden">
                         {/* Colonne 1: Site*/}
                         <div>
                             <InputFull
@@ -889,7 +910,7 @@ useEffect(() => {
                     </div>
 
                     {/* Deuxième ligne : Transporteur, Destinataire, Autres*/}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-0 mb-1 w-full sm:w-[75%] bg-gray-50 rounded-md p-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-0 mb-1 w-full sm:w-[75%] bg-gray-50 rounded-md p-2 hidden">
                         {/* Colonne 1: Transporteur*/}
                         <div>
                             <InputFull
@@ -968,7 +989,7 @@ useEffect(() => {
                     </div>
 
                     {/* Troisième ligne : Filière, Déchet, Contenant*/}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-0 mb-1 w-full sm:w-[75%] bg-gray-50 rounded-md p-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-0 mb-1 w-full sm:w-[75%] bg-gray-50 rounded-md p-2 hidden">
                         {/* Colonne 1: Filière*/}
                         <div className='hidden'>
                             <InputFull
@@ -1051,7 +1072,7 @@ useEffect(() => {
                     </div>
 
                 {/* Section Validation de la collecte */}
-                <div className="text-md font-semibold ml-2 sm:ml-6 mt-4 sm:mt-6 mb-1 sm:mb-2">Validation de la collecte</div>
+                <div className="text-md font-semibold ml-2 sm:ml-6 mt-4 sm:mt-6 mb-1 sm:mb-2 hidden">Validation de la collecte</div>
                 <div className="w-full md:w-[75%] bg-gray-50 rounded-md p-2 sm:p-4 mx-auto ml-[-0.5%]">
                                 {/* Header avec radio buttons et checkbox */}
                     <div className="flex flex-wrap gap-2 sm:gap-4 mb-2 sm:mb-6">

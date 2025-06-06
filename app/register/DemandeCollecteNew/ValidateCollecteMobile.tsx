@@ -245,7 +245,7 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
             containerDescription: "",
             volume: "",
             volumeUnit: "",
-            fillRate: "",
+            fillRate: "100",
             inputMode: "volume",
             automaticMode: true
         }
@@ -262,7 +262,12 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
 
             if (response.data) {
                 setDataToogle(response.data.infos_json.formAPI.createFormInput as unknown as FormInput);
-                setOtherInfos(response.data.other_infos as unknown as OtherInfos);
+                const loadedOtherInfos = response.data.other_infos || {};
+                setOtherInfos({
+                    ...initialOtherInfos,
+                    ...loadedOtherInfos,
+                    fillRate: loadedOtherInfos.fillRate || "100"
+                });
                 setInitialDataToogle(response.data.infos_json.formAPI.createFormInput as unknown as FormInput);
                 setInitialOtherInfos(response.data.other_infos as unknown as OtherInfos);
                 setPhotoUrl(response.data.photo as string);
@@ -518,7 +523,7 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
         }
     }
 
-    // Dans le composant ValidateCollecte, modifier les gestionnaires d'événements
+    // Modifier la fonction handleOtherInfosChange
     const handleOtherInfosChange = (updates: Partial<OtherInfos>) => {
         const updatedOtherInfos: OtherInfos = {
             ...other_infos,
@@ -526,16 +531,16 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
         };
         
         // Si le mode automatique est activé et qu'on est en mode volume
-        if (updatedOtherInfos.automaticMode && updatedOtherInfos.inputMode === 'volume' && 
-            (updates.fillRate || updates.volume || updates.volumeUnit)) {
+        if (updatedOtherInfos.automaticMode && updatedOtherInfos.inputMode === 'volume') {
             const weight = calculateEstimatedWeight(
                 updatedOtherInfos.volume,
                 updatedOtherInfos.fillRate,
                 dataToogle.wasteDetails.code,
                 updatedOtherInfos.volumeUnit,
-                updatedOtherInfos.automaticMode ? 1 : 0,
-                masseVolumique
+                Number(dataToogle.wasteDetails.packagingInfos[0].quantity),
+                masseVolumique ? masseVolumique * 1000 : null
             );
+
             if (weight !== null) {
                 const newData = { ...dataToogle };
                 updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.quantity', weight.toFixed(3));
@@ -546,52 +551,25 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
         setOtherInfos(updatedOtherInfos);
     };
 
-    // Modifier le useEffect pour prendre en compte l'état de désactivation
+    // Modifier le useEffect pour le calcul initial et les mises à jour
     useEffect(() => {
-        // Ne pas exécuter l'autocomplétion si elle est désactivée
-        if (disableAutocompletion) {
-            return;
-        }
+        if (other_infos.volume && other_infos.volumeUnit && dataToogle.wasteDetails.code) {
+            const weight = calculateEstimatedWeight(
+                other_infos.volume,
+                other_infos.fillRate,
+                dataToogle.wasteDetails.code,
+                other_infos.volumeUnit,
+                Number(dataToogle.wasteDetails.packagingInfos[0].quantity),
+                masseVolumique ? masseVolumique * 1000 : null
+            );
 
-        Object.entries(filter_dependencies).forEach(([key, config]) => {
-            const allParentsHaveValues = config.parent.every(parentField => {
-                const parentValue = parentField.split('.').reduce<unknown>((obj, key) => 
-                    typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
-                    dataToogle as unknown as Record<string, unknown>
-                );
-                return parentValue && parentValue !== '';
-            });
-
-            if (allParentsHaveValues) {
+            if (weight !== null) {
                 const newData = { ...dataToogle };
-                let hasUpdates = false;
-
-                config.children.forEach(childField => {
-                    const currentValue = childField.split('.').reduce<unknown>((obj, key) => 
-                        typeof obj === 'object' && obj ? (obj as Record<string, unknown>)[key] : undefined,
-                        dataToogle as unknown as Record<string, unknown>
-                    );
-                    if (!currentValue || currentValue === '') {
-                        const suggestedValue = preciseFilter(
-                            allOptions,
-                            newData,
-                            config.parent,
-                            childField
-                        );
-                        
-                        if (suggestedValue) {
-                            updateNestedValue(newData as unknown as NestedObject, childField, suggestedValue);
-                            hasUpdates = true;
-                        }
-                    }
-                });
-
-                if (hasUpdates) {
-                    setDataToogle(newData);
-                }
+                updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.quantity', weight.toFixed(3));
+                setDataToogle(newData);
             }
-        });
-    }, [dataToogle, allOptions, disableAutocompletion]);
+        }
+    }, [other_infos.volume, other_infos.volumeUnit, other_infos.fillRate, dataToogle.wasteDetails.code, masseVolumique]);
 
     // Modifier le handleTakePhoto pour stocker la photo localement
     const handleTakePhoto = async () => {
@@ -874,31 +852,6 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
             }
         };
     }, [photoUrl]);
-
-    // Ajouter un useEffect pour améliorer la gestion des événements tactiles
-    useEffect(() => {
-        // Sélectionner l'élément de la jauge
-        const gaugeElement = document.querySelector('.touch-none');
-        
-        if (gaugeElement) {
-            // Fonction pour empêcher le défilement par défaut
-            const preventDefaultTouch = (e: Event) => {
-                e.preventDefault();
-            };
-            
-            // Ajouter les écouteurs d'événements avec passive: false
-            gaugeElement.addEventListener('touchstart', preventDefaultTouch as EventListener, { passive: false });
-            gaugeElement.addEventListener('touchmove', preventDefaultTouch as EventListener, { passive: false });
-            gaugeElement.addEventListener('touchend', preventDefaultTouch as EventListener, { passive: false });
-            
-            // Nettoyer les écouteurs d'événements
-            return () => {
-                gaugeElement.removeEventListener('touchstart', preventDefaultTouch as EventListener);
-                gaugeElement.removeEventListener('touchmove', preventDefaultTouch as EventListener);
-                gaugeElement.removeEventListener('touchend', preventDefaultTouch as EventListener);
-            };
-        }
-    }, []);
 
     return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center overflow-y-auto py-0 sm:py-4 z-50">
@@ -1320,9 +1273,7 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
                                             className="absolute inset-0 touch-manipulation"
                                             style={{ touchAction: 'none' }}
                                             onTouchStart={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                        if (other_infos.automaticMode && other_infos.inputMode !== 'volume') return;
+                                                if (other_infos.automaticMode && other_infos.inputMode !== 'volume') return;
                                                 
                                                 const rect = e.currentTarget.getBoundingClientRect();
                                                 const height = rect.height;
@@ -1331,27 +1282,9 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
                                                 
                                                 const newFillRate = Math.max(0, Math.min(100, percentage));
                                                 handleOtherInfosChange({ fillRate: newFillRate.toString() });
-                                        
-                                        if (other_infos.automaticMode && other_infos.inputMode === 'volume') {
-                                            const weight = calculateEstimatedWeight(
-                                                other_infos.volume,
-                                                newFillRate.toString(),
-                                                dataToogle.wasteDetails.code,
-                                                other_infos.volumeUnit,
-                                                other_infos.automaticMode ? 1 : 0,
-                                                masseVolumique
-                                            );
-                                            if (weight !== null) {
-                                                const newData = { ...dataToogle };
-                                                updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.quantity', weight.toFixed(3));
-                                                setDataToogle(newData);
-                                            }
-                                        }
                                             }}
                                             onTouchMove={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                        if (other_infos.automaticMode && other_infos.inputMode !== 'volume') return;
+                                                if (other_infos.automaticMode && other_infos.inputMode !== 'volume') return;
                                                 
                                                 const rect = e.currentTarget.getBoundingClientRect();
                                                 const height = rect.height;
@@ -1360,28 +1293,8 @@ const ValidateCollecteMobile = ({ onClose, bsd }: ValidateCollecteProps) => {
                                                 
                                                 const newFillRate = Math.max(0, Math.min(100, percentage));
                                                 handleOtherInfosChange({ fillRate: newFillRate.toString() });
-                                        
-                                        if (other_infos.automaticMode && other_infos.inputMode === 'volume') {
-                                            const weight = calculateEstimatedWeight(
-                                                other_infos.volume,
-                                                newFillRate.toString(),
-                                                dataToogle.wasteDetails.code,
-                                                other_infos.volumeUnit,
-                                                other_infos.automaticMode ? 1 : 0,
-                                                masseVolumique
-                                            );
-                                            if (weight !== null) {
-                                                const newData = { ...dataToogle };
-                                                updateNestedValue(newData as unknown as NestedObject, 'wasteDetails.quantity', weight.toFixed(3));
-                                                setDataToogle(newData);
-                                            }
-                                        }
-                                    }}
-                                    onTouchEnd={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                    }}
-                                />
+                                            }}
+                                        />
                             </div>
                             <div className="text-sm text-center text-gray-500">
                                 Glisser pour ajuster

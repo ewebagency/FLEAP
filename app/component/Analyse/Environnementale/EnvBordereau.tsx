@@ -138,7 +138,7 @@ const EnvBordereau = () => {
                 </div>
                 {/*<TauxRecyclage />*/}
                 <TauxValorisation />
-                {cofounders_user_id(user_id) && <ButtonReportAMO/>}
+                <ButtonReportAMO/>
             </div>
         </div>
     );

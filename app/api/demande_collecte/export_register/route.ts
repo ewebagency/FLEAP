@@ -19,7 +19,6 @@ interface BSD_Export_Interface {
     
     "N° Siret du Producteur": string | number | null,
     "Raison sociale du Producteur": string | number | null,
-    "Adresse du siège social du Producteur": string | number | null,
 
     "N° SIRET du transporteur": string | number | null,
     "Raison sociale du transporteur": string | number | null,
@@ -29,20 +28,23 @@ interface BSD_Export_Interface {
     "Raison sociale du prestataire final": string | number | null,
     "Adresse du prestataire final": string | number | null,
     "N° de récipissé du prestataire final": string | number | null,
-    "Qualification de traitement": string | number | null,
     "Code de traitement": string | number | null,
 
     "Date de collecte": string | number | null,
-    "Poids estimé en tonne": string | number | null,
-    "Type de contenant": string | number | null,
+    "Poids (tonne)": string | number | null,
+    "Contenant": string | number | null,
     "Nombre de contenants": string | number | null,
     
-    "Code ONU": string | number | null,
-    "Consistence": string | number | null,
     "ADR": string | number | null,
-    "Déchet dangereux": string | number | null,
-    
-    "Montant TTC": string
+    "Code ONU": string | number | null,
+
+    "N° SIRET du courtier": string | number | null,
+    "Raison sociale du courtier": string | number | null,
+    "N° de récipissé du courtier": string | number | null,
+
+    "N° SIRET du négociant": string | number | null,
+    "Raison sociale du négociant": string | number | null,
+    "N° de récipissé du négociant": string | number | null
 }
 
 interface Facture_Info_Interface {
@@ -108,6 +110,7 @@ export async function GET(request: Request) {
     try {
     const { searchParams } = new URL(request.url);
     const entreprise_id = searchParams.get('entreprise_id');
+    const bsdIds = searchParams.get('bsd_ids')?.split(',') || [];
         
         if (!entreprise_id) {
             console.error('Pas d\'entreprise_id fourni');
@@ -115,10 +118,18 @@ export async function GET(request: Request) {
         }
     
     // Récupérer les données BSD
-    const {data: bsdData, error: bsdError} = await supabase
-    .from('bsd')
-    .select('infos_json, created_at, facture_treated, facture_infos, readable_id_track_dechets')
-    .eq('entreprise_id', entreprise_id);
+    let query = supabase
+        .from('bsd')
+        .select('id, infos_json, created_at, facture_treated, facture_infos, readable_id_track_dechets, other_infos')
+        .eq('entreprise_id', entreprise_id)
+        .order('created_at', { ascending: false });
+
+    // Si des IDs sont fournis, filtrer par ces IDs
+    if (bsdIds.length > 0) {
+        query = query.in('id', bsdIds);
+    }
+
+    const {data: bsdData, error: bsdError} = await query;
 
         if (bsdError) {
             console.error('Erreur lors de la récupération des BSDs:', bsdError);
@@ -176,12 +187,16 @@ const formatBSDData = (data: {
     created_at: string,
     facture_treated: boolean, 
     facture_infos: Facture_Info_Interface,
-    readable_id_track_dechets: string
+    readable_id_track_dechets: string,
+    other_infos: {
+        containerDescription: string
+    },
+    id: string
 }[], mapping_filiere: {ced: string, filiere: string}[]) => {
     try {
         return data.map((item, index) => {
             try {
-        const getValue = (accessor: () => string|number|boolean|null, defaultValue: string = 'Non trouvé'): string|number|null => {
+        const getValue = (accessor: () => string|number|boolean|null, defaultValue: string = ''): string|number|null => {
             try {
                 const value = accessor();
                 if (typeof value === 'boolean') {
@@ -195,18 +210,13 @@ const formatBSDData = (data: {
         };
 
         const filiere = mapping_filiere.find(mapping => mapping.ced?.replaceAll(' ', '').replace('*', '') === item.infos_json.formAPI.createFormInput.wasteDetails.code?.replaceAll(' ', '').replace('*', ''));
-        console.log("filiere dans export route", filiere);
+        
         return {
             "Filière": getValue(() => filiere ? filiere.filiere : ''),
             "Code déchet": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.code),
             "Nom du déchet": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.name),
-            "Date de création": getValue(() => item.created_at),
-            //"Volume estimé": getValue(() => ''),
-            //"Code de convention Bâle": getValue(() => null, ''),
-            //"Date de collecte": getValue(() => item.infos_json.formAPI.createFormInput.),
-            "N° TrackDéchet": getValue(() => null, item.readable_id_track_dechets),
-            //"Date de confirmation par le transporteur": getValue(() => null, '')?.toString() ?? '',
-
+            "Date de création": getValue(() => format(new Date(item.created_at), 'dd/MM/yyyy', { locale: fr })),
+            "N° TrackDéchet": getValue(() => null, ["Ligne demandée", "Ligne validée", "Ligne automatique", "Ligne créée", "ID non disponible"].includes(item.readable_id_track_dechets) ? "ID FLEAP : " + item.id : item.readable_id_track_dechets),
             "Point de collecte": getValue(() => {
                 const workSite = item.infos_json.formAPI.createFormInput.emitter.workSite;
                 return workSite?.name ?? '';
@@ -219,29 +229,34 @@ const formatBSDData = (data: {
             
             "N° Siret du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.siret),
             "Raison sociale du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.name),
-            "Adresse du siège social du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.address),
 
             "N° SIRET du transporteur": getValue(() => item.infos_json.formAPI.createFormInput.transporter.company.siret),
             "Raison sociale du transporteur": getValue(() => item.infos_json.formAPI.createFormInput.transporter.company.name),
-            "N° de récipissé du transporteur": getValue(() => null, ''),
+            "N° de récipissé du transporteur": getValue(() => null, item.infos_json.formAPI.createFormInput.transporter.receipt ?? ''),
 
             "N° SIRET du prestataire final": getValue(() => item.infos_json.formAPI.createFormInput.recipient.company.siret),
             "Raison sociale du prestataire final": getValue(() => item.infos_json.formAPI.createFormInput.recipient.company.name),
             "Adresse du prestataire final": getValue(() => item.infos_json.formAPI.createFormInput.recipient.company.address),
-            "N° de récipissé du prestataire final": getValue(() => null, ''),
+            //"N° de récipissé du prestataire final": getValue(() => null, ''),
+            
+        
+            "Date de collecte": getValue(() => item.infos_json.formAPI.createFormInput.takenOverAt ? format(new Date(item.infos_json.formAPI.createFormInput.takenOverAt), 'dd/MM/yyyy', { locale: fr }) : ''),
+            "Poids (tonne)": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.quantity),
+            "Contenant": getValue(() => item.other_infos.containerDescription),
+            "Nombre de contenants": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.packagingInfos.map(packaging => packaging.quantity===0 ? 1 : packaging.quantity).join(', ')),
             "Code de traitement": getValue(() => null, item.infos_json.formAPI.createFormInput.recipient.processingOperation?.toString() ?? ''),
-            
-            "Date de collecte": getValue(() => item.infos_json.formAPI.createFormInput.emittedAt ?? ''),
-            "Poids estimé en tonne": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.quantity),
-            "Type de contenant": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.packagingInfos.map(packaging => packaging.type).join(', ')),
-            "Nombre de contenants": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.packagingInfos.map(packaging => packaging.quantity).join(', ')),
-            
+
             "Code ONU": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.onuCode),
-            "Consistence": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.consistence ?? ''),
-            "ADR": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.isSubjectToADR ?? ''),
-            "Déchet dangereux": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.isDangerous ?? ''),
-            
-            "Montant TTC": item.facture_treated ? "" : ""
+            //"ADR": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.isSubjectToADR ?? '')
+
+            "N° SIRET du courtier": getValue(() => item.infos_json.formAPI.createFormInput.broker?.company?.siret ?? null),
+            "Raison sociale du courtier": getValue(() => item.infos_json.formAPI.createFormInput.broker?.company?.name ?? null),
+            "N° de récipissé du courtier": getValue(() => null, item.infos_json.formAPI.createFormInput.broker?.receipt ?? ''),
+
+            "N° SIRET du négociant": getValue(() => item.infos_json.formAPI.createFormInput.trader?.company?.siret ?? null),
+            "Raison sociale du négociant": getValue(() => item.infos_json.formAPI.createFormInput.trader?.company?.name ?? null),
+            //"Adresse du négociant": getValue(() => item.infos_json.formAPI.createFormInput.trader?.company?.address ?? null),
+            "N° de récipissé du négociant": getValue(() => null, item.infos_json.formAPI.createFormInput.trader?.receipt ?? ''),
         };
             } catch (error) {
                 console.error(`Erreur lors du traitement de l'item ${index}:`, error);

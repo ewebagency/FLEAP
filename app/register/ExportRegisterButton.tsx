@@ -1,9 +1,12 @@
 import { useState, useCallback } from "react";
 import { useSession } from "../component/SessionProvider";
 import BoxIcon from '@/app/component/BoxIconWrapper';
+import { useBSDs } from "./BSDsProvider";
+import { BSD } from "./TableBSD";
 
 const ExportRegisterButton = () => {
     const session = useSession();
+    const { allFilteredBSDs } = useBSDs();
     const [message, setMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [messageType, setMessageType] = useState<'success' | 'error' | null>(null);
@@ -12,7 +15,10 @@ const ExportRegisterButton = () => {
         if(session && session.entreprise_id) {
             setIsLoading(true);
             try {
-                const response = await fetch(`/api/demande_collecte/export_register?entreprise_id=${session.entreprise_id}`);
+                // Créer la liste des IDs des BSDs filtrés
+                const bsdIds = allFilteredBSDs.map((bsd: BSD) => bsd.id).join(',');
+                
+                const response = await fetch(`/api/demande_collecte/export_register?entreprise_id=${session.entreprise_id}&bsd_ids=${bsdIds}`);
                 if(response.ok) {
                     const filename = response.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'export_register.xlsx';
                     const blob = await response.blob();
