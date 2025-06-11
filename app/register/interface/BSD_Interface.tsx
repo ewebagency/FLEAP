@@ -1031,6 +1031,7 @@ export interface RowBSD {
     id_track_dechets :string;
     entreprise_id :string;
     user_id:string;
+    id:number;
 }
 
 

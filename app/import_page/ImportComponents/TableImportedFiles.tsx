@@ -6,7 +6,8 @@ import ExtractData from './ExtractData';
 import { toast } from 'react-hot-toast';
 import { RowBSD } from '@/app/register/interface/BSD_Interface';
 import { useFilterContext, Site as FilterSite } from '@/app/FilterContext';
-//import ExtractBSD from './ExtractBSD';
+import ExtractBSD from './ExtractBSD';
+import LinkBSD from './LinkBSD';
 
 export interface PdfInfo {
     status: string;
@@ -130,6 +131,73 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
         }
     };
 
+    const handleDelete = async (pdf: PdfInfo) => {
+        try {
+            // Si c'est un BSD, supprimer d'abord les enregistrements dans bsd_pdf
+            if (pdf.document_type === 'bsd') {
+                // 1. Récupérer les BSDs associés à ce PDF
+                const { data: bsdPdfData, error: fetchError } = await supabase
+                    .from('bsd_pdf')
+                    .select('linked_bsd_id')
+                    .eq('pdf_id', pdf.id);
+
+                if (fetchError) {
+                    console.error('Erreur lors de la récupération des BSDs:', fetchError);
+                    toast.error('Erreur lors de la récupération des BSDs');
+                    return;
+                }
+
+                // 2. Mettre à jour chaque BSD pour retirer le pdf_id de pdf_ids
+                if (bsdPdfData && bsdPdfData.length > 0) {
+                    for (const bsdPdf of bsdPdfData) {
+                        const { data: bsdData, error: bsdFetchError } = await supabase
+                            .from('bsd')
+                            .select('pdf_ids')
+                            .eq('id', bsdPdf.linked_bsd_id)
+                            .single();
+
+                        if (bsdFetchError) {
+                            console.error('Erreur lors de la récupération du BSD:', bsdFetchError);
+                            continue;
+                        }
+
+                        if (bsdData && bsdData.pdf_ids) {
+                            const updatedPdfIds = bsdData.pdf_ids.filter((id: string) => id !== String(pdf.id));
+                            
+                            const { error: updateError } = await supabase
+                                .from('bsd')
+                                .update({ pdf_ids: updatedPdfIds })
+                                .eq('id', bsdPdf.linked_bsd_id);
+
+                            if (updateError) {
+                                console.error('Erreur lors de la mise à jour du BSD:', updateError);
+                            }
+                        }
+                    }
+                }
+
+                // 3. Supprimer les enregistrements dans bsd_pdf
+                const { error: bsdError } = await supabase
+                    .from('bsd_pdf')
+                    .delete()
+                    .eq('pdf_id', pdf.id);
+
+                if (bsdError) {
+                    console.error('Erreur lors de la suppression des données BSD:', bsdError);
+                    toast.error('Erreur lors de la suppression des données BSD');
+                    return;
+                }
+            }
+
+            // Ensuite supprimer le fichier PDF
+            onDelete(pdf.name_pdf_in_bucket, pdf.id);
+            setOpenMenuId(null);
+        } catch (error) {
+            console.error('Erreur lors de la suppression:', error);
+            toast.error('Erreur lors de la suppression du fichier');
+        }
+    };
+
     return (
         <div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }} className="table-fixed">
@@ -216,13 +284,19 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                             {/*<td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <div className="text-xs">{pdf.file_size ? `${pdf.file_size} MB` : 'Inconnu'}</div>
                             </td>*/}
-                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
-                                <div className="flex items-center justify-end gap-2">
+                            <td style={{ padding: '6px', height: '40px', position: 'relative' }} className="align-middle">
+                                <div className="flex items-center justify-end gap-2" style={{ position: 'relative', zIndex: 1 }}>
                                     {pdf.document_type !== 'excel' && (
                                         <button 
-                                            onClick={() => handleOpenPdf(pdf)}
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                handleOpenPdf(pdf);
+                                            }}
                                             disabled={loadingUrls[pdf.id]}
-                                            className="px-3 py-1.5 border border-[var(--green-medium)] text-[var(--green-medium)] rounded-md text-xs hover:bg-green-50 w-[100px] text-center disabled:opacity-50"
+                                            className="px-3 py-1.5 border border-[var(--green-medium)] text-[var(--green-medium)] rounded-md text-xs hover:bg-green-50 w-[100px] text-center disabled:opacity-50 cursor-pointer"
+                                            style={{ position: 'relative', zIndex: 2 }}
                                         >
                                             {loadingUrls[pdf.id] ? 'Chargement...' : 'Ouvrir'}
                                         </button>
@@ -245,8 +319,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                                         className="w-full px-4 py-2 text-xs text-gray-700 hover:bg-red-50 hover:text-red-600 text-left"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            onDelete(pdf.name_pdf_in_bucket, pdf.id);
-                                                            setOpenMenuId(null);
+                                                            handleDelete(pdf);
                                                         }}
                                                     >
                                                         Supprimer
@@ -261,12 +334,17 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             pdf_path={pdf.name_pdf_in_bucket} 
                                         />
                                     }
-                                    {/*cofounders_permission(session?.user_id) && pdf.document_type === 'bsd' && 
+                                    {cofounders_permission(session?.user_id) && pdf.document_type === 'bsd' && 
                                         <ExtractBSD 
                                             pdf_id={pdf.id} 
                                             pdf_path={pdf.name_pdf_in_bucket} 
                                         />
-                                    */}
+                                    }
+                                    {cofounders_permission(session?.user_id) && pdf.document_type === 'bsd' && pdf.status === 'read' &&
+                                        <LinkBSD
+                                            pdf_id={pdf.id}
+                                        />
+                                    }
                                 </div>
                             </td>
                         </tr>
@@ -276,7 +354,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
             <div className="flex justify-center mt-4"> 
                 {filteredPdfInfos.length > 10*numberPage ? (
                     <button 
-                        className="px-4 py-2 text-xs text-gray-700 hover:bg-gray-100 rounded-md"
+                        className="px-3 py-2 text-sm text-gray-700 bg-[var(--green-medium)] hover:bg-[var(--green-dark)] rounded-md border border-gray-300 text-white"
                         onClick={() => setNumberPage(numberPage + 1)}
                     >
                         Charger plus

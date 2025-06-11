@@ -1,19 +1,180 @@
-/*import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { PdfInfo } from "./TableImportedFiles";
 import { useSession } from "@/app/component/SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
 import PdfDisplayer from '@/app/interface_admin_2/InterfaceAdmin2/PdfDisplayer';
 import { toast } from 'react-hot-toast';
+import OCRThisBSD from "./OCRThisBSD";
+import SplitBsdPDF from "./SplitBsdPDF";
+
+export interface BSDCerfa {
+    numeroBordereau: string;
+    emetteur: {
+        statut: 'producteur' | 'collecteur' | 'transformateur' | 'autre';
+        siret: string;
+        nom: string;
+        adresse: string;
+        tel?: string;
+        fax?: string;
+        email?: string;
+        contact?: string;
+    };
+    installationDestination: {
+        entreposageProvisoire: boolean;
+        siret: string;
+        nom: string;
+        adresse: string;
+        tel?: string;
+        email?: string;
+        contact?: string;
+        numeroCAP?: string;
+        codeOperation: string;
+    };
+    dechet: {
+        code: string;
+        consistence: 'solide' | 'liquide' | 'gazeux';
+        denominationUsuelle: string;
+        categorie: 'solide' | 'liquide' | 'gazeux';
+        etiquetageADR: string;
+        conditionnement: string;
+        nombreColis: number;
+        poids: number;
+        volume: number;
+        volumeUnite: string;
+        reel: boolean;
+    };
+    negociant?: {
+        siren: string;
+        nom: string;
+        adresse: string;
+        contact?: string;
+        tel?: string;
+        email?: string;
+        fax?: string;
+        numeroRecepisse?: string;
+        departement?: string;
+        dateValiditeRecepisse?: string;
+    };
+    collecteurTransporteur: {
+        siren: string;
+        nom: string;
+        adresse: string;
+        tel?: string;
+        fax?: string;
+        email?: string;
+        contact?: string;
+        numeroRecepisse?: string;
+        departement?: string;
+        dateValiditeRecepisse?: string;
+        modeTransport: 'route' | 'multimodal';
+        datePriseEnCharge?: string;
+        signature?: string;
+    };
+    expedition: {
+        dateEnvoi: string;
+        heure: string;
+        signature: string;
+    };
+    realisationOperation: {
+        code: string;
+        description: string;
+        nom: string;
+        date: string;
+        signature: string;
+    };
+    declarationEmetteur: {
+        nom: string;
+        date: string;
+        signature: string;
+    };
+}
 
 const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const {entreprise_id} = useSession();
+    const {entreprise_id, user_id} = useSession();
+    const [existingData, setExistingData] = useState<Partial<BSDCerfa> | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const loadExistingData = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('bsd_pdf')
+                .select('*')
+                .eq('pdf_id', pdf_id)
+                .single();
+
+            if (error) {
+                if (error.code !== 'PGRST116') { // PGRST116 is the error code for no rows returned
+                    console.error('Error loading existing data:', error);
+                }
+                return;
+            }
+
+            if (data) {
+                setExistingData(data.infos as Partial<BSDCerfa>);
+            }
+        } catch (error) {
+            console.error('Error loading existing data:', error);
+        }
+    };
+
+    const handleSave = async (formData: Partial<BSDCerfa>) => {
+        setIsLoading(true);
+        try {
+            // D'abord, vérifier si un enregistrement existe déjà
+            const { data: existingRecord } = await supabase
+                .from('bsd_pdf')
+                .select('id')
+                .eq('pdf_id', pdf_id)
+                .single();
+
+            const { error } = await supabase
+                .from('bsd_pdf')
+                .upsert({
+                    id: existingRecord?.id,
+                    entreprise_id,
+                    user_id,
+                    pdf_id,
+                    infos: formData
+                });
+
+            if (error) {
+                console.error('Error saving BSD data:', error);
+                toast.error('Erreur lors de la sauvegarde des données');
+                return;
+            }
+
+            // Mise à jour du status dans pdf_infos
+            const { error: error2 } = await supabase
+                .from('pdf_infos')
+                .update({ status: 'read' })
+                .eq('id', pdf_id)
+                .eq('entreprise_id', entreprise_id);
+
+            if (error2) {
+                console.error('Error updating pdf_infos status:', error2);
+                toast.error('Erreur lors de la mise à jour du statut');
+                return;
+            }
+
+            toast.success('Données sauvegardées avec succès');
+            setIsLoading(false);
+            setIsOpen(false);
+        } catch (error) {
+            console.error('Error saving BSD data:', error);
+            toast.error('Erreur lors de la sauvegarde des données');
+            setIsLoading(false);
+        }
+    };
 
     const OpenExtractModalButton = () => {
         return (
             <button 
             className="bg-green-800 text-white px-4 py-2 rounded-lg w-[150px]"
-            onClick={() => setIsOpen(true)}>
+            onClick={() => {
+                setIsOpen(true);
+                loadExistingData();
+            }}>
                 Extraire BSD
             </button>
         )
@@ -65,87 +226,6 @@ const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) 
     }
 
     const FormulaireExtractBsdInfosMano = ({ entreprise_id }: { entreprise_id: string | null }) => {
-        interface BSDCerfa {
-            numeroBordereau: string;
-          
-            emetteur: {
-              statut: 'producteur' | 'collecteur' | 'transformateur' | 'autre';
-              nom: string;
-              siret: string;
-              adresse: string;
-              tel?: string;
-              fax?: string;
-              email?: string;
-            };
-          
-            installationDestination: {
-              entreposageProvisoire: boolean;
-              siren: string;
-              nom: string;
-              adresse: string;
-              tel?: string;
-              email?: string;
-              contact?: string;
-              numeroCAP?: string;
-              codeOperation: string;
-            };
-          
-            dechet: {
-              code: string;
-              denominationUsuelle: string;
-              categorie: 'solide' | 'liquide' | 'gazeux';
-              etiquetageADR: string;
-              propriete: string;
-              conditionnement: string;
-              nombreColis: number;
-              poids: number;
-            };
-          
-            destinatairePrevu?: {
-              siren: string;
-              nom: string;
-              adresse: string;
-              contact?: string;
-              tel?: string;
-              fax?: string;
-            };
-          
-            collecteurTransporteur: {
-              siren: string;
-              nom: string;
-              adresse: string;
-              tel?: string;
-              fax?: string;
-              email?: string;
-              contact?: string;
-              numeroRecepisse: string;
-              dateValiditeRecepisse: string;
-              modeTransport: 'route' | 'multimodal';
-              datePriseEnCharge?: string;
-              signature?: string;
-            };
-          
-            expedition: {
-              dateEnvoi: string;
-              heure: string;
-              signature: string;
-            };
-          
-            realisationOperation: {
-              code: string;
-              description: string;
-              nom: string;
-              date: string;
-              signature: string;
-            };
-          
-            declarationEmetteur: {
-              nom: string;
-              date: string;
-              signature: string;
-            };
-        }
-
         const [formData, setFormData] = useState<Partial<BSDCerfa>>({});
 
         type FieldType = 'string' | 'number' | 'boolean';
@@ -158,6 +238,25 @@ const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) 
             onChange: (value: FieldValue) => void
         ) => {
             const label = fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, ' $1');
+
+            // Vérifier si le champ est une date
+            const isDateField = fieldName.toLowerCase().includes('date');
+
+            if (isDateField) {
+                return (
+                    <div key={fieldName} className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {label}
+                        </label>
+                        <input
+                            type="date"
+                            value={value as string || ''}
+                            onChange={(e) => onChange(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                );
+            }
 
             switch (fieldType) {
                 case 'string':
@@ -262,24 +361,34 @@ const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) 
             return fields;
         };
 
+        useEffect(() => {
+            if (existingData) {
+                setFormData(existingData);
+            }
+        }, [existingData]);
+
         return (
             <div className="overflow-y-auto h-full">
-                <form className="space-y-6">
+                <form className="space-y-6" onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSave(formData);
+                }}>
                     <div className="grid grid-cols-3 gap-4">
                         {renderObjectFields({
                             numeroBordereau: '',
                             emetteur: {
                                 statut: 'producteur',
-                                nom: '',
                                 siret: '',
+                                nom: '',
                                 adresse: '',
                                 tel: '',
                                 fax: '',
-                                email: ''
+                                email: '',
+                                contact: ''
                             },
                             installationDestination: {
                                 entreposageProvisoire: false,
-                                siren: '',
+                                siret: '',
                                 nom: '',
                                 adresse: '',
                                 tel: '',
@@ -290,21 +399,28 @@ const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) 
                             },
                             dechet: {
                                 code: '',
+                                consistence: 'solide',
                                 denominationUsuelle: '',
                                 categorie: 'solide',
                                 etiquetageADR: '',
-                                propriete: '',
                                 conditionnement: '',
                                 nombreColis: 0,
-                                poids: 0
+                                poids: 0,
+                                volume: 0,
+                                volumeUnite: '',
+                                reel: false
                             },
-                            destinatairePrevu: {
+                            negociant: {
                                 siren: '',
                                 nom: '',
                                 adresse: '',
                                 contact: '',
                                 tel: '',
-                                fax: ''
+                                email: '',
+                                fax: '',
+                                numeroRecepisse: '',
+                                departement: '',
+                                dateValiditeRecepisse: ''
                             },
                             collecteurTransporteur: {
                                 siren: '',
@@ -315,6 +431,7 @@ const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) 
                                 email: '',
                                 contact: '',
                                 numeroRecepisse: '',
+                                departement: '',
                                 dateValiditeRecepisse: '',
                                 modeTransport: 'route',
                                 datePriseEnCharge: '',
@@ -339,6 +456,23 @@ const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) 
                             }
                         })}
                     </div>
+                    <div className="flex justify-end">
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className={`bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {isLoading ? (
+                                <span className="flex items-center gap-2">
+                                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    En cours...
+                                </span>
+                            ) : 'Sauvegarder'}
+                        </button>
+                    </div>
                 </form>
             </div>
         );
@@ -348,7 +482,7 @@ const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) 
         return (
             <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-lg w-full h-[95vh] max-w-[95vw] relative">
-                    {/* Header avec bouton de fermeture 
+                    {/* Header avec bouton de fermeture */}
                     <div className="absolute top-0 right-0 p-4 z-10">
                         <button
                             onClick={() => setIsOpen(false)}
@@ -360,12 +494,22 @@ const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) 
                         </button>
                     </div>
 
-                    {/* Contenu principal 
+                    
+                    {/* Contenu principal */}
                     <div className="flex h-full p-4 gap-4">
                         <div className="w-1/2 h-full">
                             <DisplayBsdPDF pdf_id={pdf_id} pdf_path={pdf_path}/>
                         </div>
                         <div className="w-1/2 h-full">
+                            <div className="flex absolute top-4 right-10 gap-2">
+                                <OCRThisBSD 
+                                    pdf_id={pdf_id}
+                                    pdf_path={pdf_path}
+                                    onDataExtracted={(data: Partial<BSDCerfa>)=>setExistingData(data)}
+                                />       
+                                <SplitBsdPDF pdf_id={pdf_id} pdf_path={pdf_path} onClose={()=>setIsOpen(false)}/>                 
+                            </div>
+                            
                             <FormulaireExtractBsdInfosMano entreprise_id={entreprise_id}/>
                         </div>
                     </div>
@@ -386,4 +530,3 @@ const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) 
 
 export default ExtractBSD;
 
-*/

@@ -390,8 +390,8 @@ const TableBSD = () => {
             
             //console.log("Nombre de BSDs après filtrage (filteredData):", filteredData.length);
             setAllFilteredBSDs(filteredData);
-            setDisplayLimit(50);
-            const newDisplayedBSDs = filteredData.slice(0, 50);
+            //setDisplayLimit(50);
+            const newDisplayedBSDs = filteredData.slice(0, displayLimit);
             //console.log("Nombre de BSDs à afficher (newDisplayedBSDs):", newDisplayedBSDs.length);
             setDisplayedBSDs(newDisplayedBSDs);
         }
@@ -1288,8 +1288,40 @@ const TableBSD = () => {
                         Tous les BSDs ({allBSDs.length}) ont été chargés
                     </div>
                 )}
-                <div className="text-center mt-4 text-sm text-gray-500">
-                    {allFilteredBSDs.length === 0 ? "Aucun BSD disponible pour ces filtres." : "Nous n'affichons que 50 BSDs à la fois, utilisez les filtres pour en voir d'autres."}
+                <div className="text-center mt-4">
+                    {allFilteredBSDs.length === 0 ? (
+                        <div className="text-sm text-gray-500">Aucun BSD disponible pour ces filtres.</div>
+                    ) : (
+                        <button 
+                            onClick={() => {
+                                const newLimit = displayLimit + 50;
+                                setDisplayLimit(newLimit);
+                                
+                                // Si on a besoin de plus de données que ce qu'on a en local
+                                if (newLimit > allBSDs.length && hasMore && !isLoadingMore) {
+                                    setIsLoadingMore(true);
+                                    fetchBSDs(true); // Appel API avec loadMore=true
+                                    
+                                } else {
+                                    // Sinon on affiche juste plus de données depuis le cache
+                                    setDisplayedBSDs(allFilteredBSDs.slice(0, newLimit));
+                                }
+                            }}
+                            className="px-4 py-2 bg-[var(--green-medium)] text-white rounded-md text-sm hover:bg-[var(--green-dark)] transition-colors"
+                            disabled={isLoadingMore || !hasMore}
+                        >
+                            {isLoadingMore ? (
+                                <span className="flex items-center gap-2">
+                                    <span className="loading loading-spinner loading-sm"></span>
+                                    Chargement...
+                                </span>
+                            ) : !hasMore ? (
+                                "Toutes les données ont été chargées"
+                            ) : (
+                                "Charger plus " + "("+displayLimit+")"
+                            )}
+                        </button>
+                    )}
                 </div>
                 
                 {showValidateModal && selectedBsdForValidation && (
