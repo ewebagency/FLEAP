@@ -284,19 +284,15 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                             {/*<td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <div className="text-xs">{pdf.file_size ? `${pdf.file_size} MB` : 'Inconnu'}</div>
                             </td>*/}
-                            <td style={{ padding: '6px', height: '40px', position: 'relative' }} className="align-middle">
-                                <div className="flex items-center justify-end gap-2" style={{ position: 'relative', zIndex: 1 }}>
+                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                                <div className="flex items-center justify-end gap-2" style={{ position: 'relative' }}>
                                     {pdf.document_type !== 'excel' && (
                                         <button 
                                             type="button"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                handleOpenPdf(pdf);
-                                            }}
+                                            onClick={() => handleOpenPdf(pdf)}
                                             disabled={loadingUrls[pdf.id]}
-                                            className="px-3 py-1.5 border border-[var(--green-medium)] text-[var(--green-medium)] rounded-md text-xs hover:bg-green-50 w-[100px] text-center disabled:opacity-50 cursor-pointer"
-                                            style={{ position: 'relative', zIndex: 2 }}
+                                            style={{ position: 'relative', zIndex: 1 }}
+                                            className="px-3 py-1.5 border border-[var(--green-medium)] text-[var(--green-medium)] rounded-md text-xs hover:bg-green-50 w-[100px] text-center disabled:opacity-50"
                                         >
                                             {loadingUrls[pdf.id] ? 'Chargement...' : 'Ouvrir'}
                                         </button>
