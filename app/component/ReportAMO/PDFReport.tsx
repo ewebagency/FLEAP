@@ -97,6 +97,31 @@ const styles = StyleSheet.create({
         marginBottom: 10,
         color: '#2d3748',
     },
+    statsContainer: {
+        marginTop: 20,
+        marginBottom: 20,
+        padding: 15,
+        backgroundColor: '#f8f9fa',
+        borderRadius: 5,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    statItem: {
+        flex: 1,
+        padding: 10,
+        alignItems: 'center',
+    },
+    statValue: {
+        fontSize: 16,
+        fontWeight: 700,
+        color: '#2d3748',
+        marginBottom: 5,
+    },
+    statLabel: {
+        fontSize: 12,
+        color: '#4a5568',
+        textAlign: 'center',
+    },
 });
 
 interface PDFReportProps {
@@ -137,6 +162,12 @@ interface PDFReportProps {
             date: string;
             processingCode: string;
         }>;
+        stats: {
+            totalQuantity: number;
+            sortingRate: number;
+            materialValorizationRate: number;
+            globalValorizationRate: number;
+        };
     };
 }
 
@@ -169,6 +200,26 @@ const PDFReport: React.FC<PDFReportProps> = ({ data }) => {
                                 ))}
                             </View>
                         )}
+                    </View>
+
+                    {/* Stats Block */}
+                    <View style={styles.statsContainer}>
+                        <View style={styles.statItem}>
+                            <Text style={styles.statValue}>{data.stats.totalQuantity.toFixed(1)} T</Text>
+                            <Text style={styles.statLabel}>Tonnage total</Text>
+                        </View>
+                        <View style={styles.statItem}>
+                            <Text style={styles.statValue}>{data.stats.sortingRate.toFixed(1)}%</Text>
+                            <Text style={styles.statLabel}>Taux de tri</Text>
+                        </View>
+                        <View style={styles.statItem}>
+                            <Text style={styles.statValue}>{data.stats.materialValorizationRate.toFixed(1)}%</Text>
+                            <Text style={styles.statLabel}>Valorisation matière</Text>
+                        </View>
+                        <View style={styles.statItem}>
+                            <Text style={styles.statValue}>{data.stats.globalValorizationRate.toFixed(1)}%</Text>
+                            <Text style={styles.statLabel}>Valorisation globale</Text>
+                        </View>
                     </View>
 
                     {/* Filières Stats */}

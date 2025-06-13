@@ -1,8 +1,8 @@
 export interface ReportData {
     header: {
         siteName: string;
-        firstDate: Date | string;
-        lastDate: Date | string;
+        firstDate: Date;
+        lastDate: Date;
         siteAddress?: string;
         entrepriseName: string;
         selectedSites?: string[];
@@ -43,4 +43,12 @@ export interface ReportData {
         }>;
     };
     chartImage: string;
+    treatmentChartImage: string;
+    pieChartImage: string;
+    stats: {
+        totalQuantity: number;
+        sortingRate: number;
+        materialValorizationRate: number;
+        globalValorizationRate: number;
+    };
 } 

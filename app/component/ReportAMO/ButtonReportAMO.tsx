@@ -27,28 +27,37 @@ export default function ButtonReportAMO() {
         try {
             console.log('Starting report generation for sites:', Array.from(selectedSites));
             
-            // Créer un générateur de rapport pour chaque site
-            const reportGenerators = Array.from(selectedSites).map(siteId => {
-                const site = sites.find(s => s.orgId === siteId);
-                if (!site) throw new Error(`Site ${siteId} not found`);
-                return new ReportGenerator(bsds, site, entreprise_name, mappingTable);
-            });
-
-            // Générer les données pour chaque site
-            const reportsData = await Promise.all(
-                reportGenerators.map(generator => generator.getReportData())
+            // 1. Filtrer les BSDs pour les sites sélectionnés
+            const filteredBsds = bsds.filter(bsd => 
+                selectedSites.has(bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret || '')
             );
 
-            // Agréger les données
-            const aggregatedData = aggregateReportsData(reportsData, entreprise_name, Array.from(selectedSites));
+            // 2. Créer un seul ReportGenerator avec tous les BSDs filtrés
+            const reportGenerator = new ReportGenerator(
+                filteredBsds,
+                {
+                    orgId: Array.from(selectedSites).join(','), // On passe tous les IDs de sites
+                    givenName: selectedSites.size === 1 
+                        ? sites.find(s => s.orgId === Array.from(selectedSites)[0])?.givenName || ''
+                        : 'Rapport Multi-Sites',
+                    address: selectedSites.size === 1 
+                        ? sites.find(s => s.orgId === Array.from(selectedSites)[0])?.address
+                        : undefined
+                },
+                entreprise_name,
+                mappingTable
+            );
+
+            // 3. Générer les données du rapport
+            const reportData = await reportGenerator.getReportData();
             
-            // Générer le PDF avec les données agrégées
+            // 4. Générer le PDF
             const response = await fetch('/api/generate-pdf', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(aggregatedData),
+                body: JSON.stringify(reportData),
             });
 
             if (!response.ok) {
@@ -211,7 +220,15 @@ function aggregateReportsData(reportsData: ReportData[], entrepriseName: string,
         destinataires: [],
         registre: [],
         chartData: reportsData[0]?.chartData || { labels: [], datasets: [] },
-        chartImage: reportsData[0]?.chartImage || ''
+        chartImage: reportsData[0]?.chartImage || '',
+        treatmentChartImage: reportsData[0]?.treatmentChartImage || '',
+        pieChartImage: reportsData[0]?.pieChartImage || '',
+        stats: {
+            totalQuantity: 0,
+            sortingRate: 0,
+            materialValorizationRate: 0,
+            globalValorizationRate: 0
+        }
     };
 
     // Agrégation des filières avec calcul correct des moyennes mensuelles
@@ -284,6 +301,22 @@ function aggregateReportsData(reportsData: ReportData[], entrepriseName: string,
     const totalQuantity = Array.from(filiereMap.values()).reduce((sum, f) => sum + f.quantity, 0);
     const totalTransporteurQuantity = Array.from(transporteurMap.values()).reduce((sum, t) => sum + t.quantity, 0);
     const totalDestinataireQuantity = Array.from(destinataireMap.values()).reduce((sum, d) => sum + d.quantity, 0);
+
+    // Calculer les statistiques globales
+    const dibQuantity = Array.from(filiereMap.values())
+        .filter(f => f.filiere === 'DIB')
+        .reduce((sum, f) => sum + f.quantity, 0);
+    const daomQuantity = Array.from(filiereMap.values())
+        .filter(f => f.filiere === 'DAOM')
+        .reduce((sum, f) => sum + f.quantity, 0);
+
+    // Mettre à jour les statistiques agrégées
+    aggregatedData.stats = {
+        totalQuantity,
+        sortingRate: totalQuantity > 0 ? (1 - (dibQuantity + daomQuantity) / totalQuantity) * 100 : 0,
+        materialValorizationRate: reportsData.reduce((sum, r) => sum + (r.stats?.materialValorizationRate || 0), 0) / reportsData.length,
+        globalValorizationRate: reportsData.reduce((sum, r) => sum + (r.stats?.globalValorizationRate || 0), 0) / reportsData.length
+    };
 
     // Convertir les maps en tableaux pour le rapport final
     aggregatedData.filiereStats = Array.from(filiereMap.values()).map(stat => ({

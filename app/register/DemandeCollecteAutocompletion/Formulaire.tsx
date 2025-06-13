@@ -95,6 +95,8 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
     contenant: ContenantInterface | null;
     nombreContenant: number;
     date: Date | null;
+    showTime: boolean;
+    time: string;
     transporteur: TransporteurInterface | null;
     destinataire: DestinataireInterface | null;
     showNegociant: boolean;
@@ -587,7 +589,6 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                               selected={selectedFields.date || null}
                               onChange={(date) => {
                                 if (date) {
-                                  // Ajuster la date pour le fuseau horaire local
                                   const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
                                   handleFieldChange(index, 'date', localDate);
                                 } else {
@@ -597,9 +598,40 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                               className="ml-[20px] w-[80%] p-1 border rounded-md"
                               placeholderText="Dès que possible"
                               dateFormat="dd/MM/yyyy"
-                            />                       
+                            />
+                          </div>
+                          {/* Heure */}
+                          <div className="flex items-center gap-2 justify-end mt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleFieldChange(index, 'showTime', !selectedFields.showTime)}
+                              className={`px-2 py-1 text-sm rounded-md ${
+                                selectedFields.showTime 
+                                    ? 'bg-green-500 text-white' 
+                                    : 'bg-gray-200 text-gray-600'
+                              }`}
+                            >
+                              Heure
+                            </button>
+                            {selectedFields.showTime && (
+                              <select
+                                value={selectedFields.time || '09:00'}
+                                onChange={(e) => handleFieldChange(index, 'time', e.target.value)}
+                                className="text-sm border rounded-md p-1"
+                              >
+                                {Array.from({ length: 17 }, (_, i) => {
+                                  const hour = i + 6; // De 6h à 22h
+                                  return (
+                                    <option key={hour} value={`${hour.toString().padStart(2, '0')}:00`}>
+                                      {hour}h
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            )}
                           </div>
                         </div>
+                      
                           </>
                         )}
                       </>
@@ -677,17 +709,48 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                             selected={selectedFields.date || null}
                             onChange={(date) => {
                               if (date) {
-                                // Ajuster la date pour le fuseau horaire local
                                 const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
                                 handleFieldChange(index, 'date', localDate);
                               } else {
                                 handleFieldChange(index, 'date', null);
                               }
                             }}
-                            className="w-[75%] h-1/2 p-1 border rounded-md text-sm tracking-wide"
+                            className="w-[67%] h-1/2 p-1 border rounded-md text-sm tracking-wide"
                             placeholderText="Dès que possible"
                             dateFormat="dd/MM/yyyy"
                           />
+                          <div className="flex items-center gap-2 ml-[-60px]">
+                            <div className="text-gray-500 text-sm">Heure</div>
+                            <div className="flex items-center gap-2 relative" style={{ marginLeft: '-50px', zIndex: 10 }}>
+                              <button
+                                type="button"
+                                onClick={() => handleFieldChange(index, 'showTime', !selectedFields.showTime)}
+                                className={`px-2 py-0.5 text-sm rounded-md ${
+                                  selectedFields.showTime 
+                                      ? 'bg-green-500 text-white' 
+                                      : 'bg-gray-200 text-gray-600'
+                                }`}
+                              >
+                                Heure
+                              </button>
+                              {selectedFields.showTime && (
+                                <select
+                                  value={selectedFields.time || '09:00'}
+                                  onChange={(e) => handleFieldChange(index, 'time', e.target.value)}
+                                  className="text-sm border rounded-md p-1"
+                                >
+                                  {Array.from({ length: 17 }, (_, i) => {
+                                    const hour = i + 6; // De 6h à 22h
+                                    return (
+                                      <option key={hour} value={`${hour.toString().padStart(2, '0')}:00`}>
+                                        {hour}h
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              )}
+                            </div>
+                          </div>
                         </div>
                           </>
                         )}

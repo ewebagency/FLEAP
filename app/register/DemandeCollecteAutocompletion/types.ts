@@ -141,6 +141,8 @@ export interface SelectedFields {
   contenant: ContenantInterface | null;
   nombreContenant: number;
   date: Date | null;
+  showTime: boolean;
+  time: string;
   transporteur: TransporteurInterface | null;
   destinataire: DestinataireInterface | null;
   showNegociant: boolean;

@@ -1,8 +1,9 @@
 import { BSD } from '@/app/analysis/AnalysisProvider';
-import { tauxValorisationGlobale, tauxValorisationMatière } from '../Analyse/Environnementale/codeTraitement';
+import { tauxValorisationGlobale, tauxValorisationMatière, treatmentLabels } from '../Analyse/Environnementale/codeTraitement';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import { tailwindToRgba } from '../Analyse/MetaComponent/Colours';
 import { ReportData } from './types';
+import { codeTraitementDefinitions } from '../Analyse/Environnementale/codeTraitement';
 
 interface Site {
     orgId: string;
@@ -41,23 +42,8 @@ export class ReportGenerator {
         this.mappingTable = mappingTable;
     }
 
-    private getSiteBSDs(): BSD[] {
-        return this.bsds.filter(bsd => 
-            bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.orgId === this.site.orgId
-        );
-    }
-
-    private getSiteName(): string {
-        const siteBSDs = this.getSiteBSDs();
-        const siteName = siteBSDs.find(bsd => 
-            bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.name
-        )?.infos_json?.formAPI?.createFormInput?.emitter?.company?.name;
-        
-        return siteName || this.site.givenName;
-    }
-
     private getDateRange(): { firstDate: Date; lastDate: Date } {
-        const dates = this.getSiteBSDs()
+        const dates = this.bsds
             .map(bsd => new Date(bsd.infos_json?.formAPI?.createFormInput?.takenOverAt || bsd.created_at || ''))
             .filter(date => !isNaN(date.getTime()));
 
@@ -97,7 +83,7 @@ export class ReportGenerator {
             lastDate: Date;
         }>();
 
-        this.getSiteBSDs().forEach(bsd => {
+        this.bsds.forEach(bsd => {
             const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
             const filiereName = this.getFiliereName(wasteCode);
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
@@ -120,7 +106,6 @@ export class ReportGenerator {
             current.total += 1;
             current.collections += 1;
 
-            // Mettre à jour les dates
             if (date < current.firstDate) current.firstDate = date;
             if (date > current.lastDate) current.lastDate = date;
 
@@ -137,27 +122,8 @@ export class ReportGenerator {
             filiereMap.set(filiereName, current);
         });
 
-        // Calculer les totaux
-        let totalQuantity = 0;
-        let totalProcessed = 0;
-        let totalMaterialValorized = 0;
-        let totalGlobalValorized = 0;
-        let totalCollections = 0;
-        let globalFirstDate = new Date();
-        let globalLastDate = new Date(0);
-
+        // Convertir en tableau et calculer les statistiques
         const stats = Array.from(filiereMap.entries()).map(([filiere, stats]) => {
-            totalQuantity += stats.quantity;
-            totalProcessed += stats.processedCount;
-            totalMaterialValorized += stats.materialValorized;
-            totalGlobalValorized += stats.globalValorized;
-            totalCollections += stats.collections;
-
-            // Mettre à jour les dates globales
-            if (stats.firstDate < globalFirstDate) globalFirstDate = stats.firstDate;
-            if (stats.lastDate > globalLastDate) globalLastDate = stats.lastDate;
-
-            // Calculer les taux de valorisation pour chaque filière
             const materialValorizationRate = stats.processedCount > 0 
                 ? (stats.materialValorized / stats.processedCount) * 100 
                 : 0;
@@ -165,11 +131,9 @@ export class ReportGenerator {
                 ? (stats.globalValorized / stats.processedCount) * 100 
                 : 0;
 
-            // Calculer le nombre de mois entre la première et la dernière collecte
             const monthsDiff = (stats.lastDate.getFullYear() - stats.firstDate.getFullYear()) * 12 + 
                              (stats.lastDate.getMonth() - stats.firstDate.getMonth()) + 1;
             
-            // Calculer la moyenne mensuelle de collectes
             const averageCollectionsPerMonth = monthsDiff > 0 ? stats.collections / monthsDiff : 0;
 
             return {
@@ -183,24 +147,25 @@ export class ReportGenerator {
             };
         });
 
-        // Trier les filières par quantité (décroissant)
+        // Trier par quantité décroissante
         stats.sort((a, b) => b.quantity - a.quantity);
 
-        // Calculer la moyenne mensuelle globale
-        const globalMonthsDiff = (globalLastDate.getFullYear() - globalFirstDate.getFullYear()) * 12 + 
-                               (globalLastDate.getMonth() - globalFirstDate.getMonth()) + 1;
-        const globalAverageCollectionsPerMonth = globalMonthsDiff > 0 ? totalCollections / globalMonthsDiff : 0;
-
         // Ajouter la ligne des totaux
-        stats.push({
+        const totalQuantity = stats.reduce((sum, stat) => sum + stat.quantity, 0);
+        const totalProcessed = stats.reduce((sum, stat) => sum + stat.numberOfCollections, 0);
+        const totalMaterialValorized = stats.reduce((sum, stat) => sum + (stat.materialValorizationRate * stat.numberOfCollections / 100), 0);
+        const totalGlobalValorized = stats.reduce((sum, stat) => sum + (stat.globalValorizationRate * stat.numberOfCollections / 100), 0);
+        const totalCollections = stats.reduce((sum, stat) => sum + stat.numberOfCollections, 0);
+
+        /*stats.push({
             filiere: 'TOTAL',
             filiereName: 'TOTAL',
             quantity: totalQuantity,
             materialValorizationRate: totalProcessed > 0 ? (totalMaterialValorized / totalProcessed) * 100 : 0,
             globalValorizationRate: totalProcessed > 0 ? (totalGlobalValorized / totalProcessed) * 100 : 0,
             numberOfCollections: totalCollections,
-            averageCollectionsPerMonth: globalAverageCollectionsPerMonth
-        });
+            averageCollectionsPerMonth: 0
+        });*/
 
         return stats;
     }
@@ -222,7 +187,7 @@ export class ReportGenerator {
         }>();
 
         // Calculer les quantités totales par prestataire
-        this.getSiteBSDs().forEach(bsd => {
+        this.bsds.forEach(bsd => {
             const transporter = bsd.infos_json?.formAPI?.createFormInput?.transporter?.company;
             const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient?.company;
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
@@ -281,7 +246,7 @@ export class ReportGenerator {
     }
 
     private prepareChartData() {
-        const siteBSDs = this.getSiteBSDs();
+        const siteBSDs = this.bsds;
         const { firstDate, lastDate } = this.getDateRange();
         
         // Générer les labels de mois
@@ -409,92 +374,342 @@ export class ReportGenerator {
         }
     }
 
+    private calculateTreatmentStats(bsds: BSD[]): Record<string, { tonnage: number; count: number }> {
+        const treatmentStats: Record<string, { tonnage: number; count: number }> = {};
+        
+        bsds.forEach(bsd => {
+            const processingCode = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
+                ?.replace(/\s+/g, '');
+            const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
+                           bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+
+            if (processingCode) {
+                if (!treatmentStats[processingCode]) {
+                    treatmentStats[processingCode] = { tonnage: 0, count: 0 };
+                }
+                treatmentStats[processingCode].tonnage += quantity;
+                treatmentStats[processingCode].count += 1;
+            }
+        });
+
+        // Trier les traitements par tonnage décroissant
+        const sortedStats = Object.entries(treatmentStats)
+            .sort((a, b) => b[1].tonnage - a[1].tonnage)
+            .reduce((acc, [code, stat]) => {
+                acc[code] = stat;
+                return acc;
+            }, {} as Record<string, { tonnage: number; count: number }>);
+
+        return sortedStats;
+    }
+
+    private calculateAllSitesTreatmentStats(): Record<string, { tonnage: number; count: number }> {
+        return this.calculateTreatmentStats(this.bsds);
+    }
+
+    private async generateTreatmentChartImage(data: ReportData): Promise<string> {
+        
+        // Calculer les stats sur tous les BSDs
+        const treatmentStats: Record<string, { tonnage: number; count: number }> = {};
+        this.bsds.forEach(bsd => {
+            const processingCode = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
+                ?.replace(/\s+/g, '');
+            const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
+                           bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+
+            if (processingCode) {
+                if (!treatmentStats[processingCode]) {
+                    treatmentStats[processingCode] = { tonnage: 0, count: 0 };
+                }
+                treatmentStats[processingCode].tonnage += quantity;
+                treatmentStats[processingCode].count += 1;
+            }
+        });
+
+        // Trier les traitements par tonnage décroissant
+        const sortedStats = Object.entries(treatmentStats)
+            .sort((a, b) => b[1].tonnage - a[1].tonnage)
+            .reduce((acc, [code, stat]) => {
+                acc[code] = stat;
+                return acc;
+            }, {} as Record<string, { tonnage: number; count: number }>);
+
+        
+        const totalTonnage = Object.values(sortedStats).reduce((sum, stat) => sum + stat.tonnage, 0);
+        
+        // Préparation des données pour le graphique
+        const chartData = Object.entries(sortedStats)
+            .map(([code, stat]) => {
+                const treatment = codeTraitementDefinitions.find(t => t.code === code);
+                const percentage = ((stat.tonnage / totalTonnage) * 100).toFixed(1);
+                return {
+                    code,
+                    label: treatment?.code + " - " + treatment?.nom,
+                    percentage: parseFloat(percentage),
+                    color: treatment?.couleur || '#808080',
+                    tonnage: stat.tonnage
+                };
+            })
+            .sort((a, b) => b.percentage - a.percentage); // Trier par pourcentage décroissant
+
+        
+        const chartConfig = {
+            type: 'horizontalBar',
+            data: {
+                labels: chartData.map(d => d.label),
+                datasets: [{
+                    data: chartData.map(d => d.percentage),
+                    backgroundColor: chartData.map(d => d.color),
+                    borderColor: chartData.map(d => d.color),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+                    title: {
+                        display: false
+                    }
+                }
+            }
+        };
+
+        const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=800&height=400`;
+        return chartUrl;
+    }
+
+    private async generatePieChartImage(data: ReportData): Promise<string> {
+        const filiereStats = this.calculateFiliereStats();
+        
+        // Filtrer pour exclure la filière TOTAL
+        const filteredStats = filiereStats.filter(stat => stat.filiere !== 'TOTAL');
+        const totalTonnage = filteredStats.reduce((sum, stat) => sum + stat.quantity, 0);
+
+        // Préparer les données pour le graphique
+        const labels = filteredStats.map(stat => stat.filiereName);
+        const percentages = filteredStats.map(stat => 
+            ((stat.quantity / totalTonnage) * 100).toFixed(1)
+        );
+
+        // Couleurs prédéfinies pour les datasets
+        const colors = [
+            'blue-400', 'green-400', 'purple-400', 'yellow-400', 'pink-400',
+            'orange-400', 'teal-400', 'cyan-400', 'indigo-400', 'gray-400',
+            'blue-700', 'green-700', 'purple-700', 'yellow-700', 'pink-700',
+            'orange-700', 'teal-700', 'cyan-700', 'indigo-700', 'gray-700'
+        ];
+
+        const chartConfig = {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: percentages,
+                    backgroundColor: labels.map((_, index) => {
+                        const colorIndex = index % colors.length;
+                        const color = colors[colorIndex];
+                        return tailwindToRgba(color, 1);
+                    }),
+                    borderColor: labels.map((_, index) => {
+                        const colorIndex = index % colors.length;
+                        const color = colors[colorIndex];
+                        return tailwindToRgba(color, 1);
+                    }),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context: { raw: number }) {
+                                return context.raw + '%';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value: number) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=1200&height=600`;
+        return chartUrl;
+    }
+
     private async prepareReportData(): Promise<ReportData> {
-        console.log('Getting site BSDs...');
-        const siteBSDs = this.getSiteBSDs();
-        if (siteBSDs.length === 0) {
-            throw new Error('Aucun BSD trouvé pour ce site');
+        if (this.bsds.length === 0) {
+            throw new Error('Aucun BSD trouvé pour les sites sélectionnés');
         }
 
-        console.log('Calculating date range...');
         const { firstDate, lastDate } = this.getDateRange();
         if (!firstDate || !lastDate || isNaN(firstDate.getTime()) || isNaN(lastDate.getTime())) {
             throw new Error('Dates invalides dans les BSDs');
         }
 
-        console.log('Calculating filiere stats...');
         const filiereStats = this.calculateFiliereStats();
         if (filiereStats.length === 0) {
             throw new Error('Aucune statistique de filière calculée');
         }
 
-        console.log('Getting prestataires...');
-        const { transporteurs, destinataires } = this.getPrestataires();
+        // Calculer les statistiques globales
+        const totalQuantity = filiereStats.reduce((sum, stat) => sum + stat.quantity, 0);
+        const nonTriQuantity = filiereStats.find(stat => 
+            (stat.filiere === 'DIB' || stat.filiere === 'DAOM' || stat.filiere === 'DASRI')
+        )?.quantity || 0;
+        const sortingRate = totalQuantity > 0 ? (1 - (nonTriQuantity / totalQuantity)) * 100 : 0;
 
-        // Filtrer/caster pour garantir le type
-        const transporteursTyped = transporteurs.filter(t => t.type === 'transporteur').map(t => ({
-            name: t.name,
-            siret: t.siret,
-            type: 'transporteur' as const,
-            percentage: t.percentage
-        }));
-        const destinatairesTyped = destinataires.filter(d => d.type === 'destinataire').map(d => ({
-            name: d.name,
-            siret: d.siret,
-            type: 'destinataire' as const,
-            percentage: d.percentage
-        }));
+        // Calculer les taux de valorisation
+        const bsdsWithProcessingOperation = this.bsds.filter(bsd => 
+            bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
+        );
 
-        console.log('Preparing chart data...');
+        const globallyValorizedBsds = bsdsWithProcessingOperation.filter(bsd => {
+            const processingCode = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
+                ?.replace(/\s+/g, '');
+            return processingCode && tauxValorisationGlobale.includes(processingCode);
+        });
+
+        const materiallyValorizedBsds = bsdsWithProcessingOperation.filter(bsd => {
+            const processingCode = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
+                ?.replace(/\s+/g, '');
+            return processingCode && tauxValorisationMatière.includes(processingCode);
+        });
+
+        const materialValorizationRate = bsdsWithProcessingOperation.length > 0 
+            ? (materiallyValorizedBsds.length / bsdsWithProcessingOperation.length) * 100 
+            : 0;
+
+        const globalValorizationRate = bsdsWithProcessingOperation.length > 0 
+            ? (globallyValorizedBsds.length / bsdsWithProcessingOperation.length) * 100 
+            : 0;
+
+        // Préparer les données pour les graphiques
         const chartData = this.prepareChartData();
 
-        console.log('Generating chart image...');
-        const chartImage = await this.generateChartImage(chartData);
+        // Générer les images des graphiques
+        const [chartImage, treatmentChartImage, pieChartImage] = await Promise.all([
+            this.generateChartImage(chartData),
+            this.generateTreatmentChartImage({
+                header: {
+                    siteName: this.site.givenName,
+                    firstDate,
+                    lastDate,
+                    siteAddress: this.site.address,
+                    entrepriseName: this.entrepriseName,
+                    selectedSites: this.getSitesInfo().map(site => site.name)
+                },
+                filiereStats,
+                transporteurs: [],
+                destinataires: [],
+                registre: [],
+                chartData,
+                chartImage: '',
+                treatmentChartImage: '',
+                pieChartImage: '',
+                stats: {
+                    totalQuantity,
+                    sortingRate,
+                    materialValorizationRate,
+                    globalValorizationRate
+                }
+            }),
+            this.generatePieChartImage({
+                header: {
+                    siteName: this.site.givenName,
+                    firstDate,
+                    lastDate,
+                    siteAddress: this.site.address,
+                    entrepriseName: this.entrepriseName,
+                    selectedSites: this.getSitesInfo().map(site => site.name)
+                },
+                filiereStats,
+                transporteurs: [],
+                destinataires: [],
+                registre: [],
+                chartData,
+                chartImage: '',
+                treatmentChartImage: '',
+                pieChartImage: '',
+                stats: {
+                    totalQuantity,
+                    sortingRate,
+                    materialValorizationRate,
+                    globalValorizationRate
+                }
+            })
+        ]);
 
         return {
             header: {
-                siteName: this.getSiteName(),
+                siteName: this.site.givenName,
                 firstDate,
                 lastDate,
                 siteAddress: this.site.address,
-                entrepriseName: this.entrepriseName
+                entrepriseName: this.entrepriseName,
+                selectedSites: this.getSitesInfo().map(site => site.name)
             },
             filiereStats,
-            transporteurs: transporteursTyped,
-            destinataires: destinatairesTyped,
+            transporteurs: [],
+            destinataires: [],
             registre: [],
             chartData,
-            chartImage
+            chartImage,
+            treatmentChartImage,
+            pieChartImage,
+            stats: {
+                totalQuantity,
+                sortingRate,
+                materialValorizationRate,
+                globalValorizationRate
+            }
         };
     }
 
-    public async generateReportData(): Promise<Blob> {
-        try {
-            const data = await this.prepareReportData();
+    private getSitesInfo(): Array<{ name: string; firstDate: Date; lastDate: Date }> {
+        const sitesMap = new Map<string, { name: string; firstDate: Date; lastDate: Date }>();
 
-            console.log('Sending data to PDF generation endpoint...');
-            const response = await fetch('/api/generate-pdf', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            });
+        this.bsds.forEach(bsd => {
+            const siteId = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret;
+            const siteName = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.name;
+            const date = new Date(bsd.infos_json?.formAPI?.createFormInput?.takenOverAt || bsd.created_at || '');
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Erreur serveur (${response.status}): ${errorText}`);
+            if (siteId && siteName && !isNaN(date.getTime())) {
+                const current = sitesMap.get(siteId) || {
+                    name: siteName,
+                    firstDate: date,
+                    lastDate: date
+                };
+
+                if (date < current.firstDate) current.firstDate = date;
+                if (date > current.lastDate) current.lastDate = date;
+
+                sitesMap.set(siteId, current);
             }
+        });
 
-            console.log('PDF generated successfully');
-            return response.blob();
-        } catch (error) {
-            console.error('Error in generateReportData:', error);
-            if (error instanceof Error) {
-                throw new Error(`Erreur lors de la génération du rapport: ${error.message}`);
-            }
-            throw error;
-        }
+        return Array.from(sitesMap.values()).sort((a, b) => a.name.localeCompare(b.name));
     }
 
     public async getReportData(): Promise<ReportData> {

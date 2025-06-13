@@ -47,6 +47,14 @@ interface ReportData {
         }>;
     };
     chartImage: string;
+    treatmentChartImage: string;
+    pieChartImage: string;
+    stats: {
+        totalQuantity: number;
+        sortingRate: number;
+        materialValorizationRate: number;
+        globalValorizationRate: number;
+    };
 }
 
 export async function POST(request: Request) {
@@ -67,9 +75,26 @@ export async function POST(request: Request) {
             throw new Error('Image du graphique manquante');
         }
 
+        if (!data.treatmentChartImage) {
+            throw new Error('Image du graphique de traitement manquante');
+        }
+
+        if (!data.pieChartImage) {
+            throw new Error('Image du graphique circulaire manquante');
+        }
+
+        console.log('Chart image length:', data.chartImage.length);
+        console.log('Treatment chart image length:', data.treatmentChartImage.length);
+        console.log('Pie chart image length:', data.pieChartImage.length);
+
+        // Vérifier que les URLs des graphiques sont valides
+        console.log('Chart image URL:', data.chartImage.substring(0, 100) + '...');
+        console.log('Treatment chart image URL:', data.treatmentChartImage.substring(0, 100) + '...');
+        console.log('Pie chart image URL:', data.pieChartImage.substring(0, 100) + '...');
+
         // Créer le document PDF avec react-pdf
         console.log('Creating PDF document...');
-        const pdfDoc = PDFDocument({ data, chartImage: data.chartImage });
+        const pdfDoc = PDFDocument({ data });
         
         console.log('Rendering PDF to stream...');
         const stream = await renderToStream(pdfDoc);

@@ -46,7 +46,9 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
     codeTraitement: null,
     contrat: null,
     mention: null,
-    photo: null
+    photo: null,
+    showTime: false,
+    time: '09:00'
   }]);
 
   useEffect(() => {
@@ -126,7 +128,9 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
           typePrestation: TYPES_PRESTATION.ENLEVEMENT_AVEC_DEPOT,
           showNegociant: false,
           mention: null,
-          photo: null
+          photo: null,
+          showTime: false,
+          time: '09:00'
         }
       ];
     });
@@ -136,6 +140,6 @@ export const useAutocompletion = (entreprise_id: string|null, site_access?: stri
     setSelectedFieldsList(prev => prev.filter((_, i) => i !== index));
   };
 
-  console.log("selectedFieldsList", selectedFieldsList);
+  //console.log("selectedFieldsList", selectedFieldsList);
   return { allOptions, selectedFieldsList, handleFieldChange, addNewLine, removeLine, autocompletionEnabled, setAutocompletionEnabled };
 };

@@ -53,6 +53,8 @@ interface EmailParams {
         collectDate: string;
         prestationType: string;
         nombreContenant: number;
+        showTime: boolean;
+        time: string;
     }[];
 }
 
@@ -89,8 +91,12 @@ const emailTemplate: EmailTemplate = {
         }, {} as { [key: string]: typeof params.wasteLines });
 
         // Fonction pour formater la date
-        const formatDate = (date: string) => {
-            return date === 'Dès que possible' ? 'dès que possible' : 'pour le ' + `${date.split('-')[2]}/${date.split('-')[1]}/${date.split('-')[0]}`;
+        const formatDate = (date: string, showTime: boolean = false, time: string = '09:00') => {
+            if (date === 'Dès que possible') {
+                return 'dès que possible';
+            }
+            const formattedDate = `${date.split('-')[2]}/${date.split('-')[1]}/${date.split('-')[0]}`;
+            return showTime ? `pour le ${formattedDate} à ${time.split(':')[0]}h` : `pour le ${formattedDate}`;
         };
 
         // Fonction pour générer le corps du mail selon le type de prestation
@@ -105,7 +111,7 @@ Numéro de contrat : ${params.numClient}` : ''}
 Site : ${params.emitter.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
-Prestation d'échange (enlèvement de déchets avec dépot de contenant) ${formatDate(date)}
+Prestation d'échange (enlèvement de déchets avec dépot de contenant) ${formatDate(date, lines[0].showTime, lines[0].time)}
     Contenant : ${line.nombreContenant} ${line.container}
     Déchets : ${line.description} (${line.code})`).join('')}`).join('')}
 
@@ -127,7 +133,7 @@ ${params.numClient ? `Numéro de contrat : ${params.numClient}
 ` : ''}Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
-Prestation d'enlèvement (enlèvement de déchets sans dépot de contenant) ${formatDate(date)}
+Prestation d'enlèvement (enlèvement de déchets sans dépot de contenant) ${formatDate(date, lines[0].showTime, lines[0].time)}
     Contenant : ${line.nombreContenant} ${line.container}
     Déchets : ${line.description} (${line.code})`).join('')}`).join('')}
 
@@ -149,7 +155,7 @@ ${params.numClient ? `Numéro de contrat : ${params.numClient}
 ` : ''}Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
-Prestation de camion à la journée ${formatDate(date)}
+Prestation de camion à la journée ${formatDate(date, lines[0].showTime, lines[0].time)}
     Contenant : ${line.nombreContenant} ${line.container}
     Déchets : ${line.description} (${line.code})`).join('')}`).join('')}
 
@@ -171,7 +177,7 @@ ${params.numClient ? `Numéro de contrat : ${params.numClient}
 ` : ''}Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
-Prestation de camion à la demi-journée ${formatDate(date)}
+Prestation de camion à la demi-journée ${formatDate(date, lines[0].showTime, lines[0].time)}
     Contenant : ${line.nombreContenant} ${line.container}
     Déchets : ${line.description} (${line.code})`).join('')}`).join('')}
 
@@ -193,7 +199,7 @@ ${params.numClient ? `Numéro de contrat : ${params.numClient}
 ` : ''}Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
-Prestation de dépôt (dépôt de contenants) ${formatDate(date)}
+Prestation de dépôt (dépôt de contenants) ${formatDate(date, lines[0].showTime, lines[0].time)}
     Contenant : ${line.nombreContenant} ${line.container}
     Déchets : ${line.description} (${line.code})`).join('')}`).join('')}
 
@@ -215,7 +221,7 @@ ${params.numClient ? `Numéro de contrat : ${params.numClient}
 ` : ''}Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
-Prestation de camion pour une tournée ${formatDate(date)}
+Prestation de camion pour une tournée ${formatDate(date, lines[0].showTime, lines[0].time)}
     Contenant : ${line.nombreContenant} ${line.container}
     Déchets : ${line.description} (${line.code})`).join('')}`).join('')}
 
@@ -237,7 +243,7 @@ ${params.numClient ? `Numéro de contrat : ${params.numClient}
 ` : ''}Site : ${params.emitter.workSite.name}
 Adresse : ${collectAddress}${Object.entries(wastesByDate).map(([date, lines]) => `${lines.map(line => `
 
-Prestation ${formatDate(date)}
+Prestation ${formatDate(date, lines[0].showTime, lines[0].time)}
     Contenant : ${line.nombreContenant} ${line.container}
     Déchets : ${line.description} (${line.code})`).join('')}`).join('')}
 

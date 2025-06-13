@@ -420,7 +420,7 @@ interface ValueType {
 
 export const aggregateByMailRecipient = (selectedFieldsList: SelectedFields[]): AggregatedMailRecipient[] => {
   const groupedByRecipient: { [key: string]: AggregatedMailRecipient } = {};
-  console.log('selectedFieldsList', selectedFieldsList);
+  //console.log('selectedFieldsList', selectedFieldsList);
 
   selectedFieldsList.forEach((line) => {
     let recipientEmail = '';

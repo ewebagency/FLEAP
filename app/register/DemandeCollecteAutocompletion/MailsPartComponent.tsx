@@ -59,7 +59,9 @@ const MailsPartComponent = forwardRef<MailsPartComponentRef, MailsPartComponentP
           volumeUnit: 'unité',
           collectDate: line.date ? new Date(line.date).toISOString().split('T')[0] : '',
           nombreContenant: line.nombreContenant || 1,
-          prestationType: line.typePrestation || 'Collecte'
+          prestationType: line.typePrestation || 'Collecte',
+          showTime: line.showTime || false,
+          time: line.time || '09:00'
         }));
 
         // Debug logs pour les wasteLines

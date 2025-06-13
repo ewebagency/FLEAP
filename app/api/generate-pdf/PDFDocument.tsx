@@ -18,7 +18,7 @@ const styles = StyleSheet.create({
         fontFamily: 'Helvetica',
     },
     header: {
-        marginBottom: 20,
+        marginBottom: 0,
         borderBottom: 1,
         paddingBottom: 10,
         backgroundColor: '#f8f9fa',
@@ -37,16 +37,23 @@ const styles = StyleSheet.create({
         color: '#4a5568',
     },
     section: {
-        margin: 10,
+        margin: 0,
+        padding: 15,
+        backgroundColor: '#ffffff',
+        borderRadius: 5,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    },
+    sectionTableau: {
+        marginTop: -400,
         padding: 15,
         backgroundColor: '#ffffff',
         borderRadius: 5,
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
     },
     sectionTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginBottom: 10,
+        fontSize: 10,
+        fontWeight: 'medium',
+        marginBottom: 5,
         color: '#2d3748',
     },
     table: {
@@ -81,9 +88,72 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     chart: {
-        marginTop: 20,
-        marginBottom: 20,
+        marginTop: 0,
+        marginBottom: 0,
         height: 200,
+        width: '100%',
+    },
+    chartsContainer: {
+        flexDirection: 'row',
+        marginTop: 60,
+        marginBottom: 20,
+        height: 600,
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    barChartContainer: {
+        width: '55%',
+        height: '150%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+    },
+    pieChartContainer: {
+        width: '45%',
+        height: '130%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        marginTop: -50,
+    },
+    chartTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#2d3748',
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+    newChartTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#2d3748',
+        marginBottom: -60,
+        textAlign: 'center',
+    },
+    statsContainer: {
+        marginTop: 10,
+        marginBottom: 0,
+        padding: 15,
+        backgroundColor: '#f8f9fa',
+        borderRadius: 5,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    statItem: {
+        flex: 1,
+        padding: 10,
+        alignItems: 'center',
+    },
+    statValue: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#2d3748',
+        marginBottom: 5,
+    },
+    statLabel: {
+        fontSize: 12,
+        color: '#4a5568',
+        textAlign: 'center',
     },
 });
 
@@ -125,11 +195,19 @@ interface PDFDocumentProps {
             date: string;
             processingCode: string;
         }>;
+        stats: {
+            totalQuantity: number;
+            sortingRate: number;
+            materialValorizationRate: number;
+            globalValorizationRate: number;
+        };
+        chartImage: string;
+        treatmentChartImage: string;
+        pieChartImage: string;
     };
-    chartImage: string;
 }
 
-export function PDFDocument({ data, chartImage }: PDFDocumentProps) {
+export function PDFDocument({ data }: PDFDocumentProps) {
     const formatDate = (date: Date | string) => {
         const dateObj = typeof date === 'string' ? new Date(date) : date;
         return dateObj.toLocaleDateString('fr-FR');
@@ -160,15 +238,52 @@ export function PDFDocument({ data, chartImage }: PDFDocumentProps) {
                     )}
                 </View>
 
+                {/* Stats Block */}
+                <View style={styles.statsContainer}>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statValue}>{data.stats.totalQuantity.toFixed(1)} T</Text>
+                        <Text style={styles.statLabel}>Tonnage total</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statValue}>{data.stats.sortingRate.toFixed(1)}%</Text>
+                        <Text style={styles.statLabel}>Taux de tri</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statValue}>{data.stats.materialValorizationRate.toFixed(1)}%</Text>
+                        <Text style={styles.statLabel}>Valorisation matière</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statValue}>{data.stats.globalValorizationRate.toFixed(1)}%</Text>
+                        <Text style={styles.statLabel}>Valorisation globale</Text>
+                    </View>
+                </View>
+                
                 {/* Chart */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Évolution des tonnages par filière</Text>
-                    <Image src={chartImage} style={styles.chart} />
+                    <Text style={styles.chartTitle}>Répartition des tonnages par filières</Text>
+                    <Image source={data.chartImage} style={styles.chart} />
+                </View>   
+
+                {/* Horizontal & Pie charts */}
+                <View style={styles.section}>
+                    <View style={styles.chartsContainer}>
+                        <View style={styles.barChartContainer}>
+                            <Text style={styles.newChartTitle}>Répartition par méthode de traitement</Text>
+                            <Image source={data.treatmentChartImage} style={[styles.chart, { height: '90%', width: '100%', objectFit: 'contain' }]} />
+                        </View>
+                        <View style={styles.pieChartContainer}>
+                            <div style={{ marginTop: 8 }}></div>
+                            <Text style={styles.newChartTitle}>Répartition par filière</Text>
+                            <Image source={data.pieChartImage} style={[styles.chart, { height: '105%', width: '100%', objectFit: 'contain' }]} />
+                        </View>
+                    </View>
                 </View>
 
+             
+
                 {/* Filières Stats */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Tableau récapitulatif des filières</Text>
+                <View style={styles.sectionTableau}>
+                    <Text style={styles.chartTitle}>Tableau récapitulatif des filières</Text>
                     <View style={styles.table}>
                         <View style={[styles.tableRow, styles.tableHeader]}>
                             <View style={[styles.tableCol, { width: '22%' }]}>
@@ -186,11 +301,8 @@ export function PDFDocument({ data, chartImage }: PDFDocumentProps) {
                             <View style={[styles.tableCol, { width: '19%' }]}>
                                 <Text style={[styles.tableCell, { color: '#ffffff' }]}>Nb Collectes</Text>
                             </View>
-                            {/*<View style={[styles.tableCol, { width: '13%' }]}>
-                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>Moy./mois</Text>
-                            </View>*/}
                         </View>
-                        {data.filiereStats.map((stat, index) => (
+                        {data.filiereStats.reverse().map((stat, index) => (
                             <View key={index} style={styles.tableRow}>
                                 <View style={[styles.tableCol, { width: '22%' }]}>
                                     <Text style={styles.tableCell}>{stat.filiereName}</Text>
@@ -207,15 +319,39 @@ export function PDFDocument({ data, chartImage }: PDFDocumentProps) {
                                 <View style={[styles.tableCol, { width: '19%' }]}>
                                     <Text style={styles.tableCell}>{stat.numberOfCollections}</Text>
                                 </View>
-                                {/*<View style={[styles.tableCol, { width: '20%' }]}>
-                                    <Text style={styles.tableCell}>{stat.averageCollectionsPerMonth.toFixed(1)}</Text>
-                                </View>*/}
                             </View>
                         ))}
+                        {/* Ligne de total */}
+                        <View style={[styles.tableRow, { backgroundColor: '#f8f9fa' }]}>
+                            <View style={[styles.tableCol, { width: '22%' }]}>
+                                <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>TOTAL</Text>
+                            </View>
+                            <View style={[styles.tableCol, { width: '19%' }]}>
+                                <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>
+                                    {data.filiereStats.reduce((sum, stat) => sum + stat.quantity, 0).toFixed(2)}
+                                </Text>
+                            </View>
+                            <View style={[styles.tableCol, { width: '20%' }]}>
+                                <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>
+                                    {data.stats.materialValorizationRate.toFixed(1)}
+                                </Text>
+                            </View>
+                            <View style={[styles.tableCol, { width: '20%' }]}>
+                                <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>
+                                    {data.stats.globalValorizationRate.toFixed(1)}
+                                </Text>
+                            </View>
+                            <View style={[styles.tableCol, { width: '19%' }]}>
+                                <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>
+                                    {data.filiereStats.reduce((sum, stat) => sum + stat.numberOfCollections, 0)}
+                                </Text>
+                            </View>
+                        </View>
                     </View>
                 </View>
 
                 {/* Transporteurs */}
+                {/* Temporairement masqué
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Transporteurs</Text>
                     <View style={styles.table}>
@@ -223,9 +359,6 @@ export function PDFDocument({ data, chartImage }: PDFDocumentProps) {
                             <View style={[styles.tableCol, { width: '60%' }]}>
                                 <Text style={[styles.tableCell, { color: '#ffffff' }]}>Nom</Text>
                             </View>
-                            {/*<View style={[styles.tableCol, { width: '40%' }]}>
-                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>SIRET</Text>
-                            </View>*/}
                             <View style={[styles.tableCol, { width: '40%' }]}>
                                 <Text style={[styles.tableCell, { color: '#ffffff' }]}>% Tonnage</Text>
                             </View>
@@ -235,9 +368,6 @@ export function PDFDocument({ data, chartImage }: PDFDocumentProps) {
                                 <View style={[styles.tableCol, { width: '60%' }]}>
                                     <Text style={styles.tableCell}>{transporteur.name}</Text>
                                 </View>
-                                {/*<View style={[styles.tableCol, { width: '40%' }]}>
-                                    <Text style={styles.tableCell}>{transporteur.siret}</Text>
-                                </View>*/}
                                 <View style={[styles.tableCol, { width: '40%' }]}>
                                     <Text style={styles.tableCell}>{transporteur.percentage.toFixed(1)}%</Text>
                                 </View>
@@ -245,8 +375,10 @@ export function PDFDocument({ data, chartImage }: PDFDocumentProps) {
                         ))}
                     </View>
                 </View>
+                */}
 
                 {/* Destinataires */}
+                {/* Temporairement masqué
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Destinataires</Text>
                     <View style={styles.table}>
@@ -254,9 +386,6 @@ export function PDFDocument({ data, chartImage }: PDFDocumentProps) {
                             <View style={[styles.tableCol, { width: '60%' }]}>
                                 <Text style={[styles.tableCell, { color: '#ffffff' }]}>Nom</Text>
                             </View>
-                            {/*<View style={[styles.tableCol, { width: '40%' }]}>
-                                <Text style={[styles.tableCell, { color: '#ffffff' }]}>SIRET</Text>
-                            </View>*/}
                             <View style={[styles.tableCol, { width: '40%' }]}>
                                 <Text style={[styles.tableCell, { color: '#ffffff' }]}>% Tonnage</Text>
                             </View>
@@ -266,9 +395,6 @@ export function PDFDocument({ data, chartImage }: PDFDocumentProps) {
                                 <View style={[styles.tableCol, { width: '60%' }]}>
                                     <Text style={styles.tableCell}>{destinataire.name}</Text>
                                 </View>
-                                {/*<View style={[styles.tableCol, { width: '40%' }]}>
-                                    <Text style={styles.tableCell}>{destinataire.siret}</Text>
-                                </View>*/}
                                 <View style={[styles.tableCol, { width: '40%' }]}>
                                     <Text style={styles.tableCell}>{destinataire.percentage.toFixed(1)}%</Text>
                                 </View>
@@ -276,6 +402,7 @@ export function PDFDocument({ data, chartImage }: PDFDocumentProps) {
                         ))}
                     </View>
                 </View>
+                */}
             </Page>
         </Document>
     );
