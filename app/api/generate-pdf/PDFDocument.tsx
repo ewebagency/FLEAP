@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 0,
         borderRadius: 5,
         overflow: 'hidden',
-    },
+    },          
     tableRow: {
         margin: 'auto',
         flexDirection: 'row',
@@ -117,6 +117,14 @@ const styles = StyleSheet.create({
         marginTop: -50,
     },
     chartTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#2d3748',
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+    chartTitleFinanciel: {
+        marginTop: 100,
         fontSize: 14,
         fontWeight: 'bold',
         color: '#2d3748',
@@ -204,6 +212,7 @@ interface PDFDocumentProps {
         chartImage: string;
         treatmentChartImage: string;
         pieChartImage: string;
+        financialChartImage: string;
         financialData: {
             [filiere: string]: {
                 preparation: number;
@@ -375,7 +384,7 @@ export function PDFDocument({ data }: PDFDocumentProps) {
                 {/* Section Financière */}
                 {Object.keys(data.financialData).length > 0 && (
                     <View style={styles.section}>
-                        <Text style={styles.chartTitle}>Détails financiers par filière</Text>
+                        <Text style={styles.chartTitleFinanciel}>Détails financiers par filière</Text>
                         <View style={styles.table}>
                             {(() => {
                                 // Calculer les colonnes actives
@@ -489,6 +498,14 @@ export function PDFDocument({ data }: PDFDocumentProps) {
                                 );
                             })()}
                         </View>
+                    </View>
+                )}
+
+                {/* Graphique Financier */}
+                {data.financialChartImage && (
+                    <View style={styles.section}>
+                        <Text style={styles.chartTitle}>Évolution des coûts et revenus mensuels par filière</Text>
+                        <Image source={data.financialChartImage} style={styles.chart} />
                     </View>
                 )}
 

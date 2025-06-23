@@ -243,6 +243,7 @@ function aggregateReportsData(reportsData: ReportData[], entrepriseName: string,
         chartImage: reportsData[0]?.chartImage || '',
         treatmentChartImage: reportsData[0]?.treatmentChartImage || '',
         pieChartImage: reportsData[0]?.pieChartImage || '',
+        financialChartImage: reportsData[0]?.financialChartImage || '',
         stats: {
             totalQuantity: 0,
             sortingRate: 0,

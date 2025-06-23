@@ -145,6 +145,42 @@ export class ReportGenerator {
         return filiere || 'Autres';
     }
 
+    private getFiliereColor(filiereName: string): string {
+        // Couleurs prédéfinies pour les filières (même ordre que dans getColors)
+        const filiereColors = [
+            'blue-400', 'green-400', 'purple-400', 'yellow-400', 'pink-400',
+            'orange-400', 'teal-400', 'cyan-400', 'indigo-400', 'gray-400',
+            'blue-700', 'green-700', 'purple-700', 'yellow-700', 'pink-700',
+            'orange-700', 'teal-700', 'cyan-700', 'indigo-700', 'gray-700'
+        ];
+
+        // Obtenir toutes les filières uniques pour déterminer l'ordre
+        const allFilieres = new Set<string>();
+        this.bsds.forEach(bsd => {
+            const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
+            const filiere = this.getFiliereName(wasteCode);
+            allFilieres.add(filiere);
+        });
+
+        // Trier les filières (Autres en dernier)
+        const sortedFilieres = Array.from(allFilieres).sort((a, b) => {
+            if (a === 'Autres') return 1;
+            if (b === 'Autres') return -1;
+            return a.localeCompare(b);
+        });
+
+        // Trouver l'index de la filière dans la liste triée
+        const filiereIndex = sortedFilieres.indexOf(filiereName);
+        
+        // Retourner la couleur correspondante ou une couleur par défaut
+        if (filiereIndex >= 0 && filiereIndex < filiereColors.length) {
+            return tailwindToRgba(filiereColors[filiereIndex], 1);
+        }
+        
+        // Couleur par défaut pour les filières non trouvées
+        return tailwindToRgba('gray-500', 1);
+    }
+
     private calculateFiliereStats(): FiliereStats[] {
         const filiereMap = new Map<string, {
             filiereName: string;
@@ -514,26 +550,18 @@ export class ReportGenerator {
     }
 
     private async generateChartImage(chartData: ReportData['chartData']): Promise<string> {
-        // Couleurs prédéfinies pour les datasets
-        const colors = [
-            'blue-400', 'green-400', 'purple-400', 'yellow-400', 'pink-400',
-            'orange-400', 'teal-400', 'cyan-400', 'indigo-400', 'gray-400',
-            'blue-700', 'green-700', 'purple-700', 'yellow-700', 'pink-700',
-            'orange-700', 'teal-700', 'cyan-700', 'indigo-700', 'gray-700'
-        ];
-
         const chartConfig = {
             type: 'bar',
             data: {
                 labels: chartData.labels,
-                datasets: chartData.datasets.map((dataset: { label: string; data: number[] }, index: number) => {
-                    const colorIndex = index % colors.length;
-                    const color = colors[colorIndex];
+                datasets: chartData.datasets.map((dataset: { label: string; data: number[] }) => {
+                    // Utiliser la couleur de la filière basée sur son nom
+                    const filiereColor = this.getFiliereColor(dataset.label);
                     return {
                         label: dataset.label,
                         data: dataset.data,
-                        backgroundColor: tailwindToRgba(color, 1),
-                        borderColor: tailwindToRgba(color, 1),
+                        backgroundColor: filiereColor,
+                        borderColor: filiereColor,
                         borderWidth: 0,
                         stack: 'stack0'
                     };
@@ -703,30 +731,14 @@ export class ReportGenerator {
             ((stat.quantity / totalTonnage) * 100).toFixed(1)
         );
 
-        // Couleurs prédéfinies pour les datasets
-        const colors = [
-            'blue-400', 'green-400', 'purple-400', 'yellow-400', 'pink-400',
-            'orange-400', 'teal-400', 'cyan-400', 'indigo-400', 'gray-400',
-            'blue-700', 'green-700', 'purple-700', 'yellow-700', 'pink-700',
-            'orange-700', 'teal-700', 'cyan-700', 'indigo-700', 'gray-700'
-        ];
-
         const chartConfig = {
             type: 'bar',
             data: {
                 labels: labels,
                 datasets: [{
                     data: percentages,
-                    backgroundColor: labels.map((_, index) => {
-                        const colorIndex = index % colors.length;
-                        const color = colors[colorIndex];
-                        return tailwindToRgba(color, 1);
-                    }),
-                    borderColor: labels.map((_, index) => {
-                        const colorIndex = index % colors.length;
-                        const color = colors[colorIndex];
-                        return tailwindToRgba(color, 1);
-                    }),
+                    backgroundColor: labels.map(label => this.getFiliereColor(label)),
+                    borderColor: labels.map(label => this.getFiliereColor(label)),
                     borderWidth: 1
                 }]
             },
@@ -764,6 +776,266 @@ export class ReportGenerator {
 
         const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=1200&height=600`;
         return chartUrl;
+    }
+
+    private async generateFinancialChartImage(data: ReportData): Promise<string> {
+        const { firstDate, lastDate } = this.getDateRange();
+        const financialData = data.financialData;
+        
+        // Générer les labels de mois
+        const monthLabels: string[] = [];
+        const currentDate = new Date(firstDate);
+        while (currentDate <= lastDate) {
+            const label = currentDate.toLocaleString('fr-FR', { 
+                month: 'short',
+                year: '2-digit'
+            });
+            monthLabels.push(label.charAt(0).toUpperCase() + label.slice(1));
+            currentDate.setMonth(currentDate.getMonth() + 1);
+        }
+
+        // Préparer les données par filière et par mois
+        const positiveAmountsByFiliere: { [key: string]: { [key: string]: number } } = {};
+        const negativeAmountsByFiliere: { [key: string]: { [key: string]: number } } = {};
+
+        // Récupérer l'entreprise_id depuis les BSDs
+        const entreprise_id = this.bsds[0]?.entreprise_id;
+        if (!entreprise_id) {
+            return '';
+        }
+
+        // Récupérer les SIRETs des sites sélectionnés depuis les BSDs
+        const selectedSiteSirets = new Set(
+            this.bsds
+                .map(bsd => bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret)
+                .filter(siret => siret && siret !== '')
+        );
+
+        // Récupérer toutes les factures de l'entreprise
+        let allFactures: Facture[] = [];
+        let page = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+            const { data, error } = await supabase
+                .from('facture')
+                .select('*')
+                .eq('entreprise_id', entreprise_id)
+                .range(page * pageSize, (page + 1) * pageSize - 1);
+            
+            if (error) {
+                console.error('Error fetching factures:', error);
+                break;
+            }
+
+            if (data && data.length > 0) {
+                allFactures = [...allFactures, ...data];
+                page++;
+            } else {
+                hasMore = false;
+            }
+        }
+
+        // Filtrer les factures selon la période des BSDs
+        const filteredFactures = allFactures.filter(facture => {
+            const factureDate = new Date(facture.created_at);
+            return factureDate >= firstDate && factureDate <= lastDate;
+        });
+
+        // Traiter les factures pour extraire les données financières par mois
+        filteredFactures.forEach(facture => {
+            facture.infos_json.departs.forEach(depart => {
+                // Filtrer sur les sites sélectionnés
+                const siteSiret = depart.line_header.site_siret;
+                if (selectedSiteSirets.size > 0 && (!siteSiret || !selectedSiteSirets.has(siteSiret))) {
+                    return; // Ignorer ce départ si le site n'est pas sélectionné
+                }
+
+                const cleanedCed = depart.line_header.code_dechet?.replaceAll(' ', '').replace('*', '').trim() || '';
+                
+                // Déterminer la filière
+                const mapping = this.mappingTable.find(m => 
+                    m.ced.replaceAll(' ', '').replace('*', '').trim() === cleanedCed
+                );
+                const filiere = mapping?.filiere || 'Autres';
+                
+                // Traiter chaque ligne du body individuellement
+                depart.line_body.forEach(line => {
+                    const montant = line.montant_ht;
+                    const type = this.normalizeOperationType(line.type_operation);
+                    const dateDepart = new Date(depart.line_header?.date_depart);
+                    
+                    // Extraire les composants de la date en UTC
+                    const utcYear = dateDepart.getUTCFullYear();
+                    const utcMonth = dateDepart.getUTCMonth();
+                    // Créer une nouvelle date avec les composants UTC
+                    dateDepart.setUTCFullYear(utcYear, utcMonth, 1);
+                    dateDepart.setUTCHours(0, 0, 0, 0);
+
+                    // Vérifier si la date est dans l'intervalle
+                    if (dateDepart >= firstDate && dateDepart <= lastDate) {
+                        const monthKey = dateDepart.toISOString().slice(0, 7); // Format YYYY-MM
+
+                        // Les rachats sont considérés comme négatifs
+                        if (type === 'rachat') {
+                            if (!negativeAmountsByFiliere[filiere]) {
+                                negativeAmountsByFiliere[filiere] = {};
+                            }
+                            negativeAmountsByFiliere[filiere][monthKey] = (negativeAmountsByFiliere[filiere][monthKey] || 0) + montant;
+                        } else {
+                            if (!positiveAmountsByFiliere[filiere]) {
+                                positiveAmountsByFiliere[filiere] = {};
+                            }
+                            positiveAmountsByFiliere[filiere][monthKey] = (positiveAmountsByFiliere[filiere][monthKey] || 0) + montant;
+                        }
+                    }
+                });
+            });
+        });
+
+        const datasets = [
+            ...Object.entries(positiveAmountsByFiliere).map(([filiere, data]) => {
+                // Utiliser la couleur de la filière basée sur son nom plutôt que sur l'index
+                const filiereColor = this.getFiliereColor(filiere);
+                const mappedData = monthLabels.map(label => {
+                    const [monthStr, yearStr] = label.split(' ');
+                    const cleanMonthStr = monthStr.replace('.', '');
+                    const monthMap = {
+                        'Janv': 0, 'Févr': 1, 'Mars': 2, 'Avr': 3, 'Mai': 4, 'Juin': 5,
+                        'Juil': 6, 'Août': 7, 'Sept': 8, 'Oct': 9, 'Nov': 10, 'Déc': 11
+                    };
+                    const monthIndex = monthMap[cleanMonthStr as keyof typeof monthMap];
+                    const year = parseInt(yearStr, 10) + 2000;
+                    const monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+                    const value = data[monthKey] || 0;
+                    
+                    return value;
+                });
+                
+                return {
+                    label: filiere,
+                    data: mappedData,
+                    backgroundColor: filiereColor,
+                    stack: 'negative',
+                    borderRadius: 4
+                };
+            }),
+            ...Object.entries(negativeAmountsByFiliere).map(([filiere, data]) => {
+                // Utiliser la couleur de la filière basée sur son nom plutôt que sur l'index
+                const filiereColor = this.getFiliereColor(filiere);
+                const mappedData = monthLabels.map(label => {
+                    const [monthStr, yearStr] = label.split(' ');
+                    const cleanMonthStr = monthStr.replace('.', '');
+                    const monthMap = {
+                        'Janv': 0, 'Févr': 1, 'Mars': 2, 'Avr': 3, 'Mai': 4, 'Juin': 5,
+                        'Juil': 6, 'Août': 7, 'Sept': 8, 'Oct': 9, 'Nov': 10, 'Déc': 11
+                    };
+                    const monthIndex = monthMap[cleanMonthStr as keyof typeof monthMap];
+                    const year = parseInt(yearStr, 10) + 2000;
+                    const monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+                    // Les rachats sont comptés négativement dans le total
+                    const value = -(data[monthKey] || 0);
+                    
+                    return value;
+                });
+                
+                return {
+                    label: filiere,
+                    data: mappedData,
+                    backgroundColor: filiereColor,
+                    stack: 'positive',
+                    borderRadius: 4
+                };
+            })
+        ];
+
+        const chartConfig = {
+            type: 'bar',
+            data: {
+                labels: monthLabels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Évolution des coûts et revenus mensuels par filière',
+                        color: 'gray',
+                        align: 'center',
+                        padding: {
+                            top: 10,
+                            bottom: 10
+                        },
+                        font: {
+                            size: 14,
+                            weight: 'normal'
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(tooltipItem: { raw: number; dataset: { stack: string; label: string } }) {
+                                const value = Math.abs(tooltipItem.raw);
+                                const isNegative = tooltipItem.dataset.stack === 'positive';
+                                const symbol = isNegative ? '+' : '-';
+                                return `${symbol} ${tooltipItem.dataset.label}: ${value.toLocaleString('fr-FR')} €`;
+                            },
+                            footer: function(tooltipItems: Array<{ raw: number; dataset: { stack: string } }>) {
+                                const positiveTotal = tooltipItems
+                                    .filter(item => item.dataset.stack === 'positive')
+                                    .reduce((sum, item) => sum + Math.abs(item.raw), 0);
+                                
+                                const negativeTotal = tooltipItems
+                                    .filter(item => item.dataset.stack === 'negative')
+                                    .reduce((sum, item) => sum + Math.abs(item.raw), 0);
+
+                                return [
+                                    `Total coûts : -${negativeTotal.toLocaleString('fr-FR')} €`,
+                                    `Total revenus : +${positiveTotal.toLocaleString('fr-FR')} €`,
+                                    `Bilan : ${(positiveTotal - negativeTotal).toLocaleString('fr-FR')} €`
+                                ];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        title: {
+                            display: true,
+                            text: 'Euros'
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)',
+                            drawBorder: false
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        };
+
+        const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=1200&height=400`;
+        
+        try {
+            const response = await fetch(chartUrl);
+            const arrayBuffer = await response.arrayBuffer();
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+            return `data:image/png;base64,${base64}`;
+        } catch (error) {
+            console.error('Error generating financial chart:', error);
+            throw new Error('Failed to generate financial chart');
+        }
     }
 
     private async prepareReportData(): Promise<ReportData> {
@@ -820,7 +1092,7 @@ export class ReportGenerator {
         const financialData = await this.getFinancialData();
 
         // Générer les images des graphiques
-        const [chartImage, treatmentChartImage, pieChartImage] = await Promise.all([
+        const [chartImage, treatmentChartImage, pieChartImage, financialChartImage] = await Promise.all([
             this.generateChartImage(chartData),
             this.generateTreatmentChartImage({
                 header: {
@@ -839,6 +1111,7 @@ export class ReportGenerator {
                 chartImage: '',
                 treatmentChartImage: '',
                 pieChartImage: '',
+                financialChartImage: '',
                 stats: {
                     totalQuantity,
                     sortingRate,
@@ -864,6 +1137,33 @@ export class ReportGenerator {
                 chartImage: '',
                 treatmentChartImage: '',
                 pieChartImage: '',
+                financialChartImage: '',
+                stats: {
+                    totalQuantity,
+                    sortingRate,
+                    materialValorizationRate,
+                    globalValorizationRate
+                },
+                financialData
+            }),
+            this.generateFinancialChartImage({
+                header: {
+                    siteName: this.site.givenName,
+                    firstDate,
+                    lastDate,
+                    siteAddress: this.site.address,
+                    entrepriseName: this.entrepriseName,
+                    selectedSites: this.getSitesInfo().map(site => site.name)
+                },
+                filiereStats,
+                transporteurs: [],
+                destinataires: [],
+                registre: [],
+                chartData,
+                chartImage: '',
+                treatmentChartImage: '',
+                pieChartImage: '',
+                financialChartImage: '',
                 stats: {
                     totalQuantity,
                     sortingRate,
@@ -891,6 +1191,7 @@ export class ReportGenerator {
             chartImage,
             treatmentChartImage,
             pieChartImage,
+            financialChartImage,
             stats: {
                 totalQuantity,
                 sortingRate,
@@ -929,4 +1230,4 @@ export class ReportGenerator {
     public async getReportData(): Promise<ReportData> {
         return this.prepareReportData();
     }
-} 
+}

@@ -45,6 +45,7 @@ export interface ReportData {
     chartImage: string;
     treatmentChartImage: string;
     pieChartImage: string;
+    financialChartImage: string;
     stats: {
         totalQuantity: number;
         sortingRate: number;
