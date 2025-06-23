@@ -111,15 +111,15 @@ export default function ButtonReportAMO() {
 
     // Extraire les sites uniques des BSDs
     const sites = Array.from(new Set(bsds.map(bsd => 
-        bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.orgId
+        bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret
     )))
-        .filter(orgId => orgId && orgId !== '') // Ne garder que les orgId définis et non vides
-        .map(orgId => {
+        .filter(siret => siret && siret !== '') // Ne garder que les siret définis et non vides
+        .map(siret => {
             const bsd = bsds.find(b => 
-                b.infos_json?.formAPI?.createFormInput?.emitter?.company?.orgId === orgId
+                b.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret === siret
             );
             return {
-                orgId: orgId || '',
+                orgId: siret || '',
                 givenName: bsd?.infos_json?.formAPI?.createFormInput?.emitter?.company?.name || '',
                 address: bsd?.infos_json?.formAPI?.createFormInput?.emitter?.company?.address
             };

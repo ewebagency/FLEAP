@@ -502,7 +502,7 @@ export function PDFDocument({ data }: PDFDocumentProps) {
                 )}
 
                 {/* Graphique Financier */}
-                {data.financialChartImage && (
+                {data.financialChartImage && Object.keys(data.financialData).length > 0 && (
                     <View style={styles.section}>
                         <Text style={styles.chartTitle}>Évolution des coûts et revenus mensuels par filière</Text>
                         <Image source={data.financialChartImage} style={styles.chart} />
