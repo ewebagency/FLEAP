@@ -204,6 +204,25 @@ interface PDFDocumentProps {
         chartImage: string;
         treatmentChartImage: string;
         pieChartImage: string;
+        financialData: {
+            [filiere: string]: {
+                preparation: number;
+                transport: number;
+                traitement: number;
+                gestion_globale: number;
+                tgap: number;
+                declassement: number;
+                penalites: number;
+                rachat: number;
+                location: number;
+                maintenance: number;
+                mise_a_disposition: number;
+                autres_contenant: number;
+                non_expliques: number;
+                autres: number;
+                total: number;
+            };
+        };
     };
 }
 
@@ -211,6 +230,11 @@ export function PDFDocument({ data }: PDFDocumentProps) {
     const formatDate = (date: Date | string) => {
         const dateObj = typeof date === 'string' ? new Date(date) : date;
         return dateObj.toLocaleDateString('fr-FR');
+    };
+
+    // Fonction de formatage personnalisée pour les nombres
+    const formatNumber = (num: number) => {
+        return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     };
 
     return (
@@ -278,8 +302,6 @@ export function PDFDocument({ data }: PDFDocumentProps) {
                         </View>
                     </View>
                 </View>
-
-             
 
                 {/* Filières Stats */}
                 <View style={styles.sectionTableau}>
@@ -349,6 +371,126 @@ export function PDFDocument({ data }: PDFDocumentProps) {
                         </View>
                     </View>
                 </View>
+
+                {/* Section Financière */}
+                {Object.keys(data.financialData).length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.chartTitle}>Détails financiers par filière</Text>
+                        <View style={styles.table}>
+                            {(() => {
+                                // Calculer les colonnes actives
+                                const activeColumns = [
+                                    { key: 'preparation', label: 'Préparation', condition: Object.values(data.financialData).some(f => f.preparation > 0) },
+                                    { key: 'transport', label: 'Transport', condition: Object.values(data.financialData).some(f => f.transport > 0) },
+                                    { key: 'traitement', label: 'Traitement', condition: Object.values(data.financialData).some(f => f.traitement > 0) },
+                                    { key: 'gestion_globale', label: 'Gestion Globale', condition: Object.values(data.financialData).some(f => f.gestion_globale > 0) },
+                                    { key: 'tgap', label: 'TGAP', condition: Object.values(data.financialData).some(f => f.tgap > 0) },
+                                    { key: 'declassement', label: 'Déclassement', condition: Object.values(data.financialData).some(f => f.declassement > 0) },
+                                    { key: 'penalites', label: 'Pénalités', condition: Object.values(data.financialData).some(f => f.penalites > 0) },
+                                    { key: 'rachat', label: 'Rachat', condition: Object.values(data.financialData).some(f => f.rachat > 0) },
+                                    { key: 'location', label: 'Location', condition: Object.values(data.financialData).some(f => f.location > 0) },
+                                    { key: 'maintenance', label: 'Maintenance', condition: Object.values(data.financialData).some(f => f.maintenance > 0) },
+                                    { key: 'mise_a_disposition', label: 'Mise à disposition', condition: Object.values(data.financialData).some(f => f.mise_a_disposition > 0) },
+                                    { key: 'autres_contenant', label: 'Autres Contenant', condition: Object.values(data.financialData).some(f => f.autres_contenant > 0) },
+                                    { key: 'autres', label: 'Autres', condition: Object.values(data.financialData).some(f => f.non_expliques > 0 || f.autres > 0) }
+                                ].filter(col => col.condition);
+
+                                const totalColumns = activeColumns.length + 2; // +2 pour Filière et Total
+                                const filiereWidth = '20%';
+                                const remainingWidth = 93; // 80% restant à répartir
+                                const operationWidth = `${Math.floor(remainingWidth / totalColumns)}%`;
+                                const totalWidth = `${remainingWidth - (Math.floor(remainingWidth / totalColumns) * (totalColumns - 1))}%`; // Le reste pour la dernière colonne
+
+                                return (
+                                    <>
+                                        {/* En-tête du tableau */}
+                                        <View style={[styles.tableRow, styles.tableHeader]}>
+                                            <View style={[styles.tableCol, { width: filiereWidth }]}>
+                                                <Text style={[styles.tableCell, { color: '#ffffff', fontSize: 8, textAlign: 'center' }]}>Filière</Text>
+                                            </View>
+                                            {activeColumns.map((col, index) => (
+                                                <View key={index} style={[styles.tableCol, { width: operationWidth }]}>
+                                                    <Text style={[styles.tableCell, { color: '#ffffff', fontSize: 8, textAlign: 'center' }]}>{col.label}</Text>
+                                                </View>
+                                            ))}
+                                            <View style={[styles.tableCol, { width: totalWidth }]}>
+                                                <Text style={[styles.tableCell, { color: '#ffffff', fontSize: 8, textAlign: 'center' }]}>Total</Text>
+                                            </View>
+                                        </View>
+
+                                        {/* Lignes de données */}
+                                        {Object.entries(data.financialData)
+                                            .sort((a, b) => {
+                                                if (a[0] === 'Autres') return 1;
+                                                if (b[0] === 'Autres') return -1;
+                                                return b[1].total - a[1].total;
+                                            })
+                                            .map(([filiere, filiereData], index) => (
+                                                <View key={index} style={styles.tableRow}>
+                                                    <View style={[styles.tableCol, { width: filiereWidth }]}>
+                                                        <Text style={[styles.tableCell, { fontSize: 8, textAlign: 'center' }]}>{filiere}</Text>
+                                                    </View>
+                                                    {activeColumns.map((col, colIndex) => (
+                                                        <View key={colIndex} style={[styles.tableCol, { width: operationWidth }]}>
+                                                            <Text style={[styles.tableCell, { fontSize: 8, textAlign: 'center' }]}>
+                                                                {col.key === 'autres' 
+                                                                    ? `${formatNumber(filiereData.non_expliques + filiereData.autres)}€`
+                                                                    : `${formatNumber(filiereData[col.key as keyof typeof filiereData])}€`
+                                                                }
+                                                            </Text>
+                                                        </View>
+                                                    ))}
+                                                    <View style={[styles.tableCol, { width: totalWidth }]}>
+                                                        <Text style={[
+                                                            styles.tableCell, 
+                                                            { 
+                                                                fontSize: 8, 
+                                                                textAlign: 'center',
+                                                                fontWeight: filiereData.total >= 0 ? 'normal' : 'bold',
+                                                                color: filiereData.total >= 0 ? '#000000' : '#16a34a'
+                                                            }
+                                                        ]}>
+                                                            {formatNumber(filiereData.total)}€
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            ))}
+
+                                        {/* Ligne de total */}
+                                        <View style={[styles.tableRow, { backgroundColor: '#f8f9fa' }]}>
+                                            <View style={[styles.tableCol, { width: filiereWidth }]}>
+                                                <Text style={[styles.tableCell, { fontWeight: 'bold', fontSize: 8, textAlign: 'center' }]}>TOTAL</Text>
+                                            </View>
+                                            {activeColumns.map((col, colIndex) => (
+                                                <View key={colIndex} style={[styles.tableCol, { width: operationWidth }]}>
+                                                    <Text style={[styles.tableCell, { fontWeight: 'bold', fontSize: 8, textAlign: 'center' }]}>
+                                                        {col.key === 'autres' 
+                                                            ? `${formatNumber(Object.values(data.financialData).reduce((sum, f) => sum + f.non_expliques + f.autres, 0))}€`
+                                                            : `${formatNumber(Object.values(data.financialData).reduce((sum, f) => sum + f[col.key as keyof typeof f], 0))}€`
+                                                        }
+                                                    </Text>
+                                                </View>
+                                            ))}
+                                            <View style={[styles.tableCol, { width: totalWidth }]}>
+                                                <Text style={[
+                                                    styles.tableCell, 
+                                                    { 
+                                                        fontWeight: 'bold', 
+                                                        fontSize: 8, 
+                                                        textAlign: 'center',
+                                                        color: Object.values(data.financialData).reduce((sum, f) => sum + f.total, 0) >= 0 ? '#000000' : '#16a34a'
+                                                    }
+                                                ]}>
+                                                    {formatNumber(Object.values(data.financialData).reduce((sum, f) => sum + f.total, 0))}€
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    </>
+                                );
+                            })()}
+                        </View>
+                    </View>
+                )}
 
                 {/* Transporteurs */}
                 {/* Temporairement masqué

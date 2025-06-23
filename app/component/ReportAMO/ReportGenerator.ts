@@ -4,6 +4,7 @@ import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFu
 import { tailwindToRgba } from '../Analyse/MetaComponent/Colours';
 import { ReportData } from './types';
 import { codeTraitementDefinitions } from '../Analyse/Environnementale/codeTraitement';
+import { supabase } from '@/app/database/supabaseClient';
 
 interface Site {
     orgId: string;
@@ -27,6 +28,80 @@ interface Prestataire {
     address?: string;
     type: 'transporteur' | 'destinataire';
     percentage: number;
+}
+
+// Interfaces pour les données financières
+interface Facture {
+    id: string;
+    user_id: string;
+    entreprise_id: string;
+    created_at: string;
+    infos_json: {
+        footer: {
+            total_ht: number;
+        };
+        header: {
+            num_facture: string;
+            date_facture: string;
+            prestataire_nom: string;
+            prestataire_siret: string;
+            prestataire_num_client: string;
+            prestataire_description: string;
+        };
+        departs: Depart[];
+    };
+}
+
+interface Depart {
+    line_body: LineOperation[];
+    line_header: LineHeader;
+    linked_to_bsd: boolean;
+}
+
+interface LineOperation {
+    unite: string;
+    quantite: number;
+    montant_ht: number;
+    prix_unitaire: number;
+    type_operation: string;
+}
+
+interface LineHeader {
+    filiere: string;
+    site_nom: string;
+    bon_pesee: string;
+    site_siret: string;
+    code_dechet: string;
+    date_depart: string;
+    num_dossier: string;
+    type_dechet: string;
+    bon_intention: string;
+    site_description: string;
+    site_num_affaire: string;
+    dechet_description: string;
+}
+
+interface OperationSums {
+    [key: string]: number;
+    preparation: number;
+    transport: number;
+    traitement: number;
+    gestion_globale: number;
+    tgap: number;
+    declassement: number;
+    penalites: number;
+    rachat: number;
+    location: number;
+    maintenance: number;
+    mise_a_disposition: number;
+    autres_contenant: number;
+    non_expliques: number;
+    autres: number;
+    total: number;
+}
+
+interface FiliereFinancialData {
+    [filiere: string]: OperationSums;
 }
 
 export class ReportGenerator {
@@ -243,6 +318,139 @@ export class ReportGenerator {
         destinataires.sort((a, b) => b.percentage - a.percentage);
 
         return { transporteurs, destinataires };
+    }
+
+    // Fonction pour normaliser les types d'opérations
+    private normalizeOperationType(type: string): string {
+        // Convertir en minuscules et remplacer les espaces par des underscores
+        const normalized = type.toLowerCase().replace(/ /g, '_');
+        
+        // Gérer les cas spécifiques mentionnés
+        if (normalized === 'gestion_global') return 'gestion_globale';
+        if (normalized === 'préparation') return 'preparation';
+        if (normalized === 'non_expliqués') return 'non_expliques';
+        if (normalized.includes('contenant')) return 'autres_contenant';
+        
+        // Supprimer les accents pour d'autres cas potentiels
+        return normalized
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+    }
+
+    private async getFinancialData(): Promise<FiliereFinancialData> {
+        // Récupérer l'entreprise_id depuis les BSDs
+        const entreprise_id = this.bsds[0]?.entreprise_id;
+        if (!entreprise_id) {
+            return {};
+        }
+
+        // Récupérer les SIRETs des sites sélectionnés depuis les BSDs
+        const selectedSiteSirets = new Set(
+            this.bsds
+                .map(bsd => bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret)
+                .filter(siret => siret && siret !== '')
+        );
+
+        // Récupérer toutes les factures de l'entreprise
+        let allFactures: Facture[] = [];
+        let page = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+            const { data, error } = await supabase
+                .from('facture')
+                .select('*')
+                .eq('entreprise_id', entreprise_id)
+                .range(page * pageSize, (page + 1) * pageSize - 1);
+            
+            if (error) {
+                console.error('Error fetching factures:', error);
+                break;
+            }
+
+            if (data && data.length > 0) {
+                allFactures = [...allFactures, ...data];
+                page++;
+            } else {
+                hasMore = false;
+            }
+        }
+
+        // Filtrer les factures selon la période des BSDs
+        const { firstDate, lastDate } = this.getDateRange();
+        const filteredFactures = allFactures.filter(facture => {
+            const factureDate = new Date(facture.created_at);
+            return factureDate >= firstDate && factureDate <= lastDate;
+        });
+
+        // Calculer les données financières par filière
+        const filiereData = filteredFactures.reduce((acc: FiliereFinancialData, facture) => {
+            facture.infos_json.departs.forEach(depart => {
+                // Filtrer sur les sites sélectionnés
+                const siteSiret = depart.line_header.site_siret;
+                if (selectedSiteSirets.size > 0 && (!siteSiret || !selectedSiteSirets.has(siteSiret))) {
+                    return; // Ignorer ce départ si le site n'est pas sélectionné
+                }
+
+                const cleanedCed = depart.line_header.code_dechet?.replaceAll(' ', '').replace('*', '').trim() || '';
+                
+                // Déterminer la filière
+                const mapping = this.mappingTable.find(m => 
+                    m.ced.replaceAll(' ', '').replace('*', '').trim() === cleanedCed
+                );
+                const filiere = mapping?.filiere || 'Autres';
+                
+                if (!acc[filiere]) {
+                    acc[filiere] = {
+                        preparation: 0,
+                        transport: 0,
+                        traitement: 0,
+                        gestion_globale: 0,
+                        tgap: 0,
+                        declassement: 0,
+                        penalites: 0,
+                        rachat: 0,
+                        location: 0,
+                        maintenance: 0,
+                        mise_a_disposition: 0,
+                        autres_contenant: 0,
+                        non_expliques: 0,
+                        autres: 0,
+                        total: 0
+                    };
+                }
+
+                // Traiter chaque ligne du body individuellement
+                depart.line_body.forEach(line => {
+                    const montant = line.montant_ht;
+                    const type = this.normalizeOperationType(line.type_operation);
+
+                    // Si c'est un type d'opération connu
+                    if (type in acc[filiere]) {
+                        acc[filiere][type] += montant;
+                    } else {
+                        // Si type inconnu, mettre dans "autres"
+                        acc[filiere].autres += montant;
+                    }
+                });
+
+                // Calculer le total pour cette filière
+                acc[filiere].total = Object.entries(acc[filiere])
+                    .filter(([key]) => key !== 'total') // Exclure le total lui-même
+                    .reduce((sum, [key, value]) => {
+                        // Les rachats sont comptés négativement dans le total
+                        if (key === 'rachat') {
+                            return sum - Math.abs(value);
+                        }
+                        return sum + value;
+                    }, 0);
+            });
+
+            return acc;
+        }, {});
+
+        return filiereData;
     }
 
     private prepareChartData() {
@@ -608,6 +816,9 @@ export class ReportGenerator {
         // Préparer les données pour les graphiques
         const chartData = this.prepareChartData();
 
+        // Récupérer les données financières
+        const financialData = await this.getFinancialData();
+
         // Générer les images des graphiques
         const [chartImage, treatmentChartImage, pieChartImage] = await Promise.all([
             this.generateChartImage(chartData),
@@ -633,7 +844,8 @@ export class ReportGenerator {
                     sortingRate,
                     materialValorizationRate,
                     globalValorizationRate
-                }
+                },
+                financialData
             }),
             this.generatePieChartImage({
                 header: {
@@ -657,7 +869,8 @@ export class ReportGenerator {
                     sortingRate,
                     materialValorizationRate,
                     globalValorizationRate
-                }
+                },
+                financialData
             })
         ]);
 
@@ -683,7 +896,8 @@ export class ReportGenerator {
                 sortingRate,
                 materialValorizationRate,
                 globalValorizationRate
-            }
+            },
+            financialData
         };
     }
 

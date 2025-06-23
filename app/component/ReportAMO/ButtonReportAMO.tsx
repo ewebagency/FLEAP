@@ -18,6 +18,7 @@ export default function ButtonReportAMO() {
     const [showPDF, setShowPDF] = useState(false);
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [includeFinancial, setIncludeFinancial] = useState(true);
     const { bsds, mappingTable } = useAnalysis();
     const { entreprise_name } = useSession();
 
@@ -51,7 +52,12 @@ export default function ButtonReportAMO() {
             // 3. Générer les données du rapport
             const reportData = await reportGenerator.getReportData();
             
-            // 4. Générer le PDF
+            // 4. Supprimer les données financières si la checkbox n'est pas cochée
+            if (!includeFinancial) {
+                reportData.financialData = {};
+            }
+            
+            // 5. Générer le PDF
             const response = await fetch('/api/generate-pdf', {
                 method: 'POST',
                 headers: {
@@ -130,7 +136,7 @@ export default function ButtonReportAMO() {
 
             {showModal && (
                 <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-                    <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                    <div className="relative top-20 mx-auto p-5 border w-1/3 shadow-lg rounded-md bg-white">
                         <div className="mt-3">
                             <h3 className="text-lg font-medium text-gray-900 mb-4">Sélectionner les sites</h3>
                             <div className="mb-4 max-h-60 overflow-y-auto">
@@ -148,6 +154,20 @@ export default function ButtonReportAMO() {
                                         </label>
                                     </div>
                                 ))}
+                            </div>
+                            <div className="mt-2 mb-6">
+                                <div className="flex justify-end items-center gap-2">
+                                    <label htmlFor="includeFinancial" className="ml-2 block text-md font-bold text-gray-900">
+                                        Données financières
+                                    </label>                                    
+                                    <input
+                                        type="checkbox"
+                                        id="includeFinancial"
+                                        checked={includeFinancial}
+                                        onChange={(e) => setIncludeFinancial(e.target.checked)}
+                                        className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                    />
+                                </div>
                             </div>
                             <div className="flex justify-end space-x-3">
                                 <button
@@ -228,7 +248,8 @@ function aggregateReportsData(reportsData: ReportData[], entrepriseName: string,
             sortingRate: 0,
             materialValorizationRate: 0,
             globalValorizationRate: 0
-        }
+        },
+        financialData: {}
     };
 
     // Agrégation des filières avec calcul correct des moyennes mensuelles
@@ -252,6 +273,25 @@ function aggregateReportsData(reportsData: ReportData[], entrepriseName: string,
         name: string;
         siret: string;
         quantity: number;
+    }>();
+
+    // Map pour agréger les données financières
+    const financialDataMap = new Map<string, {
+        preparation: number;
+        transport: number;
+        traitement: number;
+        gestion_globale: number;
+        tgap: number;
+        declassement: number;
+        penalites: number;
+        rachat: number;
+        location: number;
+        maintenance: number;
+        mise_a_disposition: number;
+        autres_contenant: number;
+        non_expliques: number;
+        autres: number;
+        total: number;
     }>();
 
     reportsData.forEach(report => {
@@ -294,6 +334,45 @@ function aggregateReportsData(reportsData: ReportData[], entrepriseName: string,
             };
             current.quantity += destinataire.percentage * report.filiereStats.reduce((sum, stat) => sum + stat.quantity, 0) / 100;
             destinataireMap.set(destinataire.siret, current);
+        });
+
+        // Agréger les données financières
+        Object.entries(report.financialData || {}).forEach(([filiere, data]) => {
+            const current = financialDataMap.get(filiere) || {
+                preparation: 0,
+                transport: 0,
+                traitement: 0,
+                gestion_globale: 0,
+                tgap: 0,
+                declassement: 0,
+                penalites: 0,
+                rachat: 0,
+                location: 0,
+                maintenance: 0,
+                mise_a_disposition: 0,
+                autres_contenant: 0,
+                non_expliques: 0,
+                autres: 0,
+                total: 0
+            };
+            
+            current.preparation += data.preparation;
+            current.transport += data.transport;
+            current.traitement += data.traitement;
+            current.gestion_globale += data.gestion_globale;
+            current.tgap += data.tgap;
+            current.declassement += data.declassement;
+            current.penalites += data.penalites;
+            current.rachat += data.rachat;
+            current.location += data.location;
+            current.maintenance += data.maintenance;
+            current.mise_a_disposition += data.mise_a_disposition;
+            current.autres_contenant += data.autres_contenant;
+            current.non_expliques += data.non_expliques;
+            current.autres += data.autres;
+            current.total += data.total;
+            
+            financialDataMap.set(filiere, current);
         });
     });
 
@@ -342,6 +421,9 @@ function aggregateReportsData(reportsData: ReportData[], entrepriseName: string,
         type: 'destinataire' as const,
         percentage: totalDestinataireQuantity > 0 ? (destinataire.quantity / totalDestinataireQuantity) * 100 : 0
     }));
+
+    // Ajouter les données financières agrégées
+    aggregatedData.financialData = Object.fromEntries(financialDataMap.entries());
 
     // Trier les données
     aggregatedData.filiereStats.sort((a, b) => b.quantity - a.quantity);

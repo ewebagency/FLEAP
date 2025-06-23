@@ -55,6 +55,25 @@ interface ReportData {
         materialValorizationRate: number;
         globalValorizationRate: number;
     };
+    financialData: {
+        [filiere: string]: {
+            preparation: number;
+            transport: number;
+            traitement: number;
+            gestion_globale: number;
+            tgap: number;
+            declassement: number;
+            penalites: number;
+            rachat: number;
+            location: number;
+            maintenance: number;
+            mise_a_disposition: number;
+            autres_contenant: number;
+            non_expliques: number;
+            autres: number;
+            total: number;
+        };
+    };
 }
 
 export async function POST(request: Request) {
