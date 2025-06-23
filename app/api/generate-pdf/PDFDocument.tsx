@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     chartTitleFinanciel: {
-        marginTop: 100,
+        marginTop: 80,
         fontSize: 14,
         fontWeight: 'bold',
         color: '#2d3748',
