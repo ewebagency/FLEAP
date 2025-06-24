@@ -8,6 +8,7 @@ import { RowBSD } from '@/app/register/interface/BSD_Interface';
 import { useFilterContext, Site as FilterSite } from '@/app/FilterContext';
 import ExtractBSD from './ExtractBSD';
 import LinkBSD from './LinkBSD';
+import ButtonExtractFacture from './NewExtractFacture/ButtonExtractFacture';
 
 export interface PdfInfo {
     status: string;
@@ -324,12 +325,18 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             </div>
                                         )}
                                     </div>
-                                    {cofounders_permission(session?.user_id) && pdf.document_type === 'facture' && 
+                                    {/*cofounders_permission(session?.user_id) && pdf.document_type === 'facture' && 
                                         <ExtractData 
                                             pdf_id={pdf.id} 
                                             pdf_path={pdf.name_pdf_in_bucket} 
+                                        /> ---> ancien extract facture
+                                    */} 
+                                    {cofounders_permission(session?.user_id) && pdf.document_type === 'facture' && 
+                                        <ButtonExtractFacture
+                                            pdf_id={pdf.id} 
+                                            pdf_path={pdf.name_pdf_in_bucket} 
                                         />
-                                    }
+                                    }                                    
                                     {cofounders_permission(session?.user_id) && pdf.document_type === 'bsd' && 
                                         <ExtractBSD 
                                             pdf_id={pdf.id} 

@@ -170,7 +170,7 @@ const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) 
     const OpenExtractModalButton = () => {
         return (
             <button 
-            className="bg-green-800 text-white px-4 py-2 rounded-lg w-[150px]"
+            className="bg-green-800 text-xs text-white px-4 py-2 rounded-lg hover:bg-green-900 transition-colors"
             onClick={() => {
                 setIsOpen(true);
                 loadExistingData();
