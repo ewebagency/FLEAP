@@ -6,8 +6,8 @@ import ExtractData from './ExtractData';
 import { toast } from 'react-hot-toast';
 import { RowBSD } from '@/app/register/interface/BSD_Interface';
 import { useFilterContext, Site as FilterSite } from '@/app/FilterContext';
-import ExtractBSD from './ExtractBSD';
-import LinkBSD from './LinkBSD';
+import ExtractBSD from './ExtractBSD/ExtractBSD';
+import LinkBSD from './ExtractBSD/LinkBSD';
 import ButtonExtractFacture from './NewExtractFacture/ButtonExtractFacture';
 
 export interface PdfInfo {

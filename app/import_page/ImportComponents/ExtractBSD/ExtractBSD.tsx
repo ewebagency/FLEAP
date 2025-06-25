@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PdfInfo } from "./TableImportedFiles";
+import { PdfInfo } from "../TableImportedFiles";
 import { useSession } from "@/app/component/SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
 import PdfDisplayer from '@/app/interface_admin_2/InterfaceAdmin2/PdfDisplayer';
