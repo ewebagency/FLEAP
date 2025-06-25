@@ -75,7 +75,7 @@ const OCRThisBSD = ({ pdf_id, pdf_path, onDataExtracted }: OCRThisBSDProps) => {
                     Extraction en cours...
                 </span>
             ) : (
-                'Extraire avec OCR'
+                'Extraire par Parsing'
             )}
         </button>
     );
