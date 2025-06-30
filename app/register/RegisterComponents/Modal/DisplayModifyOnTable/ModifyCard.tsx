@@ -985,7 +985,7 @@ const ModifyCard = () => {
                                                                 if (!prev?.recipient?.valoParts) return prev;
                                                                 const newData = { ...prev };
                                                                 if (newData.recipient.valoParts) {
-                                                                    newData.recipient.valoParts = newData.recipient.valoParts.filter((_: any, pi: number) => pi !== partIndex);
+                                                                    newData.recipient.valoParts = newData.recipient.valoParts.filter((_: { code_valo: string; tonnage: number }, pi: number) => pi !== partIndex);
                                                                 }
                                                                 return newData;
                                                             });
@@ -1571,7 +1571,7 @@ const ModifyCard = () => {
                                                                                         i === index 
                                                                                             ? { 
                                                                                                 ...r, 
-                                                                                                valoParts: r.valoParts?.filter((_: any, pi: number) => pi !== partIndex) || []
+                                                                                                valoParts: r.valoParts?.filter((_: { code_valo: string; tonnage: number }, pi: number) => pi !== partIndex) || []
                                                                                             }
                                                                                             : r
                                                                                     ) || []

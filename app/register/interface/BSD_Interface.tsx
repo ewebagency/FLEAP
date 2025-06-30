@@ -761,6 +761,10 @@ interface Destination {
 cap: string;
 processingOperation: string;
 company: Company;
+valoParts?: {
+    code_valo: string;
+    tonnage: number;
+}[];
 }
 
 interface StateSummary {
