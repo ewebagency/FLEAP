@@ -197,9 +197,10 @@ export class ReportGenerator {
         this.bsds.forEach(bsd => {
             const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
             const filiereName = this.getFiliereName(wasteCode);
-            const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
-            const processingCode = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation?.replace(/\s+/g, '');
-            const date = new Date(bsd.created_at);
+            const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
+            // Utiliser takenOverAt si disponible, sinon created_at (même logique que getDateRange et AnalOpMainChart)
+            const date = new Date(bsd.infos_json?.formAPI?.createFormInput?.takenOverAt || bsd.created_at);
+            if (isNaN(date.getTime())) return; // Ignorer les BSD avec dates invalides
 
             const current = filiereMap.get(filiereName) || {
                 filiereName,
@@ -213,21 +214,67 @@ export class ReportGenerator {
                 lastDate: date
             };
 
-            current.quantity += quantity;
             current.total += 1;
             current.collections += 1;
 
             if (date < current.firstDate) current.firstDate = date;
             if (date > current.lastDate) current.lastDate = date;
 
+            // Vérifier si valoParts existe
+            if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+                // Pour le KPI tonnage total : utiliser quantityReceived puis quantity (PAS valoParts)
+                const bsdQuantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
+                                   bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+                current.quantity += bsdQuantity;
+                
+                // Pour les taux de valorisation : utiliser valoParts avec les tonnages fractionnés
+                let bsdMaterialValorized = 0;
+                let bsdGlobalValorized = 0;
+                let bsdProcessedTonnage = 0;
+
+                recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
+                    const tonnage = part.tonnage || 0;
+                    const codeValo = part.code_valo?.replace(/\s+/g, '');
+                    
+                    bsdProcessedTonnage += tonnage;
+                    
+                    if (codeValo) {
+                        if (tauxValorisationMatière.includes(codeValo)) {
+                            bsdMaterialValorized += tonnage;
+                        }
+                        if (tauxValorisationGlobale.includes(codeValo)) {
+                            bsdGlobalValorized += tonnage;
+                        }
+                    }
+                });
+
+                if (bsdProcessedTonnage > 0) {
+                    current.materialValorized += bsdMaterialValorized;
+                    current.globalValorized += bsdGlobalValorized;
+                    current.processedCount += bsdProcessedTonnage; // Utiliser le tonnage comme poids
+                }
+            } else if (recipient?.processingOperation) {
+                // Fallback sur processingOperation (ancienne méthode)
+                const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
+                               bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+                const processingCode = recipient.processingOperation?.replace(/\s+/g, '');
+                
+                current.quantity += quantity;
+
             if (processingCode) {
-                current.processedCount += 1;
+                    current.processedCount += quantity; // Utiliser le tonnage comme poids
                 if (tauxValorisationMatière.includes(processingCode)) {
-                    current.materialValorized += 1;
+                        current.materialValorized += quantity;
                 }
                 if (tauxValorisationGlobale.includes(processingCode)) {
-                    current.globalValorized += 1;
+                        current.globalValorized += quantity;
                 }
+                }
+            } else {
+                // BSD sans code de traitement : inclure dans le tonnage total mais pas dans les taux de valorisation
+                const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
+                               bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+                current.quantity += quantity;
             }
 
             filiereMap.set(filiereName, current);
@@ -301,7 +348,8 @@ export class ReportGenerator {
         this.bsds.forEach(bsd => {
             const transporter = bsd.infos_json?.formAPI?.createFormInput?.transporter?.company;
             const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient?.company;
-            const quantity = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+            const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
+                           bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
 
             if (transporter?.siret) {
                 const current = transporteurMap.get(transporter.siret) || {
@@ -509,7 +557,9 @@ export class ReportGenerator {
         const quantitiesByFiliere: { [key: string]: number[] } = {};
         
         siteBSDs.forEach(bsd => {
-            const date = new Date(bsd.created_at);
+            // Utiliser takenOverAt si disponible, sinon created_at (même logique que getDateRange et AnalOpMainChart)
+            const date = new Date(bsd.infos_json?.formAPI?.createFormInput?.takenOverAt || bsd.created_at);
+            if (isNaN(date.getTime())) return; // Ignorer les BSD avec dates invalides
             if (date < firstDate || date > lastDate) return;
 
             const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
@@ -614,17 +664,36 @@ export class ReportGenerator {
         const treatmentStats: Record<string, { tonnage: number; count: number }> = {};
         
         bsds.forEach(bsd => {
-            const processingCode = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
-                ?.replace(/\s+/g, '');
+            const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
+            
+            // Vérifier si valoParts existe
+            if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+                // Utiliser valoParts avec les tonnages fractionnés
+                recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
+                    const tonnage = part.tonnage || 0;
+                    const processingCode = part.code_valo?.replace(/\s+/g, '') || 'default';
+                    
+                    if (tonnage > 0) {
+                        if (!treatmentStats[processingCode]) {
+                            treatmentStats[processingCode] = { tonnage: 0, count: 0 };
+                        }
+                        treatmentStats[processingCode].tonnage += tonnage;
+                        treatmentStats[processingCode].count += 1;
+                    }
+                });
+            } else if (recipient?.processingOperation) {
+                // Fallback sur processingOperation (ancienne méthode)
+                const processingCode = recipient.processingOperation?.replace(/\s+/g, '');
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
                            bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
 
-            if (processingCode) {
+                if (processingCode && quantity > 0) {
                 if (!treatmentStats[processingCode]) {
                     treatmentStats[processingCode] = { tonnage: 0, count: 0 };
                 }
                 treatmentStats[processingCode].tonnage += quantity;
                 treatmentStats[processingCode].count += 1;
+                }
             }
         });
 
@@ -648,17 +717,36 @@ export class ReportGenerator {
         // Calculer les stats sur tous les BSDs
         const treatmentStats: Record<string, { tonnage: number; count: number }> = {};
         this.bsds.forEach(bsd => {
-            const processingCode = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
-                ?.replace(/\s+/g, '');
+            const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
+            
+            // Vérifier si valoParts existe
+            if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+                // Utiliser valoParts avec les tonnages fractionnés
+                recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
+                    const tonnage = part.tonnage || 0;
+                    const processingCode = part.code_valo?.replace(/\s+/g, '') || 'default';
+                    
+                    if (tonnage > 0) {
+                        if (!treatmentStats[processingCode]) {
+                            treatmentStats[processingCode] = { tonnage: 0, count: 0 };
+                        }
+                        treatmentStats[processingCode].tonnage += tonnage;
+                        treatmentStats[processingCode].count += 1;
+                    }
+                });
+            } else if (recipient?.processingOperation) {
+                // Fallback sur processingOperation (ancienne méthode)
+                const processingCode = recipient.processingOperation?.replace(/\s+/g, '');
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
                            bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
 
-            if (processingCode) {
+                if (processingCode && quantity > 0) {
                 if (!treatmentStats[processingCode]) {
                     treatmentStats[processingCode] = { tonnage: 0, count: 0 };
                 }
                 treatmentStats[processingCode].tonnage += quantity;
                 treatmentStats[processingCode].count += 1;
+                }
             }
         });
 
@@ -1053,37 +1141,98 @@ export class ReportGenerator {
             throw new Error('Aucune statistique de filière calculée');
         }
 
+        // Calculer les taux de valorisation
+        let totalTonnage = 0;
+        let globallyValorizedTonnage = 0;
+        let materiallyValorizedTonnage = 0;
+        let processedBsdsCount = 0;
+
+        this.bsds.forEach(bsd => {
+            const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
+            
+            if (!recipient) return;
+
+            // Vérifier si valoParts existe
+            if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+                // Utiliser valoParts avec les tonnages fractionnés
+                let bsdTotalTonnage = 0;
+                let bsdGloballyValorizedTonnage = 0;
+                let bsdMateriallyValorizedTonnage = 0;
+
+                recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
+                    const tonnage = part.tonnage || 0;
+                    const codeValo = part.code_valo?.replace(/\s+/g, '');
+                    
+                    bsdTotalTonnage += tonnage;
+                    
+                    if (codeValo && tauxValorisationGlobale.includes(codeValo)) {
+                        bsdGloballyValorizedTonnage += tonnage;
+                    }
+                    
+                    if (codeValo && tauxValorisationMatière.includes(codeValo)) {
+                        bsdMateriallyValorizedTonnage += tonnage;
+                    }
+                });
+
+                if (bsdTotalTonnage > 0) {
+                    totalTonnage += bsdTotalTonnage;
+                    globallyValorizedTonnage += bsdGloballyValorizedTonnage;
+                    materiallyValorizedTonnage += bsdMateriallyValorizedTonnage;
+                    processedBsdsCount++;
+                }
+            } else if (recipient?.processingOperation) {
+                // Fallback sur processingOperation (ancienne méthode)
+                const processingCode = recipient.processingOperation?.replace(/\s+/g, '');
+                const tonnage = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+                
+                if (processingCode && tonnage > 0) {
+                    totalTonnage += tonnage;
+                    
+                    if (tauxValorisationGlobale.includes(processingCode)) {
+                        globallyValorizedTonnage += tonnage;
+                    }
+                    
+                    if (tauxValorisationMatière.includes(processingCode)) {
+                        materiallyValorizedTonnage += tonnage;
+                    }
+                    
+                    processedBsdsCount++;
+                }
+            }
+        });
+
+        const materialValorizationRate = totalTonnage > 0 
+            ? (materiallyValorizedTonnage / totalTonnage) * 100 
+            : 0;
+
+        const globalValorizationRate = totalTonnage > 0 
+            ? (globallyValorizedTonnage / totalTonnage) * 100 
+            : 0;
+
         // Calculer les statistiques globales
         const totalQuantity = filiereStats.reduce((sum, stat) => sum + stat.quantity, 0);
-        const nonTriQuantity = filiereStats.find(stat => 
-            (stat.filiere === 'DIB' || stat.filiere === 'DAOM' || stat.filiere === 'DASRI')
-        )?.quantity || 0;
+        
+        // Calculer le tonnage non trié en vérifiant le champ tri dans other_infos
+        let nonTriQuantity = 0;
+        this.bsds.forEach(bsd => {
+            const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
+            const filiereName = this.getFiliereName(wasteCode);
+            const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
+                           bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+            
+            // Vérifier si c'est une filière potentiellement non triée
+            if (filiereName === 'DIB' || filiereName === 'DAOM' || filiereName === 'DASRI' || filiereName === 'Autres') {
+                // Vérifier le champ tri dans other_infos
+                const isTri = bsd?.other_infos?.tri;
+                
+                // Si tri n'est pas explicitement true, considérer comme non trié
+                if (isTri !== true) {
+                    nonTriQuantity += quantity;
+                }
+            }
+        });
+        
         const sortingRate = totalQuantity > 0 ? (1 - (nonTriQuantity / totalQuantity)) * 100 : 0;
-
-        // Calculer les taux de valorisation
-        const bsdsWithProcessingOperation = this.bsds.filter(bsd => 
-            bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
-        );
-
-        const globallyValorizedBsds = bsdsWithProcessingOperation.filter(bsd => {
-            const processingCode = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
-                ?.replace(/\s+/g, '');
-            return processingCode && tauxValorisationGlobale.includes(processingCode);
-        });
-
-        const materiallyValorizedBsds = bsdsWithProcessingOperation.filter(bsd => {
-            const processingCode = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
-                ?.replace(/\s+/g, '');
-            return processingCode && tauxValorisationMatière.includes(processingCode);
-        });
-
-        const materialValorizationRate = bsdsWithProcessingOperation.length > 0 
-            ? (materiallyValorizedBsds.length / bsdsWithProcessingOperation.length) * 100 
-            : 0;
-
-        const globalValorizationRate = bsdsWithProcessingOperation.length > 0 
-            ? (globallyValorizedBsds.length / bsdsWithProcessingOperation.length) * 100 
-            : 0;
 
         // Préparer les données pour les graphiques
         const chartData = this.prepareChartData();

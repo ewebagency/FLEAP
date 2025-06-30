@@ -29,7 +29,13 @@ const TauxTri = () => {
             ) || 'Autres';
 
             if (filiere === 'DIB' || filiere === 'Autres' || filiere === 'DAS') {
-                nonRecycledWeight += quantity;
+                let tri_potentiel = false;
+                if (bsd.other_infos?.tri) {
+                    tri_potentiel = bsd.other_infos.tri;
+                }
+                if(!tri_potentiel) {
+                    nonRecycledWeight += quantity;
+                }
                 const code = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
                 const description = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
 

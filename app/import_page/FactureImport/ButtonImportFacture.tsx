@@ -101,6 +101,7 @@ interface LineOperation {
     montant_ht: number;
     prix_unitaire: number;
     type_operation: string;
+    tva_rachat_pourcentage?: string;
 }
 
 interface LineHeader {
@@ -116,6 +117,7 @@ interface LineHeader {
     site_description: string;
     site_num_affaire: string;
     dechet_description: string;
+    tva_couts_pourcentage?: string;
 }
 
 interface Depart {
@@ -177,7 +179,8 @@ export const mapToFactureFormat: (row: Row) => FactureData = (row) => {
                     quantite: parseNumber(row["quantiteRachat"]) || 0,
                     montant_ht: parseNumber(row["rachatTotalHT"]) || 0,
                     prix_unitaire: parseNumber(row["PuHTRachat"]) || 0,
-                    type_operation: "Rachat"
+                    type_operation: "Rachat",
+                    tva_rachat_pourcentage: row["tvaRachatPourcentage"]?.toString() || "",
                 },
                 {
                     unite: "",
@@ -255,7 +258,8 @@ export const mapToFactureFormat: (row: Row) => FactureData = (row) => {
                 bon_intention: "",
                 site_description: row["nomSiteEmetteur"]?.toString() || "",
                 site_num_affaire: "",
-                dechet_description: ""
+                dechet_description: "",
+                tva_couts_pourcentage: row["tvaCoutsPourcentage"]?.toString() || "",
             },
             linked_to_bsd: false
         }],

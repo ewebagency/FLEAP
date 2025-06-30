@@ -59,6 +59,10 @@ interface SupabaseBSD {
     };
     recipient: {
         processingOperation: string;
+        valoParts?: {
+            code_valo: string;
+            tonnage: string;
+        }[];
         company: {
             siret: string;
             orgId: string;
@@ -84,7 +88,7 @@ interface SupabaseBSD {
     created_on_fleap: string;
     facture_treated: boolean;
     id_track_dechets: string;
-    other_infos: { fillRate: string, volume: string, volumeUnit: string, containerDescription: string, declassement?: { declassement_boolean: boolean } };
+    other_infos: { tri?:boolean, fillRate: string, volume: string, volumeUnit: string, containerDescription: string, declassement?: { declassement_boolean: boolean } };
 }
 
 export const AnalysisProvider = ({ children }: { children: React.ReactNode }) => {
@@ -211,7 +215,8 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
                                             name: item.recipient.company.name,
                                             orgId: item.recipient.company.orgId,
                                         },
-                                        processingOperation: item.recipient.processingOperation
+                                        processingOperation: item.recipient.processingOperation,
+                                        valoParts: item.recipient.valoParts,
                                     },
                                     transporter: {
                                         company: {

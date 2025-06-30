@@ -8,7 +8,8 @@ import * as XLSX from "xlsx";
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-interface BSD_Export_Interface {
+// Interface dynamique pour gérer les transporteurs et destinataires multiples
+type BSD_Export_Interface = {
     "Filière": string | number | null,
     "Code déchet": string | number | null,
     "Nom du déchet": string | number | null,
@@ -28,7 +29,8 @@ interface BSD_Export_Interface {
     "Raison sociale du prestataire final": string | number | null,
     "Adresse du prestataire final": string | number | null,
     "N° de récipissé du prestataire final": string | number | null,
-    "Code de traitement": string | number | null,
+    "Code de traitement Principal": string | number | null,
+    "Valorisation éclatée si besoin": string | number | null,
 
     "Date de collecte": string | number | null,
     "Poids (tonne)": string | number | null,
@@ -44,7 +46,20 @@ interface BSD_Export_Interface {
 
     "N° SIRET du négociant": string | number | null,
     "Raison sociale du négociant": string | number | null,
-    "N° de récipissé du négociant": string | number | null
+    "N° de récipissé du négociant": string | number | null,
+
+    "Entreprise Amiante": string | number | null,
+    "N° SIRET entreprise amiante": string | number | null,
+
+    "Mis en REP": string | number | null,
+    "Montant de la REP": string | number | null,
+    "Déclassement": string | number | null,
+    "Montant du déclassement": string | number | null,
+    "Justificatif du déclassement": string | number | null,
+    "Trié en centre de tri": string | number | null,
+    
+    // Colonnes dynamiques pour les transporteurs supplémentaires
+    [key: string]: string | number | null
 }
 
 interface Facture_Info_Interface {
@@ -188,12 +203,77 @@ const formatBSDData = (data: {
     facture_treated: boolean, 
     facture_infos: Facture_Info_Interface,
     readable_id_track_dechets: string,
-    other_infos: {
-        containerDescription: string
-    },
+    other_infos?: {
+        containerDescription: string,
+        mentionAdr?: string,
+        codeBale?: string,
+        travauxAmiante?: {
+            nom: string,
+            siret: string
+        },
+        rep?: {
+            sent_to_rep: boolean,
+            montant_rep: number
+        },
+        declassement?: {
+            declassement_boolean: boolean,
+            montant_declasse: number,
+            justificatif_declassement: string
+        },
+        tri?: boolean,
+        other_transporters?: Array<{
+            company: {
+                name: string,
+                siret: string,
+                address: string,
+                contact: string,
+                phone: string,
+                mail: string,
+                orgId: string,
+                country: string,
+                vatNumber: string
+            },
+            receipt: string,
+            department: string,
+            numberPlate: string,
+            takenOverAt: string,
+            validityLimit: string,
+            isExemptedOfReceipt: boolean
+        }>,
+        other_recipients?: Array<{
+            company: {
+                name: string,
+                siret: string,
+                address: string,
+                contact: string,
+                phone: string,
+                mail: string,
+                orgId: string,
+                country: string,
+                vatNumber: string
+            },
+            cap: string,
+            processingOperation: string,
+            valoParts: Array<{
+                tonnage: number,
+                code_valo: string
+            }>
+        }>
+    } | null,
     id: string
 }[], mapping_filiere: {ced: string, filiere: string}[]) => {
     try {
+        // Déterminer le nombre maximum de transporteurs et destinataires supplémentaires
+        let maxTransporters = 0;
+        let maxRecipients = 0;
+        
+        data.forEach(item => {
+            const transportersCount = item.other_infos?.other_transporters?.length || 0;
+            const recipientsCount = item.other_infos?.other_recipients?.length || 0;
+            maxTransporters = Math.max(maxTransporters, transportersCount);
+            maxRecipients = Math.max(maxRecipients, recipientsCount);
+        });
+
         return data.map((item, index) => {
             try {
         const getValue = (accessor: () => string|number|boolean|null, defaultValue: string = ''): string|number|null => {
@@ -211,7 +291,8 @@ const formatBSDData = (data: {
 
         const filiere = mapping_filiere.find(mapping => mapping.ced?.replaceAll(' ', '').replace('*', '') === item.infos_json.formAPI.createFormInput.wasteDetails.code?.replaceAll(' ', '').replace('*', ''));
         
-        return {
+        // Objet de base avec toutes les colonnes fixes
+        const baseObject: BSD_Export_Interface = {
             "Filière": getValue(() => filiere ? filiere.filiere : ''),
             "Code déchet": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.code),
             "Nom du déchet": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.name),
@@ -237,17 +318,18 @@ const formatBSDData = (data: {
             "N° SIRET du prestataire final": getValue(() => item.infos_json.formAPI.createFormInput.recipient.company.siret),
             "Raison sociale du prestataire final": getValue(() => item.infos_json.formAPI.createFormInput.recipient.company.name),
             "Adresse du prestataire final": getValue(() => item.infos_json.formAPI.createFormInput.recipient.company.address),
-            //"N° de récipissé du prestataire final": getValue(() => null, ''),
+            "N° de récipissé du prestataire final": getValue(() => null, ''),
             
-        
             "Date de collecte": getValue(() => item.infos_json.formAPI.createFormInput.takenOverAt ? format(new Date(item.infos_json.formAPI.createFormInput.takenOverAt), 'dd/MM/yyyy', { locale: fr }) : ''),
             "Poids (tonne)": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.quantity),
-            "Contenant": getValue(() => item.other_infos.containerDescription),
+            "Contenant": getValue(() => item.other_infos?.containerDescription ?? ''),
             "Nombre de contenants": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.packagingInfos.map(packaging => packaging.quantity===0 ? 1 : packaging.quantity).join(', ')),
-            "Code de traitement": getValue(() => null, item.infos_json.formAPI.createFormInput.recipient.processingOperation?.toString() ?? ''),
+            "Code de traitement Principal": getValue(() => null, item.infos_json.formAPI.createFormInput.recipient.processingOperation?.toString() ?? ''),
+            "Valorisation éclatée si besoin": getValue(() => item.infos_json.formAPI.createFormInput.recipient.valoParts? item.infos_json.formAPI.createFormInput.recipient.valoParts.map(part => `${part.code_valo} : ${part.tonnage}t`).join('  |  ') : ''),
 
             "Code ONU": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.onuCode),
-            //"ADR": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.isSubjectToADR ?? '')
+            "ADR": getValue(() => item.other_infos?.mentionAdr ?? ''),
+            "Convention de Bâle": getValue(() => item.other_infos?.codeBale ?? ''),
 
             "N° SIRET du courtier": getValue(() => item.infos_json.formAPI.createFormInput.broker?.company?.siret ?? null),
             "Raison sociale du courtier": getValue(() => item.infos_json.formAPI.createFormInput.broker?.company?.name ?? null),
@@ -255,9 +337,55 @@ const formatBSDData = (data: {
 
             "N° SIRET du négociant": getValue(() => item.infos_json.formAPI.createFormInput.trader?.company?.siret ?? null),
             "Raison sociale du négociant": getValue(() => item.infos_json.formAPI.createFormInput.trader?.company?.name ?? null),
-            //"Adresse du négociant": getValue(() => item.infos_json.formAPI.createFormInput.trader?.company?.address ?? null),
             "N° de récipissé du négociant": getValue(() => null, item.infos_json.formAPI.createFormInput.trader?.receipt ?? ''),
+
+            "Entreprise Amiante": getValue(() => item.other_infos?.travauxAmiante?.nom ?? ''),
+            "N° SIRET entreprise amiante": getValue(() => item.other_infos?.travauxAmiante?.siret ?? ''),
+
+            "Mis en REP": getValue(() => item.other_infos?.rep?.sent_to_rep ? 'Oui' : ''),
+            "Montant de la REP": getValue(() => item.other_infos?.rep?.montant_rep?.toString() ?? ''),
+            "Déclassement": getValue(() => item.other_infos?.declassement?.declassement_boolean ? 'Oui' : ''),
+            "Montant du déclassement": getValue(() => item.other_infos?.declassement?.montant_declasse ?? ''),
+            "Justificatif du déclassement": getValue(() => item.other_infos?.declassement?.justificatif_declassement ?? ''),
+            "Trié en centre de tri": getValue(() => item.other_infos?.tri ? 'Oui' : ''),
         };
+
+        // Ajouter les transporteurs supplémentaires
+        for (let i = 0; i < maxTransporters; i++) {
+            const transporter = item.other_infos?.other_transporters?.[i];
+            const transporterNum = i + 2; // Commencer à 2 car le premier transporteur est déjà dans les colonnes fixes
+            
+            baseObject[`Transporteur ${transporterNum}`] = getValue(() => transporter?.company.name ?? '');
+            baseObject[`SIRET transporteur ${transporterNum}`] = getValue(() => transporter?.company.siret ?? '');
+            baseObject[`Récipissé transporteur ${transporterNum}`] = getValue(() => null, transporter?.receipt ?? '');
+            baseObject[`Adresse du transporteur ${transporterNum}`] = getValue(() => null, transporter?.company.address ?? '');
+            //baseObject[`N° de plaque d'immatriculation du transporteur ${transporterNum}`] = getValue(() => null, transporter?.numberPlate ?? '');
+            //baseObject[`Département du transporteur ${transporterNum}`] = getValue(() => null, transporter?.department ?? '');
+            baseObject[`Date de prise en charge du transporteur ${transporterNum}`] = getValue(() => null, transporter?.takenOverAt ?? '');
+            //baseObject[`Date d'expiration du transporteur ${transporterNum}`] = getValue(() => null, transporter?.validityLimit ?? '');
+            //baseObject[`Exonéré de récipissé du transporteur ${transporterNum}`] = getValue(() => null, transporter?.isExemptedOfReceipt ? 'Oui' : '');
+        }
+
+        // Ajouter les destinataires supplémentaires
+        for (let i = 0; i < maxRecipients; i++) {
+            const recipient = item.other_infos?.other_recipients?.[i];
+            const recipientNum = i + 2; // Commencer à 2 car le premier destinataire est déjà dans les colonnes fixes
+            
+            baseObject[`Prestataire final ${recipientNum}`] = getValue(() => recipient?.company.name ?? '');
+            baseObject[`SIRET prestataire final ${recipientNum}`] = getValue(() => recipient?.company.siret ?? '');
+            //baseObject[`Adresse du prestataire final ${recipientNum}`] = getValue(() => recipient?.company.address ?? '');
+            baseObject[`Code de traitement principal prestataire final ${recipientNum}`] = getValue(() => null, recipient?.processingOperation ?? '');
+            
+            // Ajouter les parties de valorisation si elles existent
+            if (recipient?.valoParts && recipient.valoParts.length > 0) {
+                const valoPartsStr = recipient.valoParts.map(part => 
+                    `${part.code_valo} : ${part.tonnage}t`
+                ).join('  |  ');
+                baseObject[`Valorisation éclatée si besoin ${recipientNum}`] = getValue(() => null, valoPartsStr);
+            }
+        }
+        
+        return baseObject;
             } catch (error) {
                 console.error(`Erreur lors du traitement de l'item ${index}:`, error);
                 throw error;

@@ -4,12 +4,30 @@ import { useModal } from "../component/context/ModalReloadcontext";
 import * as XLSX from 'xlsx';
 import toast from "react-hot-toast";
 import { supabase } from "../database/supabaseClient";
-import { BSDD_TrackDechets, FormInput } from "./interface/BSD_Interface";
+import { BSDD_TrackDechets, FormInput, Company } from "./interface/BSD_Interface";
 import { pushOnTableParametrage } from "./RegisterComponents/Modal/FormulaireFull/utils_new";
 import BoxIcon from "../component/BoxIconWrapper";
 import { OtherInfos } from "./interface/BSD_Interface";
 import { mapToFactureFormat } from "../import_page/FactureImport/ButtonImportFacture";
 import { FactureJSON } from "../import_page/FactureImport/ButtonImportFacture";
+
+// Types pour les transporteurs et destinataires supplémentaires
+type AdditionalTransporter = {
+    company: Company;
+    receipt: string;
+    department: string;
+    validityLimit: string;
+    numberPlate: string;
+    isExemptedOfReceipt: boolean;
+    takenOverAt: string;
+};
+
+type AdditionalRecipient = {
+    company: Company;
+    cap: string;
+    processingOperation: string;
+    valoParts: { code_valo: string; tonnage: number; }[];
+};
 
 export interface Row {
     [key: string]: string | number;
@@ -19,8 +37,12 @@ function siretFunction(input: string | number): string {
     const inputStr = String(input).replace(/\s+/g, '').trim(); // Suppression des espaces
     const siretRegex = /^[0-9]{14}$/; // Le SIRET est un numéro à 14 chiffres
   
-    return siretRegex.test(inputStr) ? inputStr : ""; // Retourne le SIRET valide ou ""
-  }
+    //return siretRegex.test(inputStr) ? inputStr : ""; // Retourne le SIRET valide ou ""
+    if(inputStr!==undefined && inputStr!==""){
+        return inputStr;
+    }
+    return "";
+}
 
 function tvaFunction(input: string | number): string {
 const inputStr = String(input).replace(/\s+/g, '').trim(); // Suppression des espaces
@@ -81,6 +103,9 @@ const convertToISO = (dateInput: string | number | boolean | undefined): string 
 };
 
 const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDechets } } => {
+
+    const valoPartsArray = takeValoPartsArray(row);
+
     const new_bsdd: {formAPI: {createFormInput: BSDD_TrackDechets}} = {
         formAPI: {
             createFormInput: {
@@ -139,8 +164,9 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                         //extraEuropeanId:
                     },
                     cap: row["numeroCap"]?.toString() || "",
-                    processingOperation: row["codeTraitementPrevuInstallationDestination"]?.toString() || "" //????????????????????????????????????????probleme yen a trop -- faire plus simple une installation destinataire et c'est tout codeTraitementRealiseInstallationDestination
+                    processingOperation: row["codeTraitementPrevuInstallationDestination"]?.toString() || "", //????????????????????????????????????????probleme yen a trop -- faire plus simple une installation destinataire et c'est tout codeTraitementRealiseInstallationDestination
                     //isTempStorage:
+                    valoParts: valoPartsArray[0] || [],
                 },
 
                 // Transporteur
@@ -159,7 +185,7 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                         //omiNumber:
                         //extraEuropeanId:
                     },
-                    isExemptedOfReceipt: false,//row['exemptionRecepisseTransporteur'].toString() || '',
+                    isExemptedOfReceipt: row['exemptionRecepisseTransporteur']?.toString() === 'true',
                     receipt: row["recepisseTransporteur"]?.toString() || "",
                     department: row["departementTransporteur"]?.toString() || "",
                     validityLimit: row["limiteValiditeTransporteur"]?.toString() || "",
@@ -167,14 +193,14 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                     //customInfo: "",
                     //mode: row["modeTransportTransporteur"]?.toString() || "",
                     takenOverAt: convertToISO(row["dateCollecteTransporteur"]),
-                    takenOverBy: row["prenomContactTransporteur"]?.toString() + " " + row["nomContactTransporteur"]?.toString() || ""    
+                    takenOverBy: (row["prenomContactTransporteur"]?.toString() || "") + " " + (row["nomContactTransporteur"]?.toString() || "")    
                 },
 
                 // Détails du déchet
                 wasteDetails: {
                     code: row["codeCed"]?.toString() || "",
                     name: row["descDechet"]?.toString() || "",
-                    isSubjectToADR: row["mentionAdr"]?.toString()==='ADR',
+                    isSubjectToADR: row["mentionAdr"]?.toString()!=='',
                     onuCode: row["codeONU"]?.toString() || "",  
                     nonRoadRegulationMention: row["mentionAdr"]?.toString() || "",
                     packagingInfos: [{
@@ -201,51 +227,11 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                     sampleNumber: row["fichesTechniques"]?.toString() || ""
                 },
 
-                // Négociant
-                trader: {
-                    company: {
-                        name: row["nomNegotiant"]?.toString() || "",
-                        orgId: row["siretNegotiant"]?.toString() || "",
-                        siret: siretFunction(row["siretNegotiant"]?.toString()) || "",
-                        address: `${row["adresseNegotiant"] || ""} ${row["codePostalNegotiant"] || ""} ${row["communeNegotiant"] || ""}`,
-                        country: row["paysNegotiant"]?.toString() || "",
-                        contact: `${row["prenomContactNegotiant"] || ""} ${row["nomContactNegotiant"] || ""}`,
-                        phone: row["telephoneNegotiant"]?.toString() || "",
-                        mail: row["emailNegotiant"]?.toString() || "",
-                        vatNumber: tvaFunction(row["siretNegotiant"]?.toString()) || "",
-                        //omiNumber:
-                        //extraEuropeanId:
-                    },
-                    receipt: row["recipisseNegotiant"]?.toString() || "",
-                    department: row["departementNegotiant"]?.toString() || "",
-                    validityLimit: row["validiteNegotiant"]?.toString() || ""
-                },
 
-                // Courtier
-                broker: {
-                    company: {
-                        name: row["nomCourtier"]?.toString() || "",
-                        orgId: row["siretCourtier"]?.toString() || "",
-                        siret: siretFunction(row["siretCourtier"]?.toString()) || "",
-                        address: `${row["adresseCourtier"] || ""} ${row["codePostalCourtier"] || ""} ${row["communeCourtier"] || ""}`,
-                        country: row["paysCourtier"]?.toString() || "",
-                        contact: `${row["prenomContactCourtier"] || ""} ${row["nomContactCourtier"] || ""}`,
-                        phone: row["telephoneContactCourtier"]?.toString() || "",
-                        mail: row["emailCourtier"]?.toString() || "",
-                        vatNumber: tvaFunction(row["siretCourtier"]?.toString()) || "",
-                        //omiNumber:
-                        //extraEuropeanId:
-                    },
-                    receipt: row["recipisseCourtier"]?.toString() || "",
-                    department: row["departementCourtier"]?.toString() || "",
-                    validityLimit: row["validiteCourtier"]?.toString() || ""
-                },
 
-                // Éco-organisme
-                ecoOrganisme: {
-                    name: row["nomEcoOrganisme"]?.toString() || "",
-                    siret: siretFunction(row["siretEcoOrganisme"]?.toString()) || ""
-                },
+
+
+
 
                 //transporters: [],
 
@@ -254,11 +240,11 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                 updatedAt: convertToISO(row["dateModifBordereau"]),
                 
                 emittedAt: convertToISO(row["dateCreationBordereau"]), //normalement c'est la signature du trasnporteur mais bon
-                emittedBy: row["prenomContactEmetteur"]?.toString() + " " + row["nomContactEmetteur"]?.toString() || "",
-                emittedByEcoOrganisme: row["prenomContactEcoOrganisme"]?.toString() + " " + row["nomContactEcoOrganisme"]?.toString() || "",
+                emittedBy: (row["prenomContactEmetteur"]?.toString() || "") + " " + (row["nomContactEmetteur"]?.toString() || ""),
+                emittedByEcoOrganisme: (row["prenomContactEcoOrganisme"]?.toString() || "") + " " + (row["nomContactEcoOrganisme"]?.toString() || ""),
                 
                 takenOverAt: convertToISO(row["dateCollecteTransporteur"]),
-                takenOverBy: row["prenomContactTransporteur"]?.toString() + " " + row["nomContactTransporteur"]?.toString() || "",
+                takenOverBy: (row["prenomContactTransporteur"]?.toString() || "") + " " + (row["nomContactTransporteur"]?.toString() || ""),
                 
                 wasteAcceptationStatus: row["statutReceptionInstallationDestination"]?.toString() || "",
                 wasteRefusalReason: row["motifRefusInstallationDestination"]?.toString() || "",
@@ -266,19 +252,18 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
                 hasCiterneBeenWashedOut: row["rincageCiterneInstallationDestination"] === "O", 
                 //citerneNotWashedOutReason: row["motifNonLavageCiterne"]?.toString() || "",
                 
-                receivedBy: row["prenomContactInstallationDestination"]?.toString() + " " + row["nomContactInstallationDestination"]?.toString() || "",
+                receivedBy: (row["prenomContactInstallationDestination"]?.toString() || "") + " " + (row["nomContactInstallationDestination"]?.toString() || ""),
                 receivedAt: convertToISO(row["dateReceptionInstallationDestination"]),
 
                 signedAt: '',//row["dateReceptionInstallationDestination"]?.toString() || "",
 
-                //quantityReceived: parseFloat(row["quantiteReceptionneeNetInstallationDestination"]?.toString() || "0"),
+                //quantityReceived: parseFloat(row["quantiteReceptionneeNetInstallationDestination"]?.toString().replace(',', '.') || "0"),
                 //quantityReceivedType: row["quantiteEstimeeReelleReceptionInstallationDestination"]?.toString() as 'REAL'|'ESTIMATED' || 'ESTIMATED',
-                //quantityAccepted: parseFloat(row["quantiteReceptionneeNetInstallationDestination"]?.toString() || "0") - parseFloat(row["quantiteRefuseeInstallationDestination"]?.toString() || "0"),
-                //quantityRefused: parseFloat(row["quantiteRefuseeInstallationDestination"]?.toString() || "0"),
+                quantityRefused: parseFloat(row["quantiteRefuseeInstallationDestination"]?.toString().replace(',', '.') || "0"),
                 
                 processingOperationDone: row["codeTraitementRealiseInstallationDestination"]?.toString() || "",
                 processingOperationDescription: row["qualificationTraitementInstallationDestination"]?.toString() || "",
-                processedBy: row["prenomContactInstallationDestination"]?.toString() + " " + row["nomContactInstallationDestination"]?.toString() || "",
+                processedBy: (row["prenomContactInstallationDestination"]?.toString() || "") + " " + (row["nomContactInstallationDestination"]?.toString() || ""),
                 processedAt: convertToISO(row["dateTraitementInstallationDestination"]),
                 
                 noTraceability: row["ruptureTracabiliteInstallationDestination"] === "O" || row['ruptureTracabiliteInstallationIntermediaire'] === "O" || row['ruptureTracabiliteInstallationDestination2'] === "O", // regarder toute et yen aura qu'une seule théoriqueemnt
@@ -358,7 +343,57 @@ const mapToBsdFormat = (row: Row): { formAPI: { createFormInput: BSDD_TrackDeche
             }
         }
     };
-    return new_bsdd;;
+    if(row["quantiteEstimeeReelleReceptionInstallationDestination"]?.toString() && row["quantiteEstimeeReelleReceptionInstallationDestination"]?.toString() !== '')new_bsdd.formAPI.createFormInput.quantityReceived = parseFloat(row["quantiteEstimeeReelleReceptionInstallationDestination"]?.toString().replace(',', '.') || "0");
+    if(row["quantiteEstimeeReelleTransporteur"]?.toString() && row["quantiteEstimeeReelleTransporteur"]?.toString() !== '')new_bsdd.formAPI.createFormInput.quantityReceivedType = row["quantiteEstimeeReelleTransporteur"]?.toString() as 'REAL'|'ESTIMATED' || 'ESTIMATED';
+    
+    //Ajout trader s'il existe
+    if(row["nomNegotiant"]?.toString() && row["nomNegotiant"]?.toString() !== ''){
+        new_bsdd.formAPI.createFormInput.trader = {
+            company: {
+                name: row["nomNegotiant"]?.toString() || "",
+                orgId: row["siretNegotiant"]?.toString() || "",
+                siret: siretFunction(row["siretNegotiant"]?.toString()) || "",
+                address: `${row["adresseNegotiant"] || ""} ${row["codePostalNegotiant"] || ""} ${row["communeNegotiant"] || ""}`,
+                country: row["paysNegotiant"]?.toString() || "",
+                contact: `${row["prenomContactNegotiant"] || ""} ${row["nomContactNegotiant"] || ""}`,
+                phone: row["telephoneNegotiant"]?.toString() || "",
+                mail: row["emailNegotiant"]?.toString() || "",
+                vatNumber: tvaFunction(row["siretNegotiant"]?.toString()) || "",
+                //omiNumber:
+                //extraEuropeanId:
+            },
+            receipt: row["recipisseNegotiant"]?.toString() || "",
+            department: row["departementNegotiant"]?.toString() || "",
+            validityLimit: row["validiteNegotiant"]?.toString() || ""
+        }
+    }
+
+    //Ajout broker s'il existe
+    if(row["nomCourtier"]?.toString() && row["nomCourtier"]?.toString() !== ''){
+        new_bsdd.formAPI.createFormInput.broker = {
+            company: {
+                name: row["nomCourtier"]?.toString() || "",
+                orgId: row["siretCourtier"]?.toString() || "",
+                siret: siretFunction(row["siretCourtier"]?.toString()) || "",
+                address: `${row["adresseCourtier"] || ""} ${row["codePostalCourtier"] || ""} ${row["communeCourtier"] || ""}`,
+                country: row["paysCourtier"]?.toString() || "",
+                contact: `${row["prenomContactCourtier"] || ""} ${row["nomContactCourtier"] || ""}`,
+                phone: row["telephoneContactCourtier"]?.toString() || "",
+                mail: row["emailCourtier"]?.toString() || "",
+                vatNumber: tvaFunction(row["siretCourtier"]?.toString()) || "",
+                //omiNumber:
+                //extraEuropeanId:
+            },
+            receipt: row["recipisseCourtier"]?.toString() || "",
+            department: row["departementCourtier"]?.toString() || "",
+            validityLimit: row["validiteCourtier"]?.toString() || ""
+        }
+    }
+    
+    
+    
+    
+    return new_bsdd;
 };
 
 const mapToNewParametrage = (ligne_BSD: { formAPI: { createFormInput: BSDD_TrackDechets } }) => {
@@ -394,9 +429,12 @@ const mapToNewParametrage = (ligne_BSD: { formAPI: { createFormInput: BSDD_Track
                     address: data.recipient.company.address,
                     contact: data.recipient.company.contact,
                     country: data.recipient.company.country,
+                    orgId: data.recipient.company.orgId,
+                    vatNumber: data.recipient.company.vatNumber,
                 },
                 isTempStorage: data.recipient.isTempStorage || false,
                 processingOperation: data.recipient.processingOperation,
+                valoParts: data.recipient.valoParts,
             },
             transporter: {
                 company: {
@@ -438,7 +476,8 @@ const sendToSupabase = async (
     ligne_autres_infos: OtherInfos | null,
     ligne_facture: { infos_json: FactureJSON } | null,
     user_id: string, 
-    tableType: string
+    tableType: string,
+    source: string
 ) => {
     //UserId --> EntrepriseId
     const { data: entreprise_infos, error } = await supabase
@@ -492,6 +531,7 @@ const sendToSupabase = async (
                         created_on_fleap: false,
                         status_track_dechets: "IMPORTED",
                         created_at: ligne_BSD.formAPI.createFormInput.takenOverAt || new Date().toISOString(),
+                        source: source,
                     }
                 )
             if (error) {
@@ -513,7 +553,8 @@ const ImportRegisterButton = () => {
     const [display, setDisplay] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [userId, setUserId] = useState('');
-    const [tableType, setTableType] = useState('table_parametrage');
+    const [tableType, setTableType] = useState('registre_historique');
+    const [source, setSource] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isTestMode, setIsTestMode] = useState(false);
     //const [selectedConfig, setSelectedConfig] = useState<{userId: string, tableType: string} | null>(null);
@@ -532,10 +573,10 @@ const ImportRegisterButton = () => {
     };
 
     const handleSubmitForm = () => {
-        /*if (!userId) {
-            toast.error('Veuillez saisir un User ID');
+        if (!source.trim()) {
+            toast.error('Veuillez saisir une source');
             return;
-        }*/
+        }
         //setSelectedConfig({ userId, tableType });
         setShowModal(false);
         if (fileInputRef.current) {
@@ -579,15 +620,15 @@ const ImportRegisterButton = () => {
                 if(tableType == "table_parametrage"){
                     const ligne_BSD = mapToBsdFormat(row);
                     const ligne_autres_infos = mapToAutresInfosFormat(row);
-                    if(session?.user_id) sendToSupabase(ligne_BSD, ligne_autres_infos, null, session.user_id, tableType);
+                    if(session?.user_id) sendToSupabase(ligne_BSD, ligne_autres_infos, null, session.user_id, tableType, source);
                 } else if (tableType == "registre_historique"){
                     const ligne_BSD = mapToBsdFormat(row);
                     const ligne_autres_infos = mapToAutresInfosFormat(row);
                     const ligne_facture = mapToFactureFormat(row);
                     if(!userId){
-                        if(session.user_id) sendToSupabase(ligne_BSD, ligne_autres_infos, ligne_facture, session.user_id, tableType);
+                        if(session.user_id) sendToSupabase(ligne_BSD, ligne_autres_infos, ligne_facture, session.user_id, tableType, source);
                     } else {
-                        sendToSupabase(ligne_BSD, ligne_autres_infos, ligne_facture, userId, tableType);
+                        sendToSupabase(ligne_BSD, ligne_autres_infos, ligne_facture, userId, tableType, source);
                     }
                 }
             });
@@ -659,9 +700,20 @@ const ImportRegisterButton = () => {
                                     onChange={(e) => setTableType(e.target.value)}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                 >
-                                    <option value="table_parametrage">Table Paramétrage</option>
+                                    {/*<option value="table_parametrage">Table Paramétrage</option>*/}
                                     <option value="registre_historique">Registre Historique</option>
                                 </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Source <span className="text-red-500">*</span></label>
+                                <input
+                                    type="text"
+                                    value={source}
+                                    onChange={(e) => setSource(e.target.value)}
+                                    placeholder="Ex: Import Excel, API Trackdéchets, etc."
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    required
+                                />
                             </div>
                             <div className="flex items-center space-x-2">
                                 <input
@@ -716,6 +768,204 @@ const mapToAutresInfosFormat = (row: Row) => {
         volumeUnit: row["uniteMesureVolume"]?.toString() || "",
         fillRate: "",
     }
+    if(row["mentionAdr"]?.toString() && row["mentionAdr"]?.toString() !== '')other_infos.mentionAdr = row["mentionAdr"]?.toString();
+    if(row["codeBale"]?.toString() && row["codeBale"]?.toString() !== '')other_infos.codeBale = row["codeBale"]?.toString();
+    if(row["numeroBon"]?.toString() && row["numeroBon"]?.toString() !== '')other_infos.numeroBon = row["numeroBon"]?.toString();
+    if(row["numeroFacture"]?.toString() && row["numeroFacture"]?.toString() !== '')other_infos.numeroFacture = row["numeroFacture"]?.toString();
+    if(row["autreNumeroID"]?.toString() && row["autreNumeroID"]?.toString() !== '')other_infos.autreNumeroID = row["autreNumeroID"]?.toString();
+    if(row["nomEcoOrganisme"]?.toString() && row["nomEcoOrganisme"]?.toString() !== '')other_infos.ecoorganisme = {
+        name: row["nomEcoOrganisme"]?.toString() || "",
+        siret: siretFunction(row["siretEcoOrganisme"]?.toString()) || ""
+    };
+    if(row["nomTravauxAmiante"]?.toString() && row["nomTravauxAmiante"]?.toString() !== '') {
+        other_infos.travauxAmiante = {
+            nom: row["nomTravauxAmiante"]?.toString(),
+            siret: row["siretTravauxAmiante"]?.toString(),
+        }
+    }
+    if(row["envoyeRep"]?.toString() && row["envoyeRep"]?.toString() !== '') {
+        other_infos.rep = {
+            sent_to_rep: row["envoyeRep"]?.toString() === 'true',
+            montant_rep: parseFloat(row["montantRep"]?.toString().replace(',', '.') || "0"),
+        }
+    }
+
+    if(row["estDeclasse"]?.toString() && row["estDeclasse"]?.toString() !== '') {
+        other_infos.declassement = {
+            declassement_boolean: row["estDeclasse"]?.toString() === 'true',
+            pourcentage_masse_declassee: row["pourcentageMasseDeclassee"]?.toString() || "",
+            montant_declasse: row["coutsDeclassement"]?.toString() || "",
+            justificatif_declassement: row["justificatifDeclassement"]?.toString() || "",
+        }
+    }    
+
+    if(row["tri"]?.toString() && row["tri"]?.toString() !== '')other_infos.tri = row["tri"]?.toString()==='true';
+
+    // Détecter dynamiquement tous les transporteurs supplémentaires
+    const additionalTransporters: AdditionalTransporter[] = [];
+    
+    // Chercher tous les transporteurs supplémentaires (nomTransporteur2, nomTransporteur3, etc.)
+    let transporterIndex = 2;
+    while (true) {
+        const nomKey = `nomTransporteur${transporterIndex}`;
+        const siretKey = `siretTransporteur${transporterIndex}`;
+        const emailKey = `emailContactTransporteur${transporterIndex}`;
+        const telephoneKey = `telephoneContactTransporteur${transporterIndex}`;
+        const adresseKey = `adresseTransporteur${transporterIndex}`;
+        const prenomContactKey = `prenomContactTransporteur${transporterIndex}`;
+        const nomContactKey = `nomContactTransporteur${transporterIndex}`;
+        const paysKey = `paysTransporteur${transporterIndex}`;
+        const recepisseKey = `recepisseTransporteur${transporterIndex}`;
+        const validiteKey = `limiteValiditeTransporteur${transporterIndex}`;
+        const departementKey = `departementTransporteur${transporterIndex}`;
+        const immatriculationKey = `immatriculationTransporteur${transporterIndex}`;
+        const exemptionKey = `exemptionRecepisseTransporteur${transporterIndex}`;
+        const dateKey = `dateCollecteTransporteur${transporterIndex}`;
+        
+        // Vérifier si ce transporteur existe dans les données
+        if (row[nomKey]?.toString() && row[nomKey]?.toString() !== '') {
+            const transporter = {
+                company: {
+                    mail: row[emailKey]?.toString() || "",
+                    name: row[nomKey]?.toString() || "",
+                    phone: row[telephoneKey]?.toString() || "",
+                    orgId: row[siretKey]?.toString() || "",
+                    siret: siretFunction(row[siretKey]?.toString()) || "",
+                    address: row[adresseKey]?.toString() || "",
+                    contact: `${row[prenomContactKey]?.toString() || ""} ${row[nomContactKey]?.toString() || ""}`,
+                    country: row[paysKey]?.toString() || "",
+                },
+                receipt: row[recepisseKey]?.toString() || "",
+                department: row[departementKey]?.toString() || "",
+                validityLimit: row[validiteKey]?.toString() || "",
+                numberPlate: row[immatriculationKey]?.toString() || "",
+                isExemptedOfReceipt: row[exemptionKey]?.toString() === 'true',
+                takenOverAt: row[dateKey]?.toString() || "",
+            };
+            additionalTransporters.push(transporter);
+        } else {
+            // Si on ne trouve plus de transporteur, on arrête la boucle
+            break;
+        }
+        
+        transporterIndex++;
+    }
+    
+    // Ajouter les transporteurs supplémentaires s'il y en a
+    if (additionalTransporters.length > 0) {
+        other_infos.other_transporters = additionalTransporters;
+    }
+
+    // Détecter dynamiquement tous les destinataires supplémentaires
+    const additionalRecipients: AdditionalRecipient[] = [];
+    const valoPartsArray = takeValoPartsArray(row);
+
+    // Chercher tous les destinataires supplémentaires (nomInstallationDestination2, nomInstallationDestination3, etc.)
+    let recipientIndex = 2;
+    while (true) {
+        const nomKey = `nomInstallationDestination${recipientIndex}`;
+        const siretKey = `siretInstallationDestination${recipientIndex}`;
+        const adresseKey = `adresseInstallationDestination${recipientIndex}`;
+        const codePostalKey = `codePostalInstallationDestination${recipientIndex}`;
+        const communeKey = `communeInstallationDestination${recipientIndex}`;
+        const paysKey = `paysInstallationDestination${recipientIndex}`;
+        const prenomContactKey = `prenomContactInstallationDestination${recipientIndex}`;
+        const nomContactKey = `nomContactInstallationDestination${recipientIndex}`;
+        const telephoneKey = `telephoneContactInstallationDestination${recipientIndex}`;
+        const emailKey = `emailContactInstallationDestination${recipientIndex}`;
+        const capKey = `numeroCap${recipientIndex}`;
+        const processingOperationKey = `codeTraitementPrevuInstallationDestination${recipientIndex}`;
+        
+        // Vérifier si ce destinataire existe dans les données
+        if (row[nomKey]?.toString() && row[nomKey]?.toString() !== '') {
+            const recipient = {
+                company: {
+                    name: row[nomKey]?.toString() || "",
+                    orgId: row[siretKey]?.toString() || "",
+                    siret: siretFunction(row[siretKey]?.toString()) || "",
+                    address: `${row[adresseKey] || ""} ${row[codePostalKey] || ""} ${row[communeKey] || ""}`,
+                    country: row[paysKey]?.toString() || "",
+                    contact: `${row[prenomContactKey]?.toString() || ""} ${row[nomContactKey]?.toString() || ""}`,
+                    phone: row[telephoneKey]?.toString() || "",
+                    mail: row[emailKey]?.toString() || "",
+                    vatNumber: tvaFunction(row[siretKey]?.toString()) || "",
+                },
+                cap: row[capKey]?.toString() || "",
+                processingOperation: row[processingOperationKey]?.toString() || "",
+                valoParts: valoPartsArray[recipientIndex - 2] || [],
+            };
+            additionalRecipients.push(recipient);
+        } else {
+            // Si on ne trouve plus de destinataire, on arrête la boucle
+            break;
+        }
+        
+        recipientIndex++;
+    }
+    
+    // Ajouter les destinataires supplémentaires s'il y en a
+    if (additionalRecipients.length > 0) {
+        other_infos.other_recipients = additionalRecipients;
+    }
+
     return other_infos;
+}
+
+const takeValoPartsArray = (row: Row) => {
+    // créer 
+    const valoPartsArray: { code_valo: string; tonnage: number; }[][] = [];
+    
+    // Fonction pour créer un tableau de valorisations pour un destinataire donné
+    const createValoArray = (destIndex: number) => {
+        const valoArray: { code_valo: string; tonnage: number; }[] = [];
+        let valoIndex = 1;
+        
+        while (true) {
+            const valoKey = destIndex === 1 ? `valo${valoIndex}_dest` : `valo${valoIndex}_dest${destIndex}`;
+            const tonnageKey = destIndex === 1 ? `tonnage${valoIndex}_dest` : `tonnage${valoIndex}_dest${destIndex}`;
+            
+            // Vérifier si cette valorisation existe dans les données
+            if (row[valoKey]?.toString() && row[valoKey]?.toString() !== '') {
+                const codeValo = row[valoKey]?.toString() || "";
+                const tonnage = parseFloat(row[tonnageKey]?.toString().replace(',', '.') || "0");
+                
+                valoArray.push({
+                    code_valo: codeValo,
+                    tonnage: tonnage
+                });
+            } else {
+                // Si on ne trouve plus de valorisation, on arrête la boucle
+                break;
+            }
+            
+            valoIndex++;
+        }
+        
+        return valoArray;
+    };
+    
+    // Créer le tableau pour le premier destinataire (dest)
+    const firstDestValo = createValoArray(1);
+    if (firstDestValo.length > 0) {
+        valoPartsArray.push(firstDestValo);
+    }
+    
+    // Créer les tableaux pour les destinataires suivants (dest2, dest3, etc.)
+    let destIndex = 2;
+    while (true) {
+        const valoArray = createValoArray(destIndex);
+        
+        // Si on trouve au moins une valorisation pour ce destinataire
+        if (valoArray.length > 0) {
+            valoPartsArray.push(valoArray);
+        } else {
+            // Si on ne trouve plus de destinataire avec des valorisations, on arrête
+            break;
+        }
+        
+        destIndex++;
+    }
+    
+    return valoPartsArray;
 }
 

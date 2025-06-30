@@ -72,10 +72,8 @@ const EnvBordereau = () => {
 
         bsds.forEach((bsd) => {
             try {
-                // Vérifier et convertir les valeurs en nombres
-                const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? Number(bsd.infos_json?.formAPI?.createFormInput?.quantityReceived) : Number(bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity) || 0;
+                const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
                 const cedCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
-                const processingOperation = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || 'default';
                 
                 // Vérifier la validité de la date
                 const dateStr = bsd.infos_json?.formAPI?.createFormInput?.takenOverAt || bsd.created_at;
@@ -84,11 +82,35 @@ const EnvBordereau = () => {
                 
                 const month = date.getMonth();
 
-                // S'assurer que l'émission carbone est un nombre valide
-                const carbonEmission = Number(estimerCarbone(cedCode, processingOperation, quantity));
-                if (!isNaN(carbonEmission) && isFinite(carbonEmission)) {
-                    monthlyEmissions.set(month, (monthlyEmissions.get(month) || 0) + carbonEmission);
-                    totalEmissions += carbonEmission;
+                // Vérifier si valoParts existe
+                if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+                    // Utiliser valoParts avec les tonnages fractionnés
+                    recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
+                        const tonnage = part.tonnage || 0;
+                        const codeValo = part.code_valo?.replace(/\s+/g, '') || 'default';
+                        
+                        if (tonnage > 0) {
+                            const carbonEmission = Number(estimerCarbone(cedCode, codeValo, tonnage));
+                            if (!isNaN(carbonEmission) && isFinite(carbonEmission)) {
+                                monthlyEmissions.set(month, (monthlyEmissions.get(month) || 0) + carbonEmission);
+                                totalEmissions += carbonEmission;
+                            }
+                        }
+                    });
+                } else if (recipient?.processingOperation) {
+                    // Fallback sur processingOperation (ancienne méthode)
+                    const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? 
+                        Number(bsd.infos_json?.formAPI?.createFormInput?.quantityReceived) : 
+                        Number(bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity) || 0;
+                    const processingOperation = recipient.processingOperation || 'default';
+                    
+                    if (quantity > 0) {
+                        const carbonEmission = Number(estimerCarbone(cedCode, processingOperation, quantity));
+                        if (!isNaN(carbonEmission) && isFinite(carbonEmission)) {
+                            monthlyEmissions.set(month, (monthlyEmissions.get(month) || 0) + carbonEmission);
+                            totalEmissions += carbonEmission;
+                        }
+                    }
                 }
             } catch (error) {
                 console.warn('Erreur de calcul pour un BSD:', error);

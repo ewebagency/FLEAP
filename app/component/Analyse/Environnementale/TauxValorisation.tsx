@@ -8,41 +8,86 @@ const TauxValorisation = () => {
     const [showTooltipMatiere, setShowTooltipMatiere] = useState(false);
     const [showTooltipGlobale, setShowTooltipGlobale] = useState(false);
 
-    const { globalValorizationRate, materialValorizationRate, credibilityScore, processedBsdsCount } = useMemo(() => {
-        const bsdsWithProcessingOperation = bsds.filter(bsd => 
-            bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
-        );
-        const totalBsds = bsds.length;
+    const { globalValorizationRate, materialValorizationRate, credibilityScore, processedBsdsCount, totalTonnage, valorizedTonnage } = useMemo(() => {
+        let totalTonnage = 0;
+        let globallyValorizedTonnage = 0;
+        let materiallyValorizedTonnage = 0;
+        let processedBsdsCount = 0;
 
-        const globallyValorizedBsds = bsdsWithProcessingOperation.filter(bsd => {
-            const processingCode = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
-                ?.replace(/\s+/g, '');
-            return processingCode && tauxValorisationGlobale.includes(processingCode);
+        bsds.forEach(bsd => {
+            const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
+            
+            if (!recipient) return;
+
+            // Vérifier si valoParts existe
+            
+            if (recipient.valoParts && Array.isArray(recipient.valoParts)) {    
+                // Utiliser valoParts avec les tonnages
+                let bsdTotalTonnage = 0;
+                let bsdGloballyValorizedTonnage = 0;
+                let bsdMateriallyValorizedTonnage = 0;
+
+                recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
+                    const tonnage = part.tonnage || 0;
+                    const codeValo = part.code_valo?.replace(/\s+/g, '');
+                    
+                    bsdTotalTonnage += tonnage;
+                    
+                    if (codeValo && tauxValorisationGlobale.includes(codeValo)) {
+                        bsdGloballyValorizedTonnage += tonnage;
+                    }
+                    
+                    if (codeValo && tauxValorisationMatière.includes(codeValo)) {
+                        bsdMateriallyValorizedTonnage += tonnage;
+                    }
+                });
+
+                if (bsdTotalTonnage > 0) {
+                    totalTonnage += bsdTotalTonnage;
+                    globallyValorizedTonnage += bsdGloballyValorizedTonnage;
+                    materiallyValorizedTonnage += bsdMateriallyValorizedTonnage;
+                    processedBsdsCount++;
+                }
+            } else if (recipient.processingOperation) {
+                // Fallback sur processingOperation (ancienne méthode)
+                const processingCode = recipient.processingOperation.replace(/\s+/g, '');
+                const tonnage = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+                
+                if (processingCode && tonnage > 0) {
+                    totalTonnage += tonnage;
+                    
+                    if (tauxValorisationGlobale.includes(processingCode)) {
+                        globallyValorizedTonnage += tonnage;
+                    }
+                    
+                    if (tauxValorisationMatière.includes(processingCode)) {
+                        materiallyValorizedTonnage += tonnage;
+                    }
+                    
+                    processedBsdsCount++;
+                }
+            }
         });
 
-        const materiallyValorizedBsds = bsdsWithProcessingOperation.filter(bsd => {
-            const processingCode = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation
-                ?.replace(/\s+/g, '');
-            return processingCode && tauxValorisationMatière.includes(processingCode);
-        });
-
-        const globalValorizationRate = bsdsWithProcessingOperation.length > 0 
-            ? (globallyValorizedBsds.length / bsdsWithProcessingOperation.length) * 100 
+        const globalValorizationRate = totalTonnage > 0 
+            ? (globallyValorizedTonnage / totalTonnage) * 100 
             : 0;
 
-        const materialValorizationRate = bsdsWithProcessingOperation.length > 0 
-            ? (materiallyValorizedBsds.length / bsdsWithProcessingOperation.length) * 100 
+        const materialValorizationRate = totalTonnage > 0 
+            ? (materiallyValorizedTonnage / totalTonnage) * 100 
             : 0;
 
-        const credibilityScore = totalBsds > 0 
-            ? (bsdsWithProcessingOperation.length / totalBsds) * 100 
+        const credibilityScore = bsds.length > 0 
+            ? (processedBsdsCount / bsds.length) * 100 
             : 0;
 
         return { 
             globalValorizationRate, 
             materialValorizationRate,
             credibilityScore,
-            processedBsdsCount: bsdsWithProcessingOperation.length 
+            processedBsdsCount,
+            totalTonnage,
+            valorizedTonnage: globallyValorizedTonnage
         };
     }, [bsds]);
 
@@ -67,6 +112,7 @@ const TauxValorisation = () => {
                     <div className="absolute z-10 bottom-0 right-full mr-2 bg-gray-800 text-white p-2 rounded-lg shadow-lg text-xs w-48">
                         <div className="font-semibold">Sur {credibilityScore.toFixed(1)}% de BSD renseignés</div>
                         <div className="text-gray-400">({processedBsdsCount} ont un code de traitement)</div>
+                        <div className="text-gray-400">Total: {totalTonnage.toFixed(1)} tonnes</div>
                     </div>
                 )}
             </div>
@@ -90,6 +136,7 @@ const TauxValorisation = () => {
                     <div className="absolute z-10 bottom-0 right-full mr-2 bg-gray-800 text-white p-2 rounded-lg shadow-lg text-xs w-48">
                         <div className="font-semibold">Sur {credibilityScore.toFixed(1)}% de BSD renseignés</div>
                         <div className="text-gray-400">({processedBsdsCount} ont un code de traitement)</div>
+                        <div className="text-gray-400">Total: {totalTonnage.toFixed(1)} tonnes</div>
                     </div>
                 )}
             </div>

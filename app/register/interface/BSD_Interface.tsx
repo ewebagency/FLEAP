@@ -540,10 +540,10 @@ export interface BSDD_TrackDechets_DEPRECATED {
     };
 
     // Eco-organisme
-    ecoOrganisme: {
+    /*ecoOrganisme: {
         name: string;             // Nom
         siret: string;            // SIRET
-    };
+    };*/
 
     // Négociant
     trader: {
@@ -821,27 +821,31 @@ recipient: {
     cap: string;
     processingOperation: string;
     isTempStorage?: boolean; //?????????????????????????????????????????
+    valoParts?: {
+        code_valo: string;
+        tonnage: number;
+    }[];
 };
 
 transporter: Transporter;
 
 wasteDetails: WasteDetails;
 
-trader: {
+trader?: {
     company: Company;
     receipt: string; //numéro récépissé
     department: string;
     validityLimit: string;
 };
 
-broker: {
+broker?: {
     company: Company;
     receipt: string;
     department: string;
     validityLimit: string;
 };
 
-ecoOrganisme: EcoOrganism;
+//ecoOrganisme: EcoOrganism;
 
 transporters?: string[];  //liste des id des transporters
 
@@ -935,6 +939,10 @@ export interface FormInput {
       processingOperation?: string;
       company: Company;
       isTempStorage?: boolean; //"Si c'est un entreprosage provisoire ou reconditionnement"
+      valoParts?: {
+        code_valo: string;
+        tonnage: number;
+      }[];
     };
   
     transporter: {
@@ -986,6 +994,7 @@ export interface FormInput {
         processingOperation?: string; // Code de l'opération d'élimination/valorisation
       }
     intermediaries?: Company[];
+    noTraceability?: boolean;
   }
 
 export interface OtherInfos {
@@ -1002,7 +1011,7 @@ export interface OtherInfos {
     recipientEmail?: string;
     comments?: string;
     num_client?: string;
-    ecoorganisme?: string;
+    ecoorganisme?: {name: string, siret: string};
     contrat?: string;
     filiere?: string;
     typePrestation?: string;
@@ -1011,11 +1020,24 @@ export interface OtherInfos {
         declassement_boolean: boolean;
         pourcentage_masse_declassee: string;
         montant_declasse: string;
+        justificatif_declassement?: string;
     };
     rep?: {
         sent_to_rep?: boolean;
         montant_rep?: number;
     };
+    mentionAdr?: string;
+    codeBale?: string;
+    numeroBon?: string;
+    numeroFacture?: string;
+    autreNumeroID?: string;
+    travauxAmiante?: {
+        nom: string;
+        siret: string;
+    };
+    other_transporters?: Transporter[];
+    other_recipients?: Destination[];
+    tri?: boolean; //pour prendre en compte dans le taux de tri si passé par un centre de traitement
 }
 
 export interface CompleteFormInput{

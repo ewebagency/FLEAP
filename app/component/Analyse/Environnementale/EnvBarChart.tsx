@@ -166,9 +166,8 @@ const EnvBarChart = () => {
             // Vérifier si la date est dans la plage
             if (date < startDate || date > endDate) return;
 
-            const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? bsd.infos_json?.formAPI?.createFormInput?.quantityReceived : bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
             const cedCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
-            const processingOperation = bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || 'default';
+            const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
             
             // Déterminer la clé (filière ou prestataire)
             let key;
@@ -180,26 +179,66 @@ const EnvBarChart = () => {
             }
 
             try {
-                const carbonEmission = parseFloat(estimerCarbone(cedCode, processingOperation, quantity));
-                
-                if (!monthlyEmissions.has(key)) {
-                    monthlyEmissions.set(key, Array(numberOfMonths).fill(0));
-                }
-                const monthlyValues = monthlyEmissions.get(key)!;
-                
-                // Calculer l'index du mois relatif à la période
-                const monthIndex = Math.floor(
-                    (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-                );
-                if (monthIndex >= 0 && monthIndex < monthLabels.length) {
-                    monthlyValues[monthIndex] += carbonEmission;
-                }
+                // Vérifier si valoParts existe
+                if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+                    // Utiliser valoParts avec les tonnages fractionnés
+                    recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
+                        const tonnage = part.tonnage || 0;
+                        const codeValo = part.code_valo?.replace(/\s+/g, '') || 'default';
+                        
+                        if (tonnage > 0) {
+                            const carbonEmission = parseFloat(estimerCarbone(cedCode, codeValo, tonnage));
+                            
+                            if (!monthlyEmissions.has(key)) {
+                                monthlyEmissions.set(key, Array(numberOfMonths).fill(0));
+                            }
+                            const monthlyValues = monthlyEmissions.get(key)!;
+                            
+                            // Calculer l'index du mois relatif à la période
+                            const monthIndex = Math.floor(
+                                (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+                            );
+                            if (monthIndex >= 0 && monthIndex < monthLabels.length) {
+                                monthlyValues[monthIndex] += carbonEmission;
+                            }
 
-                if (!treatmentEmissions.has(processingOperation)) {
-                    treatmentEmissions.set(processingOperation, new Map<string, number>());
+                            if (!treatmentEmissions.has(codeValo)) {
+                                treatmentEmissions.set(codeValo, new Map<string, number>());
+                            }
+                            const treatmentMap = treatmentEmissions.get(codeValo)!;
+                            treatmentMap.set(key, (treatmentMap.get(key) || 0) + carbonEmission);
+                        }
+                    });
+                } else if (recipient?.processingOperation) {
+                    // Fallback sur processingOperation (ancienne méthode)
+                    const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? 
+                        bsd.infos_json?.formAPI?.createFormInput?.quantityReceived : 
+                        bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+                    const processingOperation = recipient.processingOperation || 'default';
+                    
+                    if (quantity > 0) {
+                        const carbonEmission = parseFloat(estimerCarbone(cedCode, processingOperation, quantity));
+                        
+                        if (!monthlyEmissions.has(key)) {
+                            monthlyEmissions.set(key, Array(numberOfMonths).fill(0));
+                        }
+                        const monthlyValues = monthlyEmissions.get(key)!;
+                        
+                        // Calculer l'index du mois relatif à la période
+                        const monthIndex = Math.floor(
+                            (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+                        );
+                        if (monthIndex >= 0 && monthIndex < monthLabels.length) {
+                            monthlyValues[monthIndex] += carbonEmission;
+                        }
+
+                        if (!treatmentEmissions.has(processingOperation)) {
+                            treatmentEmissions.set(processingOperation, new Map<string, number>());
+                        }
+                        const treatmentMap = treatmentEmissions.get(processingOperation)!;
+                        treatmentMap.set(key, (treatmentMap.get(key) || 0) + carbonEmission);
+                    }
                 }
-                const treatmentMap = treatmentEmissions.get(processingOperation)!;
-                treatmentMap.set(key, (treatmentMap.get(key) || 0) + carbonEmission);
             } catch (error) {
                 // Ignorer les erreurs de calcul
             }
@@ -240,42 +279,94 @@ const EnvBarChart = () => {
             const date = new Date(bsd.created_at);
             if (segmentDates.debut && segmentDates.fin && (date < segmentDates.debut || date > segmentDates.fin)) return;
 
-            const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? bsd.infos_json?.formAPI?.createFormInput?.quantityReceived : bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
-            const processingOperation = (bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation || '').trim();
             const cedCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
+            const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
 
-            // Trouver la catégorie du traitement
-            let category = 'Inconnu';
-            for (const [cat, codes] of Object.entries(typeTraitement)) {
-                if (codes.includes(processingOperation)) {
-                    category = cat;
-                    break;
-                }
-            }
+            // Vérifier si valoParts existe
+            if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+                // Utiliser valoParts avec les tonnages fractionnés
+                recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
+                    const tonnage = part.tonnage || 0;
+                    const processingOperation = part.code_valo?.replace(/\s+/g, '') || 'default';
+                    
+                    if (tonnage > 0) {
+                        // Trouver la catégorie du traitement
+                        let category = 'Inconnu';
+                        for (const [cat, codes] of Object.entries(typeTraitement)) {
+                            if (codes.includes(processingOperation)) {
+                                category = cat;
+                                break;
+                            }
+                        }
 
-            if (!treatmentStats.has(category)) {
-                treatmentStats.set(category, { 
-                    tonnage: 0, 
-                    carbon: 0,
-                    details: new Map()
+                        if (!treatmentStats.has(category)) {
+                            treatmentStats.set(category, { 
+                                tonnage: 0, 
+                                carbon: 0,
+                                details: new Map()
+                            });
+                        }
+
+                        const stats = treatmentStats.get(category)!;
+                        try {
+                            const carbonEmission = parseFloat(estimerCarbone(cedCode, processingOperation, tonnage));
+                            stats.tonnage += Number(tonnage) || 0;
+                            stats.carbon += carbonEmission;
+
+                            // Stocker les détails par code de traitement
+                            if (!stats.details.has(processingOperation)) {
+                                stats.details.set(processingOperation, { tonnage: 0, carbon: 0 });
+                            }
+                            const detail = stats.details.get(processingOperation)!;
+                            detail.tonnage += Number(tonnage) || 0;
+                            detail.carbon += carbonEmission;
+                        } catch (error) {
+                            console.warn('Erreur de calcul pour le BSD:', error);
+                        }
+                    }
                 });
-            }
+            } else if (recipient?.processingOperation) {
+                // Fallback sur processingOperation (ancienne méthode)
+                const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? 
+                    bsd.infos_json?.formAPI?.createFormInput?.quantityReceived : 
+                    bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+                const processingOperation = (recipient.processingOperation || '').trim();
+                
+                if (quantity > 0) {
+                    // Trouver la catégorie du traitement
+                    let category = 'Inconnu';
+                    for (const [cat, codes] of Object.entries(typeTraitement)) {
+                        if (codes.includes(processingOperation)) {
+                            category = cat;
+                            break;
+                        }
+                    }
 
-            const stats = treatmentStats.get(category)!;
-            try {
-                const carbonEmission = parseFloat(estimerCarbone(cedCode, processingOperation, quantity));
-                stats.tonnage += Number(quantity) || 0;
-                stats.carbon += carbonEmission;
+                    if (!treatmentStats.has(category)) {
+                        treatmentStats.set(category, { 
+                            tonnage: 0, 
+                            carbon: 0,
+                            details: new Map()
+                        });
+                    }
 
-                // Stocker les détails par code de traitement
-                if (!stats.details.has(processingOperation)) {
-                    stats.details.set(processingOperation, { tonnage: 0, carbon: 0 });
+                    const stats = treatmentStats.get(category)!;
+                    try {
+                        const carbonEmission = parseFloat(estimerCarbone(cedCode, processingOperation, quantity));
+                        stats.tonnage += Number(quantity) || 0;
+                        stats.carbon += carbonEmission;
+
+                        // Stocker les détails par code de traitement
+                        if (!stats.details.has(processingOperation)) {
+                            stats.details.set(processingOperation, { tonnage: 0, carbon: 0 });
+                        }
+                        const detail = stats.details.get(processingOperation)!;
+                        detail.tonnage += Number(quantity) || 0;
+                        detail.carbon += carbonEmission;
+                    } catch (error) {
+                        console.warn('Erreur de calcul pour le BSD:', error);
+                    }
                 }
-                const detail = stats.details.get(processingOperation)!;
-                detail.tonnage += Number(quantity) || 0;
-                detail.carbon += carbonEmission;
-            } catch (error) {
-                console.warn('Erreur de calcul pour le BSD:', error);
             }
         });
 

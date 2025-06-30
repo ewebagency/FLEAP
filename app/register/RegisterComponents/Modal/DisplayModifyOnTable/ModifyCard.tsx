@@ -23,12 +23,13 @@ interface PdfInfo {
     file_size?: number;
 }
 
-const LabelInput = ({ label, value, onChange, path, readOnly }: { 
+const LabelInput = ({ label, value, onChange, path, readOnly, inputWidth }: { 
     label: string, 
     value?: string | number | null,
     onChange: (path: string, value: string) => void,
     path: string,
-    readOnly?: boolean
+    readOnly?: boolean,
+    inputWidth?: string
 }) => (
     <div className="flex items-center text-sm">
         <span className="font-medium text-gray-700 w-[120px] text-right mr-2">{label}: </span>
@@ -36,7 +37,7 @@ const LabelInput = ({ label, value, onChange, path, readOnly }: {
             type="text"
             value={value?.toString() ?? ''}
             onChange={(e) => onChange(path, e.target.value)}
-            className="text-gray-600 rounded-md px-2 py-[3px] w-[320px]"
+            className={`text-gray-600 rounded-md px-2 py-[3px] ${inputWidth || 'w-[320px]'}`}
             readOnly={readOnly}
         />
     </div>
@@ -120,6 +121,9 @@ const ModifyCard = () => {
     const [filiere, setFiliere] = useState<string>("");
     const [masseVolumique, setMasseVolumique] = useState<string>("");
     
+    // États pour les toggles
+    const [showOtherTransporters, setShowOtherTransporters] = useState(false);
+    const [showOtherRecipients, setShowOtherRecipients] = useState(false);
 
     const invalidateCache = async () => {
         if (!entreprise_id || !user_id) return;
@@ -667,6 +671,211 @@ const ModifyCard = () => {
                                     path="ecoOrganisme.mail"
                                 />
                             </div>
+                        </div>
+
+                        {/* Section Transporteurs supplémentaires */}
+                        <div className="bg-violet-50 p-3 rounded border border-violet-100">
+                            <div className="flex justify-between items-center mb-2">
+                                <h3 className="font-semibold text-violet-800">Transporteurs supplémentaires</h3>
+                                <button
+                                    onClick={() => setShowOtherTransporters(!showOtherTransporters)}
+                                    className="text-violet-600 hover:text-violet-800 text-sm"
+                                >
+                                    {showOtherTransporters ? 'Masquer' : 'Afficher'}
+                                </button>
+                            </div>
+                            {showOtherTransporters && (
+                                <div className="space-y-4">
+                                    {otherInfos.other_transporters && otherInfos.other_transporters.length > 0 ? (
+                                        otherInfos.other_transporters.map((transporter, index) => (
+                                            <div key={index} className="p-3 bg-gray-50 rounded border border-violet-200">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <h4 className="font-medium text-violet-700">Transporteur {index + 2}</h4>
+                                                    <button
+                                                        onClick={() => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_transporters: prev.other_transporters?.filter((_, i) => i !== index) || []
+                                                            }));
+                                                        }}
+                                                        className="text-red-600 hover:text-red-800 p-1"
+                                                        title="Supprimer ce transporteur"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <LabelInput 
+                                                        label="Nom"
+                                                        value={transporter.company?.name || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_transporters: prev.other_transporters?.map((t, i) => 
+                                                                    i === index 
+                                                                        ? { ...t, company: { ...t.company, name: value } }
+                                                                        : t
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_transporters.${index}.company.name`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="SIRET"
+                                                        value={transporter.company?.siret || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_transporters: prev.other_transporters?.map((t, i) => 
+                                                                    i === index 
+                                                                        ? { ...t, company: { ...t.company, siret: value } }
+                                                                        : t
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_transporters.${index}.company.siret`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="Adresse"
+                                                        value={transporter.company?.address || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_transporters: prev.other_transporters?.map((t, i) => 
+                                                                    i === index 
+                                                                        ? { ...t, company: { ...t.company, address: value } }
+                                                                        : t
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_transporters.${index}.company.address`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="Contact"
+                                                        value={transporter.company?.contact || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_transporters: prev.other_transporters?.map((t, i) => 
+                                                                    i === index 
+                                                                        ? { ...t, company: { ...t.company, contact: value } }
+                                                                        : t
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_transporters.${index}.company.contact`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="Téléphone"
+                                                        value={transporter.company?.phone || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_transporters: prev.other_transporters?.map((t, i) => 
+                                                                    i === index 
+                                                                        ? { ...t, company: { ...t.company, phone: value } }
+                                                                        : t
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_transporters.${index}.company.phone`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="Email"
+                                                        value={transporter.company?.mail || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_transporters: prev.other_transporters?.map((t, i) => 
+                                                                    i === index 
+                                                                        ? { ...t, company: { ...t.company, mail: value } }
+                                                                        : t
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_transporters.${index}.company.mail`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="Récépissé"
+                                                        value={transporter.receipt || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_transporters: prev.other_transporters?.map((t, i) => 
+                                                                    i === index 
+                                                                        ? { ...t, receipt: value }
+                                                                        : t
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_transporters.${index}.receipt`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="Plaque d'immatriculation"
+                                                        value={transporter.numberPlate || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_transporters: prev.other_transporters?.map((t, i) => 
+                                                                    i === index 
+                                                                        ? { ...t, numberPlate: value }
+                                                                        : t
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_transporters.${index}.numberPlate`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="Date de prise en charge"
+                                                        value={transporter.takenOverAt || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_transporters: prev.other_transporters?.map((t, i) => 
+                                                                    i === index 
+                                                                        ? { ...t, takenOverAt: value }
+                                                                        : t
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_transporters.${index}.takenOverAt`}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-gray-500 text-sm">Aucun transporteur supplémentaire</p>
+                                    )}
+                                    <button
+                                        onClick={() => {
+                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                ...prev,
+                                                other_transporters: [
+                                                    ...(prev.other_transporters || []),
+                                                    {
+                                                        company: {
+                                                            name: "",
+                                                            siret: "",
+                                                            address: "",
+                                                            country: "",
+                                                            contact: "",
+                                                            phone: "",
+                                                            mail: ""
+                                                        },
+                                                        receipt: "",
+                                                        numberPlate: "",
+                                                        takenOverAt: "",
+                                                        isExemptedOfReceipt: false
+                                                    }
+                                                ]
+                                            }));
+                                        }}
+                                        className="text-sm text-violet-600 hover:text-violet-800"
+                                    >
+                                        + Ajouter un transporteur supplémentaire
+                                    </button>
+                                </div>
+                            )}
                         </div>                        
 
                     </div>
@@ -725,6 +934,111 @@ const ModifyCard = () => {
                                     onChange={handleChange}
                                     path="recipient.processingOperation"
                                 />
+                                
+                                {/* Section ValoParts */}
+                                {localData.recipient?.valoParts && localData.recipient.valoParts.length > 0 && (
+                                    <div className="mt-3 p-2 bg-gray-50 rounded border">
+                                        <h4 className="font-medium text-gray-700 mb-2">Valorisation éclatée</h4>
+                                        <div className="space-y-2">
+                                            {localData.recipient.valoParts.map((part: { code_valo: string; tonnage: number }, partIndex: number) => (
+                                                <div key={partIndex} className="flex justify-start space-x-2">
+                                                    <div className="flex-2">
+                                                        <LabelInput 
+                                                            label="Code D/R"
+                                                            value={part.code_valo}
+                                                            onChange={(_, value) => {
+                                                                setLocalData(prev => {
+                                                                    if (!prev?.recipient?.valoParts) return prev;
+                                                                    const newData = { ...prev };
+                                                                    if (newData.recipient.valoParts) {
+                                                                        newData.recipient.valoParts[partIndex].code_valo = value;
+                                                                    }
+                                                                    return newData;
+                                                                });
+                                                            }}
+                                                            path={`valoParts.${partIndex}.code_valo`}
+                                                            inputWidth="w-[60px]"
+                                                        />
+                                                    </div>
+                                                    <div className="flex-2">
+                                                        <LabelInput 
+                                                            label="Tonnage"
+                                                            value={part.tonnage?.toString() || ""}
+                                                            onChange={(_, value) => {
+                                                                setLocalData(prev => {
+                                                                    if (!prev?.recipient?.valoParts) return prev;
+                                                                    const newData = { ...prev };
+                                                                    if (newData.recipient.valoParts) {
+                                                                        const numValue = value === "" ? 0 : parseFloat(value) || 0;
+                                                                        newData.recipient.valoParts[partIndex].tonnage = numValue;
+                                                                    }
+                                                                    return newData;
+                                                                });
+                                                            }}
+                                                            path={`valoParts.${partIndex}.tonnage`}
+                                                            inputWidth="w-[60px]"
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setLocalData(prev => {
+                                                                if (!prev?.recipient?.valoParts) return prev;
+                                                                const newData = { ...prev };
+                                                                if (newData.recipient.valoParts) {
+                                                                    newData.recipient.valoParts = newData.recipient.valoParts.filter((_: any, pi: number) => pi !== partIndex);
+                                                                }
+                                                                return newData;
+                                                            });
+                                                        }}
+                                                        className="text-red-600 hover:text-red-800 p-1"
+                                                        title="Supprimer cette partie"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setLocalData(prev => {
+                                                    if (!prev?.recipient) return prev;
+                                                    const newData = { ...prev };
+                                                    if (!newData.recipient.valoParts) {
+                                                        newData.recipient.valoParts = [];
+                                                    }
+                                                    newData.recipient.valoParts.push({
+                                                        code_valo: "",
+                                                        tonnage: 0
+                                                    });
+                                                    return newData;
+                                                });
+                                            }}
+                                            className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                                        >
+                                            + Ajouter une partie de valorisation
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Bouton pour ajouter des valoParts si elles n'existent pas */}
+                                {(!localData.recipient?.valoParts || localData.recipient.valoParts.length === 0) && (
+                                    <button
+                                        onClick={() => {
+                                            setLocalData(prev => {
+                                                if (!prev?.recipient) return prev;
+                                                const newData = { ...prev };
+                                                newData.recipient.valoParts = [{
+                                                    code_valo: "",
+                                                    tonnage: 0
+                                                }];
+                                                return newData;
+                                            });
+                                        }}
+                                        className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                                    >
+                                        + Ajouter des parties de valorisation
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -786,6 +1100,34 @@ const ModifyCard = () => {
                                     onChange={handleChange}
                                     path="wasteDetails.packagingInfos.quantity"
                                 />
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Trié: </span>
+                                    <input
+                                        type="checkbox"
+                                        checked={otherInfos.tri || false}
+                                        onChange={(e) => {
+                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                ...prev,
+                                                tri: e.target.checked
+                                            }));
+                                        }}
+                                        className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                                    />
+                                </div>
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Rupture de traçabilité: </span>
+                                    <input
+                                        type="checkbox"
+                                        checked={localData.noTraceability || false}
+                                        onChange={(e) => {
+                                            setLocalData(prev => {
+                                                if (!prev) return prev;
+                                                return { ...prev, noTraceability: e.target.checked };
+                                            });
+                                        }}
+                                        className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -1009,6 +1351,320 @@ const ModifyCard = () => {
                                     />
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Section Destinataires supplémentaires */}
+                        <div className="bg-emerald-50 p-3 rounded border border-emerald-100 mt-4">
+                            <div className="flex justify-between items-center mb-2">
+                                <h3 className="font-semibold text-emerald-800">Destinataires supplémentaires</h3>
+                                <button
+                                    onClick={() => setShowOtherRecipients(!showOtherRecipients)}
+                                    className="text-emerald-600 hover:text-emerald-800 text-sm"
+                                >
+                                    {showOtherRecipients ? 'Masquer' : 'Afficher'}
+                                </button>
+                            </div>
+                            {showOtherRecipients && (
+                                <div className="space-y-4">
+                                    {otherInfos.other_recipients && otherInfos.other_recipients.length > 0 ? (
+                                        otherInfos.other_recipients.map((recipient, index) => (
+                                            <div key={index} className="p-3 bg-gray-50 rounded border border-emerald-200">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <h4 className="font-medium text-emerald-700">Destinataire {index + 2}</h4>
+                                                    <button
+                                                        onClick={() => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_recipients: prev.other_recipients?.filter((_, i) => i !== index) || []
+                                                            }));
+                                                        }}
+                                                        className="text-red-600 hover:text-red-800 p-1"
+                                                        title="Supprimer ce destinataire"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <LabelInput 
+                                                        label="Nom"
+                                                        value={recipient.company?.name || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                    i === index 
+                                                                        ? { ...r, company: { ...r.company, name: value } }
+                                                                        : r
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_recipients.${index}.company.name`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="SIRET"
+                                                        value={recipient.company?.siret || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                    i === index 
+                                                                        ? { ...r, company: { ...r.company, siret: value } }
+                                                                        : r
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_recipients.${index}.company.siret`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="Adresse"
+                                                        value={recipient.company?.address || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                    i === index 
+                                                                        ? { ...r, company: { ...r.company, address: value } }
+                                                                        : r
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_recipients.${index}.company.address`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="Contact"
+                                                        value={recipient.company?.contact || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                    i === index 
+                                                                        ? { ...r, company: { ...r.company, contact: value } }
+                                                                        : r
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_recipients.${index}.company.contact`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="Téléphone"
+                                                        value={recipient.company?.phone || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                    i === index 
+                                                                        ? { ...r, company: { ...r.company, phone: value } }
+                                                                        : r
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_recipients.${index}.company.phone`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="Email"
+                                                        value={recipient.company?.mail || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                    i === index 
+                                                                        ? { ...r, company: { ...r.company, mail: value } }
+                                                                        : r
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_recipients.${index}.company.mail`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="CAP"
+                                                        value={recipient.cap || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                    i === index 
+                                                                        ? { ...r, cap: value }
+                                                                        : r
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_recipients.${index}.cap`}
+                                                    />
+                                                    <LabelInput 
+                                                        label="Code de traitement"
+                                                        value={recipient.processingOperation || ""}
+                                                        onChange={(_, value) => {
+                                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                ...prev,
+                                                                other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                    i === index 
+                                                                        ? { ...r, processingOperation: value }
+                                                                        : r
+                                                                ) || []
+                                                            }));
+                                                        }}
+                                                        path={`other_recipients.${index}.processingOperation`}
+                                                    />
+                                                    
+                                                    {/* Section ValoParts pour les destinataires supplémentaires */}
+                                                    {recipient.valoParts && recipient.valoParts.length > 0 && (
+                                                        <div className="mt-3 p-2 bg-gray-50 rounded border">
+                                                            <h5 className="font-medium text-gray-700 mb-2">Valorisation éclatée</h5>
+                                                            <div className="space-y-2">
+                                                                {recipient.valoParts.map((part: { code_valo: string; tonnage: number }, partIndex: number) => (
+                                                                    <div key={partIndex} className="flex justify-start space-x-2">
+                                                                        <div className="flex-2">
+                                                                            <LabelInput 
+                                                                                label="Code D/R"
+                                                                                value={part.code_valo}
+                                                                                onChange={(_, value) => {
+                                                                                    setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                                        ...prev,
+                                                                                        other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                                            i === index 
+                                                                                                ? { 
+                                                                                                    ...r, 
+                                                                                                    valoParts: r.valoParts?.map((p: { code_valo: string; tonnage: number }, pi: number) => 
+                                                                                                        pi === partIndex 
+                                                                                                            ? { ...p, code_valo: value }
+                                                                                                            : p
+                                                                                                    ) || []
+                                                                                                }
+                                                                                                : r
+                                                                                        ) || []
+                                                                                    }));
+                                                                                }}
+                                                                                path={`other_recipients.${index}.valoParts.${partIndex}.code_valo`}
+                                                                                inputWidth="w-[60px]"
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex-2">
+                                                                            <LabelInput 
+                                                                                label="Tonnage"
+                                                                                value={part.tonnage?.toString() || ""}
+                                                                                onChange={(_, value) => {
+                                                                                    setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                                        ...prev,
+                                                                                        other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                                            i === index 
+                                                                                                ? { 
+                                                                                                    ...r, 
+                                                                                                    valoParts: r.valoParts?.map((p: { code_valo: string; tonnage: number }, pi: number) => 
+                                                                                                        pi === partIndex 
+                                                                                                            ? { ...p, tonnage: Number(value) || 0 }
+                                                                                                            : p
+                                                                                                    ) || []
+                                                                                                }
+                                                                                                : r
+                                                                                        ) || []
+                                                                                    }));
+                                                                                }}
+                                                                                path={`other_recipients.${index}.valoParts.${partIndex}.tonnage`}
+                                                                                inputWidth="w-[60px]"
+                                                                            />
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                                    ...prev,
+                                                                                    other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                                        i === index 
+                                                                                            ? { 
+                                                                                                ...r, 
+                                                                                                valoParts: r.valoParts?.filter((_: any, pi: number) => pi !== partIndex) || []
+                                                                                            }
+                                                                                            : r
+                                                                                    ) || []
+                                                                                }));
+                                                                            }}
+                                                                            className="text-red-600 hover:text-red-800 p-1"
+                                                                            title="Supprimer cette partie"
+                                                                        >
+                                                                            ✕
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                        ...prev,
+                                                                        other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                            i === index 
+                                                                                ? { 
+                                                                                    ...r, 
+                                                                                    valoParts: [
+                                                                                        ...(r.valoParts || []),
+                                                                                        { code_valo: "", tonnage: 0 }
+                                                                                    ]
+                                                                                }
+                                                                                : r
+                                                                        ) || []
+                                                                    }));
+                                                                }}
+                                                                className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                                                            >
+                                                                + Ajouter une partie de valorisation
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Bouton pour ajouter des valoParts si elles n'existent pas */}
+                                                    {(!recipient.valoParts || recipient.valoParts.length === 0) && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                                    ...prev,
+                                                                    other_recipients: prev.other_recipients?.map((r, i) => 
+                                                                        i === index 
+                                                                            ? { 
+                                                                                ...r, 
+                                                                                valoParts: [{ code_valo: "", tonnage: 0 }]
+                                                                            }
+                                                                            : r
+                                                                    ) || []
+                                                                }));
+                                                            }}
+                                                            className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                                                        >
+                                                            + Ajouter des parties de valorisation
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-gray-500 text-sm">Aucun destinataire supplémentaire</p>
+                                    )}
+                                    <button
+                                        onClick={() => {
+                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                ...prev,
+                                                other_recipients: [
+                                                    ...(prev.other_recipients || []),
+                                                    {
+                                                        company: {
+                                                            name: "",
+                                                            siret: "",
+                                                            address: "",
+                                                            country: "",
+                                                            contact: "",
+                                                            phone: "",
+                                                            mail: ""
+                                                        },
+                                                        cap: "",
+                                                        processingOperation: "",
+                                                        valoParts: []
+                                                    }
+                                                ]
+                                            }));
+                                        }}
+                                        className="text-sm text-emerald-600 hover:text-emerald-800"
+                                    >
+                                        + Ajouter un destinataire supplémentaire
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                     </div>
