@@ -1,4 +1,4 @@
-import { FormInput, OtherInfos } from "@/app/register/interface/BSD_Interface";
+/*import { FormInput, OtherInfos } from "@/app/register/interface/BSD_Interface";
 import { useModalContextNew } from "../ContextModal";
 import InputFull from "./InputFull";
 import { formatText, getDataAutocompletion, getMappingTableFiliere, getFiliere, filter_dependencies } from "./utils_new";
@@ -514,7 +514,7 @@ useEffect(() => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col items-center z-50">
             <div className="bg-white w-full min-h-screen flex flex-col">
-                {/* Header */}
+                {/* Header 
                 <div className="sticky top-0 bg-white p-3 border-b border-gray-200 z-10">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <h3 className="font-bold text-base flex items-center gap-2">
@@ -542,14 +542,14 @@ useEffect(() => {
                     </div>
                 </div>
                 
-                {/* Content */}
+                {/* Content 
                 <div className="flex-1 overflow-y-auto p-3">
                     <form className="space-y-4 pb-32 pr-6">
-                    {/* Section Point de départ */}
+                    {/* Section Point de départ 
                         <div className="border-b border-gray-200 pb-4">
                         <div className="text-sm font-semibold mb-2 text-gray-700">Point de départ</div>
                             <div className="space-y-2">
-                        {/* Site */}
+                        {/* Site 
                                 {getDisplayConditions().site && (
                                     <div className="flex flex-col gap-0">
                         <InputMobile
@@ -579,7 +579,7 @@ useEffect(() => {
                                     </div>
                                 )}
                         
-                        {/* Point de Collecte */}
+                        {/* Point de Collecte  
                                 {getDisplayConditions().workSite && (
                                     <div className="flex flex-col gap-0">
                         <InputMobile
@@ -609,7 +609,7 @@ useEffect(() => {
                                     </div>
                                 )}
                         
-                                {/* Contact */}
+                                {/* Contact  
                                 <div className="flex flex-col gap-0">
                         <InputMobile
                             titre="Contact"
@@ -653,11 +653,11 @@ useEffect(() => {
                         </div>
                     </div>
 
-                    {/* Section Déchet */}
+                    {/* Section Déchet  
                         <div className="border-b border-gray-200 pb-4">
                         <div className="text-sm font-semibold mb-2 text-gray-700">Déchet</div>
                             <div className="space-y-1">
-                        {/* Filière */}
+                        {/* Filière  
                                 <div className="flex flex-col gap-0">
                         <InputMobile
                             titre="Filière"
@@ -674,7 +674,7 @@ useEffect(() => {
                         />
                                 </div>
                         
-                        {/* Déchet */}
+                        {/* Déchet  
                                 <div className="flex flex-col gap-0">
                         <InputMobile
                             titre="Déchet"
@@ -704,7 +704,7 @@ useEffect(() => {
                         )}
                                 </div>
 
-                                {/* Sujet à l'ADR */}
+                                {/* Sujet à l'ADR  
                                 {displayAll && (
                                     <div className="flex flex-col gap-0">
                         <InputMobile
@@ -734,7 +734,7 @@ useEffect(() => {
                         </div>
                                 )}
 
-                                {/* Remplissage et Nombre */}
+                                {/* Remplissage et Nombre  
                                 <div className="flex flex-col gap-0">
                         <InputMobile
                             titre="Rempli."
@@ -768,7 +768,7 @@ useEffect(() => {
                         />
                                 </div>
 
-                                {/* Poids et Type */}
+                                {/* Poids et Type  
                                 <div className="flex flex-col gap-0">
                         <InputMobile
                             titre="Poids"
@@ -817,7 +817,7 @@ useEffect(() => {
                         />
                                 </div>
 
-                                {/* Consistance et Pop */}
+                                {/* Consistance et Pop  
                                 <div className="flex flex-col gap-0">
                         <InputMobile
                             titre="Pop"
@@ -838,7 +838,7 @@ useEffect(() => {
                             </div>
                     
 
-                                {/* Contenant */}
+                                {/* Contenant  
                                 <div className="flex flex-col gap-0 mt-2">
                                     <InputMobile
                                         titre="Contenant"
@@ -856,7 +856,7 @@ useEffect(() => {
                                         display={false}
                                         onMobile={true}
                                     />
-                                     {/* Nouveaux champs pour other_infos */}
+                                     {/* Nouveaux champs pour other_infos  
                                     <InputMobile
                                         titre="Contenant"
                                         placeholder="Description du contenant"
@@ -889,7 +889,7 @@ useEffect(() => {
                                     />
                                 </div>
 
-                                {/* Unité et Description */}
+                                {/* Unité et Description  
                                 <div className="flex flex-col gap-0">
                                     <InputMobile
                                         titre="Unité"
@@ -913,11 +913,11 @@ useEffect(() => {
                         </div>                 
 
 
-                    {/* Section Prestataires */}
+                    {/* Section Prestataires  
                         <div className="border-b border-gray-200 pb-4">
                             <div className="text-sm font-semibold mb-2 text-gray-700">Prestataires</div>
                             <div className="space-y-2">
-                        {/* Transporteur */}
+                        {/* Transporteur  
                                 <div className="flex flex-col gap-0">
                         <InputMobile
                             titre="Transport"
@@ -1017,7 +1017,7 @@ useEffect(() => {
                         />                                                                             
                     </div>
 
-                                {/* Destinataire */}
+                                {/* Destinataire  
                                 <div className="flex flex-col gap-0">
                         <InputMobile
                             titre="Dest."
@@ -1045,7 +1045,7 @@ useEffect(() => {
                         />
                                 </div>
 
-                                {/* Contact Destinataire */}
+                                {/* Contact Destinataire  
                                 <div className="flex flex-col gap-0">
                                     <InputMobile
                                         titre="Contact"
@@ -1085,7 +1085,7 @@ useEffect(() => {
                                     />
                                 </div>
 
-                                {/* Adresse Destinataire */}
+                                {/* Adresse Destinataire  
                                 <div className="flex flex-col gap-0">
                                     <InputMobile
                                         titre="Adresse"
@@ -1113,7 +1113,7 @@ useEffect(() => {
                         />
                                 </div>
 
-                                {/* Opération d'élimination */}
+                                {/* Opération d'élimination  
                                 <div className="flex flex-col gap-0">
                         <InputMobile
                             titre="Traitement"
@@ -1146,7 +1146,7 @@ useEffect(() => {
                         </div>
                     </div>
 
-                    {/* Section Date de collecte */}
+                    {/* Section Date de collecte  
                     <div>
                         <div className="text-sm font-semibold mb-2 text-gray-700">Date de collecte</div>
                         <div className="flex flex-col gap-0">
@@ -1181,7 +1181,7 @@ useEffect(() => {
                         </div>
                     </div>                    
 
-                    {/* Composants de bas de page */}
+                    {/* Composants de bas de page  
                     <div className="space-y-4 mt-6">
                         {(entreprise_id && modalType !== 'create_line') && (
                             <div className="border-t border-gray-200 pt-4">
@@ -1428,5 +1428,4 @@ const preciseFilter = (
 };
 
 
-
-
+*/
