@@ -4,6 +4,7 @@ import { Dialog } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { BSDCerfa } from './ExtractBSD';
 import { RowBSD } from '@/app/register/interface/BSD_Interface';
+import CreateLineBasedOnBSDPDF from './CreateLineBasedOnBSDPDF';
 
 interface LinkBSDComponentProps {
   setIsModalOpen: (open: boolean) => void;
@@ -14,6 +15,7 @@ interface LinkBSDComponentProps {
   setselectedBsdId: (id: string) => void;
   isModalOpen: boolean;
   bsdPdf: BSDCerfa | null;
+  pdf_id: number;
   filteredCandidateBSDs: RowBSD[];
   allBSDs: RowBSD[];
   loading: boolean;
@@ -59,6 +61,7 @@ export const LinkBSDComponent = ({
   setselectedBsdId,
   isModalOpen,
   bsdPdf,
+  pdf_id,
   filteredCandidateBSDs,
   allBSDs,
   loading,
@@ -687,20 +690,23 @@ export const LinkBSDComponent = ({
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    onClick={handleLink}
-                    disabled={!selectedBsdId || loading}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? 'Liaison...' : 'Lier'}
-                  </button>
+                <div className="flex justify-between items-center">
+                    {bsdPdf && <CreateLineBasedOnBSDPDF bsdPdf={bsdPdf} pdf_id={pdf_id} />}
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      onClick={() => setIsModalOpen(false)}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={handleLink}
+                      disabled={!selectedBsdId || loading}
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {loading ? 'Liaison...' : 'Lier'}
+                    </button>
+                  </div>
                 </div>
               </>
             )}

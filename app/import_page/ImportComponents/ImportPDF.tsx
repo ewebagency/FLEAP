@@ -19,6 +19,9 @@ const ImportPDF = () => {
     const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
     const [selectedFileType, setSelectedFileType] = useState<'pdf' | 'excel'>('pdf');
     const [showFileTypeMenu, setShowFileTypeMenu] = useState(false);
+    const [showDuplicateAlert, setShowDuplicateAlert] = useState(false);
+    const [duplicateFiles, setDuplicateFiles] = useState<string[]>([]);
+    const [pendingFiles, setPendingFiles] = useState<File[]>([]);
     const session = useSession() as SessionMore;
     const user_id = session?.user_id;
     const entreprise_id = session?.entreprise_id;
@@ -40,13 +43,39 @@ const ImportPDF = () => {
         };
     }, []);
 
+    // Fonction pour vérifier les doublons
+    const checkDuplicates = async (files: File[]): Promise<string[]> => {
+        if (!entreprise_id) return [];
+
+        // Récupérer tous les PDFs existants de l'entreprise
+        const { data: existingPdfs, error } = await supabase
+            .from('pdf_infos')
+            .select('name_pdf')
+            .eq('entreprise_id', entreprise_id);
+
+        if (error) {
+            console.error('Erreur lors de la récupération des PDFs existants:', error);
+            return [];
+        }
+
+        const existingFileNames = existingPdfs?.map(pdf => pdf.name_pdf) || [];
+        const newFileNames = files.map(file => file.name);
+        
+        // Trouver les doublons
+        const duplicates = newFileNames.filter(fileName => 
+            existingFileNames.includes(fileName)
+        );
+
+        return duplicates;
+    };
+
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
         if (files) {
             if (selectedFileType === 'pdf') {
                 const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
                 if (pdfFiles.length > 0) {
-                    handleFilesUpload(pdfFiles);
+                    handleFilesSelection(pdfFiles);
                 } else {
                     alert("Veuillez sélectionner des fichiers PDF.");
                 }
@@ -74,7 +103,7 @@ const ImportPDF = () => {
         if (selectedFileType === 'pdf') {
             const pdfFiles = files.filter(file => file.type === 'application/pdf');
             if (pdfFiles.length > 0) {
-                handleFilesUpload(pdfFiles);
+                handleFilesSelection(pdfFiles);
             } else {
                 alert("Veuillez déposer des fichiers PDF.");
             }
@@ -93,6 +122,46 @@ const ImportPDF = () => {
             fileInputRef.current.value = '';
         }
     }, [selectedFileType]);
+
+    // Nouvelle fonction pour gérer la sélection de fichiers
+    const handleFilesSelection = async (files: File[]) => {
+        if (!user_id) {
+            alert("Veuillez vous connecter pour importer des fichiers.");
+            return;
+        }
+        if (!entreprise_id) {
+            alert("Vous devez être associé à une entreprise pour importer des fichiers.");
+            return;
+        }
+
+        // Vérifier les doublons
+        const duplicates = await checkDuplicates(files);
+        
+        if (duplicates.length > 0) {
+            // Afficher l'alerte de doublons
+            setDuplicateFiles(duplicates);
+            setPendingFiles(files);
+            setShowDuplicateAlert(true);
+        } else {
+            // Pas de doublons, procéder à l'import
+            handleFilesUpload(files);
+        }
+    };
+
+    // Fonction pour confirmer l'import malgré les doublons
+    const confirmImportWithDuplicates = () => {
+        setShowDuplicateAlert(false);
+        handleFilesUpload(pendingFiles);
+        setPendingFiles([]);
+        setDuplicateFiles([]);
+    };
+
+    // Fonction pour annuler l'import
+    const cancelImport = () => {
+        setShowDuplicateAlert(false);
+        setPendingFiles([]);
+        setDuplicateFiles([]);
+    };
 
     const handleFilesUpload = async (files: File[]) => {
         if (!user_id) {
@@ -237,6 +306,41 @@ const ImportPDF = () => {
 
     return (
         <div className="flex flex-col items-center w-full">
+            {/* Modal d'alerte pour les doublons */}
+            {showDuplicateAlert && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                        <h3 className="text-lg font-semibold text-red-600 mb-4">
+                            Nous voyons des doublons
+                        </h3>
+                        <p className="text-gray-700 mb-4">
+                            Les fichiers suivants existent déjà dans votre entreprise :
+                        </p>
+                        <ul className="bg-gray-100 p-3 rounded mb-4 max-h-32 overflow-y-auto">
+                            {duplicateFiles.map((fileName, index) => (
+                                <li key={index} className="text-sm text-gray-600 mb-1">
+                                    • {fileName}
+                                </li>
+                            ))}
+                        </ul>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={cancelImport}
+                                className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                onClick={confirmImportWithDuplicates}
+                                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                            >
+                                Importer quand même
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div 
                 className="border-[1px] border-dashed border-gray-400 p-4 rounded-md w-full text-center cursor-pointer"
                 onDrop={handleDrop}

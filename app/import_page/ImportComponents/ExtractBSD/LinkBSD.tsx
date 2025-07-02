@@ -851,6 +851,7 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
     setselectedBsdId={setselectedBsdId}
       isModalOpen={isModalOpen}
       bsdPdf={bsdPdf}
+      pdf_id={pdf_id}
       filteredCandidateBSDs={filteredCandidateBSDs}
       allBSDs={allBSDs}
       loading={loading}
