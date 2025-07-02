@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { useSession } from '@/app/component/SessionProvider';
 import { BSDCerfa } from './ExtractBSD';
 import { RowBSD } from '@/app/register/interface/BSD_Interface';
+import { LinkBSDComponent } from './LinkBSDComponent';
 
 
 interface LinkBSDProps {
@@ -89,58 +90,239 @@ function extractValidDates(infos: BSDInfos): Date[] {
   return dates.filter((date): date is Date => date !== null && !isNaN(date.getTime()));
 }
 
-export default function LinkBSD({ pdf_id }: LinkBSDProps) {
+export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBsdId, setselectedBsdId] = useState<string>('');
   const [bsdPdf, setBsdPdf] = useState<BSDCerfa | null>(null);
   const [candidateBSDs, setCandidateBSDs] = useState<RowBSD[]>([]);
   const [filteredCandidateBSDs, setFilteredCandidateBSDs] = useState<RowBSD[]>([]);
+  const [allBSDs, setAllBSDs] = useState<RowBSD[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [minDate, setMinDate] = useState<Date | null>(null);
   const [maxDate, setMaxDate] = useState<Date | null>(null);
-  const [siteAddresses, setSiteAddresses] = useState<{[key: string]: string}>({});
-  const [filterLevel, setFilterLevel] = useState<number>(1); // Niveau de filtrage (1-4)
+  const [siteAddresses, setSiteAddresses] = useState<{[key: string]: {adresse: string, nom: string}}>({});
+  const [pdfSiteName, setPdfSiteName] = useState<string>('');
+  // Nouveaux états pour les filtres individuels
+  const [codeCEDFilter, setCodeCEDFilter] = useState<boolean>(true);
+  const [siretSirenFilter, setSiretSirenFilter] = useState<boolean>(true);
+  const [addressFilter, setAddressFilter] = useState<boolean>(true);
+  const [dateFilter, setDateFilter] = useState<boolean>(true);
+  const [tonnageFilter, setTonnageFilter] = useState<boolean>(true);
+  const [dateRange, setDateRange] = useState<number>(10); // Marge de jours pour le filtre de date
+  const [tonnageRange, setTonnageRange] = useState<number>(5); // Marge de pourcentage pour le filtre de tonnage
   const [addressSimilarityThreshold, setAddressSimilarityThreshold] = useState<number>(40); // Seuil de similarité d'adresse
   const [nameSimilarityThreshold, setNameSimilarityThreshold] = useState<number>(0); // Seuil de similarité de nom
+  const [customFilters, setCustomFilters] = useState<Array<{id: string, text: string, enabled: boolean}>>([]); // Filtres personnalisés
+  const [newFilterText, setNewFilterText] = useState<string>(''); // Texte du nouveau filtre
+  const [dataReady, setDataReady] = useState<boolean>(false); // État pour indiquer que toutes les données sont prêtes
   const { entreprise_id } = useSession();
 
-  // Configuration des niveaux de filtrage
-  const filterLevels = {
-    1: {
-      name: "Strict",
-      description: "Code CED + SIRET/SIREN + Dates précises + Adresse ≥40%",
-      dateRange: { priseEnCharge: 3, presentation: 15, traitement: 20, declaration: 30, fallback: 35 },
-      addressThreshold: 40,
-      nameThreshold: 0
-    },
-    2: {
-      name: "Modéré", 
-      description: "Code CED + SIRET/SIREN + Dates étendues",
-      dateRange: { priseEnCharge: 7, presentation: 30, traitement: 40, declaration: 60, fallback: 70 },
-      addressThreshold: 30,
-      nameThreshold: 0
-    },
-    3: {
-      name: "Large",
-      description: "Code CED + Dates très étendues",
-      dateRange: { priseEnCharge: 15, presentation: 60, traitement: 80, declaration: 120, fallback: 140 },
-      addressThreshold: 0,
-      nameThreshold: 0
-    },
-    4: {
-      name: "Très large",
-      description: "Code CED uniquement",
-      dateRange: { priseEnCharge: 30, presentation: 120, traitement: 160, declaration: 240, fallback: 280 },
-      addressThreshold: 0,
-      nameThreshold: 0
-    }
+  // Configuration des filtres individuels
+  const filterConfig = {
+    dateRange: dateRange,
+    tonnageRange: tonnageRange,
+    addressThreshold: addressSimilarityThreshold,
+    nameThreshold: nameSimilarityThreshold
   };
 
-  const fetchBSDData = async (level: number = filterLevel) => {
+  // Fonction centralisée pour appliquer tous les filtres et calculer les scores
+  const applyAllFilters = (pdfCodeCED: string, pdfDestinataireSiret: string, pdfTransporteurSiren: string, minDate: Date, maxDate: Date, pdfSiteNames: string[] = []) => {
+    console.log('applyAllFilters appelé avec:', {
+      pdfCodeCED,
+      pdfDestinataireSiret,
+      pdfTransporteurSiren,
+      minDate,
+      maxDate,
+      pdfSiteNames,
+      allBSDsLength: allBSDs.length,
+      filters: { codeCEDFilter, siretSirenFilter, dateFilter, tonnageFilter, addressFilter }
+    });
+
+    // Si aucun filtre n'est activé, afficher tous les BSDs
+    if (!codeCEDFilter && !siretSirenFilter && !dateFilter && !tonnageFilter && !addressFilter && customFilters.length === 0) {
+      console.log('Aucun filtre activé, affichage de tous les BSDs');
+      setCandidateBSDs(allBSDs);
+      setFilteredCandidateBSDs(allBSDs);
+      return allBSDs.map(bsd => ({ bsd, passesAllFilters: true }));
+    }
+
+    // Extraire les dates spécifiques du PDF
+    const datePriseEnCharge = cleanDate(bsdPdf?.collecteurTransporteur?.datePriseEnCharge);
+    const datePresentation = cleanDate(bsdPdf?.declarationEmetteur?.date);
+    const dateTraitement = cleanDate(bsdPdf?.realisationOperation?.date);
+    const dateDeclaration = cleanDate(bsdPdf?.declarationEmetteur?.date);
+
+    // Calculer la plage de dates pour le filtrage
+    let startDate: Date, endDate: Date;
+    
+    if (dateFilter) {
+      if (datePriseEnCharge) {
+        startDate = new Date(datePriseEnCharge);
+        startDate.setDate(datePriseEnCharge.getDate() - dateRange);
+        endDate = new Date(datePriseEnCharge);
+        endDate.setDate(datePriseEnCharge.getDate() + dateRange);
+      } else if (datePresentation) {
+        startDate = new Date(datePresentation);
+        startDate.setDate(datePresentation.getDate() - dateRange);
+        endDate = new Date(datePresentation);
+        endDate.setDate(datePresentation.getDate() + dateRange);
+      } else if (dateTraitement) {
+        startDate = new Date(dateTraitement);
+        startDate.setDate(dateTraitement.getDate() - dateRange);
+        endDate = new Date(dateTraitement);
+        endDate.setDate(dateTraitement.getDate() + dateRange);
+      } else if (dateDeclaration) {
+        startDate = new Date(dateDeclaration);
+        startDate.setDate(dateDeclaration.getDate() - dateRange);
+        endDate = new Date(dateDeclaration);
+        endDate.setDate(dateDeclaration.getDate() + dateRange);
+      } else {
+        startDate = new Date(minDate);
+        startDate.setDate(minDate.getDate() - dateRange);
+        endDate = new Date(maxDate);
+        endDate.setDate(maxDate.getDate() + dateRange);
+      }
+    } else {
+      // Si le filtre de date est désactivé, utiliser une plage très large
+      startDate = new Date(minDate);
+      startDate.setDate(minDate.getDate() - 365);
+      endDate = new Date(maxDate);
+      endDate.setDate(maxDate.getDate() + 365);
+    }
+
+    // Appliquer tous les filtres et calculer les scores
+    const filteredResults = allBSDs.map(bsd => {
+      // Récupérer les données du BSD
+      const bsdCodeCED = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code?.replace(/[\s*]/g, '') || '';
+      const bsdDestinataireSiret = bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret?.replace(/\s/g, '') || '';
+      const bsdTransporteurSiret = bsd.infos_json?.formAPI?.createFormInput?.transporter?.company?.siret?.replace(/\s/g, '') || '';
+      const bsdEmitterName = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.name || '';
+      const bsdWorkSiteName = bsd.infos_json?.formAPI?.createFormInput?.emitter?.workSite?.name || '';
+      const bsdCreatedDate = new Date(bsd.created_at);
+      const bsdTonnage = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+
+      // Récupérer les données du PDF
+      const pdfTransporteurName = bsdPdf?.collecteurTransporteur?.nom || '';
+      const pdfDestinataireName = bsdPdf?.installationDestination?.nom || '';
+      const pdfEmitterName = bsdPdf?.emetteur?.nom || '';
+      const pdfAddress = bsdPdf?.emetteur?.adresse || '';
+      const pdfTonnage = bsdPdf?.dechet?.poids || 0;
+      const pdfTonnageHeure = Number(bsdPdf?.expedition?.heure) || 0;
+
+      // Calculer les correspondances pour chaque critère
+      const results = {
+        bsd,
+        // Filtre Code CED
+        codeCEDMatch: codeCEDFilter ? bsdCodeCED.slice(0, 5) === pdfCodeCED.slice(0, 5) : true,
+        
+        // Filtre SIRET/SIREN et noms - CORRECTION: il suffit d'avoir UN match (transporteur OU destinataire)
+        transporteurMatch: siretSirenFilter ? (
+          compareSirenSiret(pdfTransporteurSiren, bsdTransporteurSiret) ||
+          compareCompanyNames(pdfTransporteurName, bsd.infos_json?.formAPI?.createFormInput?.transporter?.company?.name || '', 4)
+        ) : true,
+        
+        destinataireMatch: siretSirenFilter ? (
+          compareSirenSiret(pdfDestinataireSiret, bsdDestinataireSiret) ||
+          compareCompanyNames(pdfDestinataireName, bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.name || '', 4)
+        ) : true,
+        
+        // Filtre Dates
+        dateMatch: dateFilter ? (bsdCreatedDate >= startDate && bsdCreatedDate <= endDate) : true,
+        
+        // Filtre Tonnage - CORRECTION: ne filtrer que si le PDF a un tonnage
+        tonnageMatch: tonnageFilter && pdfTonnage > 0 ? (
+          bsdTonnage > 0 ? (
+            bsdTonnage >= pdfTonnage * (1 - tonnageRange / 100) && 
+            bsdTonnage <= pdfTonnage * (1 + tonnageRange / 100)
+          ) : true // Si le BSD n'a pas de tonnage, ne pas filtrer
+        ) : true,
+
+        // Filtre Tonnage Heure - CORRECTION: ne filtrer que si le PDF a un tonnage heure
+        tonnageHeureMatch: tonnageFilter && pdfTonnageHeure > 0 ? (
+          bsdTonnage > 0 ? (
+            bsdTonnage >= pdfTonnageHeure * (1 - tonnageRange / 100) && 
+            bsdTonnage <= pdfTonnageHeure * (1 + tonnageRange / 100)
+          ) : true // Si le BSD n'a pas de tonnage heure, ne pas filtrer
+        ) : true,
+        
+        
+        // Filtre Sites (noms) - CORRECTION: ne filtrer que si on a des noms de sites
+        siteNameMatch: addressFilter && pdfSiteNames.length > 0 ? (
+          pdfSiteNames.some(pdfSiteName => 
+            compareCompanyNames(pdfSiteName, bsdEmitterName, 4) ||
+            (bsdWorkSiteName && compareCompanyNames(pdfSiteName, bsdWorkSiteName, 4))
+          )
+        ) : true,
+        
+        // Filtre Sites (codes postaux) - CORRECTION: ne filtrer que si on a des adresses
+        postalCodeMatch: addressFilter && pdfAddress ? (() => {
+          const siret = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret?.replace(/\s/g, '');
+          const candidateAddress = siteAddresses[siret]?.adresse || '';
+          return comparePostalCodes(pdfAddress, candidateAddress);
+        })() : true,
+        
+        // Filtres personnalisés
+        customFiltersMatch: matchesCustomFilters(bsd),
+        
+        // Scores de similarité pour l'affichage
+        nameSimilarity: calculateSimilarity(pdfEmitterName, bsdEmitterName),
+        
+        // Correspondance spécifique du nom du site
+        pdfSiteNameMatch: pdfSiteNames.length > 0 && bsdEmitterName ? 
+          pdfSiteNames.some(pdfSiteName => compareCompanyNames(pdfSiteName, bsdEmitterName, 4)) : false,
+          
+        // Correspondance spécifique des noms des prestataires
+        prestataireMatch: (
+          compareCompanyNames(pdfTransporteurName, bsd.infos_json?.formAPI?.createFormInput?.transporter?.company?.name || '', 4) ||
+          compareCompanyNames(pdfDestinataireName, bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.name || '', 4)
+        )
+      };
+
+      // Vérifier si le BSD passe tous les filtres activés - CORRECTION: pour SIRET/SIREN, il suffit d'avoir UN match
+      const siretSirenMatch = siretSirenFilter ? (results.transporteurMatch || results.destinataireMatch) : true;
+      
+      const passesAllFilters = 
+        results.codeCEDMatch &&
+        (siretSirenMatch || results.prestataireMatch) &&
+        results.dateMatch &&
+        (results.tonnageMatch || results.tonnageHeureMatch) &&
+        (results.siteNameMatch || results.postalCodeMatch) &&
+        results.customFiltersMatch;
+
+      return {
+        ...results,
+        passesAllFilters
+      };
+    });
+
+    // Séparer les BSDs qui passent les filtres de ceux qui ne les passent pas
+    const passingBSDs = filteredResults.filter(result => result.passesAllFilters);
+    const failingBSDs = filteredResults.filter(result => !result.passesAllFilters);
+
+    console.log('Résultats du filtrage:', {
+      total: allBSDs.length,
+      passing: passingBSDs.length,
+      failing: failingBSDs.length
+    });
+
+    // Mettre à jour les états
+    setCandidateBSDs(passingBSDs.map(result => result.bsd));
+    setFilteredCandidateBSDs(passingBSDs.map(result => result.bsd));
+
+    return filteredResults;
+  };
+
+  // Fonction legacy pour compatibilité (maintenant dépréciée)
+  const applyFilters = (pdfCodeCED: string, pdfDestinataireSiret: string, pdfTransporteurSiren: string, minDate: Date, maxDate: Date, pdfSiteNames: string[] = []) => {
+    applyAllFilters(pdfCodeCED, pdfDestinataireSiret, pdfTransporteurSiren, minDate, maxDate, pdfSiteNames);
+  };
+
+  const fetchBSDData = async () => {
     try {
       setLoading(true);
       setError(null);
+      setDataReady(false); // Réinitialiser l'état de données prêtes
 
       // Fetch BSD PDF data
       const { data: pdfData, error: pdfError } = await supabase
@@ -154,6 +336,42 @@ export default function LinkBSD({ pdf_id }: LinkBSDProps) {
       if (!pdfData) throw new Error('PDF non trouvé');
 
       setBsdPdf(pdfData.infos);
+
+      // Récupérer les informations de site_siret_plus depuis pdf_infos
+      const { data: pdfInfosData, error: pdfInfosError } = await supabase
+        .from('pdf_infos')
+        .select('site_siret_plus')
+        .eq('id', pdf_id)
+        .eq('entreprise_id', entreprise_id)
+        .single();
+
+      if (pdfInfosError) {
+        console.error('Erreur lors de la récupération des infos PDF:', pdfInfosError);
+      }
+
+      // Récupérer les noms des sites depuis table_autocompletion
+      let pdfSiteNames: string[] = [];
+      if (pdfInfosData?.site_siret_plus && pdfInfosData.site_siret_plus.length > 0) {
+        const firstSiteSiret = pdfInfosData.site_siret_plus[0]; // Prendre le premier élément comme demandé
+        
+        const { data: autocompletionData, error: autocompletionError } = await supabase
+          .from('table_autocompletion')
+          .select('site')
+          .eq('entreprise_id', entreprise_id);
+
+        if (!autocompletionError && autocompletionData) {
+          // Chercher le site correspondant au SIRET
+          const matchingSite = autocompletionData.find(item => 
+            item.site?.siret?.replace(/\s/g, '') === firstSiteSiret.replace(/\s/g, '')
+          );
+          
+          if (matchingSite?.site?.nom) {
+            pdfSiteNames = [matchingSite.site.nom];
+            setPdfSiteName(matchingSite.site.nom);
+            console.log('Nom du site trouvé pour le PDF:', matchingSite.site.nom);
+          }
+        }
+      }
 
       // Extraire et valider les dates
       const validDates = extractValidDates(pdfData.infos);
@@ -177,45 +395,14 @@ export default function LinkBSD({ pdf_id }: LinkBSDProps) {
       // Extraire les SIRET/SIREN du PDF
       const pdfDestinataireSiret = pdfData.infos?.installationDestination?.siret?.replace(/\s/g, '') || '';
       const pdfTransporteurSiren = pdfData.infos?.collecteurTransporteur?.siren?.replace(/\s/g, '') || '';
-      
-      // Extraire les dates spécifiques du PDF
-      const datePriseEnCharge = cleanDate(pdfData.infos?.collecteurTransporteur?.datePriseEnCharge);
-      const datePresentation = cleanDate(pdfData.infos?.declarationEmetteur?.date);
-      const dateTraitement = cleanDate(pdfData.infos?.realisationOperation?.date);
-      const dateDeclaration = cleanDate(pdfData.infos?.declarationEmetteur?.date);
 
-      // Calculer les plages de dates selon le niveau de filtrage
-      const currentLevel = filterLevels[level as keyof typeof filterLevels];
-      let startDate: Date, endDate: Date;
-      
-      if (datePriseEnCharge) {
-        startDate = new Date(datePriseEnCharge);
-        startDate.setDate(datePriseEnCharge.getDate() - currentLevel.dateRange.priseEnCharge);
-        endDate = new Date(datePriseEnCharge);
-        endDate.setDate(datePriseEnCharge.getDate() + currentLevel.dateRange.priseEnCharge);
-      } else if (datePresentation) {
-        startDate = new Date(datePresentation);
-        startDate.setDate(datePresentation.getDate() - currentLevel.dateRange.presentation);
-        endDate = new Date(datePresentation);
-        endDate.setDate(datePresentation.getDate() + currentLevel.dateRange.presentation);
-      } else if (dateTraitement) {
-        startDate = new Date(dateTraitement);
-        startDate.setDate(dateTraitement.getDate() - currentLevel.dateRange.traitement);
-        endDate = new Date(dateTraitement);
-        endDate.setDate(dateTraitement.getDate() + currentLevel.dateRange.traitement);
-      } else if (dateDeclaration) {
-        startDate = new Date(dateDeclaration);
-        startDate.setDate(dateDeclaration.getDate() - currentLevel.dateRange.declaration);
-        endDate = new Date(dateDeclaration);
-        endDate.setDate(dateDeclaration.getDate() + currentLevel.dateRange.declaration);
-      } else {
-        startDate = new Date(minDateValue);
-        startDate.setDate(minDateValue.getDate() - currentLevel.dateRange.fallback);
-        endDate = new Date(maxDateValue);
-        endDate.setDate(maxDateValue.getDate() + currentLevel.dateRange.fallback);
-      }
+      // Récupérer tous les BSDs (toujours, pas seulement si allBSDs est vide)
+      // Calculer une plage de dates très large pour récupérer tous les BSDs possibles
+      const startDate = new Date(minDateValue);
+      startDate.setDate(minDateValue.getDate() - 30); // 30 jours en arrière
+      const endDate = new Date(maxDateValue);
+      endDate.setDate(maxDateValue.getDate() + 30); // 30 jours en avant
 
-      // Fetch candidate BSDs
       const { data: bsdData, error: bsdError } = await supabase
         .from('bsd')
         .select('*')
@@ -225,40 +412,17 @@ export default function LinkBSD({ pdf_id }: LinkBSDProps) {
 
       if (bsdError) throw new Error('Erreur lors de la récupération des BSDs');
       
-      // Filtrer les BSDs selon les critères du niveau
-      const filteredBSDs = (bsdData || []).filter(bsd => {
-        // Exclure les BSDs qui ont déjà été liés à un PDF extrait
-        if (bsd.bsd_extracted_then_linked_id) return false;
-        
-        // 1. Filtre sur le code CED (toujours obligatoire)
-        const bsdCodeCED = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code?.replace(/[\s*]/g, '') || '';
-        if (bsdCodeCED !== pdfCodeCED) return false;
-        
-        // 2. Filtre sur SIRET/SIREN selon le niveau
-        if (level <= 2) { // Niveaux 1 et 2 : SIRET/SIREN obligatoire
-        const bsdDestinataireSiret = bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret?.replace(/\s/g, '') || '';
-        const bsdTransporteurSiret = bsd.infos_json?.formAPI?.createFormInput?.transporter?.company?.siret?.replace(/\s/g, '') || '';
-        
-        const bsdTransporteurSiren9 = bsdTransporteurSiret.substring(0, 9);
-        
-          const transporteurMatch = pdfTransporteurSiren && bsdTransporteurSiren9 && pdfTransporteurSiren === bsdTransporteurSiren9;
-        const destinataireMatch = pdfDestinataireSiret && bsdDestinataireSiret && pdfDestinataireSiret === bsdDestinataireSiret;
-        
-          if (!transporteurMatch && !destinataireMatch) return false;
-        }
-        // Niveaux 3 et 4 : pas de filtre SIRET/SIREN
-        
-        return true;
-      });
+      // Mettre à jour allBSDs avec les nouvelles données
+      setAllBSDs(bsdData);
+
+      // Enrichir les informations des sites avec les données fraîchement récupérées
+      await enrichSiteInfo(bsdData);
       
-      setCandidateBSDs(filteredBSDs);
+      // Marquer les données comme prêtes AVANT d'appliquer les filtres
+      setDataReady(true);
       
-      // Mettre à jour les seuils de similarité
-      setAddressSimilarityThreshold(currentLevel.addressThreshold);
-      setNameSimilarityThreshold(currentLevel.nameThreshold);
-      
-      // Enrichir les informations des sites
-      await enrichSiteInfo(filteredBSDs);
+      // Appliquer les filtres selon les checkboxes activées
+      applyFilters(pdfCodeCED, pdfDestinataireSiret, pdfTransporteurSiren, minDateValue, maxDateValue, pdfSiteNames);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
       setError(errorMessage);
@@ -350,9 +514,41 @@ export default function LinkBSD({ pdf_id }: LinkBSDProps) {
 
       if (updateError) throw new Error('Erreur lors de la liaison du BSD');
 
+      // Mettre à jour localement les BSDs candidats pour refléter le changement
+      setAllBSDs(prevBSDs => 
+        prevBSDs.map(bsd => 
+          bsd.id === Number(selectedBsdId) 
+            ? { ...bsd, bsd_extracted_then_linked_id: bsdPdfData.id, pdf_ids: new_pdf_ids }
+            : bsd
+        )
+      );
+
+      // Mettre à jour les BSDs candidats filtrés
+      setCandidateBSDs(prevCandidates => 
+        prevCandidates.map(bsd => 
+          bsd.id === Number(selectedBsdId) 
+            ? { ...bsd, bsd_extracted_then_linked_id: bsdPdfData.id, pdf_ids: new_pdf_ids }
+            : bsd
+        )
+      );
+
+      // Mettre à jour les BSDs filtrés
+      setFilteredCandidateBSDs(prevFiltered => 
+        prevFiltered.map(bsd => 
+          bsd.id === Number(selectedBsdId) 
+            ? { ...bsd, bsd_extracted_then_linked_id: bsdPdfData.id, pdf_ids: new_pdf_ids }
+            : bsd
+        )
+      );
+
       toast.success('BSD lié avec succès');
       setIsModalOpen(false);
       setselectedBsdId('');
+
+      // Appeler le callback onLink pour informer le composant parent
+      if (onLink) {
+        onLink(selectedBsdId);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
       setError(errorMessage);
@@ -392,6 +588,136 @@ export default function LinkBSD({ pdf_id }: LinkBSDProps) {
     return Math.round(similarity);
   };
 
+  // Fonction pour comparer les SIREN/SIRET de manière floue
+  const compareSirenSiret = (siren_pdf: string, siren_bsd: string): boolean => {
+    // Si le BSD n'a pas de SIREN/SIRET, ne pas filtrer ce BSD
+    if (siren_bsd.trim() === '') return true;
+    
+    // Si le PDF n'a pas de SIREN/SIRET, ne pas filtrer ce BSD
+    if (siren_pdf.trim() === '') return true;
+    
+    // Nettoyer les chaînes (garder seulement les chiffres)
+    const clean_siren_pdf = siren_pdf.replace(/\D/g, '');
+    const clean_siren_bsd = siren_bsd.replace(/\D/g, '');
+    
+    // Si les chaînes sont identiques, retourner true
+    if (clean_siren_pdf === clean_siren_bsd) return true;
+    
+    // Pour SIREN (9 chiffres) : au moins 6 chiffres doivent correspondre
+    if (clean_siren_pdf.length === 9 && clean_siren_bsd.length === 9) {
+      let matches = 0;
+      for (let i = 0; i < 9; i++) {
+        if (clean_siren_pdf[i] === clean_siren_bsd[i]) matches++;
+      }
+      return matches >= 6; // 6 chiffres sur 9
+    }
+    
+    // Pour SIRET (14 chiffres) : au moins 10 chiffres doivent correspondre
+    if (clean_siren_pdf.length === 14 && clean_siren_bsd.length === 14) {
+      let matches = 0;
+      for (let i = 0; i < 14; i++) {
+        if (clean_siren_pdf[i] === clean_siren_bsd[i]) matches++;
+      }
+      return matches >= 10; // 10 chiffres sur 14
+    }
+    
+    // Si les longueurs ne correspondent pas, essayer de comparer les premiers chiffres
+    const minLength = Math.min(clean_siren_pdf.length, clean_siren_bsd.length);
+    if (minLength >= 6) {
+      let matches = 0;
+      for (let i = 0; i < minLength; i++) {
+        if (clean_siren_pdf[i] === clean_siren_bsd[i]) matches++;
+      }
+      // Pour les SIREN, au moins 6 chiffres
+      if (minLength <= 9) return matches >= 6;
+      // Pour les SIRET, au moins 10 chiffres
+      return matches >= 10;
+    }
+    
+    return false;
+  };
+
+  // Fonction pour extraire le code postal d'une adresse
+  const extractPostalCode = (address: string): string => {
+    if (!address) return '';
+    
+    // Pattern pour trouver un code postal français (5 chiffres)
+    const postalCodePattern = /\b\d{5}\b/;
+    const match = address.match(postalCodePattern);
+    
+    return match ? match[0] : '';
+  };
+
+  // Fonction pour comparer les codes postaux
+  const comparePostalCodes = (address1: string, address2: string): boolean => {
+    const postalCode1 = extractPostalCode(address1);
+    const postalCode2 = extractPostalCode(address2);
+    
+    // Si aucune des deux adresses n'a de code postal, ne pas filtrer
+    if (!postalCode1 && !postalCode2) return true;
+    
+    // Si une seule adresse a un code postal, ne pas filtrer (on ne peut pas comparer)
+    if (!postalCode1 || !postalCode2) return true;
+    
+    return postalCode1 === postalCode2;
+  };
+
+  // Fonction pour trouver la plus longue sous-chaîne commune
+  const findLongestCommonSubstring = (str1: string, str2: string): string => {
+    const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(0));
+    let maxLength = 0;
+    let endIndex = 0;
+    
+    for (let i = 1; i <= str2.length; i++) {
+      for (let j = 1; j <= str1.length; j++) {
+        if (str2[i - 1] === str1[j - 1]) {
+          matrix[i][j] = matrix[i - 1][j - 1] + 1;
+          if (matrix[i][j] > maxLength) {
+            maxLength = matrix[i][j];
+            endIndex = j;
+          }
+        }
+      }
+    }
+    
+    return str1.substring(endIndex - maxLength, endIndex);
+  };
+
+  // Fonction pour comparer les noms des prestataires de manière floue
+  const compareCompanyNames = (name1: string, name2: string, minLength: number = 4): boolean => {
+    if (!name1 || !name2) return false;
+    
+    // Nettoyer les noms (minuscules, supprimer caractères spéciaux)
+    const clean1 = name1.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+    const clean2 = name2.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+    
+    // Si les noms sont identiques, retourner true
+    if (clean1 === clean2) return true;
+    
+    const longestCommon = findLongestCommonSubstring(clean1, clean2);
+    
+    // Si la sous-chaîne commune fait au moins minLength caractères, calculer un score
+    if (longestCommon.length >= minLength) {
+      const score = (longestCommon.length / Math.max(clean1.length, clean2.length)) * 100;
+      return score >= 40; // Au moins 40% de similarité
+    }
+    
+    // Vérifier aussi les mots communs (pour les noms comme "Entreprise ABC" vs "ABC SARL")
+    const words1 = clean1.split(/\s+/);
+    const words2 = clean2.split(/\s+/);
+    
+    const commonWords = words1.filter(word => 
+      word.length >= minLength && words2.some(word2 => word2.length >= minLength && word === word2)
+    );
+    
+    if (commonWords.length > 0) {
+      const wordScore = (commonWords.length / Math.max(words1.length, words2.length)) * 100;
+      return wordScore >= 30; // Au moins 30% de mots communs
+    }
+    
+    return false;
+  };
+
   // Fonction pour enrichir les informations des sites
   const enrichSiteInfo = async (bsds: RowBSD[]) => {
     try {
@@ -404,7 +730,7 @@ export default function LinkBSD({ pdf_id }: LinkBSDProps) {
 
       if (sirets.length === 0) return;
 
-      // Récupérer les adresses depuis la table autocompletion
+      // Récupérer les adresses et noms depuis la table autocompletion
       const { data: autocompletionData, error: autocompletionError } = await supabase
         .from('table_autocompletion')
         .select('site')
@@ -415,481 +741,151 @@ export default function LinkBSD({ pdf_id }: LinkBSDProps) {
         return;
       }
 
-      // Créer un mapping SIRET -> adresse
-      const addressMapping: {[key: string]: string} = {};
+      // Créer un mapping SIRET -> adresse et nom
+      const addressMapping: {[key: string]: {adresse: string, nom: string}} = {};
       autocompletionData?.forEach(item => {
-        if (item.site?.siret && item.site?.pointsCollecte && item.site.pointsCollecte.length > 0) {
+        if (item.site?.siret) {
           const siret = item.site.siret.replace(/\s/g, '');
-          const adresse = item.site.pointsCollecte[0].adresse;
-          if (siret && adresse) {
-            addressMapping[siret] = adresse;
+          const adresse = item.site.pointsCollecte && item.site.pointsCollecte.length > 0 
+            ? item.site.pointsCollecte[0].adresse 
+            : item.site.adresseSiege || '';
+          const nom = item.site.nom || '';
+          
+          if (siret && (adresse || nom)) {
+            addressMapping[siret] = { adresse, nom };
           }
         }
       });
 
       setSiteAddresses(addressMapping);
+      console.log('Informations des sites chargées:', Object.keys(addressMapping).length, 'sites');
     } catch (error) {
       console.error('Erreur lors de l\'enrichissement des sites:', error);
     }
   };
 
-  // Fonction pour essayer le niveau suivant si aucun BSD trouvé
-  const tryNextFilterLevel = () => {
-    if (filterLevel < 4) {
-      const nextLevel = filterLevel + 1;
-      setFilterLevel(nextLevel);
-      fetchBSDData(nextLevel);
+  // Fonctions pour gérer les filtres personnalisés
+  const addCustomFilter = () => {
+    if (newFilterText.trim()) {
+      const newFilter = {
+        id: Date.now().toString(),
+        text: newFilterText.trim(),
+        enabled: true
+      };
+      setCustomFilters([...customFilters, newFilter]);
+      setNewFilterText('');
     }
   };
 
-  // Calculer les BSDs filtrés par similarité d'adresse
+  const removeCustomFilter = (filterId: string) => {
+    setCustomFilters(customFilters.filter(filter => filter.id !== filterId));
+  };
+
+  const toggleCustomFilter = (filterId: string) => {
+    setCustomFilters(customFilters.map(filter => 
+      filter.id === filterId ? { ...filter, enabled: !filter.enabled } : filter
+    ));
+  };
+
+  // Fonction pour vérifier si un BSD correspond aux filtres personnalisés
+  const matchesCustomFilters = (bsd: RowBSD): boolean => {
+    if (customFilters.length === 0) return true;
+    
+    // Convertir le JSON BSD en texte pour la recherche
+    const bsdText = JSON.stringify(bsd.infos_json).toLowerCase();
+    
+    // Vérifier que tous les filtres activés correspondent
+    return customFilters
+      .filter(filter => filter.enabled)
+      .every(filter => bsdText.includes(filter.text.toLowerCase()));
+  };
+
+  // Réappliquer les filtres quand les paramètres changent
   useEffect(() => {
-    if (candidateBSDs.length > 0 && siteAddresses && bsdPdf) {
-      const filtered = candidateBSDs
-        .map((bsd) => {
-          const siret = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret?.replace(/\s/g, '');
-          const candidateAddress = siteAddresses[siret] || 'Adresse non trouvée';
-          const pdfAddress = bsdPdf?.emetteur?.adresse || '';
-          const addressSimilarity = calculateSimilarity(pdfAddress, candidateAddress);
-          
-          const pdfEmitterName = bsdPdf?.emetteur?.nom || '';
-          const candidateEmitterName = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.name || '';
-          const nameSimilarity = calculateSimilarity(pdfEmitterName, candidateEmitterName);
-          
-          // Comparaisons pour les couleurs
-          const pdfCodeCED = bsdPdf?.dechet?.code?.replace(/[\s*]/g, '') || '';
-          const bsdCodeCED = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code?.replace(/[\s*]/g, '') || '';
-          const codeCEDMatch = pdfCodeCED === bsdCodeCED;
-          
-          const pdfTransporteurSiren = bsdPdf?.collecteurTransporteur?.siren?.replace(/\s/g, '') || '';
-          const bsdTransporteurSiret = bsd.infos_json?.formAPI?.createFormInput?.transporter?.company?.siret?.replace(/\s/g, '') || '';
-          const bsdTransporteurSiren9 = bsdTransporteurSiret.substring(0, 9);
-          const transporteurMatch = pdfTransporteurSiren && bsdTransporteurSiren9 && pdfTransporteurSiren === bsdTransporteurSiren9;
-          
-          const pdfDestinataireSiret = bsdPdf?.installationDestination?.siret?.replace(/\s/g, '') || '';
-          const bsdDestinataireSiret = bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret?.replace(/\s/g, '') || '';
-          const destinataireMatch = pdfDestinataireSiret && bsdDestinataireSiret && pdfDestinataireSiret === bsdDestinataireSiret;
-          
-          // Comparaison des dates
-          const bsdCreatedDate = new Date(bsd.created_at);
-          const pdfDatePriseEnCharge = cleanDate(bsdPdf?.collecteurTransporteur?.datePriseEnCharge);
-          const pdfDatePresentation = cleanDate(bsdPdf?.declarationEmetteur?.date);
-          const pdfDateTraitement = cleanDate(bsdPdf?.realisationOperation?.date);
-          
-          let dateMatch = false;
-          if (pdfDatePriseEnCharge) {
-            const diffDays = Math.abs((bsdCreatedDate.getTime() - pdfDatePriseEnCharge.getTime()) / (1000 * 60 * 60 * 24));
-            dateMatch = diffDays <= 3; // ±3 jours pour la prise en charge
-          } else if (pdfDatePresentation) {
-            const diffDays = Math.abs((bsdCreatedDate.getTime() - pdfDatePresentation.getTime()) / (1000 * 60 * 60 * 24));
-            dateMatch = diffDays <= 15; // ±15 jours pour la présentation
-          } else if (pdfDateTraitement) {
-            const diffDays = Math.abs((bsdCreatedDate.getTime() - pdfDateTraitement.getTime()) / (1000 * 60 * 60 * 24));
-            dateMatch = diffDays <= 20; // ±20 jours pour le traitement
-          }
-          
-          return { bsd, addressSimilarity, nameSimilarity, codeCEDMatch, transporteurMatch, destinataireMatch, dateMatch };
-        })
-        .filter(({ addressSimilarity }) => {
-          // Pour les niveaux 2, 3 et 4, ne pas filtrer sur l'adresse
-          if (filterLevel >= 2) return true;
-          return addressSimilarity >= addressSimilarityThreshold;
-        })
-        .map(({ bsd }) => bsd);
+    // Vérifier que toutes les données nécessaires sont chargées ET que dataReady est true
+    if (dataReady && bsdPdf && allBSDs.length > 0 && minDate && maxDate) {
+      const pdfCodeCED = bsdPdf?.dechet?.code?.replace(/[\s*]/g, '') || '';
+      const pdfDestinataireSiret = bsdPdf?.installationDestination?.siret?.replace(/\s/g, '') || '';
+      const pdfTransporteurSiren = bsdPdf?.collecteurTransporteur?.siren?.replace(/\s/g, '') || '';
       
-      setFilteredCandidateBSDs(filtered);
+      // Récupérer les noms des sites du PDF
+      let pdfSiteNames: string[] = [];
+      if (pdfSiteName) {
+        pdfSiteNames = [pdfSiteName];
+      }
+      
+      console.log('Réapplication des filtres avec:', {
+        bsdCount: allBSDs.length,
+        siteAddressesCount: Object.keys(siteAddresses).length,
+        pdfSiteName,
+        filters: { codeCEDFilter, siretSirenFilter, dateFilter, tonnageFilter, addressFilter }
+      });
+      
+      applyFilters(pdfCodeCED, pdfDestinataireSiret, pdfTransporteurSiren, minDate, maxDate, pdfSiteNames);
     } else {
-      setFilteredCandidateBSDs([]);
+      console.log('Conditions non remplies pour appliquer les filtres:', {
+        dataReady,
+        hasBsdPdf: !!bsdPdf,
+        allBSDsLength: allBSDs.length,
+        hasMinDate: !!minDate,
+        hasMaxDate: !!maxDate,
+        siteAddressesCount: Object.keys(siteAddresses).length
+      });
     }
-  }, [candidateBSDs, siteAddresses, bsdPdf, filterLevel, addressSimilarityThreshold]);
+  }, [dataReady, customFilters, codeCEDFilter, siretSirenFilter, dateFilter, dateRange, tonnageFilter, tonnageRange, addressFilter, siteAddresses, pdfSiteName]);
+
+  // Réinitialiser dataReady quand le modal s'ouvre
+  useEffect(() => {
+    if (isModalOpen) {
+      setDataReady(false);
+    }
+  }, [isModalOpen]);
 
   return (
-    <>
-      <button
-        onClick={() => {
-          setIsModalOpen(true);
-          setFilterLevel(1); // Reset au niveau 1
-          fetchBSDData(1);
-        }}
-        className="px-3 py-1.5 border border-[var(--green-medium)] text-[var(--green-medium)] rounded-md text-xs hover:bg-green-50 w-[100px] text-center"
-      >
-        Lier BSD
-      </button>
-
-      <Dialog 
-        open={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        className="relative z-50"
-      >
-        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-        
-        <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Dialog.Panel className="mx-auto max-w-[80%] w-full bg-white rounded-lg shadow-xl p-6">
-            <div className="flex justify-between items-center mb-4">
-              <Dialog.Title className="text-lg font-medium">
-                Lier un BSD au PDF
-              </Dialog.Title>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="text-gray-400 hover:text-gray-500"
-              >
-                <XMarkIcon className="h-6 w-6" />
-              </button>
-            </div>
-
-            {/* Contrôles de filtrage */}
-            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-sm">Niveau de filtrage</h3>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-600">
-                    {filterLevels[filterLevel as keyof typeof filterLevels].name}
-                  </span>
-                  <button
-                    onClick={tryNextFilterLevel}
-                    disabled={filterLevel >= 4 || filteredCandidateBSDs.length > 0}
-                    className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Relâcher les critères
-                  </button>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-4 gap-2 text-xs">
-                {Object.entries(filterLevels).map(([level, config]) => (
-                  <button
-                    key={level}
-                    onClick={() => {
-                      setFilterLevel(parseInt(level));
-                      fetchBSDData(parseInt(level));
-                    }}
-                    className={`p-2 rounded text-left ${
-                      filterLevel === parseInt(level)
-                        ? 'bg-blue-100 border-blue-300 border'
-                        : 'bg-white border border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="font-medium">{config.name}</div>
-                    <div className="text-gray-600 text-xs">{config.description}</div>
-                  </button>
-                ))}
-              </div>
-
-              {/* Légende des couleurs */}
-              <div className="mt-3 pt-3 border-t border-gray-200">
-                <h4 className="text-xs font-medium text-gray-700 mb-2">Légende des couleurs :</h4>
-                <div className="grid grid-cols-5 gap-2 text-xs">
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-gray-50 border border-gray-200 rounded"></div>
-                    <span className="text-blue-600">Code CED</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-gray-50 border border-gray-200 rounded"></div>
-                    <span className="text-green-600">SIRET/SIREN</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-gray-50 border border-gray-200 rounded"></div>
-                    <span className="text-orange-600">Dates</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-gray-50 border border-gray-200 rounded"></div>
-                    <span className="text-purple-600">Adresses</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs">✓</span>
-                    <span className="text-gray-600">Correspondance</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-md text-sm">
-                {error}
-              </div>
-            )}
-
-            {loading ? (
-              <div className="text-center py-4">Chargement...</div>
-            ) : (
-              <>
-                <div className="flex justify-between items-start gap-6 mb-6">
-                {/* BSD PDF Information */}
-                {bsdPdf && (
-                    <div className="bg-gray-50 p-4 rounded-lg w-[60%] h-[400px] overflow-y-auto">
-                      
-                      {/* Dates Section */}
-                      <div className="mb-8">
-                        <div className="text-sm grid grid-cols-4 gap-2">
-                          <div>
-                            <div className="text-gray-600">Prise en charge:</div>
-                            <div className="text-orange-600 bg-gray-50 px-2 py-1 rounded font-medium">
-                              {bsdPdf.collecteurTransporteur?.datePriseEnCharge || 'Non spécifié'}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-gray-600">Présentation:</div>
-                            <div className="text-orange-600 bg-gray-50 px-2 py-1 rounded font-medium">
-                              {bsdPdf.declarationEmetteur?.date || 'Non spécifié'}
-                            </div>
-                          </div>
-                      <div>
-                            <div className="text-gray-600">Traitement:</div>
-                            <div className="text-orange-600 bg-gray-50 px-2 py-1 rounded font-medium">
-                              {bsdPdf.realisationOperation?.date || 'Non spécifié'}
-                            </div>
-                      </div>
-                      <div>
-                            <div className="text-gray-600">Déclaration:</div>
-                            <div className="text-orange-600 bg-gray-50 px-2 py-1 rounded font-medium">
-                              {bsdPdf.declarationEmetteur?.date || 'Non spécifié'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Déchet Section */}
-                      <div className="mb-16">
-                        <div className="text-sm grid grid-cols-4 gap-2">
-                          <div>
-                            <div className="text-gray-600">Déchet:</div>
-                            <div>{bsdPdf.dechet?.denominationUsuelle || 'Non spécifié'}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-600">CED:</div>
-                            <div className="text-blue-600 bg-gray-50 px-2 py-1 rounded font-medium">
-                              {bsdPdf.dechet?.code || 'Non spécifié'}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-gray-600">Code DR:</div>
-                            <div>{bsdPdf.realisationOperation?.code || 'Non spécifié'}</div>
-                      </div>
-                      <div>
-                            <div className="text-gray-600">Quantité:</div>
-                            <div>{bsdPdf.dechet?.poids ? `${bsdPdf.dechet.poids} tonnes` : 'Non spécifié'}</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Émetteur Section */}
-                      <div className="mb-8">
-                        <h4 className="font-medium text-sm text-gray-700 mb-1">Émetteur</h4>
-                        <div className="space-y-0 text-sm">
-                          <div className="flex justify-start gap-2">
-                            <span className="text-gray-600">Nom:</span>
-                            <span>{bsdPdf.emetteur?.nom || 'Non spécifié'}</span>
-                          </div>
-                          <div className="flex justify-start gap-2">
-                            <span className="text-gray-600">Adresse:</span>
-                            <span className="text-purple-600 bg-gray-50 px-2 py-1 rounded font-medium">
-                              {bsdPdf.emetteur?.adresse || 'Non spécifié'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-
-                      {/* Prestataires Section */}
-                      <div className="flex justify-between gap-2 mt-4">
-                        {/* Transporteur Section */}
-                        <div className="mb-1">
-                          <h4 className="font-medium text-sm text-gray-700 mb-1">Transporteur</h4>
-                          <div className="space-y-0 text-sm">
-                            <div className="flex justify-start gap-2">
-                              <div className="text-gray-600">Nom:</div>
-                              <div>{bsdPdf.collecteurTransporteur?.nom || 'Non spécifié'}</div>
-                            </div>
-                            <div className="flex justify-start gap-2">
-                              <div className="text-gray-600">SIREN:</div>
-                              <div className="text-green-600 bg-gray-50 px-2 py-1 rounded font-medium">
-                                {bsdPdf.collecteurTransporteur?.siren || 'Non spécifié'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Destinataire Section */}
-                        <div className="mb-1">
-                          <h4 className="font-medium text-sm text-gray-700 mb-1">Destinataire</h4>
-                          <div className="space-y-0 text-sm">
-                            <div className="flex justify-start gap-2">
-                              <div className="text-gray-600">Nom:</div>
-                              <div>{bsdPdf.installationDestination?.nom || 'Non spécifié'}</div>
-                            </div>
-                            <div className="flex justify-start gap-2">
-                              <div className="text-gray-600">SIRET:</div>
-                              <div className="text-green-600 bg-gray-50 px-2 py-1 rounded font-medium">
-                                {bsdPdf.installationDestination?.siret || 'Non spécifié'}
-                              </div>
-                            </div>
-                          </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Candidate BSDs List */}
-                  <div className="w-[40%] h-[400px]">
-                  <h3 className="font-medium mb-2">BSDs candidats ({filteredCandidateBSDs.length})</h3>
-                  {filteredCandidateBSDs.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-sm text-gray-500 mb-4">Aucun BSD trouvé avec le niveau de filtrage actuel</p>
-                      {filterLevel < 4 && (
-                        <button
-                          onClick={tryNextFilterLevel}
-                          className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                        >
-                          Essayer le niveau suivant
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                      <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                        {filteredCandidateBSDs
-                          .map((bsd) => {
-                            const siret = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret?.replace(/\s/g, '');
-                            const candidateAddress = siteAddresses[siret] || 'Adresse non trouvée';
-                            const pdfAddress = bsdPdf?.emetteur?.adresse || '';
-                            const addressSimilarity = calculateSimilarity(pdfAddress, candidateAddress);
-                            
-                            const pdfEmitterName = bsdPdf?.emetteur?.nom || '';
-                            const candidateEmitterName = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.name || '';
-                            const nameSimilarity = calculateSimilarity(pdfEmitterName, candidateEmitterName);
-                            
-                            // Comparaisons pour les couleurs
-                            const pdfCodeCED = bsdPdf?.dechet?.code?.replace(/[\s*]/g, '') || '';
-                            const bsdCodeCED = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code?.replace(/[\s*]/g, '') || '';
-                            const codeCEDMatch = pdfCodeCED === bsdCodeCED;
-                            
-                            const pdfTransporteurSiren = bsdPdf?.collecteurTransporteur?.siren?.replace(/\s/g, '') || '';
-                            const bsdTransporteurSiret = bsd.infos_json?.formAPI?.createFormInput?.transporter?.company?.siret?.replace(/\s/g, '') || '';
-                            const bsdTransporteurSiren9 = bsdTransporteurSiret.substring(0, 9);
-                            const transporteurMatch = pdfTransporteurSiren && bsdTransporteurSiren9 && pdfTransporteurSiren === bsdTransporteurSiren9;
-                            
-                            const pdfDestinataireSiret = bsdPdf?.installationDestination?.siret?.replace(/\s/g, '') || '';
-                            const bsdDestinataireSiret = bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret?.replace(/\s/g, '') || '';
-                            const destinataireMatch = pdfDestinataireSiret && bsdDestinataireSiret && pdfDestinataireSiret === bsdDestinataireSiret;
-                            
-                            // Comparaison des dates
-                            const bsdCreatedDate = new Date(bsd.created_at);
-                            const pdfDatePriseEnCharge = cleanDate(bsdPdf?.collecteurTransporteur?.datePriseEnCharge);
-                            const pdfDatePresentation = cleanDate(bsdPdf?.declarationEmetteur?.date);
-                            const pdfDateTraitement = cleanDate(bsdPdf?.realisationOperation?.date);
-                            
-                            let dateMatch = false;
-                            if (pdfDatePriseEnCharge) {
-                              const diffDays = Math.abs((bsdCreatedDate.getTime() - pdfDatePriseEnCharge.getTime()) / (1000 * 60 * 60 * 24));
-                              dateMatch = diffDays <= 3; // ±3 jours pour la prise en charge
-                            } else if (pdfDatePresentation) {
-                              const diffDays = Math.abs((bsdCreatedDate.getTime() - pdfDatePresentation.getTime()) / (1000 * 60 * 60 * 24));
-                              dateMatch = diffDays <= 15; // ±15 jours pour la présentation
-                            } else if (pdfDateTraitement) {
-                              const diffDays = Math.abs((bsdCreatedDate.getTime() - pdfDateTraitement.getTime()) / (1000 * 60 * 60 * 24));
-                              dateMatch = diffDays <= 20; // ±20 jours pour le traitement
-                            }
-                            
-                            return { bsd, addressSimilarity, nameSimilarity, codeCEDMatch, transporteurMatch, destinataireMatch, dateMatch };
-                          })
-                          .map(({ bsd, addressSimilarity, nameSimilarity, codeCEDMatch, transporteurMatch, destinataireMatch, dateMatch }) => (
-                        <label
-                          key={bsd.id}
-                          className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
-                        >
-                          <input
-                            type="radio"
-                            name="bsd"
-                            value={bsd.id}
-                            checked={selectedBsdId === String(bsd.id)}
-                            onChange={(e) => setselectedBsdId(e.target.value)}
-                            className="h-4 w-4 text-blue-600"
-                          />
-                              <div className="flex-1 space-y-1">
-                              <div className="flex justify-between">
-                            <p className={`font-medium ${codeCEDMatch ? 'text-blue-600 px-2 py-1 rounded' : ''}`}>
-                              {bsd.infos_json.formAPI.createFormInput.wasteDetails.code}
-                              {codeCEDMatch && <span className="ml-1 text-xs">✓</span>}
-                            </p>
-                                <p className="text-sm text-orange-600 px-2 py-1 rounded">
-                                  {new Date(bsd.created_at).toLocaleDateString()}
-                                  {dateMatch && <span className="ml-1 text-xs">✓</span>}
-                                </p>
-                                <p>{bsd.id}</p>
-                              </div>
-                            <p className="text-sm text-gray-600">
-                              {bsd.infos_json.formAPI.createFormInput.emitter.company.name} → {bsd.infos_json.formAPI.createFormInput.recipient.company.name}
-                                  <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
-                                    nameSimilarity >= 80 ? 'bg-blue-100 text-blue-800' :
-                                    nameSimilarity >= 60 ? 'bg-orange-100 text-orange-800' :
-                                    'bg-gray-100 text-gray-800'
-                                  }`}>
-                                    {nameSimilarity}%
-                                  </span>
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                  {(() => {
-                                    const siret = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret?.replace(/\s/g, '');
-                                    const candidateAddress = siteAddresses[siret] || 'Adresse non trouvée';
-                                    return (
-                                      <>
-                                        {filterLevel < 2 && (
-                                        <span className={`px-2 py-1 mr-2 rounded text-xs font-medium ${
-                                          addressSimilarity >= 80 ? 'bg-green-100 text-green-800' :
-                                          addressSimilarity >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                                          'bg-red-100 text-red-800'
-                                        }`}>
-                                          {addressSimilarity}%
-                                        </span>
-                                        )}
-                                        <span className="text-purple-600 px-2 py-1 rounded text-sm">
-                                          {candidateAddress}
-                                        </span>
-                                      </>
-                                    );
-                                  })()}
-                                </p>
-                                <div className="flex justify-between">
-                                  <p className={`text-sm ${transporteurMatch ? 'text-green-600 px-2 py-1 rounded' : 'text-gray-500'}`}>
-                                    {bsd.infos_json.formAPI.createFormInput.transporter.company.siret}
-                                    {transporteurMatch && <span className="ml-1 text-xs">✓</span>}
-                                  </p>
-                                  <p className={`text-sm ${destinataireMatch ? 'text-green-600 px-2 py-1 rounded' : 'text-gray-500'}`}>
-                                    {bsd.infos_json.formAPI.createFormInput.recipient.company.siret}
-                                    {destinataireMatch && <span className="ml-1 text-xs">✓</span>}
-                                  </p>
-                                </div>
-                                <p className="text-sm flex justify-end text-gray-500">
-                                  {bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 'Non spécifié'} tonnes
-                            </p>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    onClick={handleLink}
-                    disabled={!selectedBsdId || loading}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? 'Liaison...' : 'Lier'}
-                  </button>
-                </div>
-              </>
-            )}
-          </Dialog.Panel>
-        </div>
-      </Dialog>
-    </>
+    <LinkBSDComponent 
+    setIsModalOpen={setIsModalOpen}
+    fetchBSDData={fetchBSDData}
+    entreprise_id={entreprise_id}
+    setError={setError}
+    setLoading={setLoading}
+    setselectedBsdId={setselectedBsdId}
+      isModalOpen={isModalOpen}
+      bsdPdf={bsdPdf}
+      filteredCandidateBSDs={filteredCandidateBSDs}
+      allBSDs={allBSDs}
+      loading={loading}
+      error={error}
+      selectedBsdId={selectedBsdId}
+      minDate={minDate}
+      maxDate={maxDate}
+      siteAddresses={siteAddresses}
+      pdfSiteName={pdfSiteName}
+      customFilters={customFilters}
+      newFilterText={newFilterText}
+      setNewFilterText={setNewFilterText}
+      addCustomFilter={addCustomFilter}
+      removeCustomFilter={removeCustomFilter}
+      toggleCustomFilter={toggleCustomFilter}
+      calculateSimilarity={calculateSimilarity}
+      cleanDate={cleanDate}
+      handleLink={handleLink}
+      compareCompanyNames={compareCompanyNames}
+      // Nouveaux paramètres pour les filtres individuels
+      codeCEDFilter={codeCEDFilter}
+      setCodeCEDFilter={setCodeCEDFilter}
+      siretSirenFilter={siretSirenFilter}
+      setSiretSirenFilter={setSiretSirenFilter}
+      addressFilter={addressFilter}
+      setAddressFilter={setAddressFilter}
+      dateFilter={dateFilter}
+      setDateFilter={setDateFilter}
+      dateRange={dateRange}
+      setDateRange={setDateRange}
+      tonnageFilter={tonnageFilter}
+      setTonnageFilter={setTonnageFilter}
+      tonnageRange={tonnageRange}
+      setTonnageRange={setTonnageRange}
+      applyFilters={applyFilters}
+    />
   );
 }

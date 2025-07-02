@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import ModalExtractFacture from './ModalExtractFacture';
 
-const ButtonExtractFacture = ({ pdf_id, pdf_path }: { pdf_id: number; pdf_path: string }) => {
+const ButtonExtractFacture = ({ pdf_id, pdf_path, onExtract }: { pdf_id: number; pdf_path: string; onExtract?: (pdfId: number, newStatus: string) => void }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const handleOpenModal = () => {
@@ -12,6 +12,13 @@ const ButtonExtractFacture = ({ pdf_id, pdf_path }: { pdf_id: number; pdf_path: 
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
+    };
+
+    const handleExtractSuccess = () => {
+        setIsModalOpen(false);
+        if (onExtract) {
+            onExtract(pdf_id, 'read');
+        }
     };
 
     return (
@@ -29,6 +36,7 @@ const ButtonExtractFacture = ({ pdf_id, pdf_path }: { pdf_id: number; pdf_path: 
                     onClose={handleCloseModal}
                     pdf_id={pdf_id}
                     pdf_path={pdf_path}
+                    onSuccess={handleExtractSuccess}
                 />
             )}
         </>

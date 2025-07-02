@@ -89,7 +89,7 @@ export interface BSDCerfa {
     };
 }
 
-const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) => {
+const ExtractBSD = ({ pdf_id, pdf_path, onExtract }: { pdf_id: number, pdf_path: string, onExtract?: (pdfId: number, newStatus: string) => void }) => {
     const [isOpen, setIsOpen] = useState(false);
     const {entreprise_id, user_id} = useSession();
     const [existingData, setExistingData] = useState<Partial<BSDCerfa> | null>(null);
@@ -158,6 +158,12 @@ const ExtractBSD = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) 
             }
 
             toast.success('Données sauvegardées avec succès');
+            
+            // Appeler le callback onExtract pour informer le composant parent
+            if (onExtract) {
+                onExtract(pdf_id, 'read');
+            }
+            
             setIsLoading(false);
             setIsOpen(false);
         } catch (error) {

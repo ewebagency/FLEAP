@@ -11,6 +11,8 @@ import { useBSDs } from "@/app/register/BSDsProvider";
 import { BSD } from "@/app/register/TableBSD";
 import Image from "next/image";
 import BoxIcon from '@/app/component/BoxIconWrapper';
+import { handleDeleteLinkBSD_PDF } from "./deleteLinkBSD_PDF";
+import { cofounders_user_id } from "@/app/component/SideBar";
 
 interface PdfInfo {
     id: number;
@@ -1689,13 +1691,21 @@ const ModifyCard = () => {
                                         <BoxIcon name='file-pdf' color='red' type='solid' />
                                         <span className="text-sm text-gray-700">{pdf.name_pdf}</span>
                                     </div>
-                                    <button
-                                        onClick={() => handleOpenPdf(pdf)}
-                                        disabled={loadingUrls[pdf.id]}
-                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                                    >
-                                        {loadingUrls[pdf.id] ? 'Chargement...' : 'Ouvrir'}
-                                    </button>
+                                    <div className="flex items-center justify-between space-x-5">
+                                        <button
+                                            onClick={() => handleOpenPdf(pdf)}
+                                            disabled={loadingUrls[pdf.id]}
+                                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                        >
+                                            {loadingUrls[pdf.id] ? 'Chargement...' : 'Ouvrir'}
+                                        </button>
+                                       {modalId && modalId !== null && modalId !== undefined && modalId !== "" && cofounders_user_id(user_id) && <button
+                                            onClick={() => handleDeleteLinkBSD_PDF(pdf.id, modalId, entreprise_id)}
+                                            className="text-red-600 hover:text-red-800 hover:bg-red-100 p-1 rounded-md text-sm font-medium"
+                                        >
+                                            Supprimer
+                                        </button>}
+                                    </div>
                                 </div>
                             ))}
                         </div>

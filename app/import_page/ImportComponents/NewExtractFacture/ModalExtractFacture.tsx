@@ -11,9 +11,10 @@ interface ModalExtractFactureProps {
     onClose: () => void;
     pdf_id: number;
     pdf_path: string;
+    onSuccess?: () => void;
 }
 
-const ModalExtractFacture = ({ isOpen, onClose, pdf_id, pdf_path }: ModalExtractFactureProps) => {
+const ModalExtractFacture = ({ isOpen, onClose, pdf_id, pdf_path, onSuccess }: ModalExtractFactureProps) => {
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
@@ -80,7 +81,7 @@ const ModalExtractFacture = ({ isOpen, onClose, pdf_id, pdf_path }: ModalExtract
 
                     {/* Colonne droite - Formulaire */}
                     <div className="w-1/2 p-2">
-                        <FormulaireExtractFacture pdf_id={pdf_id} onSuccess={onClose} />
+                        <FormulaireExtractFacture pdf_id={pdf_id} onSuccess={onSuccess || onClose} />
                     </div>
                 </div>
             </div>

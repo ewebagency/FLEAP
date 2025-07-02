@@ -69,6 +69,17 @@ const TableImportedFilesFunctional: React.FC = () => {
         }
     };
 
+    // Fonction pour mettre à jour localement le statut d'un PDF après liaison
+    const handlePdfStatusUpdate = (pdfId: number, newStatus: string) => {
+        setPdfInfos(prevPdfInfos => 
+            prevPdfInfos.map(pdf => 
+                pdf.id === pdfId 
+                    ? { ...pdf, status: newStatus }
+                    : pdf
+            )
+        );
+    };
+
     // Filter pdfInfos based on documentTypeFilter
     const filteredPdfInfos = documentTypeFilter 
         ? documentTypeFilter === 'null'
@@ -102,7 +113,11 @@ const TableImportedFilesFunctional: React.FC = () => {
 
     return (
         <div>
-            <TableImportedFiles pdfInfos={filteredPdfInfos} onDelete={handleDelete} />
+            <TableImportedFiles 
+                pdfInfos={filteredPdfInfos} 
+                onDelete={handleDelete}
+                onPdfStatusUpdate={handlePdfStatusUpdate}
+            />
         </div>
     );
 };

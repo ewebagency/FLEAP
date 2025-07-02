@@ -27,6 +27,7 @@ export interface PdfInfo {
 interface TableImportedFilesProps {
     pdfInfos: PdfInfo[];
     onDelete: (pdfPath: string, id: number) => void;
+    onPdfStatusUpdate?: (pdfId: number, newStatus: string) => void;
 }
 
 interface SiteInfo {
@@ -69,7 +70,7 @@ export const ExcelIcon = () => (
     </svg>
 );
 
-const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDelete }) => {
+const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDelete, onPdfStatusUpdate }) => {
     const [openMenuId, setOpenMenuId] = useState<number | null>(null);
     const session = useSession();
     const [loadingUrls, setLoadingUrls] = useState<Record<number, boolean>>({});
@@ -334,18 +335,34 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                     {cofounders_permission(session?.user_id) && pdf.document_type === 'facture' && 
                                         <ButtonExtractFacture
                                             pdf_id={pdf.id} 
-                                            pdf_path={pdf.name_pdf_in_bucket} 
+                                            pdf_path={pdf.name_pdf_in_bucket}
+                                            onExtract={(pdfId: number, newStatus: string) => {
+                                                if (onPdfStatusUpdate) {
+                                                    onPdfStatusUpdate(pdfId, newStatus);
+                                                }
+                                            }}
                                         />
                                     }                                    
                                     {cofounders_permission(session?.user_id) && pdf.document_type === 'bsd' && 
                                         <ExtractBSD 
                                             pdf_id={pdf.id} 
-                                            pdf_path={pdf.name_pdf_in_bucket} 
+                                            pdf_path={pdf.name_pdf_in_bucket}
+                                            onExtract={(pdfId: number, newStatus: string) => {
+                                                if (onPdfStatusUpdate) {
+                                                    onPdfStatusUpdate(pdfId, newStatus);
+                                                }
+                                            }}
                                         />
                                     }
                                     {cofounders_permission(session?.user_id) && pdf.document_type === 'bsd' && pdf.status === 'read' &&
                                         <LinkBSD
                                             pdf_id={pdf.id}
+                                            onLink={(bsd_id: string) => {
+                                                // Mettre à jour localement le statut du PDF
+                                                if (onPdfStatusUpdate) {
+                                                    onPdfStatusUpdate(pdf.id, 'linked');
+                                                }
+                                            }}
                                         />
                                     }
                                 </div>

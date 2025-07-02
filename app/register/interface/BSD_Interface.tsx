@@ -1058,6 +1058,7 @@ export interface RowBSD {
     entreprise_id :string;
     user_id:string;
     id:number;
+    bsd_extracted_then_linked_id?:string;
 }
 
 
