@@ -3,8 +3,43 @@ import { BSDCerfa } from "./ExtractBSD";
 import { supabase } from "@/app/database/supabaseClient";
 import { useSession } from "@/app/component/SessionProvider";
 import Swal from 'sweetalert2';
+import { codeTraitementDefinitions } from "@/app/component/Analyse/Environnementale/codeTraitement";
 
 const handleCreateLineBasedOnBSDPDF = async (bsdPdf: BSDCerfa, pdf_id: number, entreprise_id: string) => {
+
+    // Fonction pour formater les codes CED
+    const formatCEDCode = (code: string | undefined): string => {
+        if (!code) return "";
+        
+        // Enlever tous les espaces et caractères non numériques
+        const cleanCode = code.replace(/[^\d]/g, '');
+        
+        // Si on a 6 chiffres, formater en XX XX XX
+        if (cleanCode.length === 6) {
+            return `${cleanCode.substring(0, 2)} ${cleanCode.substring(2, 4)} ${cleanCode.substring(4, 6)}`;
+        }
+        
+        // Sinon retourner le code original
+        return code;
+    };
+
+    // Fonction pour extraire le code de traitement
+    const extractProcessingCode = (processingOperation: string | undefined): string => {
+        if (!processingOperation) return "";
+        
+        // Codes de traitement valides depuis environnement_utils.ts
+        const validCodes = codeTraitementDefinitions.reverse().map(code => code.code);
+        
+        // Chercher un code valide dans la chaîne
+        for (const code of validCodes) {
+            if (processingOperation.includes(code)) {
+                return code;
+            }
+        }
+        
+        // Si aucun code valide trouvé, retourner la chaîne originale
+        return processingOperation;
+    };
 
     // Fonction pour formater les dates
     const formatDate = (dateString: string | undefined): string | null => {
@@ -13,26 +48,66 @@ const handleCreateLineBasedOnBSDPDF = async (bsdPdf: BSDCerfa, pdf_id: number, e
         try {
             console.log('Formatage de la date:', dateString);
             
-            // Nettoyer la date (enlever les espaces, caractères spéciaux)
-            let cleanDate = dateString.replace(/[\s\/\-\.]/g, '');
-            
-            // Gérer les cas spéciaux comme "11/0/22025" -> "11022025"
-            if (dateString.includes('/')) {
-                const parts = dateString.split('/');
+            // 1. Gérer les formats avec séparateurs (/ ou -)
+            if (dateString.includes('/') || dateString.includes('-')) {
+                const separator = dateString.includes('/') ? '/' : '-';
+                const parts = dateString.split(separator);
+                
                 if (parts.length === 3) {
-                    const day = parts[0].padStart(2, '0');
-                    const month = parts[1].padStart(2, '0');
-                    let year = parts[2];
+                    let day, month, year;
                     
-                    // Corriger les années malformées comme "22025" -> "2025"
-                    if (year.length > 4) {
-                        year = year.substring(year.length - 4);
+                    // Détecter le format basé sur la longueur des parties
+                    const part1 = parts[0].trim();
+                    const part2 = parts[1].trim();
+                    const part3 = parts[2].trim();
+                    
+                    // Si la première partie fait 4 chiffres, c'est YYYY-MM-DD ou YYYY/MM/DD
+                    if (part1.length === 4 && /^\d{4}$/.test(part1)) {
+                        year = part1;
+                        month = part2.padStart(2, '0');
+                        day = part3.padStart(2, '0');
+                    }
+                    // Si la troisième partie fait 4 chiffres, c'est DD-MM-YYYY ou DD/MM/YYYY
+                    else if (part3.length === 4 && /^\d{4}$/.test(part3)) {
+                        day = part1.padStart(2, '0');
+                        month = part2.padStart(2, '0');
+                        year = part3;
+                    }
+                    // Si la troisième partie fait 2 chiffres, c'est DD-MM-YY ou DD/MM/YY
+                    else if (part3.length === 2 && /^\d{2}$/.test(part3)) {
+                        day = part1.padStart(2, '0');
+                        month = part2.padStart(2, '0');
+                        year = '20' + part3; // Supposer 20xx pour les années à 2 chiffres
+                    }
+                    // Par défaut, supposer DD-MM-YYYY ou DD/MM/YYYY
+                    else {
+                        day = part1.padStart(2, '0');
+                        month = part2.padStart(2, '0');
+                        year = part3;
+                        
+                        // Corriger les années malformées comme "22025" -> "2025"
+                        if (year.length > 4) {
+                            year = year.substring(year.length - 4);
+                        }
                     }
                     
-                    cleanDate = day + month + year;
+                    // Validation des valeurs
+                    const dayNum = parseInt(day);
+                    const monthNum = parseInt(month);
+                    const yearNum = parseInt(year);
+                    
+                    if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12 && yearNum >= 1900 && yearNum <= 2100) {
+                        // Créer la date au format ISO
+                        const date = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+                        const result = date.toISOString();
+                        console.log('Date formatée avec séparateurs:', result);
+                        return result;
+                    }
                 }
             }
             
+            // 2. Gérer les formats sans séparateurs (DDMMYYYY, DDMMYY, YYYYMMDD)
+            const cleanDate = dateString.replace(/[\s\/\-\.]/g, '');
             console.log('Date nettoyée:', cleanDate);
             
             // Patterns de dates possibles
@@ -73,13 +148,13 @@ const handleCreateLineBasedOnBSDPDF = async (bsdPdf: BSDCerfa, pdf_id: number, e
                         // Créer la date au format ISO
                         const date = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
                         const result = date.toISOString();
-                        console.log('Date formatée avec succès:', result);
+                        console.log('Date formatée avec pattern:', result);
                         return result;
                     }
                 }
             }
             
-            // Si aucun pattern ne correspond, essayer de parser directement
+            // 3. Si aucun pattern ne correspond, essayer de parser directement
             const parsedDate = new Date(dateString);
             if (!isNaN(parsedDate.getTime())) {
                 const result = parsedDate.toISOString();
@@ -166,8 +241,8 @@ const handleCreateLineBasedOnBSDPDF = async (bsdPdf: BSDCerfa, pdf_id: number, e
                     type: "PRODUCER",
                     company: {
                         name: siteName || bsdPdf.emetteur?.nom || "",
-                        orgId: siteSiret,
-                        siret: siteSiret || bsdPdf.emetteur?.siret || "",
+                        orgId: siteSiret.replace(/\s/g, ''),
+                        siret: siteSiret.replace(/\s/g, '') || bsdPdf.emetteur?.siret.replace(/\s/g, '') || "",
                         address: bsdPdf.emetteur?.adresse || "",
                         country: "France",
                         contact: bsdPdf.emetteur?.contact || "",
@@ -186,19 +261,19 @@ const handleCreateLineBasedOnBSDPDF = async (bsdPdf: BSDCerfa, pdf_id: number, e
                     cap: bsdPdf.installationDestination?.numeroCAP || "",
                     company: {
                         name: bsdPdf.installationDestination?.nom || "",
-                        siret: bsdPdf.installationDestination?.siret || "",
+                        siret: bsdPdf.installationDestination?.siret.replace(/\s/g, '') || "",
                         address: bsdPdf.installationDestination?.adresse || "",
                         country: "France",
                         contact: bsdPdf.installationDestination?.contact || "",
                         phone: bsdPdf.installationDestination?.tel || "",
                         mail: bsdPdf.installationDestination?.email || ""
                     },
-                    processingOperation: bsdPdf.installationDestination?.codeOperation || bsdPdf.realisationOperation?.code || ""
+                    processingOperation: extractProcessingCode(bsdPdf.realisationOperation?.code) || extractProcessingCode(bsdPdf.installationDestination?.codeOperation) || ""
                 },
                 transporter: {  
                     company: {
                         name: bsdPdf.collecteurTransporteur?.nom || "",
-                        siret: (bsdPdf.collecteurTransporteur?.siren || "") + "00000", // Ajout de 5 zéros pour convertir SIREN en SIRET
+                        siret: (bsdPdf.collecteurTransporteur?.siren.replace(/\s/g, '') || "") + "00000", // Ajout de 5 zéros pour convertir SIREN en SIRET
                         address: bsdPdf.collecteurTransporteur?.adresse || "",
                         country: "France",
                         contact: bsdPdf.collecteurTransporteur?.contact || "",
@@ -211,7 +286,7 @@ const handleCreateLineBasedOnBSDPDF = async (bsdPdf: BSDCerfa, pdf_id: number, e
                     customInfo: ""
                 },
                 wasteDetails: {
-                    code: bsdPdf.dechet?.code || "",
+                    code: formatCEDCode(bsdPdf.dechet?.code),
                     name: bsdPdf.dechet?.denominationUsuelle || "",
                     isSubjectToADR: bsdPdf.dechet?.etiquetageADR !== "Non soumis à l'ADR",
                     onuCode: "",
@@ -224,7 +299,8 @@ const handleCreateLineBasedOnBSDPDF = async (bsdPdf: BSDCerfa, pdf_id: number, e
                     consistence: bsdPdf.dechet?.consistence?.toUpperCase() || "SOLIDE",
                     pop: false,
                     isDangerous: false,
-                }
+                },
+                takenOverAt: bestDate || new Date().toISOString() // Ajouter la date de prise en charge
             }
         }
     }
@@ -249,17 +325,47 @@ const saveBSDToDatabase = async (bsdData: {formAPI: {createFormInput: FormInput}
             try {
                 console.log('Formatage de la date:', dateString);
                 
-                // Gérer les cas spéciaux comme "11/0/22025" -> "11022025"
-                if (dateString.includes('/')) {
-                    const parts = dateString.split('/');
+                // 1. Gérer les formats avec séparateurs (/ ou -)
+                if (dateString.includes('/') || dateString.includes('-')) {
+                    const separator = dateString.includes('/') ? '/' : '-';
+                    const parts = dateString.split(separator);
+                    
                     if (parts.length === 3) {
-                        const day = parts[0].padStart(2, '0');
-                        const month = parts[1].padStart(2, '0');
-                        let year = parts[2];
+                        let day, month, year;
                         
-                        // Corriger les années malformées comme "22025" -> "2025"
-                        if (year.length > 4) {
-                            year = year.substring(year.length - 4);
+                        // Détecter le format basé sur la longueur des parties
+                        const part1 = parts[0].trim();
+                        const part2 = parts[1].trim();
+                        const part3 = parts[2].trim();
+                        
+                        // Si la première partie fait 4 chiffres, c'est YYYY-MM-DD ou YYYY/MM/DD
+                        if (part1.length === 4 && /^\d{4}$/.test(part1)) {
+                            year = part1;
+                            month = part2.padStart(2, '0');
+                            day = part3.padStart(2, '0');
+                        }
+                        // Si la troisième partie fait 4 chiffres, c'est DD-MM-YYYY ou DD/MM/YYYY
+                        else if (part3.length === 4 && /^\d{4}$/.test(part3)) {
+                            day = part1.padStart(2, '0');
+                            month = part2.padStart(2, '0');
+                            year = part3;
+                        }
+                        // Si la troisième partie fait 2 chiffres, c'est DD-MM-YY ou DD/MM/YY
+                        else if (part3.length === 2 && /^\d{2}$/.test(part3)) {
+                            day = part1.padStart(2, '0');
+                            month = part2.padStart(2, '0');
+                            year = '20' + part3; // Supposer 20xx pour les années à 2 chiffres
+                        }
+                        // Par défaut, supposer DD-MM-YYYY ou DD/MM/YYYY
+                        else {
+                            day = part1.padStart(2, '0');
+                            month = part2.padStart(2, '0');
+                            year = part3;
+                            
+                            // Corriger les années malformées comme "22025" -> "2025"
+                            if (year.length > 4) {
+                                year = year.substring(year.length - 4);
+                            }
                         }
                         
                         // Validation des valeurs
@@ -271,15 +377,14 @@ const saveBSDToDatabase = async (bsdData: {formAPI: {createFormInput: FormInput}
                             // Créer la date au format ISO
                             const date = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
                             const result = date.toISOString();
-                            console.log('Date formatée avec succès:', result);
+                            console.log('Date formatée avec séparateurs:', result);
                             return result;
                         }
                     }
                 }
                 
-                // Nettoyer la date (enlever les espaces, caractères spéciaux)
+                // 2. Gérer les formats sans séparateurs (DDMMYYYY, DDMMYY, YYYYMMDD)
                 const cleanDate = dateString.replace(/[\s\/\-\.]/g, '');
-                
                 console.log('Date nettoyée:', cleanDate);
                 
                 // Patterns de dates possibles
@@ -320,13 +425,13 @@ const saveBSDToDatabase = async (bsdData: {formAPI: {createFormInput: FormInput}
                             // Créer la date au format ISO
                             const date = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
                             const result = date.toISOString();
-                            console.log('Date formatée avec succès:', result);
+                            console.log('Date formatée avec pattern:', result);
                             return result;
                         }
                     }
                 }
                 
-                // Si aucun pattern ne correspond, essayer de parser directement
+                // 3. Si aucun pattern ne correspond, essayer de parser directement
                 const parsedDate = new Date(dateString);
                 if (!isNaN(parsedDate.getTime())) {
                     const result = parsedDate.toISOString();
