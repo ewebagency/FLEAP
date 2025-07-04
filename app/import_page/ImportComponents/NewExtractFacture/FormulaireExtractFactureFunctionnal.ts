@@ -15,8 +15,6 @@ interface RawAutocompletionData {
     contenant?: { nom: string; volume: string; uniteVolume: string } | null;
 }
 
-// Constantes pour les options : depuis les formConstants.ts
-
 // État initial du formulaire
 export const getInitialFormData = (): FactureLine => ({
     header: {
@@ -52,7 +50,6 @@ export const getInitialFormData = (): FactureLine => ({
 // Récupérer les données d'autocomplétion depuis Supabase
 export const fetchAutocompletionData = async (entrepriseId: string): Promise<RawAutocompletionData[]> => {
     try {
-
         const { data, error } = await supabase
             .from('table_autocompletion')
             .select('*')
@@ -471,14 +468,12 @@ export const getExistingFactureData = async (pdfId: number): Promise<TargetStruc
 
         if (error) {
             if (error.code === 'PGRST116') { // No rows returned
-                console.log('📭 Aucune facture existante trouvée pour ce PDF');
                 return null;
             }
             console.error('❌ Erreur lors de la récupération de la facture existante:', error);
             return null;
         }
 
-        console.log('📋 Facture existante trouvée:', facture.infos_json);
         return facture.infos_json as TargetStructure;
     } catch (error) {
         console.error('❌ Erreur lors de la récupération:', error);
@@ -528,8 +523,6 @@ export const saveFactureToDatabase = async (
     factureData: TargetStructure
 ) => {
     try {
-        console.log('🚀 Début saveFactureToDatabase:', { userId, entrepriseId, pdfId });
-        
         // 1. Vérifier si une facture existe déjà pour ce pdf_infos_id
         const { data: existingFacture, error: checkError } = await supabase
             .from('facture')
@@ -546,7 +539,6 @@ export const saveFactureToDatabase = async (
         
         if (existingFacture) {
             // 2a. Update si la facture existe déjà
-            console.log('📝 Mise à jour de la facture existante');
             const { data: updateData, error: updateError } = await supabase
                 .from('facture')
                 .update({
@@ -566,7 +558,6 @@ export const saveFactureToDatabase = async (
             factureResult = updateData;
         } else {
             // 2b. Insert si la facture n'existe pas
-            console.log('➕ Création d\'une nouvelle facture');
             const { data: insertData, error: insertError } = await supabase
                 .from('facture')
                 .insert({
@@ -585,21 +576,14 @@ export const saveFactureToDatabase = async (
             factureResult = insertData;
         }
 
-        console.log('✅ Facture sauvegardée:', factureResult);
-
         // 3. Extraire tous les SIRET de sites uniques
         const siteSirets = extractUniqueSiteSirets(factureData);
-        //const firstSiteSiret = siteSirets.length > 0 ? siteSirets[0] : null;
-        //const otherSiteSirets = siteSirets.slice(1);
-
-        //console.log('📍 SIRET extraits:', { firstSiteSiret, otherSiteSirets });
 
         // 4. Mettre à jour la table pdf_infos
         const { error: pdfUpdateError } = await supabase
             .from('pdf_infos')
             .update({
                 status: 'read',
-                //site_siret: firstSiteSiret, //en fait on utilise que site_siret_plus
                 site_siret_plus: siteSirets.length > 0 ? siteSirets : null
             })
             .eq('id', pdfId);
@@ -609,7 +593,6 @@ export const saveFactureToDatabase = async (
             throw new Error('Erreur lors de la mise à jour du statut PDF');
         }
 
-        console.log('✅ PDF mis à jour avec succès');
         return factureResult;
     } catch (error) {
         console.error('❌ Erreur lors de la sauvegarde:', error);

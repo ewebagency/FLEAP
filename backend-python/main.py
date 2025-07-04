@@ -10,6 +10,8 @@ import requests
 import json
 import re
 from datetime import datetime
+from typing import Dict, Any
+from parse_ocr_extract_facture import process_facture_pdf, process_facture_pdf_only_ocr, extract_facture_with_gemini_from_data
 
 load_dotenv()
 
@@ -19,6 +21,9 @@ app = FastAPI()
 # Définition du modèle de données pour la requête
 class PDFRequest(BaseModel):
     pdf_url: str
+
+class MindeeDataRequest(BaseModel):
+    mindee_data: dict[str, Any]
 
 def clean_date(date_str: str) -> str:
     if not date_str or date_str == "null":
@@ -245,3 +250,67 @@ Text to analyze:
 
     except Exception as e:
         return {"error": f"Failed to process PDF: {str(e)}"}
+
+
+@app.post("/parse-or-ocr-facture-and-extract-info/")
+async def parse_or_ocr_facture_and_extract_info(request: PDFRequest): #not use anymore i think
+    try:
+        # Utiliser le module de traitement des factures
+        result = process_facture_pdf(request.pdf_url)
+        
+        if result["success"]:
+            response_data = {
+                "text": result["text"],
+                "extracted_data": result["extracted_data"]
+            }
+            
+            # Ajouter le result Mindee si disponible
+            if "mindee_result" in result:
+                response_data["mindee_result"] = result["mindee_result"]
+            
+            return response_data
+        else:
+            return {"error": result["error"]}
+
+    except Exception as e:
+        return {"error": f"Failed to process facture PDF: {str(e)}"}
+
+
+@app.post("/parse-or-ocr-facture/")
+async def parse_or_ocr_facture(request: PDFRequest):
+    try:
+        # Utiliser le module de traitement des factures (sans Gemini)
+        result = process_facture_pdf_only_ocr(request.pdf_url)
+        
+        if result["success"]:
+            response_data = {
+                "text": result["text"]
+            }
+            
+            # Ajouter le result Mindee si disponible
+            if "mindee_result" in result:
+                response_data["mindee_result"] = result["mindee_result"]
+            
+            return response_data
+        else:
+            return {"error": result["error"]}
+
+    except Exception as e:
+        return {"error": f"Failed to parse/OCR facture PDF: {str(e)}"}
+
+
+@app.post("/extract-facture-with-gemini/")
+async def extract_facture_with_gemini(request: MindeeDataRequest):
+    try:
+        # Utiliser Gemini pour extraire les données structurées
+        result = extract_facture_with_gemini_from_data(request.mindee_data)
+        
+        if result["success"]:
+            return {
+                "extracted_data": result["extracted_data"]
+            }
+        else:
+            return {"error": result["error"]}
+
+    except Exception as e:
+        return {"error": f"Failed to extract with Gemini: {str(e)}"}

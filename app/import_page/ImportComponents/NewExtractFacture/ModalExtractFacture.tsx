@@ -81,7 +81,7 @@ const ModalExtractFacture = ({ isOpen, onClose, pdf_id, pdf_path, onSuccess }: M
 
                     {/* Colonne droite - Formulaire */}
                     <div className="w-1/2 p-2">
-                        <FormulaireExtractFacture pdf_id={pdf_id} onSuccess={onSuccess || onClose} />
+                        <FormulaireExtractFacture pdf_id={pdf_id} pdf_path={pdf_path} onSuccess={onSuccess || onClose} />
                     </div>
                 </div>
             </div>

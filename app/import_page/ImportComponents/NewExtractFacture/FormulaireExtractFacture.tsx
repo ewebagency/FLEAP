@@ -29,6 +29,7 @@ import {
 import { ALL_OPERATIONS, UNITES } from '../../../interface_admin_2/InterfaceAdmin2/constants/formConstants';
 import { useSession } from '@/app/component/SessionProvider';
 import { toast } from 'react-hot-toast';
+import OCRThisFacture from './OCRThisFacture';
 
 // Type pour les options d'autocomplétion
 interface AutocompletionOption {
@@ -60,7 +61,7 @@ interface RawAutocompletionData {
     contenant?: { nom: string; volume: string; uniteVolume: string } | null;
 }
 
-const FormulaireExtractFacture = ({ pdf_id, onSuccess }: { pdf_id: number; onSuccess?: () => void }) => {
+const FormulaireExtractFacture = ({ pdf_id, pdf_path, onSuccess }: { pdf_id: number; pdf_path: string; onSuccess?: () => void }) => {
     const {entreprise_id, user_id} = useSession();
     const [formData, setFormData] = useState<FactureLine>(getInitialFormData());
     const [autocompletionOptions, setAutocompletionOptions] = useState<AutocompletionOptions>({
@@ -218,6 +219,28 @@ const FormulaireExtractFacture = ({ pdf_id, onSuccess }: { pdf_id: number; onSuc
         setFormData(getInitialFormData());
     };
 
+    const handleDataExtracted = (extractedData: Partial<FactureLine>) => {
+        // Mettre à jour le formulaire avec les données extraites
+        setFormData(prev => {
+            const newFormData = {
+                ...prev,
+                header: {
+                    ...prev.header,
+                    ...extractedData.header
+                },
+                departs: extractedData.departs || prev.departs,
+                footer: {
+                    ...prev.footer,
+                    ...extractedData.footer
+                }
+            };
+            
+            return newFormData;
+        });
+        
+        toast.success('Données extraites et remplies dans le formulaire');
+    };
+
     const handleSubmit = async () => {
         try {
             console.log('🎯 Début handleSubmit');
@@ -262,15 +285,23 @@ const FormulaireExtractFacture = ({ pdf_id, onSuccess }: { pdf_id: number; onSuc
     return (
         <div className="h-full flex flex-col bg-gray-50 rounded-lg overflow-hidden">
             {/* Header Section */}
-            <div className="bg-white p-3 rounded shadow mb-2">
-                <div className="flex justify-between items-center">
-                    <h3 className="font-semibold mb-3">En-tête</h3>
+            <div className="bg-white rounded-t-lg p-2 border-b border-gray-200">
+                <div className="flex justify-between items-center mb-5">
+                    <OCRThisFacture
+                        pdf_id={pdf_id}
+                        pdf_path={pdf_path}
+                        onDataExtracted={handleDataExtracted}
+                        entreprise_id={entreprise_id}
+                        user_id={user_id}
+                        autocompletionOptions={autocompletionOptions}
+                    />
                     <button
                         onClick={handleReset}
-                        className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 mb-2"
+                        className="px-2 py-1 text-sm bg-gray-500 text-white rounded hover:bg-gray-600"
                     >
                         Reset
                     </button>
+                    
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                     <select
