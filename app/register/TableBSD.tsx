@@ -891,10 +891,10 @@ const TableBSD = () => {
                                 className="text-sm font-normal text-gray-500 mb-0">Statut</th>
                             <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '25px' }}
                                 className="text-sm font-normal text-gray-500 mb-0 hidden md:table-cell">Prestataires</th>
-                            <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'right', paddingRight: '1.25rem' }}
-                                className="text-sm font-normal text-gray-500 mb-0 hidden md:table-cell">Montant</th>
+                            {/*<th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'right', paddingRight: '1.25rem' }}
+                                className="text-sm font-normal text-gray-500 mb-0 hidden md:table-cell">Montant</th>*/}
                             <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '5%', textAlign: 'center' }}
-                                className="text-sm font-normal text-gray-500 mb-0 hidden md:table-cell"></th>
+                                className="text-sm font-normal text-gray-500 mb-0 hidden md:table-cell">Infos</th>
                             <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'right', paddingRight: '3.5rem' }}
                                 className="text-sm font-normal text-gray-500 mb-0">Actions</th>
                         </tr>
@@ -1037,7 +1037,7 @@ const TableBSD = () => {
                                         </div>
                                     </div>
                                 </td>
-                                <td style={{ padding: '6px', width: '15%', height: '80px' }} className="hidden md:table-cell">
+                                {/*<td style={{ padding: '6px', width: '15%', height: '80px' }} className="hidden md:table-cell">
                                     {
                                     bsd.facture_treated ? 
                                         <div className="text-md font-550 text-right mr-5">
@@ -1046,7 +1046,7 @@ const TableBSD = () => {
                                     : 
                                         <div className="text-md font-550 text-right mr-5">-€ HT</div>
                                     }
-                                </td>
+                                </td>*/}
                                 <td style={{ padding: '6px', width: '5%', height: '80px' }} className="hidden md:table-cell">
                                     {bsd.pdf_ids && Array.isArray(bsd.pdf_ids) && bsd.pdf_ids.length > 0 && (
                                         <div className="flex items-center justify-center">

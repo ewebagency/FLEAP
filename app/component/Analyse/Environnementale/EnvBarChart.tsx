@@ -11,7 +11,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { TooltipItem as ChartTooltipItem, Chart as ChartJS, ChartOptions, ChartDataset, ScaleOptionsByType, Scale, ScaleType } from 'chart.js';
 import { Context } from 'chartjs-plugin-datalabels';
-import { typeTraitement, codeTraitementDefinitions } from './codeTraitement';
+import { typeTraitement, codeTraitementDefinitions, findBestMatchingCode } from './codeTraitement';
 
 const { Bar } = DynamicCharts;
 
@@ -149,10 +149,11 @@ const EnvBarChart = () => {
         const endDate = segmentDates.fin || new Date();
         
         while (currentDate <= endDate) {
-            monthLabels.push(currentDate.toLocaleString('fr-FR', { 
+            const label = currentDate.toLocaleString('fr-FR', { 
                 month: 'short',
                 year: '2-digit'
-            }));
+            });
+            monthLabels.push(label.charAt(0).toUpperCase() + label.slice(1));
             currentDate.setMonth(currentDate.getMonth() + 1);
         }
         
@@ -160,7 +161,8 @@ const EnvBarChart = () => {
         const numberOfMonths = monthLabels.length;
         
         bsds.forEach((bsd: BSD) => {
-            const date = new Date(bsd.created_at);
+            // Utiliser takenOverAt si disponible, sinon created_at
+            const date = new Date(bsd.infos_json?.formAPI?.createFormInput?.takenOverAt || bsd.created_at);
             const startDate = new Date(segmentDates.debut || new Date());
             
             // Vérifier si la date est dans la plage
@@ -194,12 +196,11 @@ const EnvBarChart = () => {
                             }
                             const monthlyValues = monthlyEmissions.get(key)!;
                             
-                            // Calculer l'index du mois relatif à la période
-                            const monthIndex = Math.floor(
-                                (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-                            );
-                            if (monthIndex >= 0 && monthIndex < monthLabels.length) {
-                                monthlyValues[monthIndex] += carbonEmission;
+                            // Calculer l'index du mois en utilisant l'année et le mois uniquement
+                            const monthDiff = (date.getFullYear() - startDate.getFullYear()) * 12 + 
+                                             (date.getMonth() - startDate.getMonth());
+                            if (monthDiff >= 0 && monthDiff < monthLabels.length) {
+                                monthlyValues[monthDiff] += carbonEmission;
                             }
 
                             if (!treatmentEmissions.has(codeValo)) {
@@ -224,12 +225,11 @@ const EnvBarChart = () => {
                         }
                         const monthlyValues = monthlyEmissions.get(key)!;
                         
-                        // Calculer l'index du mois relatif à la période
-                        const monthIndex = Math.floor(
-                            (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-                        );
-                        if (monthIndex >= 0 && monthIndex < monthLabels.length) {
-                            monthlyValues[monthIndex] += carbonEmission;
+                        // Calculer l'index du mois en utilisant l'année et le mois uniquement
+                        const monthDiff = (date.getFullYear() - startDate.getFullYear()) * 12 + 
+                                         (date.getMonth() - startDate.getMonth());
+                        if (monthDiff >= 0 && monthDiff < monthLabels.length) {
+                            monthlyValues[monthDiff] += carbonEmission;
                         }
 
                         if (!treatmentEmissions.has(processingOperation)) {
@@ -276,7 +276,8 @@ const EnvBarChart = () => {
 
         // Calculer les totaux par catégorie de traitement
         bsds.forEach((bsd) => {
-            const date = new Date(bsd.created_at);
+            // Utiliser takenOverAt si disponible, sinon created_at
+            const date = new Date(bsd.infos_json?.formAPI?.createFormInput?.takenOverAt || bsd.created_at);
             if (segmentDates.debut && segmentDates.fin && (date < segmentDates.debut || date > segmentDates.fin)) return;
 
             const cedCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
@@ -290,10 +291,19 @@ const EnvBarChart = () => {
                     const processingOperation = part.code_valo?.replace(/\s+/g, '') || 'default';
                     
                     if (tonnage > 0) {
+
                         // Trouver la catégorie du traitement
                         let category = 'Inconnu';
-                        for (const [cat, codes] of Object.entries(typeTraitement)) {
-                            if (codes.includes(processingOperation)) {
+                        // Trier les catégories pour prioriser les codes plus spécifiques (plus longs)
+                        const sortedCategories = Object.entries(typeTraitement).sort((a, b) => {
+                            const maxLengthA = Math.max(...a[1].map(code => code.length));
+                            const maxLengthB = Math.max(...b[1].map(code => code.length));
+                            return maxLengthB - maxLengthA; // Codes plus longs en premier
+                        });
+                        
+                        for (const [cat, codes] of sortedCategories) {
+                            const matchedCode = findBestMatchingCode(processingOperation, codes);
+                            if (matchedCode) {
                                 category = cat;
                                 break;
                             }
@@ -335,8 +345,16 @@ const EnvBarChart = () => {
                 if (quantity > 0) {
                     // Trouver la catégorie du traitement
                     let category = 'Inconnu';
-                    for (const [cat, codes] of Object.entries(typeTraitement)) {
-                        if (codes.includes(processingOperation)) {
+                    // Trier les catégories pour prioriser les codes plus spécifiques (plus longs)
+                    const sortedCategories = Object.entries(typeTraitement).sort((a, b) => {
+                        const maxLengthA = Math.max(...a[1].map(code => code.length));
+                        const maxLengthB = Math.max(...b[1].map(code => code.length));
+                        return maxLengthB - maxLengthA; // Codes plus longs en premier
+                    });
+                    
+                    for (const [cat, codes] of sortedCategories) {
+                        const matchedCode = findBestMatchingCode(processingOperation, codes);
+                        if (matchedCode) {
                             category = cat;
                             break;
                         }

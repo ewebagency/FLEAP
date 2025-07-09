@@ -5,6 +5,7 @@ import {
     getDechetByCodeCed, 
     getSiretBySite, 
     getSiteBySiret,
+    getSiteByKeyword,
     fetchAutocompletionData
 } from './FormulaireExtractFactureFunctionnal';
 
@@ -133,7 +134,7 @@ interface RawAutocompletionData {
     id: number;
     created_at: string;
     entreprise_id: number;
-    site: { nom: string; siret: string; adresseSiege: string } | null;
+    site: { nom: string; siret: string; adresseSiege: string; motsClefs?: string[] } | null;
     transporteur: { nomBoite?: string; siret?: string; adresse?: string } | null;
     destinataire: { nomBoite?: string; siret?: string; adresse?: string } | null;
     dechet: { nom: string; codeCED: string; onu: string; adr: string } | null;
@@ -312,55 +313,37 @@ function calculateGlobalMetrics(searchText: string, optionText: string) {
 }
 
 export const findBestMatch = (searchTerm: string, options: string[]): string => {
-    console.log(`\n🎯 === DÉBUT MATCHING EXPERT POUR "${searchTerm}" ===`);
-    console.log(`📊 Options disponibles (${options.length}):`, options);
-    
     if (!searchTerm || !options || options.length === 0) {
-        console.log('❌ Terme de recherche ou options manquants');
         return '';
     }
 
     // Normalisation agressive
     const normalizedSearch = aggressiveNormalize(searchTerm);
     const searchTokens = tokenize(normalizedSearch);
-    
-    console.log(`📝 Terme normalisé: "${normalizedSearch}"`);
-    console.log(`🔤 Tokens extraits: [${searchTokens.join(', ')}]`);
 
     let bestMatch = '';
     let bestScore = 0;
-    let bestDetails: {
-        tokenMatches: TokenMatch[];
-        globalMetrics: { lengthRatio: number; prefixRatio: number; suffixRatio: number };
-        finalScore: number;
-    } | null = null;
 
     for (const option of options) {
-        console.log(`\n🔍 === ANALYSE OPTION: "${option}" ===`);
-        
         const normalizedOption = aggressiveNormalize(option);
         const optionTokens = tokenize(normalizedOption);
-        
-        console.log(`   Normalisé: "${normalizedOption}"`);
-        console.log(`   Tokens: [${optionTokens.join(', ')}]`);
 
         // 1. Correspondance exacte (après normalisation)
         if (normalizedSearch === normalizedOption) {
-            console.log(`   ✅ CORRESPONDANCE EXACTE PARFAITE!`);
+            console.log(`✅ Match exact: "${searchTerm}" → "${option}"`);
             return option;
         }
 
         // 2. Correspondance par inclusion
         if (normalizedOption.includes(normalizedSearch) || normalizedSearch.includes(normalizedOption)) {
             const inclusionScore = Math.max(normalizedSearch.length / normalizedOption.length, normalizedOption.length / normalizedSearch.length);
-            console.log(`   ✅ CORRESPONDANCE PAR INCLUSION! (score: ${inclusionScore.toFixed(3)})`);
             if (inclusionScore > 0.7) {
+                console.log(`✅ Match par inclusion: "${searchTerm}" → "${option}" (${inclusionScore.toFixed(2)})`);
                 return option;
             }
         }
 
         // 3. Analyse token par token
-        console.log(`   🔤 Analyse token par token:`);
         const tokenMatches: TokenMatch[] = [];
         let totalTokenScore = 0;
         
@@ -368,68 +351,38 @@ export const findBestMatch = (searchTerm: string, options: string[]): string => 
             const tokenMatch = findBestTokenMatch(searchToken, optionTokens);
             tokenMatches.push(tokenMatch);
             totalTokenScore += tokenMatch.score;
-            
-            console.log(`      "${searchToken}" → "${tokenMatch.bestOptionToken}" (${tokenMatch.matchType}, score: ${tokenMatch.score.toFixed(3)})`);
         }
 
         // 4. Métriques globales
         const globalMetrics = calculateGlobalMetrics(normalizedSearch, normalizedOption);
-        console.log(`   📊 Métriques globales:`);
-        console.log(`      Ratio longueur: ${globalMetrics.lengthRatio.toFixed(3)}`);
-        console.log(`      Préfixe commun: ${globalMetrics.prefixRatio.toFixed(3)}`);
-        console.log(`      Suffixe commun: ${globalMetrics.suffixRatio.toFixed(3)}`);
 
-        // 5. Calcul du score final avec pondération experte
-        const tokenScore = (totalTokenScore / searchTokens.length) * 0.6; // 60% du score
-        const lengthScore = globalMetrics.lengthRatio * 0.2; // 20% du score
-        const prefixScore = globalMetrics.prefixRatio * 0.1; // 10% du score
-        const suffixScore = globalMetrics.suffixRatio * 0.1; // 10% du score
+        // 5. Calcul du score final
+        const tokenScore = (totalTokenScore / searchTokens.length) * 0.6;
+        const lengthScore = globalMetrics.lengthRatio * 0.2;
+        const prefixScore = globalMetrics.prefixRatio * 0.1;
+        const suffixScore = globalMetrics.suffixRatio * 0.1;
         
         const finalScore = tokenScore + lengthScore + prefixScore + suffixScore;
-        
-        console.log(`   🎯 Scores finaux:`);
-        console.log(`      Tokens: ${tokenScore.toFixed(3)} (${(tokenScore/finalScore*100).toFixed(1)}%)`);
-        console.log(`      Longueur: ${lengthScore.toFixed(3)} (${(lengthScore/finalScore*100).toFixed(1)}%)`);
-        console.log(`      Préfixe: ${prefixScore.toFixed(3)} (${(prefixScore/finalScore*100).toFixed(1)}%)`);
-        console.log(`      Suffixe: ${suffixScore.toFixed(3)} (${(suffixScore/finalScore*100).toFixed(1)}%)`);
-        console.log(`      TOTAL: ${finalScore.toFixed(3)}`);
 
         if (finalScore > bestScore) {
             bestScore = finalScore;
             bestMatch = option;
-            bestDetails = {
-                tokenMatches,
-                globalMetrics,
-                finalScore
-            };
-            console.log(`   🏆 NOUVEAU MEILLEUR MATCH!`);
         }
     }
 
-    // Seuil adaptatif basé sur le nombre de tokens
+    // Seuil adaptatif
     const adaptiveThreshold = Math.max(0.1, 0.3 - (searchTokens.length * 0.05));
-    const confidence = bestScore >= 0.8 ? 'exact' : 
-                      bestScore >= 0.6 ? 'high' : 
-                      bestScore >= 0.4 ? 'medium' : 
-                      bestScore >= adaptiveThreshold ? 'low' : 'none';
-
-    console.log(`\n🏆 === RÉSULTAT FINAL ===`);
-    console.log(`   Meilleur match: "${bestMatch}"`);
-    console.log(`   Score: ${bestScore.toFixed(3)}`);
-    console.log(`   Confiance: ${confidence}`);
-    console.log(`   Seuil adaptatif: ${adaptiveThreshold.toFixed(3)}`);
-    console.log(`   Tokens matchés: ${bestDetails?.tokenMatches.filter((t: TokenMatch) => t.score > 0).length}/${searchTokens.length}`);
     
-    if (bestDetails) {
-        console.log(`   Détails des matches:`);
-        bestDetails.tokenMatches.forEach((match: TokenMatch, index: number) => {
-            console.log(`      ${index + 1}. "${match.searchToken}" → "${match.bestOptionToken}" (${match.matchType}, ${match.score.toFixed(3)})`);
-        });
+    if (bestScore >= adaptiveThreshold) {
+        const confidence = bestScore >= 0.8 ? 'exact' : 
+                          bestScore >= 0.6 ? 'high' : 
+                          bestScore >= 0.4 ? 'medium' : 'low';
+        console.log(`🎯 Match trouvé: "${searchTerm}" → "${bestMatch}" (${bestScore.toFixed(2)}, ${confidence})`);
+        return bestMatch;
+    } else {
+        console.log(`❌ Aucun match pour: "${searchTerm}" (seuil: ${adaptiveThreshold.toFixed(2)})`);
+        return '';
     }
-    
-    console.log(`🎯 === FIN MATCHING EXPERT POUR "${searchTerm}" ===\n`);
-    
-    return bestMatch;
 };
 
 export const transformGeminiDataToFormData = async (
@@ -439,6 +392,7 @@ export const transformGeminiDataToFormData = async (
         siretOptions: { value: string; isSuggested: boolean }[];
         siteOptions: { value: string; isSuggested: boolean }[];
         siteSiretOptions: { value: string; isSuggested: boolean }[];
+        siteKeywordsOptions: { value: string; isSuggested: boolean }[];
         dechetOptions: { value: string; isSuggested: boolean }[];
         codeCedOptions: { value: string; isSuggested: boolean }[];
         numClientOptions: { value: string; isSuggested: boolean }[];
@@ -446,7 +400,7 @@ export const transformGeminiDataToFormData = async (
     },
     entrepriseId?: string
 ): Promise<FactureLine> => {
-    console.log('📊 Données Gemini reçues:', geminiData);
+    console.log('🔄 Transformation des données Gemini...');
     
     // Extraire les données réelles depuis extracted_data
     const actualData = geminiData.extracted_data || geminiData;
@@ -458,6 +412,7 @@ export const transformGeminiDataToFormData = async (
     const siretValues = autocompletionOptions?.siretOptions?.map(opt => opt.value) || [];
     const siteValues = autocompletionOptions?.siteOptions?.map(opt => opt.value) || [];
     const siteSiretValues = autocompletionOptions?.siteSiretOptions?.map(opt => opt.value) || [];
+    const siteKeywordsValues = autocompletionOptions?.siteKeywordsOptions?.map(opt => opt.value) || [];
     const dechetValues = autocompletionOptions?.dechetOptions?.map(opt => opt.value) || [];
     const codeCedValues = autocompletionOptions?.codeCedOptions?.map(opt => opt.value) || [];
     const numClientValues = autocompletionOptions?.numClientOptions?.map(opt => opt.value) || [];
@@ -467,7 +422,22 @@ export const transformGeminiDataToFormData = async (
     let rawAutocompletionData: RawAutocompletionData[] = [];
     if (entrepriseId) {
         rawAutocompletionData = await fetchAutocompletionData(entrepriseId);
-        console.log('📋 Données d\'auto-complétion récupérées:', rawAutocompletionData.length, 'entrées');
+        console.log(`📋 ${rawAutocompletionData.length} entrées d'auto-complétion chargées`);
+        
+        // Afficher les mots-clés des sites
+        const siteKeywords = rawAutocompletionData
+            .filter(item => item.site?.motsClefs && item.site.motsClefs.length > 0)
+            .map(item => ({
+                site: item.site?.nom,
+                keywords: item.site?.motsClefs
+            }));
+        
+        if (siteKeywords.length > 0) {
+            console.log(`🔑 Sites avec mots-clés:`);
+            siteKeywords.forEach(({ site, keywords }) => {
+                console.log(`   ${site}: [${keywords?.join(', ')}]`);
+            });
+        }
     }
 
     // Mapper le header avec fuzzy matching pour les selects
@@ -475,14 +445,17 @@ export const transformGeminiDataToFormData = async (
         const header = actualData.header;
         
         // Trouver la meilleure correspondance pour les champs select
+        console.log(`\n🏢 === MATCHING PRESTATAIRE ===`);
         const bestPrestataire = prestataireValues.length > 0
             ? findBestMatch(header.prestataire_nom || '', prestataireValues)
             : header.prestataire_nom || '';
             
+        console.log(`\n🏢 === MATCHING SIRET ===`);
         const bestSiret = siretValues.length > 0
             ? findBestMatch(header.prestataire_siret || '', siretValues)
             : header.prestataire_siret || '';
             
+        console.log(`\n🏢 === MATCHING NUM CLIENT ===`);
         const bestNumClient = numClientValues.length > 0
             ? findBestMatch(header.prestataire_num_client || '', numClientValues)
             : header.prestataire_num_client || '';
@@ -498,13 +471,11 @@ export const transformGeminiDataToFormData = async (
         };
 
         // Auto-complétion des champs liés du header
-        // Vérifier si le prestataire a été trouvé par matching mais pas le SIRET
         if (bestPrestataire && bestPrestataire !== '' && (header.prestataire_siret === '' || !header.prestataire_siret)) {
-            console.log('🔄 Auto-complétion: Prestataire -> SIRET', { prestataire: bestPrestataire, siretOriginal: header.prestataire_siret });
             const siret = getSiretByPrestataire(rawAutocompletionData, bestPrestataire);
             if (siret) {
                 initialData.header.prestataire_siret = siret;
-                console.log('✅ SIRET auto-complété:', siret);
+                console.log(`✅ Auto-complétion: ${bestPrestataire} → SIRET ${siret}`);
             }
         }
     }
@@ -528,18 +499,40 @@ export const transformGeminiDataToFormData = async (
             if (depart.line_header) {
                 const lineHeader = depart.line_header;
                 
-                mappedDepart.site_nom = siteValues.length > 0
-                    ? findBestMatch(lineHeader.site_nom || '', siteValues)
-                    : lineHeader.site_nom || '';
+                // Recherche de site améliorée avec mots-clés
+                let bestSiteMatch = '';
+                if (siteValues.length > 0) {
+                    console.log(`\n🏭 === MATCHING SITE ===`);
+                    bestSiteMatch = findBestMatch(lineHeader.site_nom || '', siteValues);
+                }
+                
+                // Si pas de match par nom, essayer avec les mots-clés
+                if (!bestSiteMatch && siteKeywordsValues.length > 0) {
+                    console.log(`\n🔑 === MATCHING SITE PAR MOTS-CLÉS ===`);
+                    console.log(`📋 Mots-clés disponibles: [${siteKeywordsValues.join(', ')}]`);
+                    const keywordMatch = findBestMatch(lineHeader.site_nom || '', siteKeywordsValues);
+                    if (keywordMatch) {
+                        const siteByKeyword = getSiteByKeyword(rawAutocompletionData, keywordMatch);
+                        if (siteByKeyword) {
+                            bestSiteMatch = siteByKeyword;
+                            console.log(`✅ Site trouvé par mot-clé: "${keywordMatch}" → "${siteByKeyword}"`);
+                        }
+                    }
+                }
+                
+                mappedDepart.site_nom = bestSiteMatch || lineHeader.site_nom || '';
                     
+                console.log(`\n🏭 === MATCHING SIRET SITE ===`);
                 mappedDepart.site_siret = siteSiretValues.length > 0
                     ? findBestMatch(lineHeader.site_siret || '', siteSiretValues)
                     : lineHeader.site_siret || '';
                     
+                console.log(`\n🗑️ === MATCHING DÉCHET ===`);
                 mappedDepart.dechet_nom = dechetValues.length > 0
                     ? findBestMatch(lineHeader.type_dechet || '', dechetValues)
                     : lineHeader.type_dechet || '';
                     
+                console.log(`\n🗑️ === MATCHING CODE CED ===`);
                 mappedDepart.code_ced = codeCedValues.length > 0
                     ? findBestMatch(lineHeader.code_dechet || '', codeCedValues)
                     : lineHeader.code_dechet || '';
@@ -551,23 +544,19 @@ export const transformGeminiDataToFormData = async (
                     : '';
 
                 // Auto-complétion des champs liés du départ
-                // Vérifier si le site a été trouvé par matching mais pas le SIRET
                 if (mappedDepart.site_nom && mappedDepart.site_nom !== '' && (lineHeader.site_siret === '' || !lineHeader.site_siret)) {
-                    console.log('🔄 Auto-complétion: Site -> SIRET', { site: mappedDepart.site_nom, siretOriginal: lineHeader.site_siret });
                     const siteSiret = getSiretBySite(rawAutocompletionData, mappedDepart.site_nom);
                     if (siteSiret) {
                         mappedDepart.site_siret = siteSiret;
-                        console.log('✅ SIRET site auto-complété:', siteSiret);
+                        console.log(`✅ Auto-complétion: ${mappedDepart.site_nom} → SIRET ${siteSiret}`);
                     }
                 }
 
-                // Vérifier si le déchet a été trouvé par matching mais pas le code CED
                 if (mappedDepart.dechet_nom && mappedDepart.dechet_nom !== '' && (lineHeader.code_dechet === '' || !lineHeader.code_dechet)) {
-                    console.log('🔄 Auto-complétion: Déchet -> Code CED', { dechet: mappedDepart.dechet_nom, codeCedOriginal: lineHeader.code_dechet });
                     const codeCed = getCodeCedByDechet(rawAutocompletionData, mappedDepart.dechet_nom);
                     if (codeCed) {
                         mappedDepart.code_ced = codeCed;
-                        console.log('✅ Code CED auto-complété:', codeCed);
+                        console.log(`✅ Auto-complétion: ${mappedDepart.dechet_nom} → Code CED ${codeCed}`);
                     }
                 }
             }
@@ -590,6 +579,6 @@ export const transformGeminiDataToFormData = async (
     // Mettre à jour le total avec conversion en nombre
     initialData.footer.total_ht = safeParseFloat(actualData.footer?.total_ht);
 
-    console.log('✅ Données transformées:', initialData);
+    console.log('✅ Transformation terminée');
     return initialData;
 };

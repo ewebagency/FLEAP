@@ -6,14 +6,19 @@ import TableImportedFiles, { PdfInfo } from './TableImportedFiles';
 import { SessionMore } from '../../component/SessionProvider';
 import { useImport } from './ImportContext';
 import { toast } from 'react-hot-toast';
+import { cofounders_user_id } from '@/app/component/SideBar';
+import CofounderStatusFilter from './CofounderStatusFilter';
 
 
 const TableImportedFilesFunctional: React.FC = () => {
     const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const { entreprise_id } = useSession();
-    const { importReload, documentTypeFilter } = useImport();
+    const { entreprise_id, user_id } = useSession();
+    const { importReload, documentTypeFilter, statusFilter } = useImport();
+
+    // Vérifier si l'utilisateur est un cofounder
+    const isCofounder = cofounders_user_id(user_id);
 
     const fetchPdfInfos = useCallback(async () => {
         if (!entreprise_id) {
@@ -81,11 +86,31 @@ const TableImportedFilesFunctional: React.FC = () => {
     };
 
     // Filter pdfInfos based on documentTypeFilter
-    const filteredPdfInfos = documentTypeFilter 
+    let filteredPdfInfos = documentTypeFilter 
         ? documentTypeFilter === 'null'
             ? pdfInfos.filter(pdf => pdf.document_type === null || pdf.document_type === undefined)
             : pdfInfos.filter(pdf => pdf.document_type === documentTypeFilter)
         : pdfInfos;
+
+    // Calculer le nombre de documents filtrés par statut (pour les cofounders)
+    const getFilteredDocumentsCount = () => {
+        if (!isCofounder || !statusFilter) return 0;
+        
+        // Appliquer d'abord le filtre de type de document
+        const tempFiltered = documentTypeFilter 
+            ? documentTypeFilter === 'null'
+                ? pdfInfos.filter(pdf => pdf.document_type === null || pdf.document_type === undefined)
+                : pdfInfos.filter(pdf => pdf.document_type === documentTypeFilter)
+            : pdfInfos;
+        
+        // Puis filtrer par statut
+        return tempFiltered.filter(pdf => pdf.status === statusFilter).length;
+    };
+
+    // Filter pdfInfos based on statusFilter (only for cofounders)
+    if (isCofounder && statusFilter) {
+        filteredPdfInfos = filteredPdfInfos.filter(pdf => pdf.status === statusFilter);
+    }
 
     if (loading && !entreprise_id) {
         return <div className="flex justify-center p-4">
@@ -113,6 +138,12 @@ const TableImportedFilesFunctional: React.FC = () => {
 
     return (
         <div>
+            {/* Afficher le filtre de statut pour les cofounders avec le nombre de documents filtrés */}
+            <CofounderStatusFilter 
+                totalDocuments={pdfInfos.length} 
+                filteredDocuments={getFilteredDocumentsCount()}
+            />
+            
             <TableImportedFiles 
                 pdfInfos={filteredPdfInfos} 
                 onDelete={handleDelete}

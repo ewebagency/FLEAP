@@ -1,7 +1,7 @@
 'use client'
 import React, { useMemo, useState } from "react";
 import { useAnalysis } from "@/app/analysis/AnalysisProvider";
-import { tauxValorisationGlobale, tauxValorisationMatière } from "./codeTraitement";
+import { tauxValorisationGlobale, tauxValorisationMatière, findBestMatchingCode } from "./codeTraitement";
 
 const TauxValorisation = () => {
     const { bsds } = useAnalysis();
@@ -29,15 +29,19 @@ const TauxValorisation = () => {
 
                 recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
                     const tonnage = part.tonnage || 0;
-                    const codeValo = part.code_valo?.replace(/\s+/g, '');
+                    const codeValo = part.code_valo || '';
                     
                     bsdTotalTonnage += tonnage;
                     
-                    if (codeValo && tauxValorisationGlobale.includes(codeValo)) {
+                    // Utiliser findBestMatchingCode pour nettoyer et faire correspondre le code
+                    const matchedGlobalCode = findBestMatchingCode(codeValo, tauxValorisationGlobale);
+                    const matchedMatiereCode = findBestMatchingCode(codeValo, tauxValorisationMatière);
+                    
+                    if (matchedGlobalCode) {
                         bsdGloballyValorizedTonnage += tonnage;
                     }
                     
-                    if (codeValo && tauxValorisationMatière.includes(codeValo)) {
+                    if (matchedMatiereCode) {
                         bsdMateriallyValorizedTonnage += tonnage;
                     }
                 });
@@ -50,17 +54,21 @@ const TauxValorisation = () => {
                 }
             } else if (recipient.processingOperation) {
                 // Fallback sur processingOperation (ancienne méthode)
-                const processingCode = recipient.processingOperation.replace(/\s+/g, '');
+                const processingCode = recipient.processingOperation;
                 const tonnage = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
                 
                 if (processingCode && tonnage > 0) {
                     totalTonnage += tonnage;
                     
-                    if (tauxValorisationGlobale.includes(processingCode)) {
+                    // Utiliser findBestMatchingCode pour nettoyer et faire correspondre le code
+                    const matchedGlobalCode = findBestMatchingCode(processingCode, tauxValorisationGlobale);
+                    const matchedMatiereCode = findBestMatchingCode(processingCode, tauxValorisationMatière);
+                    
+                    if (matchedGlobalCode) {
                         globallyValorizedTonnage += tonnage;
                     }
                     
-                    if (tauxValorisationMatière.includes(processingCode)) {
+                    if (matchedMatiereCode) {
                         materiallyValorizedTonnage += tonnage;
                     }
                     

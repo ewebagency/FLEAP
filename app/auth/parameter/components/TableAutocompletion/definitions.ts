@@ -23,6 +23,13 @@ export const siteAttributes = {
         required: false,
       },*/
       {
+        name: 'motsClefs',
+        label: 'Mots-clés',
+        type: 'keywords' as const,
+        required: false,
+        placeholder: 'Ajouter des mots-clés',
+      },
+      {
         name: 'pointsCollecte',
         label: 'Points de collecte',
         type: 'collectionPoint' as const,

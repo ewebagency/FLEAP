@@ -194,7 +194,7 @@ const SideBar = (props:SideBarProps) => {
                                     {!isCollapsed && <span className={`${pathname === '/import_page' ? 'text-[var(--green-medium)] font-bold' : ''} ml-2 text-sm`}>Imports</span>}
                                 </a>
                             </li>
-                            {cofounderPermission && (
+                            {/*{cofounderPermission && (
                                 <li>
                                     <a 
                                         href="/interface_admin_2" 
@@ -219,7 +219,7 @@ const SideBar = (props:SideBarProps) => {
                                         {!isCollapsed && <span className={`${pathname === '/lien' ? 'text-[var(--green-medium)] font-bold' : ''} ml-2 text-sm`}>Factures - BSDs</span>}
                                     </a>
                                 </li>
-                            )}
+                            )}*/}
                         </ul>
                     </div>
                     {!isCollapsed && <h1 className="w-[200px] font-bold text-xl ml-2">{entreprise_name}</h1>}

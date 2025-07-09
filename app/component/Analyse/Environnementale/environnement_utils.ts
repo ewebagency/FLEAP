@@ -61,6 +61,7 @@ const DEFAULT_EMISSIONS = {
     'D15': 300,  // Stockage
     'RX': 0,     // Réemploi
     'PR': 0,     // Réutilisation
+    'R13': 70,  // Préparation à la valorisation
     'default': 0 // Valeur par défaut si code inconnu
 };
 

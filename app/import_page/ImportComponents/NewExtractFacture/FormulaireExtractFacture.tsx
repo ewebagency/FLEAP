@@ -42,6 +42,7 @@ interface AutocompletionOptions {
     siretOptions: AutocompletionOption[];
     siteSiretOptions: AutocompletionOption[];
     siteOptions: AutocompletionOption[];
+    siteKeywordsOptions: AutocompletionOption[];
     dechetOptions: AutocompletionOption[];
     codeCedOptions: AutocompletionOption[];
     numClientOptions: AutocompletionOption[];
@@ -69,6 +70,7 @@ const FormulaireExtractFacture = ({ pdf_id, pdf_path, onSuccess }: { pdf_id: num
         siretOptions: [],
         siteSiretOptions: [],
         siteOptions: [],
+        siteKeywordsOptions: [],
         dechetOptions: [],
         codeCedOptions: [],
         numClientOptions: [],

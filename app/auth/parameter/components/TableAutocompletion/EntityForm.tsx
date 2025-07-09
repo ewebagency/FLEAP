@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 
-type AttributeType = 'string' | 'address' | 'contact' | 'collectionPoint' | 'number' | 'select' | 'boolean' | 'tarifs';
+type AttributeType = 'string' | 'address' | 'contact' | 'collectionPoint' | 'number' | 'select' | 'boolean' | 'tarifs' | 'keywords';
 
 interface Attribute {
   name: string;
@@ -49,6 +49,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
     }
     return data;
   });
+  const [keywords, setKeywords] = useState<string[]>([]);
   const [collectionPoints, setCollectionPoints] = useState<CollectionPoint[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [tarifs, setTarifs] = useState<{
@@ -79,6 +80,11 @@ const EntityForm: React.FC<EntityFormProps> = ({
       setContacts(initialData.contacts as Contact[]);
     } else {
       setContacts([]);
+    }
+    if (initialData?.motsClefs) {
+      setKeywords(initialData.motsClefs as string[]);
+    } else {
+      setKeywords([]);
     }
   }, [initialData]);
 
@@ -167,6 +173,18 @@ const EntityForm: React.FC<EntityFormProps> = ({
     setContacts(prev => [...prev, newContact]);
   };
 
+  const handleAddKeyword = () => {
+    setKeywords(prev => [...prev, '']);
+  };
+
+  const handleRemoveKeyword = (index: number) => {
+    setKeywords(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleKeywordChange = (index: number, value: string) => {
+    setKeywords(prev => prev.map((keyword, i) => i === index ? value : keyword));
+  };
+
   const handleRemoveContact = (id: string) => {
     setContacts(prev => prev.filter(contact => contact.id !== id));
   };
@@ -185,6 +203,7 @@ const EntityForm: React.FC<EntityFormProps> = ({
     };
     if (title.toLowerCase().includes('site')) {
       finalData.pointsCollecte = collectionPoints;
+      finalData.motsClefs = keywords.filter(keyword => keyword.trim() !== '');
     }
     if (title.toLowerCase().includes('contrat')) {
       finalData.tarifs = tarifs;
@@ -385,6 +404,42 @@ const EntityForm: React.FC<EntityFormProps> = ({
               />
               {attribute.label}
             </label>
+          </div>
+        );
+
+      case 'keywords':
+        return (
+          <div className="space-y-2 w-full">
+            <div className="flex justify-between items-center">
+              <label className="text-xs font-medium text-gray-500">
+                {attribute.label}
+              </label>
+              <button
+                type="button"
+                onClick={handleAddKeyword}
+                className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-2 py-1 rounded-lg text-xs font-medium shadow-sm hover:shadow-md transition-all"
+              >
+                + Ajouter
+              </button>
+            </div>
+            {keywords.map((keyword, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Mot-clé"
+                  value={keyword}
+                  onChange={(e) => handleKeywordChange(index, e.target.value)}
+                  className="w-full px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleRemoveKeyword(index)}
+                  className="bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded-lg text-xs font-medium hover:bg-red-100 transition-all shrink-0"
+                >
+                  Supprimer
+                </button>
+              </div>
+            ))}
           </div>
         );
 

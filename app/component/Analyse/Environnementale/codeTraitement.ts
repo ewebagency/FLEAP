@@ -37,6 +37,8 @@ export const tauxValorisationGlobale = [
     'R9', // Régénération ou autres réemplois des huiles
     'R10', // Épandage sur le sol au profit de l'agriculture ou de l'écologie
     'R11', // Utilisation de déchets obtenus à partir de l'une des opérations numérotées R1 à R10
+    'R12', // Échange de déchets en vue de les soumettre à l'une des opérations numérotées R1 à R11
+    'R13'  // Stockage de déchets en attente de l'une des opérations numérotées R1 à R12
 ];
 
 export const tauxValorisationMatière = [
@@ -50,12 +52,15 @@ export const tauxValorisationMatière = [
     'R9', // Régénération ou autres réemplois des huiles
     'R10', // Épandage sur le sol au profit de l'agriculture ou de l'écologie
     'R11', // Utilisation de déchets obtenus à partir de l'une des opérations numérotées R1 à R10
+    'R12', // Échange de déchets en vue de les soumettre à l'une des opérations numérotées R1 à R11
+    'R13',  // Stockage de déchets en attente de l'une des opérations numérotées R1 à R12
+    'R2-R10' // Valorisation matière générale
 ];
 
 export const typeTraitement = {
     "Élimination": ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'D14', 'D15'],
     "Valorisation énergétique": ['R1'],
-    "Valorisation matière": ['R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11'],
+    "Valorisation matière": ['R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11', 'R2-R10'],
     "Préparation à la valorisation": ['R12', 'R13'],
     "Réutilisation": ['PR'],
     "Réemploi": ['RX'],
@@ -88,6 +93,7 @@ export const codeTraitementDefinitions = [
     { groupe: "Valorisation matière", code: "R8", nom: "Récup. catalyseurs", couleur: "#85dd45" },
     { groupe: "Valorisation matière", code: "R9", nom: "Régénération huiles", couleur: "#92e14a" },
     { groupe: "Valorisation matière", code: "R10", nom: "Épandage agricole/écologique", couleur: "#8edf4b" },
+    { groupe: "Valorisation matière", code: "R2-R10", nom: "Valorisation matière générale", couleur: "#8edf4b" },
     { groupe: "Valorisation matière", code: "R11", nom: "Réutilisation résidus R1-R10", couleur: "#a5ea58" },
     { groupe: "Préparation à la valorisation", code: "R12", nom: "Échange de déchets avant R1-R11", couleur: "#b4ef6b" },
     { groupe: "Préparation à la valorisation", code: "R13", nom: "Stockage avant R1-R12", couleur: "#c1f381" },
@@ -126,4 +132,34 @@ export const treatmentLabels = {
     "R12": "R12 - Échange avant R1-R11",
     "R13": "R13 - Stockage avant R1-R12",
     "default": "Méthode de traitement inconnue"
+};
+
+// Fonction pour nettoyer et faire correspondre le code de traitement
+export const findBestMatchingCode = (inputCode: string, availableCodes: string[]): string | null => {
+    // Nettoyer le code d'entrée : enlever uniquement les espaces
+    const cleanInput = inputCode.replaceAll(' ', '');
+    
+    // Chercher une correspondance exacte d'abord
+    if (availableCodes.includes(cleanInput)) {
+        return cleanInput;
+    }
+    
+    // Chercher la meilleure correspondance par sous-chaîne
+    let bestMatch: string | null = null;
+    let maxCommonChars = 0;
+    
+    for (const code of availableCodes) {
+        const cleanCode = code.replaceAll(' ', '');
+        
+        // Vérifier si le code d'entrée contient le code disponible OU si le code disponible contient le code d'entrée
+        if (cleanInput.includes(cleanCode) || cleanCode.includes(cleanInput)) {
+            const commonChars = Math.min(cleanInput.length, cleanCode.length);
+            if (commonChars > maxCommonChars) {
+                maxCommonChars = commonChars;
+                bestMatch = code;
+            }
+        }
+    }
+    
+    return bestMatch;
 };

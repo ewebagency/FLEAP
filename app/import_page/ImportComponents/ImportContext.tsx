@@ -6,6 +6,8 @@ interface ImportContextType {
     triggerReload: () => void;
     documentTypeFilter: string | null;
     setDocumentTypeFilter: (filter: string | null) => void;
+    statusFilter: string | null;
+    setStatusFilter: (filter: string | null) => void;
 }
 
 const ImportContext = createContext<ImportContextType | undefined>(undefined);
@@ -13,6 +15,7 @@ const ImportContext = createContext<ImportContextType | undefined>(undefined);
 export const ImportProvider = ({ children }: { children: React.ReactNode }) => {
     const [importReload, setImportReload] = useState(false);
     const [documentTypeFilter, setDocumentTypeFilter] = useState<string | null>(null);
+    const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
     const triggerReload = () => {
         setImportReload(prev => !prev);
@@ -23,7 +26,9 @@ export const ImportProvider = ({ children }: { children: React.ReactNode }) => {
             importReload, 
             triggerReload,
             documentTypeFilter,
-            setDocumentTypeFilter
+            setDocumentTypeFilter,
+            statusFilter,
+            setStatusFilter
         }}>
             {children}
         </ImportContext.Provider>

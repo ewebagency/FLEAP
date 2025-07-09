@@ -190,6 +190,17 @@ const AutocompletionTab: React.FC = () => {
             };
           }
           
+          // Gestion des mots-clés
+          if (field.startsWith('motsClefs.')) {
+            const [_, index] = field.split('.');
+            const motsClefs = [...(site.motsClefs || [])];
+            motsClefs[parseInt(index)] = value as string;
+            return {
+              ...site,
+              motsClefs
+            };
+          }
+          
           // Gestion des champs simples
           return { ...site, [field]: value };
         }));
@@ -579,17 +590,18 @@ const AutocompletionTab: React.FC = () => {
     };
     
     switch (entityType) {
-      case 'Site':
-        const newSite: Site = {
-          ...baseItem,
-          nom: data.nom as string,
-          siret: data.siret as string,
-          adresseSiege: data.adresseSiege as string,
-          pointsCollecte: data.pointsCollecte as CollectionPoint[],
-          contacts: data.contacts as Contact[],
-        };
-        setSites(prev => [...prev, newSite]);
-        break;
+              case 'Site':
+          const newSite: Site = {
+            ...baseItem,
+            nom: data.nom as string,
+            siret: data.siret as string,
+            adresseSiege: data.adresseSiege as string,
+            pointsCollecte: data.pointsCollecte as CollectionPoint[],
+            contacts: data.contacts as Contact[],
+            motsClefs: data.motsClefs as string[],
+          };
+          setSites(prev => [...prev, newSite]);
+          break;
       case 'Transporteur':
         const newTransporteur: Transporteur = {
           ...baseItem,
@@ -904,6 +916,49 @@ const AutocompletionTab: React.FC = () => {
                         </div>
                       )}
 
+                      {/* Mots-clés */}
+                      <div className="bg-gray-50 rounded-xl p-4">
+                        <div className="flex justify-between items-center mb-3">
+                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Mots-clés</p>
+                          {isEditing && entity.id && (
+                            <button
+                              onClick={() => handleAddKeyword(entity.id)}
+                              className="bg-[var(--green-medium)] hover:bg-[var(--green-light)] text-white px-2 py-1 rounded-lg text-xs font-medium shadow-sm hover:shadow-md transition-all"
+                            >
+                              + Ajouter
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {(entity as Site).motsClefs?.map((keyword: string, index: number) => (
+                            <div key={index} className="flex items-center gap-2">
+                              {isEditing ? (
+                                <>
+                                  <input
+                                    type="text"
+                                    value={keyword || ''}
+                                    onChange={(e) => handleFieldChange(type, entity.id, `motsClefs.${index}`, e.target.value)}
+                                    className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
+                                    placeholder="Mot-clé"
+                                  />
+                                  <button
+                                    onClick={() => entity.id && handleRemoveKeyword(entity.id, index)}
+                                    className="bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded-lg text-xs font-medium hover:bg-red-100 transition-all"
+                                  >
+                                    ×
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="text-xs bg-white px-3 py-1.5 rounded-lg text-gray-800 shadow-sm">{keyword || ''}</span>
+                              )}
+                            </div>
+                          ))}
+                          {(!(entity as Site).motsClefs || (entity as Site).motsClefs?.length === 0) && !isEditing && (
+                            <span className="text-xs text-gray-400 italic">Aucun mot-clé</span>
+                          )}
+                        </div>
+                      </div>
+
                       {/* Points de collecte */}
                       {(entity as Site).pointsCollecte && Array.isArray((entity as Site).pointsCollecte) && (
                         <div className="bg-gray-50 rounded-xl p-4">
@@ -1158,6 +1213,26 @@ const AutocompletionTab: React.FC = () => {
       return {
         ...site,
         pointsCollecte: [...site.pointsCollecte, newPoint]
+      };
+    }));
+  };
+
+  const handleAddKeyword = (siteId: string) => {
+    setSites(prev => prev.map(site => {
+      if (site.id !== siteId) return site;
+      return {
+        ...site,
+        motsClefs: [...(site.motsClefs || []), '']
+      };
+    }));
+  };
+
+  const handleRemoveKeyword = (siteId: string, index: number) => {
+    setSites(prev => prev.map(site => {
+      if (site.id !== siteId) return site;
+      return {
+        ...site,
+        motsClefs: (site.motsClefs || []).filter((_, i) => i !== index)
       };
     }));
   };

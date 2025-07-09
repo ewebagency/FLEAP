@@ -7,7 +7,7 @@ interface RawAutocompletionData {
     id: number;
     created_at: string;
     entreprise_id: number;
-    site: { nom: string; siret: string; adresseSiege: string } | null;
+    site: { nom: string; siret: string; adresseSiege: string; motsClefs?: string[] } | null;
     transporteur: { nomBoite?: string; siret?: string; adresse?: string } | null;
     destinataire: { nomBoite?: string; siret?: string; adresse?: string } | null;
     dechet: { nom: string; codeCED: string; onu: string; adr: string } | null;
@@ -114,6 +114,23 @@ export const extractSiteOptions = (data: RawAutocompletionData[]) => {
         .sort((a, b) => a.value.localeCompare(b.value));
 };
 
+export const extractSiteKeywordsOptions = (data: RawAutocompletionData[]) => {
+    const options = new Set<string>();
+    data.forEach(item => {
+        if (item.site?.motsClefs && Array.isArray(item.site.motsClefs)) {
+            item.site.motsClefs.forEach(keyword => {
+                if (keyword && keyword.trim() !== '') {
+                    options.add(keyword.trim());
+                }
+            });
+        }
+    });
+    return Array.from(options)
+        .filter(value => value && value.trim() !== '')
+        .map(value => ({ value, isSuggested: false }))
+        .sort((a, b) => a.value.localeCompare(b.value));
+};
+
 export const extractDechetOptions = (data: RawAutocompletionData[]) => {
     const options = new Set<string>();
     data.forEach(item => {
@@ -167,6 +184,7 @@ export const getAutocompletionOptions = async (entrepriseId: string) => {
         siretOptions: extractSiretOptions(data),
         siteSiretOptions: extractSiteSiretOptions(data),
         siteOptions: extractSiteOptions(data),
+        siteKeywordsOptions: extractSiteKeywordsOptions(data),
         dechetOptions: extractDechetOptions(data),
         codeCedOptions: extractCodeCedOptions(data),
         numClientOptions: extractNumClientOptions(data),
@@ -208,6 +226,15 @@ export const getSiretBySite = (data: RawAutocompletionData[], siteName: string) 
 
 export const getSiteBySiret = (data: RawAutocompletionData[], siret: string) => {
     const item = data.find(item => item.site?.siret === siret);
+    return item?.site?.nom || '';
+};
+
+export const getSiteByKeyword = (data: RawAutocompletionData[], keyword: string) => {
+    const item = data.find(item => 
+        item.site?.motsClefs && 
+        Array.isArray(item.site.motsClefs) && 
+        item.site.motsClefs.some(k => k.toLowerCase().includes(keyword.toLowerCase()) || keyword.toLowerCase().includes(k.toLowerCase()))
+    );
     return item?.site?.nom || '';
 };
 

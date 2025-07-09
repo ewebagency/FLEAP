@@ -34,6 +34,7 @@ export interface Site extends BaseEntity {
   adresseSiege: string;
   pointsCollecte: CollectionPoint[];
   contacts: Contact[];
+  motsClefs?: string[];
 }
 
 export interface Dechet extends BaseEntity {

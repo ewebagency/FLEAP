@@ -15,6 +15,7 @@ interface OCRThisFactureProps {
         siretOptions: { value: string; isSuggested: boolean }[];
         siteOptions: { value: string; isSuggested: boolean }[];
         siteSiretOptions: { value: string; isSuggested: boolean }[];
+        siteKeywordsOptions: { value: string; isSuggested: boolean }[];
         dechetOptions: { value: string; isSuggested: boolean }[];
         codeCedOptions: { value: string; isSuggested: boolean }[];
         numClientOptions: { value: string; isSuggested: boolean }[];

@@ -83,11 +83,11 @@ const TabBarAnalyses = () => {
                    onClick={() => handleTabClick('tab_ops')}>
                    Analyse opérationnelle
                 </a>
-                <a role="tab" 
+                {/*<a role="tab" 
                    className={`tab border-0 ${activeTab === 'tab_facture' ? 'border-b-4 border-green-500' : ''}`} 
                    onClick={() => handleTabClick('tab_facture')}>
                    Analyse des factures
-                </a>
+                </a>*/}
                 <a role="tab" 
                    className={`tab border-0 ${activeTab === 'tab_env' ? 'border-b-4 border-green-500' : ''}`} 
                    onClick={() => handleTabClick('tab_env')}>
@@ -102,7 +102,7 @@ const TabBarAnalyses = () => {
 
             {hasFinanceData ? <FinancialAnalyse active={activeTab == 'tab_finance'}/> : null}
             <OperationalAnalyse active={activeTab == 'tab_ops'}/>
-            <FactureAnalyse active={activeTab == 'tab_facture'}/>
+            {/*<FactureAnalyse active={activeTab == 'tab_facture'}/>*/}
             <EnvAnalyse active={activeTab == 'tab_env'}/>
             {/*<OptiTab active={activeTab == 'tab_opti'}/>*/}
         </div>
