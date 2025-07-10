@@ -60,6 +60,37 @@ const cofounders_user_id = (user_id:string|null) => {
     return false;
 }
 
+// Nouvelle fonction pour récupérer tous les readable_id_track_dechets existants
+const getExistingReadableIds = async (entreprise_id: string): Promise<string[]> => {
+    const existingIds: string[] = [];
+    let from = 0;
+    const limit = 1000;
+    
+    while (true) {
+        const { data, error } = await supabase
+            .from('bsd')
+            .select('readable_id_track_dechets')
+            .eq('entreprise_id', entreprise_id)
+            .range(from, from + limit - 1);
+            
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        // Filtrer les IDs non-null côté client
+        data.forEach(row => {
+            if (row.readable_id_track_dechets && row.readable_id_track_dechets.trim() !== '') {
+                existingIds.push(row.readable_id_track_dechets);
+            }
+        });
+        
+        // Si on a moins de 1000 résultats, on a fini
+        if (data.length < limit) break;
+        from += limit;
+    }
+    
+    return existingIds;
+};
+
 const convertToISO = (dateInput: string | number | boolean | undefined): string => {
     // Gérer les cas vides
     if (!dateInput) {
@@ -476,20 +507,18 @@ const sendToSupabase = async (
     ligne_autres_infos: OtherInfos | null,
     ligne_facture: { infos_json: FactureJSON } | null,
     user_id: string, 
+    entreprise_id: string | null,
     tableType: string,
-    source: string
+    source: string,
+    existingReadableIds?: Set<string> // Nouveau paramètre optionnel
 ) => {
-    //UserId --> EntrepriseId
-    const { data: entreprise_infos, error } = await supabase
-        .from('profiles')
-        .select('entreprise_id')
-        .eq('user_id', user_id)
-        .single();
 
-    if(error){
-        toast.error('Erreur lors de l\'import de la table de paramétrage');
+
+    if(!entreprise_id){
+        toast.error('Entreprise non trouvée');
+        return;
     } else {
-        const entreprise_id = entreprise_infos.entreprise_id;
+        
         const facture_treated:boolean = (ligne_facture?.infos_json.footer.total_ht!==0);
         //SI Table Paramétrage : Insertion du registre mappé dans table_parametrage
         if(tableType == "table_parametrage"){
@@ -518,6 +547,15 @@ const sendToSupabase = async (
         } 
         //SI Registre Historique : Insertion du registre mappé dans bsd
         else if(tableType == "registre_historique"){
+            // Vérification du doublon si on a la liste des IDs existants
+            if (existingReadableIds) {
+                const readableId = ligne_BSD.formAPI.createFormInput.readableId;
+                if (readableId && existingReadableIds.has(readableId)) {
+                    toast.error(`Doublon détecté pour ${readableId}, ignoré`);
+                    return { skipped: true, reason: 'duplicate' };
+                }
+            }
+            
             const { data, error } = await supabase
                 .from('bsd')
                 .insert(
@@ -531,21 +569,24 @@ const sendToSupabase = async (
                         created_on_fleap: false,
                         status_track_dechets: "IMPORTED",
                         created_at: ligne_BSD.formAPI.createFormInput.takenOverAt || new Date().toISOString(),
+                        readable_id_track_dechets: ligne_BSD.formAPI.createFormInput.readableId || null,
                         source: source,
                     }
                 )
             if (error) {
                 toast.error('Erreur lors de l\'import du registre historique');
+                return { error: true };
             } else {
-                console.log('Données importées avec succès', data);
+                //console.log('Données importées avec succès', data);
                 toast.success('Registre historique importé avec succès');
+                return { success: true };
             }
         }
     }
 }
 
 const ImportRegisterButton = () => {
-    const session = useSession();
+    const {entreprise_id, user_id} = useSession();
     const { modalReload, setModalReload } = useModal();
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState('');
@@ -560,12 +601,12 @@ const ImportRegisterButton = () => {
     //const [selectedConfig, setSelectedConfig] = useState<{userId: string, tableType: string} | null>(null);
     
     useEffect(() => {
-        if(session && session?.user_id){
-            if (cofounders_user_id(session?.user_id)) {
+        if(user_id){
+            if (cofounders_user_id(user_id)) {
                 setDisplay(true);
             }
         }
-    }, [session]);
+    }, [user_id]);
 
     const handleButtonClick = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -590,7 +631,7 @@ const ImportRegisterButton = () => {
         
         setIsLoading(true);
         try {
-            if (!session) {
+            if (!user_id) {
                 throw new Error("Session non trouvée");
             }
             // Lire le fichier Excel
@@ -615,25 +656,41 @@ const ImportRegisterButton = () => {
                     .slice(0, 20); // Prendre les 3 premières lignes
             }
 
+            // Récupérer tous les IDs existants une seule fois pour registre_historique
+            let existingIdsSet: Set<string> | undefined;
+            if (tableType === "registre_historique" && entreprise_id) {
+                const existingIds = await getExistingReadableIds(entreprise_id);
+                existingIdsSet = new Set(existingIds);
+            }
+            
+            let importedCount = 0;
+            let skippedCount = 0;
+            
             // Traiter les données
-            jsonData.forEach((row: Row) => {
+            for (const row of jsonData) {
                 if(tableType == "table_parametrage"){
                     const ligne_BSD = mapToBsdFormat(row);
                     const ligne_autres_infos = mapToAutresInfosFormat(row);
-                    if(session?.user_id) sendToSupabase(ligne_BSD, ligne_autres_infos, null, session.user_id, tableType, source);
+                    if(user_id) sendToSupabase(ligne_BSD, ligne_autres_infos, null, user_id, entreprise_id, tableType, source);
                 } else if (tableType == "registre_historique"){
                     const ligne_BSD = mapToBsdFormat(row);
                     const ligne_autres_infos = mapToAutresInfosFormat(row);
                     const ligne_facture = mapToFactureFormat(row);
-                    if(!userId){
-                        if(session.user_id) sendToSupabase(ligne_BSD, ligne_autres_infos, ligne_facture, session.user_id, tableType, source);
-                    } else {
-                        sendToSupabase(ligne_BSD, ligne_autres_infos, ligne_facture, userId, tableType, source);
+                    
+                    const result = await sendToSupabase(
+                        ligne_BSD, ligne_autres_infos, ligne_facture, 
+                        userId || user_id || '', entreprise_id, tableType, source, existingIdsSet
+                    );
+                    
+                    if (result?.skipped) {
+                        skippedCount++;
+                    } else if (result?.success) {
+                        importedCount++;
                     }
                 }
-            });
+            }
             
-            setMessage('Import réussi !');
+            setMessage(`Import terminé : ${importedCount} importés, ${skippedCount} doublons ignorés`);
             setMessageType('success');
             
             setTimeout(() => {
@@ -747,8 +804,8 @@ const ImportRegisterButton = () => {
             )}
             
             {message && (
-                <div className={`absolute top-[-20px] left-0 w-full text-center text-xs ${
-                    messageType === 'success' ? 'text-green-500' : 'text-red-500'
+                <div className={`absolute top-[-20px] left-[-100px] z-50 w-[250px] text-center text-md bg-white rounded-md p-2 border-2 font-bold ${
+                    messageType === 'success' ? 'text-green-700 border-2 border-green-500' : 'text-red-700 border-2 border-red-500'
                 }`}>
                     {message}
                 </div>

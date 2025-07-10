@@ -9,6 +9,7 @@ import ImportsFiltre from "./ImportComponents/ImportsFiltre";
 import DownloadFactureForMe from "./FactureImport/DownloadFactureForMe";
 import { cofounders_user_id } from "../component/SideBar";
 import { useSession } from "@/app/component/SessionProvider";
+import TransferReadableIdButton from "./transferReadableId";
 
 const ImportPage = () => {
     const {user_id} = useSession();
@@ -24,6 +25,7 @@ const ImportPage = () => {
                 <ButtonImportFacture/>
                 {cofounders_user_id(user_id) && <DownloadFactureForMe/>}
                 <ImportPDF/>
+                {/*<TransferReadableIdButton/>*/}
 
                 <div className="flex flex-row justify-start items-end gap-4 my-3">
                     <div className="text-sm text-gray-500 font-medium">Documents importés</div>
