@@ -36,7 +36,7 @@ const CofounderStatusFilter: React.FC<CofounderStatusFilterProps> = ({ totalDocu
             <div className="flex space-x-2">
                 <button
                     onClick={() => handleStatusFilterChange(null)}
-                    className={`px-3 py-1 text-xs rounded-md ${
+                    className={`px-3 py-1 text-xs rounded-md mr-4 ${
                         statusFilter === null
                             ? 'bg-blue-100 text-blue-800 font-medium'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'

@@ -658,7 +658,7 @@ const SelectDocumentType: React.FC<{ pdf_id: number; initialType?: string }> = (
         { id: 'bsd', name: 'BSD' },
         { id: 'bon', name: 'Bon' },
         { id: 'facture', name: 'Facture' },
-        { id: 'prestataire', name: 'Contrat Presta' },
+        { id: 'conformite', name: 'Conformité' },
         { id: 'autre', name: 'Autre' }
     ];
 
@@ -677,7 +677,7 @@ const SelectDocumentType: React.FC<{ pdf_id: number; initialType?: string }> = (
     return (
         <select 
             className="border rounded p-1 text-xs w-full max-w-[100px]"
-            value={selectedType}
+            value={documentTypes.some(dt => dt.id === selectedType) ? selectedType : 'autre'}
             onChange={(e) => handleSelectType(e.target.value)}
         >
             <option value="">Type</option>

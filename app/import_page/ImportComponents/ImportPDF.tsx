@@ -319,6 +319,26 @@ const ImportPDF = () => {
         setDuplicateFiles([]);
     };
 
+    // Fonction pour importer uniquement les fichiers non doublons
+    const importOnlyNonDuplicates = () => {
+        const nonDuplicateFiles = pendingFiles.filter(
+            file => !duplicateFiles.includes(file.name)
+        );
+        setShowDuplicateAlert(false);
+        if (nonDuplicateFiles.length > 0) {
+            setFilesToImport(nonDuplicateFiles);
+            // Initialiser la sélection pour chaque fichier (optionnel, si tu veux gérer par fichier)
+            // const initialSelections: Record<string, { site: SiteInterface | null; presta: Prestataire | null }> = {};
+            // nonDuplicateFiles.forEach(file => {
+            //   initialSelections[file.name] = { site: null, presta: null };
+            // });
+            // setPdfMetaSelections(initialSelections); // si tu veux gérer par fichier
+            setShowPDFMetaModal(true);
+        }
+        setPendingFiles([]);
+        setDuplicateFiles([]);
+    };
+
     // Modifie la signature pour accepter les sélections site/presta
     const handleFilesUpload = async (files: File[], metaSelections?: { site: SiteInterface | null; presta: Prestataire | null; documentType: 'bsd' | 'facture' | 'bon' }) => {
         if (!user_id) {
@@ -486,17 +506,20 @@ const ImportPDF = () => {
                         <h3 className="text-lg font-semibold text-red-600 mb-4">
                             Nous voyons des doublons
                         </h3>
-                        <p className="text-gray-700 mb-4">
+                        <p className="text-gray-700 mb-2">
                             Les fichiers suivants existent déjà dans votre entreprise :
                         </p>
-                        <ul className="bg-gray-100 p-3 rounded mb-4 max-h-32 overflow-y-auto">
+                        <ul className="bg-gray-100 p-3 rounded mb-2 max-h-32 overflow-y-auto">
                             {duplicateFiles.map((fileName, index) => (
                                 <li key={index} className="text-sm text-gray-600 mb-1">
                                     • {fileName}
                                 </li>
                             ))}
                         </ul>
-                        <div className="flex gap-3 justify-end">
+                        <div className="text-xs text-gray-500 mb-4">
+                          {duplicateFiles.length} doublon{duplicateFiles.length > 1 ? 's' : ''} / {(() => { const n = pendingFiles.filter(f => !duplicateFiles.includes(f.name)).length; return `${n} nouveau${n > 1 ? 'x' : ''}`; })()}
+                        </div>
+                        <div className="flex gap-3 justify-end flex-wrap">
                             <button
                                 onClick={cancelImport}
                                 className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
@@ -504,10 +527,17 @@ const ImportPDF = () => {
                                 Annuler
                             </button>
                             <button
+                                onClick={importOnlyNonDuplicates}
+                                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                disabled={pendingFiles.filter(f => !duplicateFiles.includes(f.name)).length === 0}
+                            >
+                                Importer uniquement les nouveaux ({pendingFiles.filter(f => !duplicateFiles.includes(f.name)).length})
+                            </button>
+                            <button
                                 onClick={confirmImportWithDuplicates}
                                 className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
                             >
-                                Importer quand même
+                                Importer quand même ({pendingFiles.length})
                             </button>
                         </div>
                     </div>
@@ -550,8 +580,9 @@ const ImportPDF = () => {
                       className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     >
                       <option value="bsd">📄 Bordereau de Suivi de Déchets (BSD)</option>
-                      <option value="facture">🧾 Facture</option>
-                      <option value="bon">📋 Bon de livraison/collecte</option>
+                      <option value="facture">💲 Facture</option>
+                      <option value="bon">📋 Bon de livraison</option>
+                      <option value="conformite">⚖ Conformité</option>
                     </select>
                   </div>
 

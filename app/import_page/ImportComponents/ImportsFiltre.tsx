@@ -14,7 +14,7 @@ const ImportsFiltre: React.FC = () => {
             <div className="flex space-x-2">
                 <button
                     onClick={() => handleFilterChange(null)}
-                    className={`px-3 py-1 text-xs rounded-md ${
+                    className={`px-3 py-1 text-xs rounded-md mr-4 ${
                         documentTypeFilter === null
                             ? 'bg-green-100 text-green-800 font-medium'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -53,25 +53,27 @@ const ImportsFiltre: React.FC = () => {
                     Facture
                 </button>
                 <button
-                    onClick={() => handleFilterChange('excel')}
-                    className={`px-3 py-1 text-xs rounded-md ${
-                        documentTypeFilter === 'excel'
-                            ? 'bg-green-100 text-green-800 font-medium'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                    Excel
-                </button>
-                <button
-                    onClick={() => handleFilterChange('prestataire')}
-                    className={`px-3 py-1 text-xs rounded-md ${
-                        documentTypeFilter === 'prestataire'
+                    onClick={() => handleFilterChange('conformite')}
+                    className={`px-3 py-1 text-xs rounded-md mr-4 ${
+                        documentTypeFilter === 'conformite'
                             ? 'bg-green-100 text-green-800 font-medium'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                 >
                     Conformité
                 </button>
+                <div className='w-2 h-2 bg-white rounded-full'></div>
+                <button
+                    onClick={() => handleFilterChange('excel')}
+                    className={`px-3 py-1 text-xs rounded-md mr-4 ${
+                        documentTypeFilter === 'excel'
+                            ? 'bg-green-100 text-green-800 font-medium'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                    Excel
+                </button>     
+                <div className='w-2 h-2 bg-white rounded-full'></div>           
                 <button
                     onClick={() => handleFilterChange('autre')}
                     className={`px-3 py-1 text-xs rounded-md ${
@@ -81,16 +83,6 @@ const ImportsFiltre: React.FC = () => {
                     }`}
                 >
                     Autre
-                </button>
-                <button
-                    onClick={() => handleFilterChange('null')}
-                    className={`px-3 py-1 text-xs rounded-md ${
-                        documentTypeFilter === 'null'
-                            ? 'bg-green-100 text-green-800 font-medium'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                    Non classé
                 </button>
             </div>
         </div>
