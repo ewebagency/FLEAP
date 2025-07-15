@@ -725,7 +725,7 @@ const SelectProvider: React.FC<{ entreprise_id: string | null; pdf_id: number; i
                 const providerOptions: ProviderOption[] = [];
                 
                 if (data) {
-                    data.forEach((item: any) => {
+                    data.forEach((item: { id: number; transporteur?: { nomBoite?: string; siret?: string }; destinataire?: { nomBoite?: string; siret?: string } }) => {
                         // Ajouter les transporteurs
                         if (item.transporteur && item.transporteur.nomBoite) {
                             providerOptions.push({

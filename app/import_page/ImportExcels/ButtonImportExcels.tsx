@@ -13,6 +13,7 @@ import { sendDataToBdd } from './send_data_to_bdd';
 import PreviewImport from '../ImportComponents/PreviewImport';
 import { PdfInfo } from '../ImportComponents/TableImportedFiles';
 import { useImport } from '../ImportComponents/ImportContext';
+import { OtherInfos } from '@/app/register/interface/BSD_Interface';
 
 // Type pour les formats disponibles
 type ExcelFormat = 'paprec' | 'ecobtp' | 'luxobennes';
@@ -402,7 +403,8 @@ const ButtonImportExcels = () => {
         
         if (selectedFormat === 'paprec') {
           const standardizedData = await standard_with_paprec(data_excel, user_id, entreprise_id);
-          previewDataReady = createPreviewData(standardizedData, data_excel, user_id, entreprise_id);
+          // Cast temporaire, attention : il faut idéalement une vraie conversion !
+          previewDataReady = createPreviewData(standardizedData as unknown as StandardizedLineData[], data_excel, user_id, entreprise_id);
         } else if (selectedFormat === 'ecobtp') {
           previewDataReady = await standard_with_ecobtp(data_excel, user_id, entreprise_id);
         } else if (selectedFormat === 'luxobennes') {
@@ -429,7 +431,7 @@ const ButtonImportExcels = () => {
   };
 
   const createPreviewData = (
-    standardizedData: any[],
+    standardizedData: StandardizedLineData[],
     data_excel: ExcelData,
     user_id: string,
     entreprise_id: string
@@ -461,9 +463,11 @@ const ButtonImportExcels = () => {
       }
 
       // Construction dynamique de other_infos
-      const other_infos: any = {
+      const other_infos: OtherInfos = {
         volume: String(row.cubage),
         volumeUnit: String(row.volumeUnitaire),
+        fillRate: '', // valeur par défaut, à ajuster si besoin
+        containerDescription: '', // valeur par défaut, à ajuster si besoin
       };
       if (typeof row.tri !== 'undefined') {
         other_infos.tri = row.tri;

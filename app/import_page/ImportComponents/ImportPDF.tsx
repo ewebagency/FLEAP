@@ -517,7 +517,7 @@ const ImportPDF = () => {
             {showPDFMetaModal && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                 <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
-                  <h3 className="text-lg font-semibold text-blue-700 mb-4">Configuration de l'import PDF</h3>
+                  <h3 className="text-lg font-semibold text-blue-700 mb-4">Configuration de l&apos;import PDF</h3>
                   
                   {/* Liste des fichiers */}
                   <div className="mb-4">
