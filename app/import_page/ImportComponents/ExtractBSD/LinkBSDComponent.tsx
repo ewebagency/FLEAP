@@ -50,6 +50,8 @@ interface LinkBSDComponentProps {
   setTonnageFilter: (enabled: boolean) => void;
   tonnageRange: number;
   setTonnageRange: (range: number) => void;
+  idFilter: boolean;
+  setIdFilter: (enabled: boolean) => void;
 }
 
 export const LinkBSDComponent = ({
@@ -95,7 +97,9 @@ export const LinkBSDComponent = ({
   tonnageFilter,
   setTonnageFilter,
   tonnageRange,
-  setTonnageRange
+  setTonnageRange,
+  idFilter,
+  setIdFilter
 }: LinkBSDComponentProps) => {
 
   // Fonction pour comparer les SIREN/SIRET de manière floue
@@ -168,9 +172,8 @@ export const LinkBSDComponent = ({
     return postalCode1 === postalCode2;
   };
 
-    return (
-<div>
-        <>
+  return (
+    <div>
       <button
         onClick={() => {
           setIsModalOpen(true);
@@ -300,34 +303,52 @@ export const LinkBSDComponent = ({
                       <span className="text-xs text-gray-500">%</span>
                     </div>
                   </div>
+
+                  {/* Filtre ID */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={idFilter}
+                        onChange={(e) => setIdFilter(e.target.checked)}
+                        className="h-4 w-4 text-indigo-600"
+                      />
+                      <span className="text-sm font-medium text-indigo-600">ID</span>
+                    </div>
+                    <span className="text-xs text-gray-500">Filtre sur numéro de bordereau</span>
+                  </div>
               </div>
 
               {/* Légende des couleurs */}
-                {/*<div className="mt-3 pt-3 border-t border-gray-200">
-                  <h4 className="text-xs font-medium text-gray-700 mb-2">Légende :</h4>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-blue-100 border border-blue-300 rounded"></div>
-                    <span className="text-blue-600">Code CED</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-green-100 border border-green-300 rounded"></div>
-                    <span className="text-green-600">SIRET/SIREN</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-orange-100 border border-orange-300 rounded"></div>
-                    <span className="text-orange-600">Dates</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-purple-100 border border-purple-300 rounded"></div>
-                    <span className="text-purple-600">Adresses</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-red-100 border border-red-300 rounded"></div>
-                    <span className="text-red-600">Tonnage</span>
-                  </div>
-                  </div>
-                </div>*/}
+                {/* <div className="mt-3 pt-3 border-t border-gray-200"> */}
+                  {/* <h4 className="text-xs font-medium text-gray-700 mb-2">Légende :</h4> */}
+                  {/* <div className="grid grid-cols-2 gap-2 text-xs"> */}
+                  {/* <div className="flex items-center gap-1"> */}
+                      {/* <div className="w-3 h-3 bg-blue-100 border border-blue-300 rounded"></div> */}
+                    {/* <span className="text-blue-600">Code CED</span> */}
+                  {/* </div> */}
+                  {/* <div className="flex items-center gap-1"> */}
+                      {/* <div className="w-3 h-3 bg-green-100 border border-green-300 rounded"></div> */}
+                    {/* <span className="text-green-600">SIRET/SIREN</span> */}
+                  {/* </div> */}
+                  {/* <div className="flex items-center gap-1"> */}
+                      {/* <div className="w-3 h-3 bg-orange-100 border border-orange-300 rounded"></div> */}
+                    {/* <span className="text-orange-600">Dates</span> */}
+                  {/* </div> */}
+                  {/* <div className="flex items-center gap-1"> */}
+                      {/* <div className="w-3 h-3 bg-purple-100 border border-purple-300 rounded"></div> */}
+                    {/* <span className="text-purple-600">Adresses</span> */}
+                  {/* </div> */}
+                  {/* <div className="flex items-center gap-1"> */}
+                      {/* <div className="w-3 h-3 bg-red-100 border border-red-300 rounded"></div> */}
+                    {/* <span className="text-red-600">Tonnage</span> */}
+                  {/* </div> */}
+                  {/* <div className="flex items-center gap-1"> */}
+                      {/* <div className="w-3 h-3 bg-indigo-100 border border-indigo-300 rounded"></div> */}
+                    {/* <span className="text-indigo-600">ID</span> */}
+                  {/* </div> */}
+                  {/* </div> */}
+                {/* </div> */}
               </div>
 
               {/* Filtres personnalisés */}
@@ -401,9 +422,12 @@ export const LinkBSDComponent = ({
                 {/* BSD PDF Information */}
                 {bsdPdf && (
                     <div className="bg-gray-50 p-4 rounded-lg w-[60%] h-[400px] overflow-y-auto">
-                      
+                      {/* Numéro de Bordereau PDF en haut */}
+                      <div className="mb-2 flex items-center justify-center">
+                      <span className="text-xl text-indigo-700 mr-1">N° BSD :  </span><span className="text-2xl font-bold text-indigo-700">{bsdPdf.numeroBordereau || 'Numéro de bordereau non spécifié'}</span>
+                      </div>
                       {/* Dates Section */}
-                      <div className="mb-8">
+                      <div className="mb-4">
                         <div className="text-sm grid grid-cols-4 gap-2">
                           <div>
                             <div className="text-gray-600">Prise en charge:</div>
@@ -417,13 +441,13 @@ export const LinkBSDComponent = ({
                               {bsdPdf.declarationEmetteur?.date || 'Non spécifié'}
                             </div>
                           </div>
-                      <div>
+                          <div>
                             <div className="text-gray-600">Traitement:</div>
                             <div className="text-orange-600 bg-gray-50 px-2 py-1 rounded font-medium">
                               {bsdPdf.realisationOperation?.date || 'Non spécifié'}
                             </div>
-                      </div>
-                      <div>
+                          </div>
+                          <div>
                             <div className="text-gray-600">Déclaration:</div>
                             <div className="text-orange-600 bg-gray-50 px-2 py-1 rounded font-medium">
                               {bsdPdf.declarationEmetteur?.date || 'Non spécifié'}
@@ -431,9 +455,8 @@ export const LinkBSDComponent = ({
                           </div>
                         </div>
                       </div>
-
                       {/* Déchet Section */}
-                      <div className="mb-12">
+                      <div className="mb-4">
                         <div className="text-sm grid grid-cols-4 gap-2">
                           <div>
                             <div className="text-gray-600">Déchet:</div>
@@ -448,17 +471,16 @@ export const LinkBSDComponent = ({
                           <div>
                             <div className="text-gray-600">Code DR:</div>
                             <div>{bsdPdf.realisationOperation?.code || 'Non spécifié'}</div>
-                      </div>
-                      <div>
+                          </div>
+                          <div>
                             <div className="text-gray-600">Quantité:</div>
                             <div>{bsdPdf.dechet?.poids ? `${bsdPdf.dechet.poids} tonnes` : 'Non spécifié'}</div>
                             <div>{bsdPdf.expedition?.heure ? `${bsdPdf.expedition.heure} tonnes` : ''}</div>
                           </div>
                         </div>
                       </div>
-
                       {/* Émetteur Section */}
-                      <div className="mb-8">
+                      <div className="mb-2">
                         <h4 className="font-medium text-sm text-gray-700 mb-1">Émetteur</h4>
                         <div className="space-y-0 text-sm">
                           <div className="flex justify-start gap-2">
@@ -528,6 +550,12 @@ export const LinkBSDComponent = ({
                       <p className="text-xs text-gray-400">Essayez de désactiver certains filtres pour élargir la recherche</p>
                     </div>
                   ) : (
+                    <>
+                      {idFilter && bsdPdf?.numeroBordereau && (
+                        <div className="mb-3 p-2 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-700">
+                          <strong>Filtre ID activé :</strong> Affichage des BSDs avec correspondance de numéro de bordereau
+                        </div>
+                      )}
                       <div className="space-y-2 max-h-[350px] overflow-y-auto">
                         {filteredCandidateBSDs
                           .map((bsd) => {
@@ -602,9 +630,36 @@ export const LinkBSDComponent = ({
                               tonnageMatch = bsdTonnage >= minTonnage && bsdTonnage <= maxTonnage;
                             }
                             
-                            return { bsd, postalCodeMatch, nameSimilarity, codeCEDMatch, transporteurMatch, destinataireMatch, dateMatch, tonnageMatch, siteNameMatch };
+                            // Comparaison des IDs
+                            const pdfNumeroBordereau = bsdPdf?.numeroBordereau || '';
+                            const bsdReadableId = bsd.readable_id_track_dechets || '';
+                            let idMatch = false;
+                            
+                            if (pdfNumeroBordereau && bsdReadableId) {
+                              const cleanPdfId = pdfNumeroBordereau.replace(/[\s\-_]/g, '').toLowerCase();
+                              const cleanBsdId = bsdReadableId.replace(/[\s\-_]/g, '').toLowerCase();
+                              
+                              if (cleanPdfId === cleanBsdId) {
+                                idMatch = true;
+                              } else {
+                                // Chercher une sous-chaîne commune de plus de 6 caractères
+                                const minLength = 6;
+                                for (let i = 0; i <= cleanPdfId.length - minLength; i++) {
+                                  for (let j = minLength; j <= cleanPdfId.length - i; j++) {
+                                    const substring = cleanPdfId.substring(i, i + j);
+                                    if (substring.length >= minLength && cleanBsdId.includes(substring)) {
+                                      idMatch = true;
+                                      break;
+                                    }
+                                  }
+                                  if (idMatch) break;
+                                }
+                              }
+                            }
+                            
+                            return { bsd, postalCodeMatch, nameSimilarity, codeCEDMatch, transporteurMatch, destinataireMatch, dateMatch, tonnageMatch, siteNameMatch, idMatch };
                           })
-                                                      .map(({ bsd, postalCodeMatch, nameSimilarity, codeCEDMatch, transporteurMatch, destinataireMatch, dateMatch, tonnageMatch, siteNameMatch }) => (
+                                                      .map(({ bsd, postalCodeMatch, nameSimilarity, codeCEDMatch, transporteurMatch, destinataireMatch, dateMatch, tonnageMatch, siteNameMatch, idMatch }) => (
                         <label
                           key={bsd.id}
                           className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
@@ -618,6 +673,10 @@ export const LinkBSDComponent = ({
                             className="h-4 w-4 text-blue-600"
                           />
                               <div className="flex-1 space-y-1">
+                              {/* Numéro de bordereau du candidat en haut de la carte */}
+                              <div className="flex items-center justify-center mb-2">
+                                <span className="text-xl font-bold text-indigo-700">{bsd.readable_id_track_dechets || 'Numéro de bordereau non spécifié'}</span>
+                              </div>
                               <div className="flex justify-between">
                             <p className={`font-medium ${codeCEDMatch ? 'text-blue-600 px-2 py-1 rounded' : ''}`}>
                               {bsd.infos_json.formAPI.createFormInput.wasteDetails.code}
@@ -634,6 +693,10 @@ export const LinkBSDComponent = ({
                                   </p>
                                 </div>
                               </div>
+                              
+                              {/* Affichage des IDs */}
+                              {/* (Supprimé, ne plus afficher le numéro d'ID en petit ici) */}
+                              
                             <p className="text-sm text-gray-600">
                               {bsd.infos_json.formAPI.createFormInput.emitter.company.name} → {bsd.infos_json.formAPI.createFormInput.recipient.company.name}
                                   <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
@@ -685,6 +748,7 @@ export const LinkBSDComponent = ({
                         </label>
                       ))}
                     </div>
+                  </>
                   )}
                   </div>
                 </div>
@@ -713,7 +777,6 @@ export const LinkBSDComponent = ({
           </Dialog.Panel>
         </div>
       </Dialog>
-</>
     </div>
-    )
+  );
 }

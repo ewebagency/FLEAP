@@ -28,6 +28,7 @@ interface TableImportedFilesProps {
     pdfInfos: PdfInfo[];
     onDelete: (pdfPath: string, id: number) => void;
     onPdfStatusUpdate?: (pdfId: number, newStatus: string) => void;
+    onPdfInfosUpdate?: (newPdfInfo: PdfInfo) => void;
 }
 
 interface SiteInfo {
@@ -54,6 +55,65 @@ interface ProviderJSON {
     is_destination: boolean;
 }
 
+// Interface pour la modale de confirmation
+interface DeleteConfirmationModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    fileName: string;
+    bsdCount: number;
+}
+
+const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
+    isOpen,
+    onClose,
+    onConfirm,
+    fileName,
+    bsdCount
+}) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                <div className="flex items-center mb-4">
+                    <BoxIcon name='error' color='red' type='solid' size="24px" />
+                    <h3 className="ml-2 text-lg font-semibold text-gray-900">
+                        Confirmer la suppression
+                    </h3>
+                </div>
+                
+                <div className="mb-6">
+                    <p className="text-sm text-gray-600 mb-2">
+                        Vous êtes sur le point de supprimer le fichier Excel :
+                    </p>
+                    <p className="text-sm font-medium text-gray-900 mb-3">
+                        {fileName}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                        Cette action supprimera également <strong>{bsdCount} ligne{bsdCount > 1 ? 's' : ''} BSD</strong> créée{bsdCount > 1 ? 's' : ''} à partir de ce fichier.
+                    </p>
+                </div>
+                
+                <div className="flex justify-end space-x-3">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                    >
+                        Annuler
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-md hover:bg-red-700"
+                    >
+                        Supprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const ExcelIcon = () => (
     <svg 
         width="25" 
@@ -72,11 +132,16 @@ export const ExcelIcon = () => (
 
 const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDelete, onPdfStatusUpdate }) => {
     const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-    const session = useSession();
+    const {entreprise_id, user_id} = useSession();
     const [loadingUrls, setLoadingUrls] = useState<Record<number, boolean>>({});
     const [pdfUrls, setPdfUrls] = useState<Record<number, string>>({});
     const [numberPage, setNumberPage] = useState(1);
     const { sites: filteredSites } = useFilterContext();
+    
+    // État pour la modale de confirmation
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [fileToDelete, setFileToDelete] = useState<PdfInfo | null>(null);
+    const [bsdCountToDelete, setBsdCountToDelete] = useState(0);
 
     // Filtrer les pdfInfos en fonction des sites cochés
     const filteredPdfInfos = pdfInfos.filter(pdf => {
@@ -135,6 +200,33 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
 
     const handleDelete = async (pdf: PdfInfo) => {
         try {
+            // Si c'est un fichier Excel, vérifier d'abord combien de lignes BSD seront supprimées
+            if (pdf.document_type === 'excel') {
+                // Compter les lignes BSD qui ont le même nom de fichier en source et le même entreprise_id
+                const { data: bsdData, error: countError } = await supabase
+                    .from('bsd')
+                    .select('id', { count: 'exact' })
+                    .eq('source', pdf.name_pdf)
+                    .eq('entreprise_id', entreprise_id);
+
+                if (countError) {
+                    console.error('Erreur lors du comptage des BSDs:', countError);
+                    toast.error('Erreur lors du comptage des BSDs');
+                    return;
+                }
+
+                const bsdCount = bsdData?.length || 0;
+                
+                if (bsdCount > 0) {
+                    // Afficher la modale de confirmation
+                    setFileToDelete(pdf);
+                    setBsdCountToDelete(bsdCount);
+                    setShowDeleteModal(true);
+                    setOpenMenuId(null);
+                    return;
+                }
+            }
+
             // Si c'est un BSD, supprimer d'abord les enregistrements dans bsd_pdf
             if (pdf.document_type === 'bsd') {
                 // 1. Récupérer les BSDs associés à ce PDF
@@ -200,8 +292,53 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
         }
     };
 
+    const handleConfirmDeleteLineFromExcel = async () => {
+        if (!fileToDelete) return;
+
+        try {
+            // Supprimer toutes les lignes BSD qui ont le même nom de fichier en source et le même entreprise_id
+            const { error: deleteBsdError } = await supabase
+                .from('bsd')
+                .delete()
+                .eq('source', fileToDelete.name_pdf)
+                .eq('entreprise_id', entreprise_id);
+
+            if (deleteBsdError) {
+                console.error('Erreur lors de la suppression des BSDs:', deleteBsdError);
+                toast.error('Erreur lors de la suppression des BSDs');
+                return;
+            }
+
+            // Supprimer le fichier Excel
+            onDelete(fileToDelete.name_pdf_in_bucket, fileToDelete.id);
+            
+            toast.success(`${bsdCountToDelete} ligne${bsdCountToDelete > 1 ? 's' : ''} BSD supprimée${bsdCountToDelete > 1 ? 's' : ''} avec succès`);
+            
+            // Fermer la modale
+            setShowDeleteModal(false);
+            setFileToDelete(null);
+            setBsdCountToDelete(0);
+        } catch (error) {
+            console.error('Erreur lors de la suppression:', error);
+            toast.error('Erreur lors de la suppression du fichier');
+        }
+    };
+
     return (
         <div>
+            {/* Modale de confirmation pour la suppression des fichiers Excel */}
+            <DeleteConfirmationModal
+                isOpen={showDeleteModal}
+                onClose={() => {
+                    setShowDeleteModal(false);
+                    setFileToDelete(null);
+                    setBsdCountToDelete(0);
+                }}
+                onConfirm={handleConfirmDeleteLineFromExcel}
+                fileName={fileToDelete?.name_pdf || ''}
+                bsdCount={bsdCountToDelete}
+            />
+            
             <table style={{ width: '100%', borderCollapse: 'collapse' }} className="table-fixed">
                 <thead>
                     <tr style={{ backgroundColor: 'white' }}>
@@ -217,6 +354,10 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                             className="text-xs font-normal text-gray-500 mb-0">Document</th>
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '16%', textAlign: 'left' }}
                             className="text-xs font-normal text-gray-500 mb-0">Site</th>
+                        {cofounders_permission(user_id) && (
+                            <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '16%', textAlign: 'left' }}
+                                className="text-xs font-normal text-gray-500 mb-0">Prestataire</th>
+                        )}
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '12%', textAlign: 'right', paddingRight: '3.5rem' }}
                             className="text-xs font-normal text-gray-500 mb-0">Actions</th>
                     </tr>
@@ -271,18 +412,20 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <SelectSite 
-                                    entreprise_id={session?.entreprise_id} 
+                                    entreprise_id={entreprise_id} 
                                     pdf_id={pdf.id}
                                     initialSite={pdf.site_siret_plus}
                                 />
                             </td>
-                            {/*<td style={{ padding: '6px', height: '40px' }} className="align-middle">
-                                <SelectProvider 
-                                    entreprise_id={session?.entreprise_id} 
-                                    pdf_id={pdf.id}
-                                    initialProvider={pdf.provider}
-                                />
-                            </td>*/}
+                            {cofounders_permission(user_id) && (
+                                <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                                    <SelectProvider 
+                                        entreprise_id={entreprise_id} 
+                                        pdf_id={pdf.id}
+                                        initialProvider={pdf.provider}
+                                    />
+                                </td>
+                            )}
                             {/*<td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <div className="text-xs">{pdf.file_size ? `${pdf.file_size} MB` : 'Inconnu'}</div>
                             </td>*/}
@@ -332,7 +475,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             pdf_path={pdf.name_pdf_in_bucket} 
                                         /> ---> ancien extract facture
                                     */} 
-                                    {cofounders_permission(session?.user_id) && pdf.document_type === 'facture' && 
+                                    {cofounders_permission(user_id) && pdf.document_type === 'facture' && 
                                         <ButtonExtractFacture
                                             pdf_id={pdf.id} 
                                             pdf_path={pdf.name_pdf_in_bucket}
@@ -343,7 +486,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             }}
                                         />
                                     }                                    
-                                    {cofounders_permission(session?.user_id) && pdf.document_type === 'bsd' && 
+                                    {cofounders_permission(user_id) && pdf.document_type === 'bsd' && 
                                         <ExtractBSD 
                                             pdf_id={pdf.id} 
                                             pdf_path={pdf.name_pdf_in_bucket}
@@ -354,7 +497,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             }}
                                         />
                                     }
-                                    {cofounders_permission(session?.user_id) && pdf.document_type === 'bsd' && pdf.status === 'read' &&
+                                    {cofounders_permission(user_id) && pdf.document_type === 'bsd' && pdf.status === 'read' &&
                                         <LinkBSD
                                             pdf_id={pdf.id}
                                             onLink={(bsd_id: string) => {
@@ -544,6 +687,175 @@ const SelectDocumentType: React.FC<{ pdf_id: number; initialType?: string }> = (
                 </option>
             ))}
         </select>
+    );
+};
+
+interface ProviderOption {
+    id: string;
+    name: string;
+    siret: string;
+    type: 'transporteur' | 'destinataire';
+}
+
+const SelectProvider: React.FC<{ entreprise_id: string | null; pdf_id: number; initialProvider?: ProviderJSON }> = ({ 
+    entreprise_id, 
+    pdf_id, 
+    initialProvider 
+}) => {
+    const [providers, setProviders] = useState<ProviderOption[]>([]);
+    const [selectedProvider, setSelectedProvider] = useState<string>('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+    // Charger les prestataires depuis table_autocompletion
+    useEffect(() => {
+        const fetchProviders = async () => {
+            if (!entreprise_id) return;
+            
+            setIsLoading(true);
+            try {
+                const { data, error } = await supabase
+                    .from('table_autocompletion')
+                    .select('*')
+                    .eq('entreprise_id', entreprise_id);
+
+                if (error) throw error;
+
+                const providerOptions: ProviderOption[] = [];
+                
+                if (data) {
+                    data.forEach((item: any) => {
+                        // Ajouter les transporteurs
+                        if (item.transporteur && item.transporteur.nomBoite) {
+                            providerOptions.push({
+                                id: `transporteur_${item.id}`,
+                                name: item.transporteur.nomBoite,
+                                siret: item.transporteur.siret || '',
+                                type: 'transporteur'
+                            });
+                        }
+                        
+                        // Ajouter les destinataires
+                        if (item.destinataire && item.destinataire.nomBoite) {
+                            providerOptions.push({
+                                id: `destinataire_${item.id}`,
+                                name: item.destinataire.nomBoite,
+                                siret: item.destinataire.siret || '',
+                                type: 'destinataire'
+                            });
+                        }
+                    });
+                }
+
+                setProviders(providerOptions);
+                
+                // Définir le prestataire sélectionné initialement
+                if (initialProvider?.name) {
+                    const matchingProvider = providerOptions.find(p => p.name === initialProvider.name);
+                    if (matchingProvider) {
+                        setSelectedProvider(matchingProvider.id);
+                    }
+                }
+            } catch (error) {
+                console.error('Erreur lors du chargement des prestataires:', error);
+                toast.error('Erreur lors du chargement des prestataires');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchProviders();
+    }, [entreprise_id, initialProvider]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    const handleSelectProvider = async (providerId: string) => {
+        const provider = providers.find(p => p.id === providerId);
+        if (!provider) return;
+
+        setSelectedProvider(providerId);
+        setIsOpen(false);
+
+        try {
+            const updatedProvider: ProviderJSON = {
+                siret: provider.siret,
+                name: provider.name,
+                is_transporter: provider.type === 'transporteur',
+                is_destination: provider.type === 'destinataire'
+            };
+
+            const { error } = await supabase
+                .from('pdf_infos')
+                .update({ provider: updatedProvider })
+                .eq('id', pdf_id);
+
+            if (error) {
+                console.error('Erreur lors de la mise à jour du prestataire:', error);
+                console.log('Erreur lors de la mise à jour du prestataire');
+            } else {
+                console.log('Prestataire mis à jour avec succès');
+            }
+        } catch (error) {
+            console.error('Erreur lors de la mise à jour du prestataire:', error);
+            toast.error('Erreur lors de la mise à jour du prestataire');
+        }
+    };
+
+    const selectedProviderData = providers.find(p => p.id === selectedProvider);
+
+    if (isLoading) {
+        return <div className="text-xs">Chargement...</div>;
+    }
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center justify-between w-full max-w-[140px] px-2 py-1 text-xs border rounded-md hover:bg-gray-50"
+            >
+                <span className="truncate">
+                    {selectedProviderData ? selectedProviderData.name : "Sélectionner"}
+                </span>
+                <BoxIcon name={isOpen ? 'chevron-up' : 'chevron-down'} size="16px" />
+            </button>
+
+            {isOpen && (
+                <div className="absolute z-10 w-full max-w-[200px] mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="py-1">
+                        {providers.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-gray-500">
+                                Aucun prestataire disponible
+                            </div>
+                        ) : (
+                            providers.map((provider) => (
+                                <button
+                                    key={provider.id}
+                                    onClick={() => handleSelectProvider(provider.id)}
+                                    className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 flex items-center justify-between"
+                                >
+                                    <span className="truncate">{provider.name}</span>
+                                    <span className="text-xs text-gray-400 ml-2">
+                                        {provider.type === 'transporteur' ? '🚛' : '🏭'}
+                                    </span>
+                                </button>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 

@@ -1059,6 +1059,8 @@ export interface RowBSD {
     user_id:string;
     id:number;
     bsd_extracted_then_linked_id?:string;
+    readable_id_track_dechets?:string;
+    source?:string;
 }
 
 

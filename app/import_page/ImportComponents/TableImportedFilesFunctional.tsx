@@ -15,7 +15,7 @@ const TableImportedFilesFunctional: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const { entreprise_id, user_id } = useSession();
-    const { importReload, documentTypeFilter, statusFilter } = useImport();
+    const { importReload, documentTypeFilter, statusFilter, setUpdatePdfInfosFunction } = useImport();
 
     // Vérifier si l'utilisateur est un cofounder
     const isCofounder = cofounders_user_id(user_id);
@@ -85,6 +85,16 @@ const TableImportedFilesFunctional: React.FC = () => {
         );
     };
 
+    // Fonction pour ajouter un nouveau PDF aux données locales
+    const handlePdfInfosUpdate = useCallback((newPdfInfo: PdfInfo) => {
+        setPdfInfos(prevPdfInfos => [newPdfInfo, ...prevPdfInfos]);
+    }, []);
+
+    // Enregistrer la fonction de mise à jour dans le contexte
+    useEffect(() => {
+        setUpdatePdfInfosFunction(handlePdfInfosUpdate);
+    }, [handlePdfInfosUpdate, setUpdatePdfInfosFunction]);
+
     // Filter pdfInfos based on documentTypeFilter
     let filteredPdfInfos = documentTypeFilter 
         ? documentTypeFilter === 'null'
@@ -148,6 +158,7 @@ const TableImportedFilesFunctional: React.FC = () => {
                 pdfInfos={filteredPdfInfos} 
                 onDelete={handleDelete}
                 onPdfStatusUpdate={handlePdfStatusUpdate}
+                onPdfInfosUpdate={handlePdfInfosUpdate}
             />
         </div>
     );

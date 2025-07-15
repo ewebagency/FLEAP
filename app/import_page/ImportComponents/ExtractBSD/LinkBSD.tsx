@@ -116,6 +116,7 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
   const [customFilters, setCustomFilters] = useState<Array<{id: string, text: string, enabled: boolean}>>([]); // Filtres personnalisés
   const [newFilterText, setNewFilterText] = useState<string>(''); // Texte du nouveau filtre
   const [dataReady, setDataReady] = useState<boolean>(false); // État pour indiquer que toutes les données sont prêtes
+  const [idFilter, setIdFilter] = useState<boolean>(true); // Nouveau filtre pour les IDs
   const { entreprise_id } = useSession();
 
   // Configuration des filtres individuels
@@ -124,6 +125,30 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
     tonnageRange: tonnageRange,
     addressThreshold: addressSimilarityThreshold,
     nameThreshold: nameSimilarityThreshold
+  };
+
+  // Fonction pour comparer les IDs (numéro de bordereau vs readable_id_track_dechets)
+  const compareIds = (pdfNumeroBordereau: string, bsdReadableId: string, minLength: number = 6): boolean => {
+    if (!pdfNumeroBordereau || !bsdReadableId) return false;
+    
+    // Nettoyer les chaînes (supprimer espaces et caractères spéciaux)
+    const cleanPdfId = pdfNumeroBordereau.replace(/[\s\-_]/g, '').toLowerCase();
+    const cleanBsdId = bsdReadableId.replace(/[\s\-_]/g, '').toLowerCase();
+    
+    // Si les IDs sont identiques après nettoyage
+    if (cleanPdfId === cleanBsdId) return true;
+    
+    // Chercher une sous-chaîne commune de plus de minLength caractères
+    for (let i = 0; i <= cleanPdfId.length - minLength; i++) {
+      for (let j = minLength; j <= cleanPdfId.length - i; j++) {
+        const substring = cleanPdfId.substring(i, i + j);
+        if (substring.length >= minLength && cleanBsdId.includes(substring)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
   };
 
   // Fonction centralisée pour appliquer tous les filtres et calculer les scores
@@ -136,11 +161,11 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
       maxDate,
       pdfSiteNames,
       allBSDsLength: allBSDs.length,
-      filters: { codeCEDFilter, siretSirenFilter, dateFilter, tonnageFilter, addressFilter }
+      filters: { codeCEDFilter, siretSirenFilter, dateFilter, tonnageFilter, addressFilter, idFilter }
     });
 
     // Si aucun filtre n'est activé, afficher tous les BSDs
-    if (!codeCEDFilter && !siretSirenFilter && !dateFilter && !tonnageFilter && !addressFilter && customFilters.length === 0) {
+    if (!codeCEDFilter && !siretSirenFilter && !dateFilter && !tonnageFilter && !addressFilter && !idFilter && customFilters.length === 0) {
       console.log('Aucun filtre activé, affichage de tous les BSDs');
       setCandidateBSDs(allBSDs);
       setFilteredCandidateBSDs(allBSDs);
@@ -191,6 +216,17 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
       endDate.setDate(maxDate.getDate() + 365);
     }
 
+    // Déterminer dynamiquement le minLength pour le filtre ID
+    let idMinLength = 6;
+    if (idFilter && bsdPdf?.numeroBordereau) {
+      // On compte le nombre de candidats qui matchent avec 6 caractères
+      const pdfNumeroBordereau = bsdPdf.numeroBordereau;
+      const idMatches = allBSDs.filter(bsd => compareIds(pdfNumeroBordereau, bsd.readable_id_track_dechets || '', 6));
+      if (idMatches.length > 1) {
+        idMinLength = 8;
+      }
+    }
+
     // Appliquer tous les filtres et calculer les scores
     const filteredResults = allBSDs.map(bsd => {
       // Récupérer les données du BSD
@@ -201,6 +237,7 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
       const bsdWorkSiteName = bsd.infos_json?.formAPI?.createFormInput?.emitter?.workSite?.name || '';
       const bsdCreatedDate = new Date(bsd.created_at);
       const bsdTonnage = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
+      const bsdReadableId = bsd.readable_id_track_dechets || '';
 
       // Récupérer les données du PDF
       const pdfTransporteurName = bsdPdf?.collecteurTransporteur?.nom || '';
@@ -209,6 +246,7 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
       const pdfAddress = bsdPdf?.emetteur?.adresse || '';
       const pdfTonnage = bsdPdf?.dechet?.poids || 0;
       const pdfTonnageHeure = Number(bsdPdf?.expedition?.heure) || 0;
+      const pdfNumeroBordereau = bsdPdf?.numeroBordereau || '';
 
       // Calculer les correspondances pour chaque critère
       const results = {
@@ -246,7 +284,6 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
           ) : true // Si le BSD n'a pas de tonnage heure, ne pas filtrer
         ) : true,
         
-        
         // Filtre Sites (noms) - CORRECTION: ne filtrer que si on a des noms de sites
         siteNameMatch: addressFilter && pdfSiteNames.length > 0 ? (
           pdfSiteNames.some(pdfSiteName => 
@@ -261,6 +298,9 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
           const candidateAddress = siteAddresses[siret]?.adresse || '';
           return comparePostalCodes(pdfAddress, candidateAddress);
         })() : true,
+        
+        // Filtre ID (numéro de bordereau vs readable_id_track_dechets)
+        idMatch: idFilter ? compareIds(pdfNumeroBordereau, bsdReadableId, idMinLength) : true,
         
         // Filtres personnalisés
         customFiltersMatch: matchesCustomFilters(bsd),
@@ -288,6 +328,7 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
         results.dateMatch &&
         (results.tonnageMatch || results.tonnageHeureMatch) &&
         (results.siteNameMatch || results.postalCodeMatch) &&
+        results.idMatch &&
         results.customFiltersMatch;
 
       return {
@@ -337,10 +378,10 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
 
       setBsdPdf(pdfData.infos);
 
-      // Récupérer les informations de site_siret_plus depuis pdf_infos
+      // Récupérer les informations de site_siret_plus et provider depuis pdf_infos
       const { data: pdfInfosData, error: pdfInfosError } = await supabase
         .from('pdf_infos')
-        .select('site_siret_plus')
+        .select('site_siret_plus, provider')
         .eq('id', pdf_id)
         .eq('entreprise_id', entreprise_id)
         .single();
@@ -411,12 +452,28 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
         .eq('entreprise_id', entreprise_id);
 
       if (bsdError) throw new Error('Erreur lors de la récupération des BSDs');
-      
-      // Mettre à jour allBSDs avec les nouvelles données
-      setAllBSDs(bsdData);
+
+      // Filtrage sur le siret prestataire si provider existe
+      let filteredBSDs = bsdData;
+      if (pdfInfosData?.provider && pdfInfosData.provider.siret) {
+        const providerSiret = pdfInfosData.provider.siret.replace(/\s/g, '');
+        // Si provider est destination, filtrer sur recipient, sinon sur transporter
+        if (pdfInfosData.provider.is_destination) {
+          filteredBSDs = bsdData.filter(bsd =>
+            bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret?.replace(/\s/g, '') === providerSiret
+          );
+        } else if (pdfInfosData.provider.is_transporter) {
+          filteredBSDs = bsdData.filter(bsd =>
+            bsd.infos_json?.formAPI?.createFormInput?.transporter?.company?.siret?.replace(/\s/g, '') === providerSiret
+          );
+        }
+      }
+
+      // Mettre à jour allBSDs avec les données filtrées
+      setAllBSDs(filteredBSDs);
 
       // Enrichir les informations des sites avec les données fraîchement récupérées
-      await enrichSiteInfo(bsdData);
+      await enrichSiteInfo(filteredBSDs);
       
       // Marquer les données comme prêtes AVANT d'appliquer les filtres
       setDataReady(true);
@@ -814,11 +871,25 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
         pdfSiteNames = [pdfSiteName];
       }
       
+      // Vérifier s'il y a des correspondances d'ID
+      const pdfNumeroBordereau = bsdPdf?.numeroBordereau || '';
+      const hasIdMatches = allBSDs.some(bsd => {
+        const bsdReadableId = bsd.readable_id_track_dechets || '';
+        return compareIds(pdfNumeroBordereau, bsdReadableId);
+      });
+      
+      // Si il y a des correspondances d'ID, activer automatiquement le filtre ID
+      if (hasIdMatches && !idFilter) {
+        setIdFilter(true);
+        console.log('Correspondances d\'ID détectées, activation automatique du filtre ID');
+      }
+      
       console.log('Réapplication des filtres avec:', {
         bsdCount: allBSDs.length,
         siteAddressesCount: Object.keys(siteAddresses).length,
         pdfSiteName,
-        filters: { codeCEDFilter, siretSirenFilter, dateFilter, tonnageFilter, addressFilter }
+        hasIdMatches,
+        filters: { codeCEDFilter, siretSirenFilter, dateFilter, tonnageFilter, addressFilter, idFilter }
       });
       
       applyFilters(pdfCodeCED, pdfDestinataireSiret, pdfTransporteurSiren, minDate, maxDate, pdfSiteNames);
@@ -832,7 +903,7 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
         siteAddressesCount: Object.keys(siteAddresses).length
       });
     }
-  }, [dataReady, customFilters, codeCEDFilter, siretSirenFilter, dateFilter, dateRange, tonnageFilter, tonnageRange, addressFilter, siteAddresses, pdfSiteName]);
+  }, [dataReady, customFilters, codeCEDFilter, siretSirenFilter, dateFilter, dateRange, tonnageFilter, tonnageRange, addressFilter, siteAddresses, pdfSiteName, idFilter]);
 
   // Réinitialiser dataReady quand le modal s'ouvre
   useEffect(() => {
@@ -887,6 +958,8 @@ export default function LinkBSD({ pdf_id, onLink }: LinkBSDProps) {
       tonnageRange={tonnageRange}
       setTonnageRange={setTonnageRange}
       applyFilters={applyFilters}
+      idFilter={idFilter}
+      setIdFilter={setIdFilter}
     />
   );
 }

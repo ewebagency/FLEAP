@@ -61,7 +61,7 @@ const cofounders_user_id = (user_id:string|null) => {
 }
 
 // Nouvelle fonction pour récupérer tous les readable_id_track_dechets existants
-const getExistingReadableIds = async (entreprise_id: string): Promise<string[]> => {
+export const getExistingReadableIds = async (entreprise_id: string): Promise<string[]> => {
     const existingIds: string[] = [];
     let from = 0;
     const limit = 1000;
