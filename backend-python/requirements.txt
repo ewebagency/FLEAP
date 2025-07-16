@@ -13,4 +13,4 @@ python-dotenv==1.0.1
 requests==2.31.0
 pdfplumber==0.10.3
 pydantic==2.6.1
-mindee==3.12.0
+mindee==4.22.0
