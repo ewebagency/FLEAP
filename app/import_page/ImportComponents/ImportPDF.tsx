@@ -293,6 +293,8 @@ const ImportPDF = () => {
       setSelectedSite(null);
       setSelectedPresta(null);
       setSelectedDocumentType('bsd');
+      setPendingFiles([]);
+      setDuplicateFiles([]);
     };
 
     // Handler pour annuler la sélection
@@ -307,9 +309,9 @@ const ImportPDF = () => {
     // Fonction pour confirmer l'import malgré les doublons
     const confirmImportWithDuplicates = () => {
         setShowDuplicateAlert(false);
-        handleFilesUpload(pendingFiles);
-        setPendingFiles([]);
-        setDuplicateFiles([]);
+        setFilesToImport(pendingFiles);
+        setShowPDFMetaModal(true);
+        // Ne pas vider pendingFiles/duplicateFiles ici
     };
 
     // Fonction pour annuler l'import
