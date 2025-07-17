@@ -10,53 +10,58 @@ interface WasteDetail {
     quantity: number;
 }
 
+// Fonction exportée pour calculer le taux de tri
+export const calculateTauxTri = (bsds: BSD[], mappingTable: Array<{ced: string, filiere: string}>) => {
+    let totalWeight = 0;
+    let nonRecycledWeight = 0;
+    const wasteDetails: { [key: string]: WasteDetail } = {};
+
+    bsds.forEach((bsd: BSD) => {
+        const quantity = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
+        totalWeight += quantity;
+
+        const filiere = getFiliere(
+            bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
+            mappingTable
+        ) || 'Autres';
+
+        if (filiere === 'DIB' || filiere === 'Autres' || filiere === 'DAS') {
+            let tri_potentiel = false;
+            if (bsd.other_infos?.tri) {
+                tri_potentiel = bsd.other_infos.tri;
+            }
+            if(!tri_potentiel) {
+                nonRecycledWeight += quantity;
+            }
+            const code = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
+            const description = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
+
+            if (!wasteDetails[code]) {
+                wasteDetails[code] = {
+                    code,
+                    description,
+                    quantity: 0
+                };
+            }
+            wasteDetails[code].quantity += quantity;
+        }
+    });
+
+    // Trier les déchets par quantité décroissante
+    const nonRecycledDetails = Object.values(wasteDetails)
+        .sort((a, b) => b.quantity - a.quantity)
+        .slice(0, 5); // Garder les 5 plus importants
+
+    const tauxTri = totalWeight > 0 ? ((totalWeight - nonRecycledWeight) / totalWeight) * 100 : 0;
+    return { tauxTri, totalWeight, nonRecycledDetails };
+};
+
 const TauxTri = () => {
     const { bsds, mappingTable } = useAnalysis();
     const [showTooltip, setShowTooltip] = useState(false);
 
     const { tauxTri, totalWeight, nonRecycledDetails } = useMemo(() => {
-        let totalWeight = 0;
-        let nonRecycledWeight = 0;
-        const wasteDetails: { [key: string]: WasteDetail } = {};
-
-        bsds.forEach((bsd: BSD) => {
-            const quantity = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
-            totalWeight += quantity;
-
-            const filiere = getFiliere(
-                bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
-                mappingTable
-            ) || 'Autres';
-
-            if (filiere === 'DIB' || filiere === 'Autres' || filiere === 'DAS') {
-                let tri_potentiel = false;
-                if (bsd.other_infos?.tri) {
-                    tri_potentiel = bsd.other_infos.tri;
-                }
-                if(!tri_potentiel) {
-                    nonRecycledWeight += quantity;
-                }
-                const code = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
-                const description = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
-
-                if (!wasteDetails[code]) {
-                    wasteDetails[code] = {
-                        code,
-                        description,
-                        quantity: 0
-                    };
-                }
-                wasteDetails[code].quantity += quantity;
-            }
-        });
-
-        // Trier les déchets par quantité décroissante
-        const nonRecycledDetails = Object.values(wasteDetails)
-            .sort((a, b) => b.quantity - a.quantity)
-            .slice(0, 5); // Garder les 5 plus importants
-
-        const tauxTri = totalWeight > 0 ? ((totalWeight - nonRecycledWeight) / totalWeight) * 100 : 0;
-        return { tauxTri, totalWeight, nonRecycledDetails };
+        return calculateTauxTri(bsds, mappingTable);
     }, [bsds, mappingTable]);
 
     return (

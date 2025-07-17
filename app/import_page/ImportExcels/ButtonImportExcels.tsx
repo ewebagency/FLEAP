@@ -9,6 +9,7 @@ import BoxIcon from '@/app/component/BoxIconWrapper';
 import standard_with_paprec from './FormatsExcels/paprec';
 import standard_with_ecobtp from './FormatsExcels/ecobtp';
 import standard_with_luxobennes from './FormatsExcels/luxobennes';
+import standard_with_classic from './FormatsExcels/classic';
 import { sendDataToBdd } from './send_data_to_bdd';
 import PreviewImport from '../ImportComponents/PreviewImport';
 import { PdfInfo } from '../ImportComponents/TableImportedFiles';
@@ -16,7 +17,7 @@ import { useImport } from '../ImportComponents/ImportContext';
 import { OtherInfos } from '@/app/register/interface/BSD_Interface';
 
 // Type pour les formats disponibles
-type ExcelFormat = 'paprec' | 'ecobtp' | 'luxobennes';
+type ExcelFormat = 'paprec' | 'ecobtp' | 'luxobennes' | 'classic';
 
 
 
@@ -109,6 +110,7 @@ export interface RowBSDPreview {
         volume: string;
         volumeUnit: string;
         tri?: boolean;
+        rep?: { sent_to_rep: boolean };
     };
     status_track_dechets: string;
     readable_id_track_dechets: string;
@@ -413,6 +415,8 @@ const ButtonImportExcels = () => {
           const standardizedData: StandardizedLineData[] = luxobennesData;
           previewDataReady = createPreviewData(standardizedData, data_excel, user_id, entreprise_id);
           console.log('previewDataReady', previewDataReady);
+        } else if (selectedFormat === 'classic') {
+          previewDataReady = await standard_with_classic(data_excel, user_id, entreprise_id);
         } else {
           toast.error('Format non reconnu');
           return;
@@ -472,9 +476,19 @@ const ButtonImportExcels = () => {
       if (typeof row.tri !== 'undefined') {
         other_infos.tri = row.tri;
       }
-      if (typeof row.sent_to_rep !== 'undefined') {
-        other_infos.rep = { sent_to_rep: row.sent_to_rep };
+      if (typeof row.sent_to_rep !== 'undefined' && row.sent_to_rep !== null) {
+        other_infos.rep = { sent_to_rep: Boolean(row.sent_to_rep) };
       }
+
+      // Convertir OtherInfos vers le format attendu par RowBSDPreview
+      const convertedOtherInfos = {
+        volume: other_infos.volume,
+        volumeUnit: other_infos.volumeUnit,
+        tri: other_infos.tri,
+        ...(other_infos.rep && other_infos.rep.sent_to_rep !== undefined && {
+          rep: { sent_to_rep: other_infos.rep.sent_to_rep }
+        })
+      };
 
       const newRow: RowBSDPreview = {
         created_at: String(row.dateCollecteTransporteur),
@@ -558,7 +572,7 @@ const ButtonImportExcels = () => {
             }
           }
         },
-        other_infos,
+        other_infos: convertedOtherInfos,
         status_track_dechets: "IMPORTED",
         readable_id_track_dechets: String(row.numeroBsd),
         source: data_excel.nom_fichier
@@ -753,6 +767,7 @@ const ButtonImportExcels = () => {
                 <option value="paprec">📄 Format Paprec</option>
                 <option value="ecobtp">🏗️ Format Ecobtp</option>
                 <option value="luxobennes">🗑️ Format Luxobennes</option>
+                <option value="classic">📋 Format Classic</option>
               </select>
             </div>
 

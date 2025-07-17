@@ -2,7 +2,7 @@ import { RowBSDPreview } from '../ButtonImportExcels';
 import { sendDataToBdd } from '../send_data_to_bdd';
 
 // Types pour les données Excel
-interface ExcelData {
+export interface ExcelData {
   nom_fichier: string;
   presta: {
     id: number;
