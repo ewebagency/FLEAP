@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Swal from 'sweetalert2';
+import { Session } from '@supabase/supabase-js';
 
 interface MFAModalProps {
   isOpen: boolean;
@@ -76,6 +77,57 @@ export default function SignIn() {
   const [otpCode, setOtpCode] = useState('');
   const [otpExpiry, setOtpExpiry] = useState<Date | null>(null);
   const router = useRouter();
+  const [rememberMe, setRememberMe] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+  const [isAutoLoggingIn, setIsAutoLoggingIn] = useState(false);
+  const [sessionFound, setSessionFound] = useState(false);
+  const [storedEmail, setStoredEmail] = useState('');
+  
+  // Gestion de l'hydratation
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const REMEMBER_ME_ENABLED = isClient ? process.env.NEXT_PUBLIC_REMEMBER_ME_ENABLED === 'true' : false;
+
+  // Restauration automatique de la session
+  useEffect(() => {
+    if (!REMEMBER_ME_ENABLED || !isClient) return;
+    
+    // On vérifie d'abord localStorage puis sessionStorage
+    const sessionStr = localStorage.getItem('fleap_session') || sessionStorage.getItem('fleap_session');
+    if (sessionStr) {
+      try {
+        const session = JSON.parse(sessionStr);
+        if (session && session.access_token) {
+          console.log('🔍 Session trouvée, récupération des informations...');
+          
+          // Récupérer l'email depuis la session Supabase
+          supabase.auth.getUser(session.access_token).then(({ data, error }) => {
+            if (data.user && !error) {
+              console.log('✅ Email récupéré:', data.user.email);
+              setStoredEmail(data.user.email || '');
+              setEmail(data.user.email || '');
+              setSessionFound(true);
+              // Cocher automatiquement "Se souvenir de moi" si la session était dans localStorage
+              if (localStorage.getItem('fleap_session')) {
+                setRememberMe(true);
+              }
+            } else {
+              console.error('❌ Erreur lors de la récupération de l\'email:', error);
+              // Session invalide, on la supprime
+              localStorage.removeItem('fleap_session');
+              sessionStorage.removeItem('fleap_session');
+            }
+          });
+        }
+      } catch (e) {
+        console.error('❌ Session corrompue:', e);
+        localStorage.removeItem('fleap_session');
+        sessionStorage.removeItem('fleap_session');
+      }
+    }
+  }, [isClient]);
 
   const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -126,6 +178,53 @@ export default function SignIn() {
     }
 
     setLoading(true);
+
+    // Si une session existe et qu'on a trouvé l'email, essayer de la restaurer
+    if (sessionFound && storedEmail === email) {
+      console.log('🔄 Tentative de restauration de session...');
+      const sessionStr = localStorage.getItem('fleap_session') || sessionStorage.getItem('fleap_session');
+      
+      if (sessionStr) {
+        try {
+          const session = JSON.parse(sessionStr);
+          if (session && session.refresh_token) {
+            const { data, error } = await supabase.auth.refreshSession({
+              refresh_token: session.refresh_token
+            });
+            
+            if (error) {
+              console.error('❌ Session expirée, connexion normale...');
+              // Session expirée, on continue avec la connexion normale
+            } else if (data.session) {
+              console.log('✅ Session restaurée avec succès !');
+              
+              // Mettre à jour le stockage avec la nouvelle session
+              const newSessionData = {
+                access_token: data.session.access_token,
+                refresh_token: data.session.refresh_token,
+              };
+              
+              if (rememberMe) {
+                localStorage.setItem('fleap_session', JSON.stringify(newSessionData));
+                sessionStorage.removeItem('fleap_session');
+              } else {
+                sessionStorage.setItem('fleap_session', JSON.stringify(newSessionData));
+                localStorage.removeItem('fleap_session');
+              }
+              
+              // Continuer avec le processus normal (MFA, etc.)
+              await processSuccessfulAuth(data.session);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('❌ Erreur lors de la restauration:', e);
+        }
+      }
+    }
+
+    // Connexion normale si pas de session ou session invalide
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
     
     if (authError) {
@@ -152,15 +251,41 @@ export default function SignIn() {
       return;
     }
 
+    // Stockage de la session selon le choix
+    if (REMEMBER_ME_ENABLED) {
+      const sessionData = {
+        access_token: authData.session?.access_token,
+        refresh_token: authData.session?.refresh_token,
+      };
+      try {
+        if (rememberMe) {
+          localStorage.setItem('fleap_session', JSON.stringify(sessionData));
+          sessionStorage.removeItem('fleap_session');
+          console.log('💾 Session stockée dans localStorage (persistant)');
+        } else {
+          sessionStorage.setItem('fleap_session', JSON.stringify(sessionData));
+          localStorage.removeItem('fleap_session');
+          console.log('💾 Session stockée dans sessionStorage (temporaire)');
+        }
+      } catch (e) {
+        console.error('❌ Erreur lors du stockage de la session:', e);
+      }
+    }
+
+    await processSuccessfulAuth(authData.session);
+    setLoading(false);
+  };
+
+  // Fonction pour traiter l'authentification réussie (MFA, etc.)
+  const processSuccessfulAuth = async (session: Session) => {
     // Récupérer l'entreprise_id depuis profiles
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('entreprise_id')
-      .eq('user_id', authData.user.id)
+      .eq('user_id', session.user.id)
       .single();
 
     if (profileError) {
-      setLoading(false);
       Swal.fire({
         title: 'Erreur',
         text: 'Erreur lors de la récupération du profil.',
@@ -180,7 +305,6 @@ export default function SignIn() {
       .single();
 
     if (entrepriseError) {
-      setLoading(false);
       Swal.fire({
         title: 'Erreur',
         text: 'Erreur lors de la vérification MFA.',
@@ -216,8 +340,6 @@ export default function SignIn() {
       console.log('Le MFA n\'est pas activé pour cette entreprise');
       router.push('/register');
     }
-    
-    setLoading(false);
   };
 
   const handleMFAVerify = (code: string) => {
@@ -251,7 +373,7 @@ export default function SignIn() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <h1 className="text-3xl md:text-4xl font-bold text-green-800">FLEAP</h1>
+      <h1 className="text-3xl md:text-4xl font-bold text-green-800">FLEAP</h1>      
       <div className="mt-10 bg-green-800 rounded-lg shadow-lg p-4 md:p-6 w-full max-w-md md:px-12">
         <h2 className="text-xl md:text-2xl font-bold text-white mb-6">Connexion</h2>
         <form onSubmit={handleSignIn}>
@@ -270,9 +392,25 @@ export default function SignIn() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="border border-gray-300 p-2 md:p-3 mb-6 w-full rounded"
-            required
-            disabled={loginAttempts >= 5}
+            // Désactiver et enlever le required si sessionFound
+            required={!sessionFound}
+            disabled={loginAttempts >= 5 || sessionFound}
           />
+          {isClient && REMEMBER_ME_ENABLED && (
+            <div className="flex items-center mb-4">
+              <input
+                id="rememberMe"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={() => setRememberMe(!rememberMe)}
+                className="mr-2"
+                disabled={loginAttempts >= 5}
+              />
+              <label htmlFor="rememberMe" className="text-white text-sm select-none cursor-pointer">
+                Se souvenir de moi
+              </label>
+            </div>
+          )}
           <div className="relative group">
             <button 
               type="submit" 
@@ -280,7 +418,9 @@ export default function SignIn() {
                 ${(loading || loginAttempts >= 5) ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={loading || loginAttempts >= 5}
             >
-              {loading ? 'Chargement...' : loginAttempts >= 5 ? 'Compte bloqué' : 'Se connecter'}
+              {loading ? 'Chargement...' : 
+               loginAttempts >= 5 ? 'Compte bloqué' : 
+               sessionFound ? 'Identifiants retrouvés' : 'Se connecter'}
             </button>
             {loginAttempts >= 5 && (
               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
@@ -300,12 +440,14 @@ export default function SignIn() {
           </Link>
         </div>
       </div>
-      <MFAModal
-        isOpen={showMFAModal}
-        onClose={() => setShowMFAModal(false)}
-        onVerify={handleMFAVerify}
-        email={email}
-      />
+      {!sessionFound && (
+        <MFAModal
+          isOpen={showMFAModal}
+          onClose={() => setShowMFAModal(false)}
+          onVerify={handleMFAVerify}
+          email={email}
+        />
+      )}
     </div>
   );
 }

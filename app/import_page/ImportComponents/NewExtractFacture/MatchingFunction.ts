@@ -1,3 +1,4 @@
+import { supabase } from '@/app/database/supabaseClient';
 import { 
     getSiretByPrestataire, 
     getPrestataireBySiret, 
@@ -114,6 +115,7 @@ interface FactureLineDepart {
     site_siret: string;
     dechet_nom: string;
     code_ced: string;
+    bon_pesee: string;
     date_collecte: string;
     contenant_nom: string;
     contenant_volume: string;
@@ -161,6 +163,7 @@ const getInitialFormData = (): FactureLine => ({
         site_siret: '',
         dechet_nom: '',
         code_ced: '',
+        bon_pesee: '',
         date_collecte: new Date().toISOString().split('T')[0],
         contenant_nom: '',
         contenant_volume: '',
@@ -398,7 +401,8 @@ export const transformGeminiDataToFormData = async (
         numClientOptions: { value: string; isSuggested: boolean }[];
         contenantOptions: { value: string; isSuggested: boolean }[];
     },
-    entrepriseId?: string
+    entrepriseId?: string,
+    pdfId?: number
 ): Promise<FactureLine> => {
     console.log('🔄 Transformation des données Gemini...');
     
@@ -488,6 +492,7 @@ export const transformGeminiDataToFormData = async (
                 site_siret: '',
                 dechet_nom: '',
                 code_ced: '',
+                bon_pesee: '',
                 date_collecte: '',
                 contenant_nom: '',
                 contenant_volume: '',
@@ -537,6 +542,9 @@ export const transformGeminiDataToFormData = async (
                     ? findBestMatch(lineHeader.code_dechet || '', codeCedValues)
                     : lineHeader.code_dechet || '';
                     
+                // Mapper le numéro de bon (bon_pesee)
+                mappedDepart.bon_pesee = lineHeader.bon_pesee || '';
+                    
                 mappedDepart.date_collecte = lineHeader.date_depart || '';
                 
                 mappedDepart.contenant_nom = contenantValues.length > 0
@@ -565,7 +573,7 @@ export const transformGeminiDataToFormData = async (
             if (depart.line_body && Array.isArray(depart.line_body)) {
                 mappedDepart.body = depart.line_body.map((line: GeminiLineBody) => ({
                     type_operation: line.type_operation || '',
-                    unite: line.unite || '',
+                    unite: line.unite || '', // Les unités sont déjà normalisées côté backend
                     quantite: safeParseFloat(line.quantite),
                     prix_unitaire: safeParseFloat(line.prix_unitaire),
                     montant_ht: safeParseFloat(line.montant_ht)
@@ -578,6 +586,62 @@ export const transformGeminiDataToFormData = async (
 
     // Mettre à jour le total avec conversion en nombre
     initialData.footer.total_ht = safeParseFloat(actualData.footer?.total_ht);
+
+    // Vérifier les champs provider et site_siret_plus dans pdf_infos et écraser les données si nécessaire
+    if (pdfId && entrepriseId) {
+        try {
+            const { data: pdfInfosData, error: pdfInfosError } = await supabase
+                .from('pdf_infos')
+                .select('provider, site_siret_plus')
+                .eq('id', pdfId)
+                .single();
+
+            if (pdfInfosError) {
+                console.error('❌ Erreur lors de la récupération des infos PDF:', pdfInfosError);
+            } else if (pdfInfosData) {
+                console.log('📋 Vérification des champs pdf_infos:', pdfInfosData);
+                
+                // Si provider est rempli, écraser les données du prestataire
+                if (pdfInfosData.provider && pdfInfosData.provider.siret) {
+                    console.log(`🔄 Écrasement des données prestataire avec: ${pdfInfosData.provider.name} (${pdfInfosData.provider.siret})`);
+                    initialData.header.prestataire_nom = pdfInfosData.provider.name || '';
+                    initialData.header.prestataire_siret = pdfInfosData.provider.siret || '';
+                }
+                
+                // Si site_siret_plus est rempli, écraser les SIRET des sites dans tous les départs
+                if (pdfInfosData.site_siret_plus && pdfInfosData.site_siret_plus.length > 0) {
+                    const siteSiret = pdfInfosData.site_siret_plus[0]; // Prendre le premier SIRET
+                    console.log(`🔄 Écrasement des SIRET de sites avec: ${siteSiret}`);
+                    
+                    // Récupérer le nom du site depuis table_autocompletion
+                    const { data: autocompletionData, error: autocompletionError } = await supabase
+                        .from('table_autocompletion')
+                        .select('site')
+                        .eq('entreprise_id', entrepriseId);
+
+                    if (!autocompletionError && autocompletionData) {
+                        // Chercher le site correspondant au SIRET
+                        const matchingSite = autocompletionData.find((item: { site?: { siret?: string; nom?: string } }) => 
+                            item.site?.siret?.replace(/\s/g, '') === siteSiret.replace(/\s/g, '')
+                        );
+                        
+                        const siteName = matchingSite?.site?.nom || '';
+                        
+                        // Écraser les données de site dans tous les départs
+                        initialData.departs = initialData.departs.map(depart => ({
+                            ...depart,
+                            site_siret: siteSiret,
+                            site_nom: siteName
+                        }));
+                        
+                        console.log(`✅ Données de site écrasées: ${siteName} (${siteSiret})`);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('❌ Erreur lors de la vérification des champs pdf_infos:', error);
+        }
+    }
 
     console.log('✅ Transformation terminée');
     return initialData;

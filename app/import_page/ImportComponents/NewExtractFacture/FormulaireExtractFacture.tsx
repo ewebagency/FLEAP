@@ -26,7 +26,10 @@ import {
     getExistingFactureData,
     transformTargetStructureToFormData
 } from './FormulaireExtractFactureFunctionnal';
-import { ALL_OPERATIONS, UNITES } from '../../../interface_admin_2/InterfaceAdmin2/constants/formConstants';
+import { ALL_OPERATIONS } from '../../../interface_admin_2/InterfaceAdmin2/constants/formConstants';
+
+// Constantes pour les unités (cohérentes avec le backend)
+const UNITES = ['kg', 'tonnes', 'm³', 'L', 'unités'];
 import { useSession } from '@/app/component/SessionProvider';
 import { toast } from 'react-hot-toast';
 import OCRThisFacture from './OCRThisFacture';
@@ -152,7 +155,7 @@ const FormulaireExtractFacture = ({ pdf_id, pdf_path, onSuccess }: { pdf_id: num
         });
     };
 
-    const handleDepartChange = (departIndex: number, field: 'site_nom' | 'site_siret' | 'dechet_nom' | 'code_ced' | 'date_collecte' | 'contenant_nom' | 'contenant_volume' | 'contenant_unite', value: string) => {
+    const handleDepartChange = (departIndex: number, field: 'site_nom' | 'site_siret' | 'dechet_nom' | 'code_ced' | 'bon_pesee' | 'date_collecte' | 'contenant_nom' | 'contenant_volume' | 'contenant_unite', value: string) => {
         setFormData(prev => {
             let newFormData = updateDepart(prev, departIndex, field, value);
             
@@ -424,16 +427,13 @@ const FormulaireExtractFacture = ({ pdf_id, pdf_path, onSuccess }: { pdf_id: num
                                         <option key={index} value={option.value}>{option.value}</option>
                                     ))}
                                 </select>
-                                <select
-                                    value={depart.contenant_nom}
-                                    onChange={(e) => handleDepartChange(departIndex, 'contenant_nom', e.target.value)}
+                                <input
+                                    type="text"
+                                    placeholder="Numéro BE (bon)"
+                                    value={depart.bon_pesee}
+                                    onChange={(e) => handleDepartChange(departIndex, 'bon_pesee', e.target.value)}
                                     className="w-full p-1 text-xs border rounded"
-                                >
-                                    <option value="">Contenant</option>
-                                    {autocompletionOptions.contenantOptions.map((option, index) => (
-                                        <option key={index} value={option.value}>{option.value}</option>
-                                    ))}
-                                </select>
+                                />
                                 <input
                                     type="date"
                                     placeholder="Date de collecte"

@@ -16,6 +16,8 @@ interface AnalysisContextType {
   mappingTable: Array<{ ced: string; filiere: string }>;
   siretToName: Record<string, string>;
   filieres_ou_prestataires: FiliereOuPrestataireInterface;
+  filterImportedOnly: boolean;
+  setFilterImportedOnly: (val: boolean) => void;
 }
 
 // Ajout du type intermédiaire
@@ -100,6 +102,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
     const [mappingTable, setMappingTable] = useState<Array<{ ced: string; filiere: string }>>([]);
     const [siretToName, setSiretToName] = useState<Record<string, string>>({});
     const [filtersInitialized, setFiltersInitialized] = useState(false);
+    const [filterImportedOnly, setFilterImportedOnly] = useState(true);
 
     const { filterFunctions } = useFiltresPerso();
 
@@ -282,8 +285,13 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
 
         const filteredData = filterBSDs(rawBSDs, filieres, sites, points_collecte, segmentDates, mappingTable, filterFunctions, false);
 
-        setFilteredBSDs(filteredData);
-    }, [rawBSDs, filieres, points_collecte, sites, segmentDates, filterFunctions, filtersInitialized]);
+        let finalFiltered = filteredData;
+        if (filterImportedOnly) {
+            finalFiltered = filteredData.filter(bsd => bsd.status_track_dechets === 'IMPORTED');
+        }
+        setFilteredBSDs(finalFiltered);
+
+    }, [rawBSDs, filieres, points_collecte, sites, segmentDates, filterFunctions, filtersInitialized, filterImportedOnly]);
 
     return (
         <AnalysisContext.Provider value={{ 
@@ -292,7 +300,9 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
             refetch: fetchBSDs,
             mappingTable,
             siretToName,
-            filieres_ou_prestataires
+            filieres_ou_prestataires,
+            filterImportedOnly,
+            setFilterImportedOnly
         }}>
             {children}
         </AnalysisContext.Provider>

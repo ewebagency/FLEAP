@@ -193,7 +193,7 @@ const OCRThisFacture = ({ pdf_id, pdf_path, onDataExtracted, entreprise_id, user
             
             // Étape 3: Transformer et mettre à jour le formulaire
             if (onDataExtracted) {
-                const transformedData = await transformGeminiDataToFormData(structuredData, autocompletionOptions, entreprise_id || undefined);
+                const transformedData = await transformGeminiDataToFormData(structuredData, autocompletionOptions, entreprise_id || undefined, pdf_id);
                 onDataExtracted(transformedData);
             }
 

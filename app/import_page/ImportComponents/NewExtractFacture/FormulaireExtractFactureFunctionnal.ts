@@ -30,6 +30,7 @@ export const getInitialFormData = (): FactureLine => ({
         site_siret: '',
         dechet_nom: '',
         code_ced: '',
+        bon_pesee: '',
         date_collecte: new Date().toISOString().split('T')[0],
         contenant_nom: '',
         contenant_volume: '',
@@ -285,6 +286,7 @@ export const addDepart = (formData: FactureLine): FactureLine => {
         site_siret: '',
         dechet_nom: '',
         code_ced: '',
+        bon_pesee: '',
         date_collecte: new Date().toISOString().split('T')[0],
         contenant_nom: '',
         contenant_volume: '',
@@ -454,7 +456,7 @@ export const transformFormDataToTargetStructure = (formData: FactureLine): Targe
             line_header: {
                 filiere: "", // Champ non disponible dans le formulaire
                 site_nom: depart.site_nom || "",
-                bon_pesee: "", // Champ non disponible dans le formulaire
+                bon_pesee: depart.bon_pesee || "",
                 site_siret: depart.site_siret || "",
                 code_dechet: depart.code_ced || "",
                 date_depart: depart.date_collecte || "",
@@ -524,6 +526,7 @@ export const transformTargetStructureToFormData = (targetData: TargetStructure):
             site_siret: depart.line_header.site_siret || '',
             dechet_nom: depart.line_header.type_dechet || '',
             code_ced: depart.line_header.code_dechet || '',
+            bon_pesee: depart.line_header.bon_pesee || '',
             date_collecte: depart.line_header.date_depart || new Date().toISOString().split('T')[0],
             contenant_nom: depart.line_header.nom_contenant || '',
             contenant_volume: depart.line_header.volume_contenant || '',
@@ -550,6 +553,65 @@ export const saveFactureToDatabase = async (
     factureData: TargetStructure
 ) => {
     try {
+        // 0. Vérifier les champs provider et site_siret_plus dans pdf_infos et écraser les données si nécessaire
+        const { data: pdfInfosData, error: pdfInfosError } = await supabase
+            .from('pdf_infos')
+            .select('provider, site_siret_plus')
+            .eq('id', pdfId)
+            .single();
+
+        if (pdfInfosError) {
+            console.error('❌ Erreur lors de la récupération des infos PDF:', pdfInfosError);
+        } else if (pdfInfosData) {
+            console.log('📋 Vérification des champs pdf_infos:', pdfInfosData);
+            
+            // Créer une copie des données pour modification
+            const modifiedFactureData = { ...factureData };
+            
+            // Si provider est rempli, écraser les données du prestataire
+            if (pdfInfosData.provider && pdfInfosData.provider.siret) {
+                console.log(`🔄 Écrasement des données prestataire avec: ${pdfInfosData.provider.name} (${pdfInfosData.provider.siret})`);
+                modifiedFactureData.header.prestataire_nom = pdfInfosData.provider.name || '';
+                modifiedFactureData.header.prestataire_siret = pdfInfosData.provider.siret || '';
+            }
+            
+            // Si site_siret_plus est rempli, écraser les SIRET des sites dans tous les départs
+            if (pdfInfosData.site_siret_plus && pdfInfosData.site_siret_plus.length > 0) {
+                const siteSiret = pdfInfosData.site_siret_plus[0]; // Prendre le premier SIRET
+                console.log(`🔄 Écrasement des SIRET de sites avec: ${siteSiret}`);
+                
+                // Récupérer le nom du site depuis table_autocompletion
+                const { data: autocompletionData, error: autocompletionError } = await supabase
+                    .from('table_autocompletion')
+                    .select('site')
+                    .eq('entreprise_id', entrepriseId);
+
+                if (!autocompletionError && autocompletionData) {
+                    // Chercher le site correspondant au SIRET
+                    const matchingSite = autocompletionData.find(item => 
+                        item.site?.siret?.replace(/\s/g, '') === siteSiret.replace(/\s/g, '')
+                    );
+                    
+                    const siteName = matchingSite?.site?.nom || '';
+                    
+                    // Écraser les données de site dans tous les départs
+                    modifiedFactureData.departs = modifiedFactureData.departs.map(depart => ({
+                        ...depart,
+                        line_header: {
+                            ...depart.line_header,
+                            site_siret: siteSiret,
+                            site_nom: siteName
+                        }
+                    }));
+                    
+                    console.log(`✅ Données de site écrasées: ${siteName} (${siteSiret})`);
+                }
+            }
+            
+            // Utiliser les données modifiées pour la suite
+            factureData = modifiedFactureData;
+        }
+
         // 1. Vérifier si une facture existe déjà pour ce pdf_infos_id
         const { data: existingFacture, error: checkError } = await supabase
             .from('facture')

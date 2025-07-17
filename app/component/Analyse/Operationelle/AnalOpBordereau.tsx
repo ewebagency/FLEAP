@@ -5,7 +5,7 @@ import TauxRemplissage from "./TauxRemplissage";
 import ObjectifTonnage from "./ObjectifTonnage";
 
 const AnalOpBordereau = () => {
-    const { bsds, loading } = useAnalysis();
+    const { bsds, loading, filterImportedOnly, setFilterImportedOnly } = useAnalysis();
 
     
 
@@ -48,7 +48,7 @@ const AnalOpBordereau = () => {
     }, [bsds]);
 
     return (
-        <div className="flex justify-between bg-gray-200 p-4 rounded-lg">
+        <div className="flex justify-between bg-gray-200 p-4 rounded-lg items-center">
             <div className="block">
                 <div className="text-sm text-gray-600 font-thin">Tonnage total</div>
                 <div className="flex items-center mt-2">
@@ -67,7 +67,7 @@ const AnalOpBordereau = () => {
             <div className="block">
                 <ObjectifTonnage/>
             </div>
-            <div className="flex gap-9">
+            <div className="flex gap-9 items-center">
                 <div className="block">
                     <div className="text-sm text-gray-600 font-thin hidden">Taux de tri</div>
                     <div className="flex items-center mt-0">
@@ -93,6 +93,16 @@ const AnalOpBordereau = () => {
                     <div className="font-medium text-xl text-gray-700 mt-2 ml-2">
                         {stats.totalDeclassements}
                     </div>
+                </div>
+                {/* Mini bouton filterLineRegister */}
+                <div className="ml-4 hidden">
+                    <button
+                        onClick={() => setFilterImportedOnly(!filterImportedOnly)}
+                        className={`px-2 py-1 rounded text-xs font-medium border transition-colors duration-150 ${filterImportedOnly ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-blue-500 border-blue-500 hover:bg-blue-50'}`}
+                        title={filterImportedOnly ? 'Afficher toutes les lignes' : 'Afficher uniquement les lignes IMPORTED'}
+                    >
+                        {filterImportedOnly ? 'Lignes importées' : 'Toutes'}
+                    </button>
                 </div>
             </div>
         </div>

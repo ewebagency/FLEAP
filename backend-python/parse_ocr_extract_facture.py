@@ -4,6 +4,8 @@ import os
 import json
 import pdfplumber
 from typing import Dict, Any, Optional
+import re
+from datetime import datetime
 
 def extract_text_with_pdfplumber(pdf_url: str) -> Optional[str]:
     """
@@ -154,43 +156,34 @@ def extract_data_with_gemini(text: str) -> Dict[str, Any]:
             "x-goog-api-key": os.getenv('GEMINI_API_KEY')
         }
 
-        # Template simple pour les factures
-        prompt = f"""Extract information from this invoice/facture text and format it according to this TypeScript interface. Return the result as a valid JSON object without any markdown formatting or backticks.
-        The text is in french.
-        You have a lot of informations in lin_items.description, trust you to understand the waste, the container, the volume of the container, the date, the location (name of the site) and the type of the operation
-        
+        # Nouveau prompt minimaliste pour Gemini
+        prompt = f"""Extract the following information from this French invoice/facture text and return a JSON array of 'departs', each with:
+- bon_pesee (numéro de bon)
+- date_collecte
+- dechet_nom
+- body: an array of lines, each with type_operation, unite, quantite, prix_unitaire, montant_ht
 
-interface FactureData {{
-    header: {{
-        prestataire_nom: string;
-        prestataire_siret: string;
-        prestataire_description: string;
-        prestataire_num_client: string;
-        num_facture: string;
-        date_facture: string;
-    }};
-    departs: Array<{{
-        site_nom: string;
-        site_siret: string;
-        dechet_nom: string;
-        code_ced: string;
-        date_collecte: string;
-        contenant_nom: string;
-        contenant_volume: string;
-        contenant_unite: string;
-        date_prise_en_charge: string;
-        body: Array<{{
-            type_operation: string;
-            unite: string;
-            quantite: number;
-            prix_unitaire: number;
-            montant_ht: number;
-        }}>;
-    }}>;
-    footer: {{
-        total_ht: number;
-    }};
+Example:
+{{
+  "departs": [
+    {{
+      "bon_pesee": "",
+      "date_collecte": "",
+      "dechet_nom": "",
+      "body": [
+        {{
+          "type_operation": "",
+          "unite": "",
+          "quantite": 0,
+          "prix_unitaire": 0,
+          "montant_ht": 0
+        }}
+      ]
+    }}
+  ]
 }}
+
+Return only this minimal JSON structure, nothing else.
 
 Text to analyze:
 {text}"""
@@ -229,8 +222,6 @@ def clean_gemini_response(text: str) -> str:
     """
     Nettoie la réponse de Gemini pour extraire le JSON
     """
-    import re
-    
     # Supprimer les backticks et le mot "json" s'ils sont présents
     text = re.sub(r'^```json\s*', '', text)
     text = re.sub(r'\s*```$', '', text)
@@ -243,6 +234,45 @@ def clean_gemini_response(text: str) -> str:
         return json.dumps(data, ensure_ascii=False)
     except json.JSONDecodeError:
         return text
+
+def normalize_date(date_str):
+    """Convertit une date jj/mm/aaaa ou j/m/aaaa en aaaa-mm-jj (format ISO)"""
+    if not date_str or not isinstance(date_str, str):
+        return ""
+    # Cherche un format jj/mm/aaaa ou j/m/aaaa
+    match = re.match(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})", date_str)
+    if match:
+        day, month, year = match.groups()
+        try:
+            return datetime(int(year), int(month), int(day)).strftime("%Y-%m-%d")
+        except Exception:
+            return date_str
+    # Si déjà au format ISO ou autre, retourne tel quel
+    return date_str
+
+def normalize_unite(unite):
+    """Convertit les abréviations d'unité en libellé attendu par le front"""
+    if not unite or not isinstance(unite, str):
+        return ""
+    mapping = {
+        "U": "unités",
+        "u": "unités",
+        "UNITE": "unités",
+        "Unité": "unités",
+        "T": "tonnes",
+        "t": "tonnes",
+        "Tonne": "tonnes",
+        "KG": "kg",
+        "Kg": "kg",
+        "kg": "kg",
+        "L": "L",
+        "l": "L",
+        "M3": "m³",
+        "m3": "m³",
+        "M³": "m³",
+        "m³": "m³"
+    }
+    return mapping.get(unite.strip(), unite)
 
 def process_facture_pdf(pdf_url: str) -> Dict[str, Any]:
     """
@@ -357,7 +387,7 @@ def extract_facture_with_gemini_from_data(mindee_data: Dict[str, Any]) -> Dict[s
         extracted_data = extract_data_with_gemini(text_for_gemini)
         
         # Mapper vers la structure spécifique
-        mapped_data = map_gemini_to_facture_structure(extracted_data)
+        mapped_data = map_gemini_minimal_to_facture_structure(extracted_data)
         
         return {
             "extracted_data": mapped_data,
@@ -371,13 +401,11 @@ def extract_facture_with_gemini_from_data(mindee_data: Dict[str, Any]) -> Dict[s
             "success": False
         }
 
-def map_gemini_to_facture_structure(gemini_data: Dict[str, Any]) -> Dict[str, Any]:
+def map_gemini_minimal_to_facture_structure(gemini_data: dict) -> dict:
     """
-    Mappe la réponse de Gemini vers la structure JSON spécifique des factures
-    Filtre les éléments avec des valeurs nulles ou 0
+    Reconstruit la structure FactureData complète à partir de la réponse minimale de Gemini
     """
     try:
-        # Structure de base
         mapped_data = {
             "footer": {"total_ht": 0},
             "header": {
@@ -390,91 +418,44 @@ def map_gemini_to_facture_structure(gemini_data: Dict[str, Any]) -> Dict[str, An
             },
             "departs": []
         }
-
-        # Mapper le header
-        if gemini_data.get("header"):
-            header = gemini_data["header"]
-            mapped_data["header"].update({
-                "num_facture": header.get("num_facture", ""),
-                "date_facture": header.get("date_facture", ""),
-                "prestataire_nom": header.get("prestataire_nom", ""),
-                "prestataire_siret": header.get("prestataire_siret", ""),
-                "prestataire_num_client": header.get("prestataire_num_client", ""),
-                "prestataire_description": header.get("prestataire_description", "")
-            })
-
-        # Mapper les départs
-        if gemini_data.get("departs"):
-            for depart in gemini_data["departs"]:
-                mapped_depart = {
-                    "line_header": {
-                        "filiere": "",
-                        "site_nom": "",
-                        "bon_pesee": "",
-                        "site_siret": "",
-                        "code_dechet": "",
-                        "date_depart": "",
-                        "num_dossier": "",
-                        "type_dechet": "",
-                        "bon_intention": "",
-                        "site_description": "",
-                        "site_num_affaire": "",
-                        "dechet_description": ""
-                    },
-                    "line_body": [],
-                    "linked_to_bsd": False
-                }
-
-                # Mapper le line_header
-                if depart.get("site_nom"):
-                    mapped_depart["line_header"]["site_nom"] = depart["site_nom"]
-                if depart.get("site_siret"):
-                    mapped_depart["line_header"]["site_siret"] = depart["site_siret"]
-                if depart.get("dechet_nom"):
-                    mapped_depart["line_header"]["type_dechet"] = depart["dechet_nom"]
-                if depart.get("code_ced"):
-                    mapped_depart["line_header"]["code_dechet"] = depart["code_ced"]
-                if depart.get("date_collecte"):
-                    mapped_depart["line_header"]["date_depart"] = depart["date_collecte"]
-
-                # Mapper le line_body en filtrant les valeurs nulles
-                if depart.get("body"):
-                    for line in depart["body"]:
-                        # Vérifier si la ligne a des valeurs significatives
-                        quantite = line.get("quantite", 0)
-                        montant_ht = line.get("montant_ht", 0)
-                        prix_unitaire = line.get("prix_unitaire", 0)
-                        
-                        # Ne créer la ligne que si elle a des valeurs significatives
-                        if quantite > 0 or montant_ht > 0 or prix_unitaire > 0:
-                            mapped_line = {
-                                "unite": line.get("unite", ""),
-                                "quantite": quantite,
-                                "montant_ht": montant_ht,
-                                "prix_unitaire": prix_unitaire,
-                                "type_operation": line.get("type_operation", "")
-                            }
-                            mapped_depart["line_body"].append(mapped_line)
-
-                # Ajouter le départ seulement s'il a des données significatives
-                if (mapped_depart["line_header"]["site_nom"] or 
-                    mapped_depart["line_header"]["site_siret"] or 
-                    mapped_depart["line_header"]["type_dechet"] or
-                    mapped_depart["line_body"]):
-                    mapped_data["departs"].append(mapped_depart)
-
-        # Calculer le total HT
         total_ht = 0
-        for depart in mapped_data["departs"]:
-            for line in depart["line_body"]:
-                total_ht += line.get("montant_ht", 0)
-        
+        for depart in gemini_data.get("departs", []):
+            mapped_depart = {
+                "line_header": {
+                    "filiere": "",
+                    "site_nom": "",
+                    "bon_pesee": depart.get("bon_pesee", ""),
+                    "bon_intention": "",
+                    "site_siret": "",
+                    "code_dechet": "",
+                    "date_depart": normalize_date(depart.get("date_collecte", "")),
+                    "num_dossier": "",
+                    "type_dechet": depart.get("dechet_nom", ""),
+                    "site_description": "",
+                    "site_num_affaire": "",
+                    "dechet_description": "",
+                    "nom_contenant": "",
+                    "volume_contenant": "",
+                    "unite_contenant": ""
+                },
+                "line_body": [],
+                "linked_to_bsd": False
+            }
+            for line in depart.get("body", []):
+                mapped_line = {
+                    "unite": normalize_unite(line.get("unite", "")),
+                    "quantite": line.get("quantite", 0),
+                    "montant_ht": line.get("montant_ht", 0),
+                    "prix_unitaire": line.get("prix_unitaire", 0),
+                    "type_operation": line.get("type_operation", "")
+                }
+                total_ht += mapped_line["montant_ht"]
+                mapped_depart["line_body"].append(mapped_line)
+            mapped_data["departs"].append(mapped_depart)
         mapped_data["footer"]["total_ht"] = total_ht
-
         return mapped_data
-
     except Exception as e:
-        print(f"Erreur lors du mapping: {str(e)}")
+        print(f"Erreur lors du mapping minimal: {str(e)}")
         return {
             "footer": {"total_ht": 0},
             "header": {

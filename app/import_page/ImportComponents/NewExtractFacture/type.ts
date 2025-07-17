@@ -20,6 +20,7 @@ export interface FactureLineDepart {
     site_siret: string;
     dechet_nom: string;
     code_ced: string;
+    bon_pesee: string;
     date_collecte: string;
     contenant_nom: string;
     contenant_volume: string;

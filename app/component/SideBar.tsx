@@ -55,11 +55,11 @@ const SideBar = (props:SideBarProps) => {
             if (session?.user_id) {
                 setConnected(true);
             } else {
-                // On attend 1 seconde avant de considérer que l'utilisateur est vraiment déconnecté
+                // On attend 3 secondes avant de considérer que l'utilisateur est vraiment déconnecté
                 timeoutId = setTimeout(() => {
                     setConnected(false);
                     router.push('/auth/signin');
-                }, 1000);
+                }, 3000);
             }
         };
 
