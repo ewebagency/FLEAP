@@ -109,7 +109,7 @@ const PreviewImport: React.FC<PreviewImportProps> = ({
     // Utiliser les fonctions exportées des composants d'analyse
     // Conversion temporaire pour la compatibilité des types
     const bsdsAsBSD = bsdsToAdd as unknown as BSD[];
-    const { tauxTri } = calculateTauxTri(bsdsAsBSD, mappingTable);
+    const { tauxTri } = calculateTauxTri(bsdsAsBSD, mappingTable, { nom: 'filiere' });
     const { globalValorizationRate, materialValorizationRate, processedBsdsCount } = calculateTauxValorisation(bsdsAsBSD);
 
     return {

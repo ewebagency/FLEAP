@@ -25,13 +25,19 @@ const AnalOpTable = () => {
 
         bsds.forEach(bsd => {
             let segmentKey;
-            if (filieres_ou_prestataires.nom === 'prestataire') {
-                const siret = bsd.infos_json.formAPI.createFormInput.recipient.company.siret;
-                segmentKey = siretToName[siret] || siret || 'Non renseigné';
+            if (filieres_ou_prestataires.nom === 'filiere_nom') {
+                // En mode filiere_nom, utiliser le nom du déchet pour déterminer la filière
+                const wasteName = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
+                const mappingEntry = mappingTable.find((item: { nom?: string; filiere: string }) => 
+                    item.nom === wasteName
+                );
+                segmentKey = mappingEntry ? mappingEntry.filiere : 'Autres';
             } else {
+                // Filtrer le mappingTable pour ne garder que les objets avec ced
+                const cedMappingTable = mappingTable.filter(m => 'ced' in m && m.ced) as Array<{ced: string, filiere: string}>;
                 segmentKey = getFiliere(
                     bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
-                    mappingTable
+                    cedMappingTable
                 ) || 'Autres';
             }
 
@@ -142,14 +148,14 @@ const AnalOpTable = () => {
     return (
         <div className="flex-1 p-4 bg-white rounded-lg">
             <div className="text-gray-500 text-xs mb-2">
-                Détails par {filieres_ou_prestataires.nom === 'prestataire' ? 'prestataire' : 'filière'}
+                Détails par filière
             </div>
             <div className="h-[250px] overflow-auto">
                 <table className="min-w-full text-xs">
                     <thead className="sticky top-0 bg-white">
                         <tr className="bg-white border-b border-gray-600">
                             <th className="px-2 py-1 text-left font-bold">
-                                {filieres_ou_prestataires.nom === 'prestataire' ? 'Prestataire' : 'Filière'}
+                                Filière
                             </th>
                             <th className="px-2 py-1 text-right font-bold">Tonnage</th>
                             <th className="px-2 py-1 text-right font-bold">Remplissage</th>

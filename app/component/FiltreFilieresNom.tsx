@@ -5,107 +5,92 @@ import { useSession } from "./SessionProvider";
 import { supabase } from "../database/supabaseClient";
 import { getColors } from "./Analyse/MetaComponent/Colours";
 import { useModalContextNew } from "../register/RegisterComponents/Modal/ContextModal";
-import { RowBSD } from "../register/interface/BSD_Interface";
 import useSWR from 'swr';
 
-const cleanCED = (ced: string): string => {
-    if(ced == null || ced == undefined || ced == '') {
-        return ced.replaceAll(' ', '').replaceAll('*', '').trim();
-    } else {
-        return ced.replace(/[^\d]/g,'');
-    }
-};
-
-// Type pour les données de code BSD
-interface BSDCode {
-    code: string | null;
+// Type pour les données de nom BSD
+interface BSDName {
+    name: string | null;
 }
 
 // Fonction fetcher pour SWR
 const fetcher = async (entreprise_id: string) => {
-    const pageSize = 1000; // Taille de la page
-    let allData: BSDCode[] = [];
+    const pageSize = 1000;
+    let allData: BSDName[] = [];
     let hasMore = true;
     let page = 0;
 
     while (hasMore) {
         const { data, error, count } = await supabase
             .from('bsd')
-            .select('infos_json->formAPI->createFormInput->wasteDetails->>code', { count: 'exact' })
+            .select('infos_json->formAPI->createFormInput->wasteDetails->>name', { count: 'exact' })
             .eq('entreprise_id', entreprise_id)
             .order('created_at', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
 
-        if (error) throw error;
+        if (error && !data) {
+            console.error('Erreur SWR dans FiltreFilieresNom:', error);
+            throw error;
+        }
         
-        if (data) {
+        if (data && data.length > 0) {
             allData = [...allData, ...data];
-            // Vérifier s'il y a plus de données à charger
             hasMore = count ? allData.length < count : false;
             page++;
         } else {
             hasMore = false;
         }
     }
-
     return allData;
 };
 
-const FiltreFilieres = () => {
-    const { filieres, setFilieresCed, toggleFiliere } = useFilterContext();
-    const {entreprise_id, user_id} = useSession();
+const FiltreFilieresNom = () => {
+    const { filieres, setFilieresNom, toggleFiliere } = useFilterContext();
+    const {entreprise_id} = useSession();
     const [loadingFilieres, setLoadingFilieres] = useState(true);
     const {modalReload, setFilterPendingBSDs} = useModalContextNew();
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     // Utilisation de SWR pour récupérer les BSDs avec un temps de cache plus long
     const { data: bsds, error } = useSWR(
-        entreprise_id ? entreprise_id : null,
-        fetcher,
+        entreprise_id ? [entreprise_id + '-nom', entreprise_id] : null,
+        ([_, entreprise_id]) => fetcher(entreprise_id),
         {
             revalidateOnFocus: false,
             revalidateOnReconnect: false,
             refreshInterval: 0,
-            dedupingInterval: 60000, // Déduplication pendant 1 minute
-            focusThrottleInterval: 60000 // Throttle des revalidations pendant 1 minute
+            dedupingInterval: 60000,
+            focusThrottleInterval: 60000
         }
     );
 
     const getFilieresFromEntreprise = async (forceReload = false) => {
         if (!bsds) return;
-
         try {
-            // Extraire les codes des BSDs
-            const codes = bsds
-                .map((bsd: BSDCode) => bsd.code)
-                .filter((code): code is string => code !== null);
-            
-            const array_codes_propres = codes.map((code: string) => cleanCED(code));
-            const array_codes_clean = array_codes_propres.map((code: string) => String(code));
-            const set_codes_clean = new Set(array_codes_clean);
-            const codes_uniques = Array.from(set_codes_clean) as string[];
+            // Extraire les noms des BSDs
+            const names = bsds
+                .map((bsd: BSDName) => bsd.name)
+                .filter((name): name is string => !!name && name.trim() !== "");
+            const set_names_clean = new Set(names.map(n => n.trim()));
+            const names_uniques = Array.from(set_names_clean) as string[];
 
             // Récupérer le mapping depuis l'API avec forceReload
-            const mappingData = await fetch(`/api/get_mapping_ced_filiere?entreprise_id=${entreprise_id}&forceReload=${forceReload}`);
-            const { data: mappingCedFiliere } = await mappingData.json();
+            const mappingData = await fetch(`/api/get_mapping_nom_filiere?entreprise_id=${entreprise_id}&forceReload=${forceReload}`);
+            const { data: mappingNomFiliere } = await mappingData.json();
 
-            if (mappingCedFiliere) {
-                const mappingArray = mappingCedFiliere;
+            if (mappingNomFiliere) {
+                const mappingArray = mappingNomFiliere;
                 let filieres_uniques: string[] = [];
                 let others = false;
-                
-                for(const code of codes_uniques) {
-                    const match = mappingArray.find((item:{ced:string, filiere:string}) => cleanCED(item.ced) === cleanCED(code));
+                for(const name of names_uniques) {
+                    const match = mappingArray.find((item:{nom:string, filiere:string}) => item.nom.trim() === name.trim());
                     if(match) {
                         filieres_uniques.push(match.filiere);
                     } else {
                         others = true;
                     }
                 }
-                
                 filieres_uniques = Array.from(new Set(filieres_uniques));
                 if(others) filieres_uniques.push('Autres');
-
                 const filieres_colors = getColors(filieres_uniques.length);
                 const formattedFilieres = filieres_uniques.map((filiere, index) => {
                     const existingFiliere = filieres.find(f => f.name === filiere);
@@ -115,11 +100,10 @@ const FiltreFilieres = () => {
                         checked: existingFiliere ? existingFiliere.checked : true
                     };
                 });
-
-                setFilieresCed(formattedFilieres);
+                setFilieresNom(formattedFilieres);
             }
         } catch (error) {
-            console.error("Erreur lors du chargement des filières:", error);
+            console.error("Erreur lors du chargement des filières (nom):", error);
         } finally {
             setLoadingFilieres(false);
             setIsInitialLoad(false);
@@ -138,7 +122,7 @@ const FiltreFilieres = () => {
             ...f,
             checked: !areAllChecked
         }));
-        setFilieresCed(updatedFilieres);
+        setFilieresNom(updatedFilieres);
     };
 
     if (error) {
@@ -168,13 +152,13 @@ const FiltreFilieres = () => {
                     ) : filieres && filieres.length > 0 ? (
                         filieres.map((filiere, index) => (
                             <label
-                                key={`filiere-${index}`}
+                                key={`filiere-nom-${index}`}
                                 className="flex items-center cursor-pointer join-item"
                             >
                                 <input
                                     className="hidden"
                                     type="checkbox"
-                                    name="options_filiere"
+                                    name="options_filiere_nom"
                                     aria-label={filiere.name}
                                     checked={filiere.checked}
                                     onChange={() => {
@@ -202,4 +186,4 @@ const FiltreFilieres = () => {
     );
 }
 
-export default FiltreFilieres;
+export default FiltreFilieresNom; 

@@ -5,6 +5,7 @@ import { Chart as ChartJS, ChartEvent, LegendItem, LegendElement } from 'chart.j
 import { useEffect, useState, useMemo } from 'react';
 import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { useFilterContext } from '@/app/FilterContext';
+import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { tailwindToRgb } from '../../MetaComponent/Colours';
 import { ChartDataset, TooltipItem } from 'chart.js';
 import DatePicker from 'react-datepicker';
@@ -23,7 +24,9 @@ interface Props {
 
 const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
+    const [mappingNomFiliere, setMappingNomFiliere] = useState<{ nom: string; filiere: string }[]>([]);
     const { filieres, segmentDates, setSegmentDates } = useFilterContext();
+    const { filieres_ou_prestataires } = useAnalysis();
     const [maxScale, setMaxScale] = useState<number | null>(null);
     const [minScale, setMinScale] = useState<number | null>(null);
     const [viewType, setViewType] = useState<'chart' | 'table'>('chart');
@@ -49,12 +52,24 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
     };
 
     useEffect(() => {
-        const fetchMappingTable = async () => {
+        const fetchMappingTables = async () => {
+            // Charger le mapping CED
             const mapping = await getMappingTableFiliere(entreprise_id);
             console.log('Mapping table fetched:', mapping);
             setMappingTable(mapping || []);
+            
+            // Charger le mapping nom_filiere
+            try {
+                const response = await fetch(`/api/get_mapping_nom_filiere?entreprise_id=${entreprise_id}`);
+                const { data: mappingNomFiliere } = await response.json();
+                console.log('Mapping nom filiere fetched:', mappingNomFiliere);
+                setMappingNomFiliere(mappingNomFiliere || []);
+            } catch (error) {
+                console.error('Error fetching mapping nom filiere:', error);
+                setMappingNomFiliere([]);
+            }
         };
-        fetchMappingTable();
+        fetchMappingTables();
     }, [entreprise_id]);
 
     const filteredChartData = useMemo(() => {
@@ -111,16 +126,29 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                 // Détermination de la filière
                 let filiere: string;
                 
-                // Si le code est dans le mapping, on utilise la filière correspondante
-                const mappedFiliere = mappingTable.find(m => 
-                    m.ced.replaceAll(' ', '').replace('*', '').trim() === cleanedCed
-                )?.filiere;
-
-                if (mappedFiliere) {
-                    filiere = mappedFiliere;
+                if (filieres_ou_prestataires.nom === 'filiere_nom') {
+                    // En mode filiere_nom, utiliser le nom du déchet pour déterminer la filière
+                    const wasteName = header?.dechet_description || header?.type_dechet;
+                    if (wasteName) {
+                        const mappingEntry = mappingNomFiliere.find((item: { nom?: string; filiere: string }) => 
+                            item.nom === wasteName
+                        );
+                        filiere = mappingEntry ? mappingEntry.filiere : 'Autres';
+                    } else {
+                        filiere = 'Autres';
+                    }
                 } else {
-                    // Si le code n'est pas dans le mapping, c'est "Autres"
-                    filiere = 'Autres';
+                    // Mode filiere : utiliser le code CED
+                    const mappedFiliere = mappingTable.find(m => 
+                        m.ced.replaceAll(' ', '').replace('*', '').trim() === cleanedCed
+                    )?.filiere;
+
+                    if (mappedFiliere) {
+                        filiere = mappedFiliere;
+                    } else {
+                        // Si le code n'est pas dans le mapping, c'est "Autres"
+                        filiere = 'Autres';
+                    }
                 }
 
                 // Calcul des montants ligne par ligne
@@ -270,7 +298,7 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             labels: monthLabels,
             datasets: datasets
         };
-    }, [factures, mappingTable, filieres, segmentDates, maxScale, minScale]);
+    }, [factures, mappingTable, mappingNomFiliere, filieres_ou_prestataires, filieres, segmentDates, maxScale, minScale]);
 
     const aggregatedData = useMemo(() => {
         if (!filteredChartData?.labels.length) return filteredChartData;

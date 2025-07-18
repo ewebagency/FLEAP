@@ -1,7 +1,7 @@
 "use client"
 import React, { useState, useEffect } from "react";
 import TabBarAnalyses from "../component/Analyse/TabBarAnalyses";
-import FiltreFilieres from "../component/FiltreFilieres";
+import FiltreFilieresSwitcher from "../component/FiltreFilieresSwitcher";
 import { useSession } from "../component/SessionProvider";
 import { supabase } from "../database/supabaseClient";
 import { useFilterContext, Filiere, PointCollecte, Site } from "../FilterContext";
@@ -88,7 +88,7 @@ const AnalysisPage = () => {
     //const [loading, setLoading] = useState(true);
 
     const handleRadioValueChainChange = (event :React.ChangeEvent<HTMLInputElement>) => {
-      setFilieresOuPrestataires({ nom: event.target.value as 'filiere' | 'prestataire' }); // Mise à jour du state avec la valeur sélectionnée
+      setFilieresOuPrestataires({ nom: event.target.value as 'filiere' | 'filiere_nom' }); // Mise à jour du state avec la valeur sélectionnée
       console.log('laaaaa',filieres_ou_prestataires);
     };
 
@@ -298,7 +298,7 @@ const AnalysisPage = () => {
         <AnalysisProvider>
             <div className='mx-5 mt-2'>
                 <div className="flex justify-between items-center">
-                    <FiltreFilieres/>
+                    <FiltreFilieresSwitcher/>
                     <div className="join hidden">
                         <input 
                             className="join-item btn btn-xs text-xs font-normal" 
@@ -313,9 +313,9 @@ const AnalysisPage = () => {
                             className="join-item btn btn-xs text-xs font-normal" 
                             type="radio" 
                             name="options_value_chaine" 
-                            aria-label="Prestataires" 
-                            value="prestataire" 
-                            checked={filieres_ou_prestataires.nom=='prestataire'} 
+                            aria-label="Filières par nom" 
+                            value="filiere_nom" 
+                            checked={filieres_ou_prestataires.nom=='filiere_nom'} 
                             onChange={handleRadioValueChainChange} 
                         />
                     </div>

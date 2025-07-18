@@ -224,14 +224,14 @@ const NewFinancialSource = () => {
                 </div>
 
                 {/* Main chart + RepComponent */}
-                {cofounders_user_id(user_id) ?
+                {cofounders_user_id(user_id) && false ?
                     <div className="flex justify-between bg-white rounded-lg">
                         <div className="w-[80%]">
-                            <NewMainFinancialChart factures={displayFactures} entreprise_id={entreprise_id} />
+                            <NewMainFinancialChart factures={displayFactures} entreprise_id={entreprise_id || ''} />
                         </div>
-                        <div className="w-[20%]">
+                        {/*<div className="w-[20%]">
                             <RepComponent factures={displayFactures} financier_or_tonnage="financier"/>
-                        </div>
+                        </div>*/}
                     </div>
                 :
                     <div className="flex justify-between bg-white rounded-lg">

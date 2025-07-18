@@ -90,16 +90,23 @@ const AnalOpMainChart = () => {
       if (date < startDate || date > endDate) return;
 
       let segmentKey;
-      if (filieres_ou_prestataires.nom === 'prestataire') {
-          const siret = bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret;
-        segmentKey = siretToName[siret] || siret;
-        if (!segmentKey || segmentKey === '') {
+      if (filieres_ou_prestataires.nom === 'filiere_nom') {
+        // Mode filiere_nom : utiliser le mapping_nom_filiere pour déterminer la filière
+        const wasteName = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.name;
+        if (wasteName) {
+          // Chercher dans le mapping_nom_filiere
+          const mappingEntry = mappingTable.find(m => 'nom' in m && m.nom && typeof m.nom === 'string' && m.nom.trim() === wasteName.trim());
+          segmentKey = mappingEntry?.filiere || 'Autres';
+        } else {
           segmentKey = 'Non renseigné';
         }
       } else {
+        // Mode filiere : utiliser le code CED
+        // Filtrer le mappingTable pour ne garder que les objets avec ced
+        const cedMappingTable = mappingTable.filter(m => 'ced' in m && m.ced) as Array<{ced: string, filiere: string}>;
         segmentKey = getFiliere(
             bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code,
-          mappingTable
+          cedMappingTable
         ) || 'Autres';
       }
 
@@ -135,25 +142,18 @@ const AnalOpMainChart = () => {
       return totalB - totalA;
     });
 
-    // Palette de couleurs pour les prestataires
-    const prestatairesColors = [
-      'rgb(142, 202, 230)',    // Bleu clair
-      'rgb(255, 183, 178)',    // Rose pâle
-      'rgb(181, 234, 215)',    // Vert menthe
-      'rgb(199, 206, 234)',    // Lavande
-      'rgb(255, 218, 193)',    // Pêche
-      'rgb(168, 218, 220)',    // Turquoise
-      'rgb(241, 192, 232)',    // Rose lilas
-      'rgb(204, 213, 174)',    // Vert sauge
-      'rgb(254, 200, 216)',    // Rose poudré
-      'rgb(173, 216, 230)',    // Bleu poudré
-    ];
-
     // Créer les datasets
     const datasets = sortedSegments.map(([segment, data], index) => {
-        const color = filieres_ou_prestataires.nom === 'filiere'
-            ? tailwindToRgb(filieres.find(f => f.name === segment)?.color || '#000000')
-            : prestatairesColors[index % prestatairesColors.length];
+        // Pour les modes filiere et filiere_nom, utiliser les couleurs du contexte
+        const filiereColor = filieres.find(f => f.name === segment)?.color;
+        let color;
+        if (filiereColor) {
+            color = tailwindToRgb(filiereColor);
+        } else {
+            // Fallback avec getColors si la filière n'est pas trouvée
+            const fallbackColors = getColors(sortedSegments.length);
+            color = tailwindToRgb(fallbackColors[index % fallbackColors.length]);
+        }
 
         return {
             label: segment,

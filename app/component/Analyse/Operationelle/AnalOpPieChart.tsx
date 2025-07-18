@@ -77,14 +77,19 @@ const AnalOpPieChart = () => {
 
         bsds.forEach((bsd: BSD) => {
             let key;
-            if (filieres_ou_prestataires.nom === 'prestataire') {
-                const siret = bsd.infos_json.formAPI.createFormInput.recipient.company.siret;
-                key = siretToName[siret] || siret;
-                if (key === '') return; // Ignorer seulement les entrées vides
+            if (filieres_ou_prestataires.nom === 'filiere_nom') {
+                // En mode filiere_nom, utiliser le nom du déchet pour déterminer la filière
+                const wasteName = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
+                const mappingEntry = mappingTable.find((item: { nom?: string; filiere: string }) => 
+                    item.nom === wasteName
+                );
+                key = mappingEntry ? mappingEntry.filiere : 'Autres';
             } else {
+                // Filtrer le mappingTable pour ne garder que les objets avec ced
+                const cedMappingTable = mappingTable.filter(m => 'ced' in m && m.ced) as Array<{ced: string, filiere: string}>;
                 key = getFiliere(
                     bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
-                    mappingTable
+                    cedMappingTable
                 ) || 'Autres'; // Garder la catégorie "Autres" pour les filières
             }
 
@@ -102,30 +107,19 @@ const AnalOpPieChart = () => {
             return b[1] - a[1];
         });
 
-        // Palette de couleurs pour les prestataires
-        const prestatairesColors = [
-            'rgba(142, 202, 230, 1)',    // Bleu clair
-            'rgba(255, 183, 178, 1)',    // Rose pâle
-            'rgba(181, 234, 215, 1)',    // Vert menthe
-            'rgba(199, 206, 234, 1)',    // Lavande
-            'rgba(255, 218, 193, 1)',    // Pêche
-            'rgba(168, 218, 220, 1)',    // Turquoise
-            'rgba(241, 192, 232, 1)',    // Rose lilas
-            'rgba(204, 213, 174, 1)',    // Vert sauge
-            'rgba(254, 200, 216, 1)',    // Rose poudré
-            'rgba(173, 216, 230, 1)',    // Bleu poudré
-        ];
-
         return {
             labels: sortedEntries.map(([key]) => key),
             datasets: [{
                 data: sortedEntries.map(([_, value]) => value),
                 backgroundColor: sortedEntries.map(([key], index) => {
-                    if (filieres_ou_prestataires.nom === 'filiere') {
-                        const filiere = filieres.find(f => f.name === key);
-                        return tailwindToRgba(filiere?.color || 'gray-500');
+                    // Pour les modes filiere et filiere_nom, utiliser les couleurs du contexte
+                    const filiereColor = filieres.find(f => f.name === key)?.color;
+                    if (filiereColor) {
+                        return tailwindToRgba(filiereColor);
                     } else {
-                        return prestatairesColors[index % prestatairesColors.length];
+                        // Fallback avec getColors si la filière n'est pas trouvée
+                        const fallbackColors = getColors(sortedEntries.length);
+                        return tailwindToRgba(fallbackColors[index % fallbackColors.length]);
                     }
                 }),
                 borderColor: 'white',
@@ -137,7 +131,7 @@ const AnalOpPieChart = () => {
     return (
         <div className="flex-1 p-4 bg-white rounded-lg">
             <div className="text-gray-500 text-xs mb-2">
-                Répartition par {filieres_ou_prestataires.nom === 'prestataire' ? 'prestataire' : 'filière'}
+                Répartition par filière
             </div>
             <div className="h-[200px]"> {/* Hauteur augmentée à 250px */}
                 <Doughnut data={pieData} options={options} />

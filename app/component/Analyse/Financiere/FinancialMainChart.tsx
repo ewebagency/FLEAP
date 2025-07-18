@@ -1,4 +1,4 @@
-import React from 'react';
+/*import React from 'react';
 import { DynamicCharts, type TooltipItem, ChartJS} from '../MetaComponent/ChartWrapper';
 import { BSD, useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
@@ -91,69 +91,12 @@ const FinancialMainChart = () => {
         };
     };
 
-    /*const options = {
-        responsive: true,
-        plugins: {
-            legend: {
-                position: 'top' as const,
-                labels: {
-                    filter: (item: CustomTooltipItem) => !item.text.includes('(-)'),
-                    generateLabels: (chart: ChartJS) => {
-                        const originalLabels = ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
-                        // Regrouper les labels par filière/prestataire
-                        const uniqueLabels = new Map();
-                        originalLabels.forEach(label => {
-                            const baseName = label.text.split(' (')[0];
-                            if (!uniqueLabels.has(baseName)) {
-                                label.text = baseName;
-                                uniqueLabels.set(baseName, label);
-                            }
-                        });
-                        return Array.from(uniqueLabels.values());
-                    }
-                }
-            },
-            title: {
-                display: true,
-                text: 'Évolution mensuelle des revenus et coûts'
-            },
-            tooltip: {
-                callbacks: {
-                    label: (context: CustomTooltipItem) => {
-                        const isRevenue = context.dataset.stack === 'revenues';
-                        const value = context.raw as number;
-                        const label = context.dataset.label?.split(' (')[0] ?? '';
-                        return `${label}: ${isRevenue ? '+' : '-'}${value.toLocaleString('fr-FR')}€`;
-                    }
-                }
-            }
-        },
-        scales: {
-            x: {
-                grid: {
-                    display: false
-                },
-                ticks: {
-                    font: {
-                        size: 10
-                    }
-                }
-            },
-            y: {
-                stacked: true,
-                title: {
-                    display: true,
-                    text: 'Euros (€)'
-                }
-            }
-        }
-    };*/
 
     return (
         <div className="mt-4 p-2 bg-white rounded-lg shadow">
             {bsds.length > 0 ? (
                 <div>
-                    <Bar data={processChartData()} /*options={options}*/ height={60} />
+                    <Bar data={processChartData()}  height={60} />
                     <div className="flex justify-center gap-4 text-xs text-gray-500 mt-2">
                         <div>- Coûts</div>
                         <div>+ Revenus</div>
@@ -167,3 +110,4 @@ const FinancialMainChart = () => {
 };
 
 export default FinancialMainChart; 
+*/

@@ -1,5 +1,5 @@
 'use client'
-import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { useModalContextNew } from './register/RegisterComponents/Modal/ContextModal';
 import { useSession } from './component/SessionProvider';
 
@@ -35,11 +35,13 @@ export interface SegmentDates {
 }
 
 export interface FiliereOuPrestataireInterface {
-  nom : 'filiere' | 'prestataire';
+  nom : 'filiere' | 'filiere_nom';
 }
 
 export interface FilterContextType {
   filieres: Filiere[];
+  filieres_ced: Filiere[];
+  filieres_nom: Filiere[];
   sites: Site[];
   points_collecte: PointCollecte[];
   prestataires: Prestataire[];
@@ -47,6 +49,8 @@ export interface FilterContextType {
   filieres_ou_prestataires: FiliereOuPrestataireInterface;
 
   setFilieres: (filieres: Filiere[]) => void;
+  setFilieresCed: (filieres: Filiere[]) => void;
+  setFilieresNom: (filieres: Filiere[]) => void;
   setSites: (sites: Site[]) => void;
   setPointsCollecte: (points_collecte: PointCollecte[]) => void;
   setPrestataires: (prestataires: Prestataire[]) => void;
@@ -75,7 +79,8 @@ interface FilterProviderProps {
 }
 
 export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
-  const [filieres, setFilieres] = useState<Filiere[]>([]);
+  const [filieres_ced, setFilieresCed] = useState<Filiere[]>([]);
+  const [filieres_nom, setFilieresNom] = useState<Filiere[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [points_collecte, setPointsCollecte] = useState<PointCollecte[]>([]);
   const [prestataires, setPrestataires] = useState<Prestataire[]>([]);
@@ -84,12 +89,30 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const session = useSession();
 
+  // Calculer les filières actives selon le mode
+  const filieres = useMemo(() => {
+    if (filieres_ou_prestataires.nom === 'filiere_nom') {
+      return filieres_nom;
+    } else if (filieres_ou_prestataires.nom === 'filiere') {
+      return filieres_ced;
+    }
+    return filieres_ced; // fallback
+  }, [filieres_ced, filieres_nom, filieres_ou_prestataires.nom]);
+
   const toggleFiliere = (name: string) => {
-    setFilieres(prev => prev.map(filiere => 
-      filiere.name === name 
-        ? { ...filiere, checked: !filiere.checked }
-        : filiere
-    ));
+    if (filieres_ou_prestataires.nom === 'filiere_nom') {
+      setFilieresNom(prev => prev.map(filiere => 
+        filiere.name === name 
+          ? { ...filiere, checked: !filiere.checked }
+          : filiere
+      ));
+    } else {
+      setFilieresCed(prev => prev.map(filiere => 
+        filiere.name === name 
+          ? { ...filiere, checked: !filiere.checked }
+          : filiere
+      ));
+    }
   };
 
   const toggleSite = useCallback((siteId: string) => {
@@ -135,7 +158,8 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   };
 
   const resetAllFilters = () => {
-    setFilieres(prev => prev.map(f => ({ ...f, checked: true })));
+    setFilieresCed(prev => prev.map(f => ({ ...f, checked: true })));
+    setFilieresNom(prev => prev.map(f => ({ ...f, checked: true })));
     setSites(prev => prev.map(s => ({ ...s, checked: true })));
     setPointsCollecte(prev => prev.map(p => ({ ...p, checked: true })));
     setPrestataires(prev => prev.map(p => ({ ...p, checked: true })));
@@ -144,15 +168,19 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
 
   useEffect(() => {
     if (!isInitialized && session?.entreprise_id) {
-      const savedFilieres = localStorage.getItem(`filieres-${session.entreprise_id}`);
-      if (savedFilieres) {
-        setFilieres(JSON.parse(savedFilieres));
+      const savedFilieresCed = localStorage.getItem(`filieres_ced-${session.entreprise_id}`);
+      if (savedFilieresCed) {
+        setFilieresCed(JSON.parse(savedFilieresCed));
+      }
+
+      const savedFilieresNom = localStorage.getItem(`filieres_nom-${session.entreprise_id}`);
+      if (savedFilieresNom) {
+        setFilieresNom(JSON.parse(savedFilieresNom));
       }
 
       const savedSites = localStorage.getItem(`sites-${session.entreprise_id}`);
       if (savedSites) {
         const savedSiteStates = JSON.parse(savedSites);
-        //console.log('Sites chargés depuis le localStorage:', savedSiteStates);
         setSites(prevSites => 
           prevSites.map(site => ({
             ...site,
@@ -172,12 +200,23 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
 
   const value = {
     filieres,
+    filieres_ced,
+    filieres_nom,
     sites,
     points_collecte,
     prestataires,
     segmentDates,
     filieres_ou_prestataires,
-    setFilieres,
+    setFilieres: (filieres: Filiere[]) => {
+      // Déterminer quel setter utiliser selon le mode actuel
+      if (filieres_ou_prestataires.nom === 'filiere_nom') {
+        setFilieresNom(filieres);
+      } else {
+        setFilieresCed(filieres);
+      }
+    },
+    setFilieresCed,
+    setFilieresNom,
     setSites,
     setPointsCollecte,
     setPrestataires,

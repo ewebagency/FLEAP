@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+/*import React, { useMemo } from 'react';
 import { DynamicCharts } from '../MetaComponent/ChartWrapper';
 import { BSD, useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
@@ -142,7 +142,7 @@ const FinancialPieChart = () => {
     return (
         <div className="flex-1 p-4 bg-white rounded-lg shadow max-w-[50%]">
             <div className="flex justify-between space-x-4 w-full">
-                {/* Graphique des coûts */}
+                {/* Graphique des coûts 
                 <div className="w-1/2">
                     <div className="text-gray-500 text-xs mb-2 text-center">
                         - Coûts
@@ -156,7 +156,7 @@ const FinancialPieChart = () => {
                     </div>
                 </div>
 
-                {/* Graphique des revenus */}
+                {/* Graphique des revenus 
                 <div className="w-1/2">
                     <div className="text-gray-500 text-xs mb-2 text-center">
                         + Revenus
@@ -174,4 +174,4 @@ const FinancialPieChart = () => {
     );
 };
 
-export default FinancialPieChart; 
+export default FinancialPieChart; */

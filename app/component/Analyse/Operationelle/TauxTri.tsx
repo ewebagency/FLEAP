@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import { useAnalysis } from "@/app/analysis/AnalysisProvider";
 import { getFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { BSD } from '@/app/analysis/AnalysisProvider';
+import { useFilterContext } from "@/app/FilterContext";
 
 interface WasteDetail {
     code: string;
@@ -11,7 +12,11 @@ interface WasteDetail {
 }
 
 // Fonction exportée pour calculer le taux de tri
-export const calculateTauxTri = (bsds: BSD[], mappingTable: Array<{ced: string, filiere: string}>) => {
+export const calculateTauxTri = (
+    bsds: BSD[], 
+    mappingTable: Array<{ced?: string, nom?: string, filiere: string, trie?: boolean}>, 
+    filieres_ou_prestataires: { nom: 'filiere' | 'filiere_nom' }
+) => {
     let totalWeight = 0;
     let nonRecycledWeight = 0;
     const wasteDetails: { [key: string]: WasteDetail } = {};
@@ -20,16 +25,29 @@ export const calculateTauxTri = (bsds: BSD[], mappingTable: Array<{ced: string, 
         const quantity = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
         totalWeight += quantity;
 
-        const filiere = getFiliere(
-            bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
-            mappingTable
-        ) || 'Autres';
+        let filiere: string;
+        let tri_potentiel = false;
 
-        if (filiere === 'DIB' || filiere === 'Autres' || filiere === 'DAS') {
-            let tri_potentiel = false;
+        if (filieres_ou_prestataires.nom === 'filiere_nom') {
+            // En mode filiere_nom, utiliser le mapping_nom_filiere
+            const wasteName = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
+            const mappingEntry = mappingTable.find(item => item.nom === wasteName);
+            filiere = mappingEntry ? mappingEntry.filiere : 'Autres';
+            tri_potentiel = mappingEntry ? (mappingEntry.trie || false) : false;
+        } else {
+            // En mode filiere, utiliser le mapping CED
+            filiere = getFiliere(
+                bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
+                mappingTable as Array<{ced: string, filiere: string}>
+            ) || 'Autres';
+            
+            // Utiliser other_infos.tri pour le mode filiere
             if (bsd.other_infos?.tri) {
                 tri_potentiel = bsd.other_infos.tri;
             }
+        }
+
+        if (filiere === 'DIB' || filiere === 'Autres' || filiere === 'DAS') {
             if(!tri_potentiel) {
                 nonRecycledWeight += quantity;
             }
@@ -57,12 +75,12 @@ export const calculateTauxTri = (bsds: BSD[], mappingTable: Array<{ced: string, 
 };
 
 const TauxTri = () => {
-    const { bsds, mappingTable } = useAnalysis();
+    const { bsds, mappingTable, filieres_ou_prestataires } = useAnalysis();
     const [showTooltip, setShowTooltip] = useState(false);
 
     const { tauxTri, totalWeight, nonRecycledDetails } = useMemo(() => {
-        return calculateTauxTri(bsds, mappingTable);
-    }, [bsds, mappingTable]);
+        return calculateTauxTri(bsds, mappingTable, filieres_ou_prestataires);
+    }, [bsds, mappingTable, filieres_ou_prestataires]);
 
     return (
         <div 

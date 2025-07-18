@@ -173,8 +173,18 @@ const EnvBarChart = () => {
             
             // Déterminer la clé (filière ou prestataire)
             let key;
-            if (filieres_ou_prestataires.nom === 'filiere') {
-                key = getFiliere(cedCode, mappingTable) || 'Autres';
+            if (filieres_ou_prestataires.nom === 'filiere_nom') {
+                // En mode filiere_nom, utiliser le nom du déchet pour déterminer la filière
+                const wasteName = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.name;
+                const mappingEntry = mappingTable.find((item: { nom?: string; filiere: string }) => 
+                    item.nom === wasteName
+                );
+                key = mappingEntry ? mappingEntry.filiere : 'Autres';
+            } else if (filieres_ou_prestataires.nom === 'filiere') {
+                // Mode filiere : utiliser le code CED
+                // Filtrer le mappingTable pour ne garder que les objets avec ced
+                const cedMappingTable = mappingTable.filter(m => 'ced' in m && m.ced) as Array<{ced: string, filiere: string}>;
+                key = getFiliere(cedCode, cedMappingTable) || 'Autres';
             } else {
                 const siret = bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret;
                 key = siretToName[siret] || siret || 'Non renseigné';
@@ -255,9 +265,15 @@ const EnvBarChart = () => {
 
         // Préparer les données mensuelles
         const monthlyDatasets = sortedSegments.map(([segment, data], index) => {
-            const color = filieres_ou_prestataires.nom === 'filiere'
-                ? tailwindToRgb(filieres.find(f => f.name === segment)?.color || '#000000')
-                : prestatairesColors[index % prestatairesColors.length];
+            // Pour les modes filiere et filiere_nom, utiliser les couleurs du contexte
+            const filiereColor = filieres.find(f => f.name === segment)?.color;
+            let color;
+            if (filiereColor) {
+                color = tailwindToRgb(filiereColor);
+            } else {
+                // Fallback avec prestatairesColors si la filière n'est pas trouvée
+                color = prestatairesColors[index % prestatairesColors.length];
+            }
 
             return {
                 label: segment,
@@ -433,7 +449,7 @@ const EnvBarChart = () => {
             },
             title: {
                 display: true,
-                text: `Émissions CO₂ mensuelles par ${filieres_ou_prestataires.nom === 'filiere' ? 'filière' : 'prestataire'}`,
+                text: 'Émissions CO₂ mensuelles par filière',
                 color: 'gray',
                 align: 'center' as const,
                 padding: {

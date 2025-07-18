@@ -46,7 +46,7 @@ export default function ButtonReportAMO() {
                         : undefined
                 },
                 entreprise_name,
-                mappingTable
+                mappingTable.filter((m): m is { ced: string; filiere: string } => typeof m.ced === 'string')
             );
 
             // 3. Générer les données du rapport

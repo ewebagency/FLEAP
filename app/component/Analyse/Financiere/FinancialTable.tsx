@@ -1,4 +1,4 @@
-import React from 'react';
+/*import React from 'react';
 import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
 import { calculateFinancialAmount } from '@/app/utils/financial';
@@ -109,4 +109,4 @@ const FinancialTable = () => {
     );
 };
 
-export default FinancialTable; 
+export default FinancialTable; */

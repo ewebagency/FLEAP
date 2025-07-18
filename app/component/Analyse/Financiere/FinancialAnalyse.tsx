@@ -5,9 +5,6 @@ import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 import { useFilterContext } from "@/app/FilterContext";
 import { calculateFinancialAmount } from '@/app/utils/financial';
 import { getFiliere } from '@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new';
-import FinancialMainChart from './FinancialMainChart';
-import FinancialTable from './FinancialTable';
-import FinancialPieChart from "./FinancialPieChart";
 import NewFinancialSource from "./New/NewFinancialSource";
 
 interface Props {
@@ -27,7 +24,7 @@ const FinancialAnalyse = ({active}: Props) => {
         bsds.forEach(bsd => {
             const filiere = getFiliere(
                 bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
-                mappingTable
+                mappingTable.filter(m => 'ced' in m && m.ced) as Array<{ced: string, filiere: string}>
             ) || 'Autres';
             const weight = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
             const wasteCode = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;

@@ -9,6 +9,7 @@ import { cofounders_user_id } from '@/app/component/SideBar';
 // Import components
 import PersonalTab from './components/Personal/PersonalTab';
 import FiliereTab from './components/Filiere/FiliereTab';
+import FiliereNomTab from './components/FiliereNom/FiliereNomTab';
 import SiteTab from './components/Site/SiteTab';
 //import PermissionsTab from './components/Permissions/PermissionsTab';
 import ParametrageTab from './components/ParametrageTable/ParametrageTab';
@@ -77,6 +78,11 @@ export default function UserSettings() {
                             onClick={() => handleTabClick('tab_site')}>
                             Site
                             </a>
+                            <a role="tab" 
+                            className={`tab border-0 ${activeTab === 'tab_filiere_nom' ? 'border-b-4 border-green-500' : ''}`}
+                            onClick={() => handleTabClick('tab_filiere_nom')}>
+                            Filière par nom
+                            </a>
                         </div>
                     )}
                     {/*<a role="tab" 
@@ -99,6 +105,7 @@ export default function UserSettings() {
                 {activeTab === 'tab_personal' && <PersonalTab email={email} currentProfile={currentProfile} />}
                 {activeTab === 'tab_filiere' && <FiliereTab />}
                 {activeTab === 'tab_site' && <SiteTab />}
+                {activeTab === 'tab_filiere_nom' && <FiliereNomTab />}
                 {/*activeTab === 'tab_permissions' && <PermissionsTab />*/}
                 {activeTab === 'tab_parametrage' && <ParametrageTab />}
                 {activeTab === 'tab_autocompletion' && <AutocompletionTab />}

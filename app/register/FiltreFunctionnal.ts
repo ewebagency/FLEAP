@@ -53,9 +53,10 @@ export const filterBSDs = (
     sites: Site[],
     points_collecte: PointCollecte[],
     segmentDates: FilterContextSegmentDates,
-    mappingTable: { ced: string, filiere: string }[],
+    mappingTable: { ced?: string, nom?: string, filiere: string }[],
     filterFunctions: ((bsds: CommonBSD[]) => CommonBSD[])[] = [],
-    filterPendingBSDs: boolean = false
+    filterPendingBSDs: boolean = false,
+    mode: 'ced' | 'nom' = 'ced'
 ): CommonBSD[] => {
     let filtered = [...bsds];
     console.log("1. BSDs entrants:", filtered.length);
@@ -87,45 +88,58 @@ export const filterBSDs = (
     const checkedFilieres = filieres.filter(f => f.checked).map(f => f.name);
     //console.log("Filières cochées:", checkedFilieres);
 
-    if (checkedFilieres.length >= 0) {  // Changé de >= 0 à > 0
-        // Liste de tous les CEDs de toutes les filières
-        const allMappedCEDs = new Set(
-            formatCEDs(mappingTable.map(m => cleanCED(m.ced)))
-        );
-        
-        // Liste des CEDs des filières sélectionnées
-        const selectedFiliereCEDs = new Set(
-            formatCEDs(
+    if (checkedFilieres.length >= 0) {
+        if (mode === 'ced') {
+            // Liste de tous les CEDs de toutes les filières
+            const allMappedCEDs = new Set(
+                formatCEDs(mappingTable.map(m => cleanCED(m.ced || '')))
+            );
+            // Liste des CEDs des filières sélectionnées
+            const selectedFiliereCEDs = new Set(
+                formatCEDs(
+                    mappingTable
+                        .filter(m => checkedFilieres.filter(f => f !== 'Autres').includes(m.filiere))
+                        .map(m => cleanCED(m.ced || ''))
+                )
+            );
+            const hasAutres = checkedFilieres.includes('Autres');
+            filtered = filtered.filter(bsd => {
+                const wasteCode = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
+                const cleanedWasteCode = cleanCED(wasteCode);
+                const formattedWasteCodes = formatCEDs([cleanedWasteCode]);
+                if (hasAutres && checkedFilieres.length === 1) {
+                    return !formattedWasteCodes.some(code => allMappedCEDs.has(code));
+                } else if (hasAutres) {
+                    return formattedWasteCodes.some(code => selectedFiliereCEDs.has(code)) || 
+                           !formattedWasteCodes.some(code => allMappedCEDs.has(code));
+                } else {
+                    return formattedWasteCodes.some(code => selectedFiliereCEDs.has(code));
+                }
+            });
+        } else if (mode === 'nom') {
+            // Liste de tous les noms de toutes les filières
+            const allMappedNames = new Set(
+                mappingTable.map(m => (m.nom || '').trim())
+            );
+            // Liste des noms des filières sélectionnées
+            const selectedFiliereNames = new Set(
                 mappingTable
                     .filter(m => checkedFilieres.filter(f => f !== 'Autres').includes(m.filiere))
-                    .map(m => cleanCED(m.ced))
-            )
-        );
-
-        //console.log("Nombre de CEDs mappés:", allMappedCEDs.size);
-        //console.log("Nombre de CEDs sélectionnés:", selectedFiliereCEDs.size);
-
-        const hasAutres = checkedFilieres.includes('Autres');
-
-        filtered = filtered.filter(bsd => {
-            const wasteCode = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
-            const cleanedWasteCode = cleanCED(wasteCode);
-            const formattedWasteCodes = formatCEDs([cleanedWasteCode]);
-
-            // Si uniquement "Autres" est sélectionné
-            if (hasAutres && checkedFilieres.length === 1) {
-                return !formattedWasteCodes.some(code => allMappedCEDs.has(code));
-            }
-            // Si "Autres" est sélectionné avec d'autres filières
-            else if (hasAutres) {
-                return formattedWasteCodes.some(code => selectedFiliereCEDs.has(code)) || 
-                       !formattedWasteCodes.some(code => allMappedCEDs.has(code));
-            }
-            // Si "Autres" n'est pas sélectionné
-            else {
-                return formattedWasteCodes.some(code => selectedFiliereCEDs.has(code));
-            }
-        });
+                    .map(m => (m.nom || '').trim())
+            );
+            const hasAutres = checkedFilieres.includes('Autres');
+            filtered = filtered.filter(bsd => {
+                const wasteName = (bsd.infos_json.formAPI.createFormInput.wasteDetails.name || '').trim();
+                // Si uniquement "Autres" est sélectionné
+                if (hasAutres && checkedFilieres.length === 1) {
+                    return !allMappedNames.has(wasteName);
+                } else if (hasAutres) {
+                    return selectedFiliereNames.has(wasteName) || !allMappedNames.has(wasteName);
+                } else {
+                    return selectedFiliereNames.has(wasteName);
+                }
+            });
+        }
         console.log("3. Après filtre filières:", filtered.length);
     }
 
@@ -133,7 +147,7 @@ export const filterBSDs = (
     const checkedSites = sites.filter(site => site.checked).map(site => site.orgId);
     //console.log("Sites cochés:", checkedSites);
 
-    if (checkedSites.length >= 0) {  // Changé de >= 0 à > 0
+    if (checkedSites.length >= 0) {
         filtered = filtered.filter(bsd => {
             const emitterSiret = bsd.infos_json.formAPI.createFormInput.emitter?.company?.siret;
             if (checkedSites.includes('----')) {
