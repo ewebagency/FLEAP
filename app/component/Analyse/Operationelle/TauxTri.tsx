@@ -47,21 +47,36 @@ export const calculateTauxTri = (
             }
         }
 
-        if (filiere === 'DIB' || filiere === 'Autres' || filiere === 'DAS') {
-            if(!tri_potentiel) {
+        // Logique différenciée selon le mode
+        if (filieres_ou_prestataires.nom === 'filiere_nom') {
+            // Mode filiere_nom : évaluer le tri pour TOUS les déchets selon leur mapping individuel
+            if (!tri_potentiel) {
                 nonRecycledWeight += quantity;
             }
+        } else {
+            // Mode filiere : évaluer le tri seulement pour les filières DIB, Autres, DAS
+            if (filiere === 'DIB' || filiere === 'Autres' || filiere === 'DAS') {
+                if (!tri_potentiel) {
+                    nonRecycledWeight += quantity;
+                }
+            }
+        }
+
+        // Ajouter les déchets non triés dans wasteDetails pour le tooltip (même logique que ci-dessus)
+        if ((filieres_ou_prestataires.nom === 'filiere_nom' && !tri_potentiel) || 
+            (filieres_ou_prestataires.nom === 'filiere' && (filiere === 'DIB' || filiere === 'Autres' || filiere === 'DAS') && !tri_potentiel)) {
+            
             const code = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
             const description = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
 
-            if (!wasteDetails[code]) {
-                wasteDetails[code] = {
+            if (!wasteDetails[description]) {
+                wasteDetails[description] = {
                     code,
                     description,
                     quantity: 0
                 };
             }
-            wasteDetails[code].quantity += quantity;
+            wasteDetails[description].quantity += quantity;
         }
     });
 

@@ -13,8 +13,11 @@ const FiltreFilieresSwitcher = () => {
     const mode = filieres_ou_prestataires.nom;
 
     return (
-        <div>
-            <div className="flex items-center gap-2 mb-2">
+        <div className="mx-4 flex items-center justify-between w-full">
+            <div>
+                {mode === 'filiere' ? <FiltreFilieres /> : <FiltreFilieresNom />}
+            </div>
+            <div className="flex items-center gap-0 mb-2 text-sm">
                 <button
                     onClick={() => {
                         setFilieresOuPrestataires({ nom: 'filiere' });
@@ -23,9 +26,9 @@ const FiltreFilieresSwitcher = () => {
                             mutate(`/api/get_mapping_nom_filiere?entreprise_id=${entreprise_id}`);
                         }
                     }}
-                    className={`px-3 py-1 rounded ${mode === 'filiere' ? 'bg-green-600 text-white font-bold' : 'bg-gray-200 text-gray-700'}`}
+                    className={`px-3 py-1 rounded-l-md ${mode === 'filiere' ? 'bg-green-600 text-white font-bold' : 'bg-gray-200 text-gray-700'}`}
                 >
-                    Filière (code CED)
+                    CED
                 </button>
                 <button
                     onClick={() => {
@@ -35,12 +38,11 @@ const FiltreFilieresSwitcher = () => {
                             mutate(`/api/get_mapping_nom_filiere?entreprise_id=${entreprise_id}`);
                         }
                     }}
-                    className={`px-3 py-1 rounded ${mode === 'filiere_nom' ? 'bg-green-600 text-white font-bold' : 'bg-gray-200 text-gray-700'}`}
+                    className={`px-3 py-1 rounded-r-md ${mode === 'filiere_nom' ? 'bg-green-600 text-white font-bold' : 'bg-gray-200 text-gray-700'}`}
                 >
-                    Filière (nom déchet)
+                    Nom
                 </button>
             </div>
-            {mode === 'filiere' ? <FiltreFilieres /> : <FiltreFilieresNom />}
         </div>
     );
 };
