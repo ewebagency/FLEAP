@@ -46,12 +46,22 @@ const handleCreateLineBasedOnBSDPDF = async (bsdPdf: BSDCerfa, pdf_id: number, e
         if (!dateString) return null;
         
         try {
-            console.log('Formatage de la date:', dateString);
+            console.log('=== DÉBUT FORMATAGE DATE ===');
+            console.log('Date d\'entrée:', dateString);
+            
+            // 0. Si la date est déjà au format ISO, la retourner directement
+            if (dateString.includes('T') && dateString.includes('Z')) {
+                console.log('Date déjà au format ISO, retournée directement');
+                console.log('=== FIN FORMATAGE DATE ===');
+                return dateString;
+            }
             
             // 1. Gérer les formats avec séparateurs (/ ou -)
             if (dateString.includes('/') || dateString.includes('-')) {
                 const separator = dateString.includes('/') ? '/' : '-';
                 const parts = dateString.split(separator);
+                console.log('Séparateur détecté:', separator);
+                console.log('Parties de la date:', parts);
                 
                 if (parts.length === 3) {
                     let day, month, year;
@@ -61,26 +71,51 @@ const handleCreateLineBasedOnBSDPDF = async (bsdPdf: BSDCerfa, pdf_id: number, e
                     const part2 = parts[1].trim();
                     const part3 = parts[2].trim();
                     
+                    console.log('Partie 1:', part1, 'Partie 2:', part2, 'Partie 3:', part3);
+                    
                     // Si la première partie fait 4 chiffres, c'est YYYY-MM-DD ou YYYY/MM/DD
                     if (part1.length === 4 && /^\d{4}$/.test(part1)) {
+                        console.log('Format détecté: YYYY-MM-DD');
                         year = part1;
                         month = part2.padStart(2, '0');
                         day = part3.padStart(2, '0');
                     }
                     // Si la troisième partie fait 4 chiffres, c'est DD-MM-YYYY ou DD/MM/YYYY
                     else if (part3.length === 4 && /^\d{4}$/.test(part3)) {
+                        console.log('Format détecté: DD-MM-YYYY');
                         day = part1.padStart(2, '0');
                         month = part2.padStart(2, '0');
                         year = part3;
+                        
+                        console.log('Avant validation - Jour:', day, 'Mois:', month, 'Année:', year);
+                        
+                        // Validation spécifique pour le format français DD/MM/YYYY
+                        const dayNum = parseInt(day);
+                        const monthNum = parseInt(month);
+                        const yearNum = parseInt(year);
+                        
+                        console.log('Valeurs numériques - Jour:', dayNum, 'Mois:', monthNum, 'Année:', yearNum);
+                        
+                        // Si le jour est > 12 et le mois est <= 12, c'est probablement un format américain MM/DD/YYYY
+                        if (dayNum > 12 && monthNum <= 12) {
+                            console.log('Inversion détectée - Format américain probable');
+                            // Inverser jour et mois pour le format français
+                            const temp = day;
+                            day = month;
+                            month = temp;
+                            console.log('Après inversion - Jour:', day, 'Mois:', month);
+                        }
                     }
                     // Si la troisième partie fait 2 chiffres, c'est DD-MM-YY ou DD/MM/YY
                     else if (part3.length === 2 && /^\d{2}$/.test(part3)) {
+                        console.log('Format détecté: DD-MM-YY');
                         day = part1.padStart(2, '0');
                         month = part2.padStart(2, '0');
                         year = '20' + part3; // Supposer 20xx pour les années à 2 chiffres
                     }
                     // Par défaut, supposer DD-MM-YYYY ou DD/MM/YYYY
                     else {
+                        console.log('Format par défaut: DD-MM-YYYY');
                         day = part1.padStart(2, '0');
                         month = part2.padStart(2, '0');
                         year = part3;
@@ -91,17 +126,26 @@ const handleCreateLineBasedOnBSDPDF = async (bsdPdf: BSDCerfa, pdf_id: number, e
                         }
                     }
                     
+                    console.log('Valeurs finales - Jour:', day, 'Mois:', month, 'Année:', year);
+                    
                     // Validation des valeurs
                     const dayNum = parseInt(day);
                     const monthNum = parseInt(month);
                     const yearNum = parseInt(year);
                     
+                    console.log('Validation - Jour:', dayNum, 'Mois:', monthNum, 'Année:', yearNum);
+                    
                     if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12 && yearNum >= 1900 && yearNum <= 2100) {
                         // Créer la date au format ISO
-                        const date = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+                        const dateString = `${year}-${month}-${day}T00:00:00.000Z`;
+                        console.log('Chaîne de date créée:', dateString);
+                        const date = new Date(dateString);
                         const result = date.toISOString();
                         console.log('Date formatée avec séparateurs:', result);
+                        console.log('=== FIN FORMATAGE DATE ===');
                         return result;
+                    } else {
+                        console.log('Validation échouée - Valeurs invalides');
                     }
                 }
             }
@@ -149,6 +193,7 @@ const handleCreateLineBasedOnBSDPDF = async (bsdPdf: BSDCerfa, pdf_id: number, e
                         const date = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
                         const result = date.toISOString();
                         console.log('Date formatée avec pattern:', result);
+                        console.log('=== FIN FORMATAGE DATE ===');
                         return result;
                     }
                 }
@@ -159,13 +204,16 @@ const handleCreateLineBasedOnBSDPDF = async (bsdPdf: BSDCerfa, pdf_id: number, e
             if (!isNaN(parsedDate.getTime())) {
                 const result = parsedDate.toISOString();
                 console.log('Date parsée directement:', result);
+                console.log('=== FIN FORMATAGE DATE ===');
                 return result;
             }
             
             console.log('Impossible de formater la date:', dateString);
+            console.log('=== FIN FORMATAGE DATE ===');
             return null;
         } catch (error) {
             console.error('Erreur lors du formatage de la date:', dateString, error);
+            console.log('=== FIN FORMATAGE DATE ===');
             return null;
         }
     };
@@ -325,6 +373,12 @@ const saveBSDToDatabase = async (bsdData: {formAPI: {createFormInput: FormInput}
             try {
                 console.log('Formatage de la date:', dateString);
                 
+                // 0. Si la date est déjà au format ISO, la retourner directement
+                if (dateString.includes('T') && dateString.includes('Z')) {
+                    console.log('Date déjà au format ISO, retournée directement');
+                    return dateString;
+                }
+                
                 // 1. Gérer les formats avec séparateurs (/ ou -)
                 if (dateString.includes('/') || dateString.includes('-')) {
                     const separator = dateString.includes('/') ? '/' : '-';
@@ -468,6 +522,10 @@ const saveBSDToDatabase = async (bsdData: {formAPI: {createFormInput: FormInput}
         };
 
         const bestDate = getBestDate();
+        console.log('=== DATE SAUVEGARDÉE ===');
+        console.log('Date sélectionnée pour sauvegarde:', bestDate);
+        console.log('Date parsée:', bestDate ? new Date(bestDate).toISOString() : 'null');
+        console.log('=== FIN DATE SAUVEGARDÉE ===');
 
         // Ajouter les informations supplémentaires dans infos_json
         const completeBsdData = {
@@ -483,6 +541,11 @@ const saveBSDToDatabase = async (bsdData: {formAPI: {createFormInput: FormInput}
                 }
             }
         };
+
+        console.log('=== DONNÉES COMPLÈTES ===');
+        console.log('Date dans takenOverAt:', completeBsdData.formAPI.createFormInput.takenOverAt);
+        console.log('Date dans transporter.takenOverAt:', completeBsdData.formAPI.createFormInput.transporter.takenOverAt);
+        console.log('=== FIN DONNÉES COMPLÈTES ===');
 
 
         // Insérer dans la table bsd
