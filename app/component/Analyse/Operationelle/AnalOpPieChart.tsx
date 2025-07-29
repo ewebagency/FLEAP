@@ -80,10 +80,13 @@ const AnalOpPieChart = () => {
             if (filieres_ou_prestataires.nom === 'filiere_nom') {
                 // En mode filiere_nom, utiliser le nom du déchet pour déterminer la filière
                 const wasteName = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
-                const mappingEntry = mappingTable.find((item: { nom?: string; filiere: string }) => 
-                    item.nom === wasteName
-                );
-                key = mappingEntry ? mappingEntry.filiere : 'Autres';
+                if (wasteName) {
+                    // Chercher dans le mapping_nom_filiere avec la même logique que le graphique principal
+                    const mappingEntry = mappingTable.find(m => 'nom' in m && m.nom && typeof m.nom === 'string' && m.nom.trim() === wasteName.trim());
+                    key = mappingEntry ? mappingEntry.filiere : 'Autres';
+                } else {
+                    key = 'Non renseigné';
+                }
             } else {
                 // Filtrer le mappingTable pour ne garder que les objets avec ced
                 const cedMappingTable = mappingTable.filter(m => 'ced' in m && m.ced) as Array<{ced: string, filiere: string}>;
@@ -98,8 +101,10 @@ const AnalOpPieChart = () => {
             quantities[key] += quantity;
         });
 
-        // Trier les données avec "Autres" à la fin pour les filières
+        // Trier les données avec "Autres" et "Non renseigné" à la fin
         const sortedEntries = Object.entries(quantities).sort((a, b) => {
+            if (a[0] === 'Non renseigné') return 1;
+            if (b[0] === 'Non renseigné') return 1;
             if (filieres_ou_prestataires.nom === 'filiere') {
                 if (a[0] === 'Autres') return 1;
                 if (b[0] === 'Autres') return -1;
