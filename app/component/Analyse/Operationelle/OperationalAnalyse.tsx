@@ -17,7 +17,7 @@ const OperationalAnalyse = ({active}: {active: boolean}) => {
                     <div className="pt-5 mb-5 ml-5 mr-5">
                         <AnalOpBordereau/>
 
-                        {cofounders_user_id(user_id) ?
+                        {(cofounders_user_id(user_id) && false) ?
                         <div className="flex justify-between gap-2 my-4">
                             <div className="w-[80%]">
                                 <AnalOpMainChart/>
