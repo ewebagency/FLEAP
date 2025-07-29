@@ -6,6 +6,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { tailwindToRgb } from '../../MetaComponent/Colours';
 import { Filiere, useFilterContext } from '@/app/FilterContext';
+import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 
 interface Props {
     factures: Facture[];
@@ -14,14 +15,27 @@ interface Props {
 
 const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
+    const [mappingNomFiliere, setMappingNomFiliere] = useState<{ nom: string; filiere: string }[]>([]);
     const {filieres} = useFilterContext();
+    const { filieres_ou_prestataires } = useAnalysis();
 
     useEffect(() => {
-        const fetchMappingTable = async () => {
+        const fetchMappingTables = async () => {
+            // Charger le mapping CED
             const mapping = await getMappingTableFiliere(entreprise_id);
             setMappingTable(mapping || []);
+            
+            // Charger le mapping nom_filiere
+            try {
+                const response = await fetch(`/api/get_mapping_nom_filiere?entreprise_id=${entreprise_id}`);
+                const { data: mappingNomFiliere } = await response.json();
+                setMappingNomFiliere(mappingNomFiliere || []);
+            } catch (error) {
+                console.error('Error fetching mapping nom filiere:', error);
+                setMappingNomFiliere([]);
+            }
         };
-        fetchMappingTable();
+        fetchMappingTables();
     }, [entreprise_id]);
 
     // Memoize the costs and revenues calculations
@@ -34,8 +48,36 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
             const montantParDepart = facture.infos_json.footer.total_ht / departsCount;
 
             facture.infos_json.departs.forEach(depart => {
-                const cleanedCed = depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
-                const filiere = mappingTable.find(m => m.ced.replace(' ', '').replace('*', '') === cleanedCed)?.filiere || 'Autres';
+                const header = depart.line_header;
+                const cleanedCed = header?.code_dechet?.replaceAll(' ', '').replace('*', '').trim() || '';
+
+                // Détermination de la filière
+                let filiere: string;
+                
+                if (filieres_ou_prestataires.nom === 'filiere_nom') {
+                    // En mode filiere_nom, utiliser le nom du déchet pour déterminer la filière
+                    const wasteName = header?.dechet_description || header?.type_dechet;
+                    if (wasteName) {
+                        const mappingEntry = mappingNomFiliere.find((item: { nom?: string; filiere: string }) => 
+                            item.nom === wasteName
+                        );
+                        filiere = mappingEntry ? mappingEntry.filiere : 'Autres';
+                    } else {
+                        filiere = 'Autres';
+                    }
+                } else {
+                    // Mode filiere : utiliser le code CED
+                    const mappedFiliere = mappingTable.find(m => 
+                        m.ced.replaceAll(' ', '').replace('*', '').trim() === cleanedCed
+                    )?.filiere;
+
+                    if (mappedFiliere) {
+                        filiere = mappedFiliere;
+                    } else {
+                        // Si le code n'est pas dans le mapping, c'est "Autres"
+                        filiere = 'Autres';
+                    }
+                }
                 
                 if (montantParDepart < 0) {
                     if (!acc.costs[filiere]) acc.costs[filiere] = 0;
@@ -48,7 +90,7 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
             
             return acc;
         }, { costs: {}, revenues: {} });
-    }, [factures, mappingTable]); // Add dependencies
+    }, [factures, mappingTable, mappingNomFiliere, filieres_ou_prestataires]); // Add dependencies
 
     // Memoize the chart data generation
     const chartData = useMemo(() => {
