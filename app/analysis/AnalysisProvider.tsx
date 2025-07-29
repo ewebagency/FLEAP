@@ -103,7 +103,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
     const [mappingTable, setMappingTable] = useState<Array<{ ced?: string; nom?: string; filiere: string }>>([]);
     const [siretToName, setSiretToName] = useState<Record<string, string>>({});
     const [filtersInitialized, setFiltersInitialized] = useState(false);
-    const [filterImportedOnly, setFilterImportedOnly] = useState(true);
+    const [filterImportedOnly, setFilterImportedOnly] = useState(false);
 
     const { filterFunctions } = useFiltresPerso();
 
