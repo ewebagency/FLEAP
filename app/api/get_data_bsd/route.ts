@@ -49,10 +49,15 @@ interface FastDataSupa {
                     isDangerous: string;
                 };
                 takenOverAt: string;
-                other_infos: {
-                    fillRate: string;
-                };
             };
+        };
+    };
+    other_infos: {
+        fillRate: string;
+        doe: boolean;
+        flux: string;
+        rep?: {
+            sent_to_rep: boolean;
         };
     };
     on_track_dechets: boolean;
@@ -112,6 +117,9 @@ interface SupabaseFlatResponse {
     };
     takenOverAt: string;
     fillRate: string;
+    doe: boolean;
+    flux: string;
+    sent_to_rep: boolean;
     on_track_dechets: boolean;
     created_on_fleap: string;
     facture_treated: boolean;
@@ -212,7 +220,10 @@ export async function GET(request: Request) {
         infos_json->formAPI->createFormInput->transporter,
         infos_json->formAPI->createFormInput->wasteDetails,
         infos_json->formAPI->createFormInput->>takenOverAt,
-        infos_json->formAPI->createFormInput->other_infos->>fillRate,
+        other_infos->>fillRate,
+        other_infos->>doe,
+        other_infos->>flux,
+        other_infos->rep->>sent_to_rep,
         on_track_dechets,
         created_on_fleap,
         facture_treated,
@@ -281,11 +292,14 @@ export async function GET(request: Request) {
             },
             wasteDetails: {name: item.wasteDetails.name, code: item.wasteDetails.code, quantity: item.wasteDetails.quantity, isDangerous: item.wasteDetails.isDangerous},
             takenOverAt: item.takenOverAt,
-            other_infos: {
-              fillRate: item.fillRate
-            }
           }
         }
+      },
+      other_infos: {
+        fillRate: item.fillRate,
+        doe: item.doe,
+        flux: item.flux,
+        rep: item.sent_to_rep ? { sent_to_rep: item.sent_to_rep } : undefined
       },
       on_track_dechets: item.on_track_dechets,
       created_on_fleap: item.created_on_fleap,

@@ -111,6 +111,8 @@ export interface RowBSDPreview {
         volumeUnit: string;
         tri?: boolean;
         rep?: { sent_to_rep: boolean };
+        doe?: boolean;
+        flux?: string;
     };
     status_track_dechets: string;
     readable_id_track_dechets: string;

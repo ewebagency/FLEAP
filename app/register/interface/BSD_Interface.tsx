@@ -1042,6 +1042,8 @@ export interface OtherInfos {
     other_transporters?: Transporter[];
     other_recipients?: Destination[];
     tri?: boolean; //pour prendre en compte dans le taux de tri si passé par un centre de traitement
+    doe?: boolean; //pour prendre en compte le doe
+    flux?: string; //pour prendre en compte le flux 'entrant'/'sortant'
 }
 
 export interface CompleteFormInput{

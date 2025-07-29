@@ -1290,67 +1290,99 @@ const ModifyCard = () => {
                             </div>
                         </div>
 
-                        {/* Section des commentaires */}
-                        <div className="bg-teal-50 p-3 rounded border border-teal-100 mt-4">
-                            <div className="flex justify-start items-center space-x-2">
-                                <h3 className="font-semibold text-teal-800 mb-2">Commentaires</h3>
-                                <p className="text-sm text-gray-600 mb-2 hidden">- Cette partie n&apos;est pas sur TrackDéchets</p>
-                            </div>
-                            <div className="space-y-2 mr-4">
-                                <LabelInput 
-                                    label="Commentaires"
-                                    value={otherInfos.comments || ""}
-                                    onChange={(_, value) => {
-                                        setOtherInfos((prev: OtherInfos): OtherInfos => ({
-                                            ...prev,
-                                            comments: value
-                                        }));
-                                    }}
-                                    path="comments"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Section REP */}
-                        <div className="bg-amber-50 p-3 rounded border border-amber-100 mt-4">
-                            <h3 className="font-semibold text-amber-800 mb-2">REP</h3>
-                            <div className="space-y-2 mr-4">
-                                <div className="flex items-center text-sm">
-                                    <span className="font-medium text-gray-700 w-[200px] text-right mr-2">Envoyé en REP: </span>
-                                    <input
-                                        type="checkbox"
-                                        checked={otherInfos.rep?.sent_to_rep || false}
-                                        onChange={(e) => {
+                        {/* Section Informations complémentaires */}
+                        <div className="bg-gray-50 p-3 rounded border border-gray-100 mt-4">
+                            <h3 className="font-semibold text-gray-800 mb-2">Informations complémentaires</h3>
+                            <div className="space-y-4 mr-4">
+                                {/* Commentaires */}
+                                <div>
+                                    <LabelInput 
+                                        label="Commentaires"
+                                        value={otherInfos.comments || ""}
+                                        onChange={(_, value) => {
                                             setOtherInfos((prev: OtherInfos): OtherInfos => ({
                                                 ...prev,
-                                                rep: {
-                                                    ...prev.rep,
-                                                    sent_to_rep: e.target.checked
-                                                }
+                                                comments: value
                                             }));
                                         }}
-                                        className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded"
+                                        path="comments"
                                     />
                                 </div>
-                                <div className="flex items-center text-sm">
-                                    <span className="font-medium text-gray-700 w-[200px] text-right mr-2">Montant du rachat: </span>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        step="10"
-                                        value={otherInfos.rep?.montant_rep || 0}
-                                        onChange={(e) => {
-                                            setOtherInfos((prev: OtherInfos): OtherInfos => ({
-                                                ...prev,
-                                                rep: {
-                                                    ...prev.rep,
-                                                    montant_rep: Number(e.target.value)
-                                                }
-                                            }));
-                                        }}
-                                        placeholder="Montant en euros"
-                                        className="text-gray-600 rounded-md px-2 py-[3px] w-[320px]"
-                                    />
+
+                                {/* DOE et Flux */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex items-center text-sm">
+                                        <span className="font-medium text-gray-700 w-[120px] text-right mr-2">DOE: </span>
+                                        <input
+                                            type="checkbox"
+                                            checked={otherInfos.doe || false}
+                                            onChange={(e) => {
+                                                setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                    ...prev,
+                                                    doe: e.target.checked
+                                                }));
+                                            }}
+                                            className="h-4 w-4 text-gray-600 focus:ring-gray-500 border-gray-300 rounded"
+                                        />
+                                    </div>
+                                    <div className="flex items-center text-sm">
+                                        <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Flux: </span>
+                                        <select
+                                            value={otherInfos.flux || ""}
+                                            onChange={(e) => {
+                                                setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                    ...prev,
+                                                    flux: e.target.value
+                                                }));
+                                            }}
+                                            className="text-gray-600 rounded-md px-2 py-[3px] w-[200px]"
+                                        >
+                                            <option value="">Sélectionner un flux</option>
+                                            <option value="entrant">Entrant</option>
+                                            <option value="sortant">Sortant</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* REP */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex items-center text-sm">
+                                        <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Envoyé en REP: </span>
+                                        <input
+                                            type="checkbox"
+                                            checked={otherInfos.rep?.sent_to_rep || false}
+                                            onChange={(e) => {
+                                                setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                    ...prev,
+                                                    rep: {
+                                                        ...prev.rep,
+                                                        sent_to_rep: e.target.checked
+                                                    }
+                                                }));
+                                            }}
+                                            className="h-4 w-4 text-gray-600 focus:ring-gray-500 border-gray-300 rounded"
+                                        />
+                                    </div>
+                                    <div className="flex items-center text-sm">
+                                        <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Montant REP: </span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="10"
+                                            value={otherInfos.rep?.montant_rep || 0}
+                                            onChange={(e) => {
+                                                setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                                    ...prev,
+                                                    rep: {
+                                                        ...prev.rep,
+                                                        montant_rep: Number(e.target.value)
+                                                    }
+                                                }));
+                                            }}
+                                            placeholder="Montant en euros"
+                                            className="text-gray-600 rounded-md px-2 py-[3px] w-[200px]"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -99,7 +99,7 @@ const AnalOpBordereau = () => {
                     <button
                         onClick={() => setFilterImportedOnly(!filterImportedOnly)}
                         className={`px-2 py-1 rounded text-xs font-medium border transition-colors duration-150 ${filterImportedOnly ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-blue-500 border-blue-500 hover:bg-blue-50'}`}
-                        title={filterImportedOnly ? 'Afficher toutes les lignes' : 'Afficher uniquement les lignes IMPORTED'}
+                        title={filterImportedOnly ? 'Afficher toutes les lignes' : 'Afficher uniquement les lignes importées'}
                     >
                         {filterImportedOnly ? 'Lignes importées' : 'Toutes'}
                     </button>

@@ -100,6 +100,21 @@ export const FILTER_FIELDS: FilterField[] = [
     supabase_column: "infos_json",
     json_path: "formAPI.createFormInput.recipient.company.siret"
   },
+  {
+    label: "DOE",
+    supabase_column: "other_infos",
+    json_path: ""
+  },
+  {
+    label: "Flux",
+    supabase_column: "other_infos",
+    json_path: ""
+  },
+  {
+    label: "REP",
+    supabase_column: "other_infos",
+    json_path: ""
+  },
   /*{
     label: "Sur Track Déchets",
     supabase_column: "on_track_dechets",

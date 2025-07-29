@@ -152,9 +152,33 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
           return item[colonne] ? "Oui" : "Non";
         }
         
-        const value = get(item[colonne], json_path);
+        let value;
+        if (field.label === "DOE") {
+          const otherInfos = item[colonne] as { doe?: boolean; flux?: string; rep?: { sent_to_rep: boolean } };
+          value = otherInfos?.doe;
+        } else if (field.label === "Flux") {
+          const otherInfos = item[colonne] as { doe?: boolean; flux?: string; rep?: { sent_to_rep: boolean } };
+          value = otherInfos?.flux;
+        } else if (field.label === "REP") {
+          const otherInfos = item[colonne] as { doe?: boolean; flux?: string; rep?: { sent_to_rep: boolean } };
+          value = otherInfos?.rep?.sent_to_rep;
+        } else {
+          value = get(item[colonne], json_path);
+        }
+        
         if (field.label === "Déchet Dangereux") {
           return value ? "Dangereux" : "Non dangereux";
+        }
+        if (field.label === "DOE") {
+          return value ? "Oui" : "Non";
+        }
+        if (field.label === "Flux") {
+          if (value === "entrant") return "Entrant";
+          if (value === "sortant") return "Sortant";
+          return value?.toString() || '';
+        }
+        if (field.label === "REP") {
+          return value ? "Oui" : "Non";
         }
         return value?.toString() || '';
       })));
@@ -210,10 +234,41 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
                         return checkedValues.includes(stringValue);
                     }
                     
-                    const itemValue = get(item[field.supabase_column], field.json_path);
+                    let itemValue;
+                    if (field.label === "DOE") {
+                        const otherInfos = item[field.supabase_column] as { doe?: boolean; flux?: string; rep?: { sent_to_rep: boolean } };
+                        itemValue = otherInfos?.doe;
+                    } else if (field.label === "Flux") {
+                        const otherInfos = item[field.supabase_column] as { doe?: boolean; flux?: string; rep?: { sent_to_rep: boolean } };
+                        itemValue = otherInfos?.flux;
+                    } else if (field.label === "REP") {
+                        const otherInfos = item[field.supabase_column] as { doe?: boolean; flux?: string; rep?: { sent_to_rep: boolean } };
+                        itemValue = otherInfos?.rep?.sent_to_rep;
+                    } else {
+                        itemValue = get(item[field.supabase_column], field.json_path);
+                    }
+                    
                     // Traitement spécial pour le champ isDangerous
                     if (field.label === "Déchet Dangereux") {
                         const displayValue = itemValue ? "Dangereux" : "Non dangereux";
+                        return checkedValues.includes(displayValue);
+                    }
+                    // Traitement spécial pour DOE
+                    if (field.label === "DOE") {
+                        const displayValue = itemValue ? "Oui" : "Non";
+                        return checkedValues.includes(displayValue);
+                    }
+                    // Traitement spécial pour Flux
+                    if (field.label === "Flux") {
+                        let displayValue = '';
+                        if (itemValue === "entrant") displayValue = "Entrant";
+                        else if (itemValue === "sortant") displayValue = "Sortant";
+                        else displayValue = itemValue?.toString() || '';
+                        return checkedValues.includes(displayValue);
+                    }
+                    // Traitement spécial pour REP
+                    if (field.label === "REP") {
+                        const displayValue = itemValue ? "Oui" : "Non";
                         return checkedValues.includes(displayValue);
                     }
                     return checkedValues.includes(itemValue?.toString() || '');
@@ -252,9 +307,40 @@ export const FiltresPersoProvider: React.FC<{ children: React.ReactNode }> = ({ 
               return checkedValues.includes(stringValue);
             }
             
-            const itemValue = get(item[field.supabase_column], field.json_path);
+            let itemValue;
+            if (field.label === "DOE") {
+              const otherInfos = item[field.supabase_column] as { doe?: boolean; flux?: string; rep?: { sent_to_rep: boolean } };
+              itemValue = otherInfos?.doe;
+            } else if (field.label === "Flux") {
+              const otherInfos = item[field.supabase_column] as { doe?: boolean; flux?: string; rep?: { sent_to_rep: boolean } };
+              itemValue = otherInfos?.flux;
+            } else if (field.label === "REP") {
+              const otherInfos = item[field.supabase_column] as { doe?: boolean; flux?: string; rep?: { sent_to_rep: boolean } };
+              itemValue = otherInfos?.rep?.sent_to_rep;
+            } else {
+              itemValue = get(item[field.supabase_column], field.json_path);
+            }
+            
             if (field.label === "Déchet Dangereux") {
               const displayValue = itemValue ? "Dangereux" : "Non dangereux";
+              return checkedValues.includes(displayValue);
+            }
+            // Traitement spécial pour DOE
+            if (field.label === "DOE") {
+              const displayValue = itemValue ? "Oui" : "Non";
+              return checkedValues.includes(displayValue);
+            }
+            // Traitement spécial pour Flux
+            if (field.label === "Flux") {
+              let displayValue = '';
+              if (itemValue === "entrant") displayValue = "Entrant";
+              else if (itemValue === "sortant") displayValue = "Sortant";
+              else displayValue = itemValue?.toString() || '';
+              return checkedValues.includes(displayValue);
+            }
+            // Traitement spécial pour REP
+            if (field.label === "REP") {
+              const displayValue = itemValue ? "Oui" : "Non";
               return checkedValues.includes(displayValue);
             }
             return checkedValues.includes(itemValue?.toString() || '');

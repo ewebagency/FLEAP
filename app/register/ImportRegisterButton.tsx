@@ -857,6 +857,8 @@ const mapToAutresInfosFormat = (row: Row) => {
     }    
 
     if(row["tri"]?.toString() && row["tri"]?.toString() !== '')other_infos.tri = row["tri"]?.toString()==='true';
+    if(row["doe"]?.toString() && row["doe"]?.toString() !== '')other_infos.doe = row["doe"]?.toString()==='true';
+    if(row["flux"]?.toString() && row["flux"]?.toString() !== '')other_infos.flux = row["flux"]?.toString();
 
     // Détecter dynamiquement tous les transporteurs supplémentaires
     const additionalTransporters: AdditionalTransporter[] = [];

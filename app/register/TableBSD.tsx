@@ -333,6 +333,7 @@ const TableBSD = () => {
                     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
                 );
                 setAllBSDs(sortedData);
+                console.log("sortedData", sortedData);
                 setIsLoadingInitialData(false);
                 
                 setTimeout(() => {
@@ -1048,14 +1049,42 @@ const TableBSD = () => {
                                     }
                                 </td>*/}
                                 <td style={{ padding: '6px', width: '5%', height: '80px' }} className="hidden md:table-cell">
-                                    {bsd.pdf_ids && Array.isArray(bsd.pdf_ids) && bsd.pdf_ids.length > 0 && (
-                                        <div className="flex items-center justify-center">
-                                            <BoxIcon type='solid' name='file-pdf' color='red' size="30px" />
-                                            {bsd.pdf_ids.length > 1 && (
-                                                <span className="text-xs text-gray-600 ml-1">+{bsd.pdf_ids.length - 1}</span>
-                                            )}
-                                        </div>
-                                    )}
+                                    <div className="flex flex-wrap items-center justify-center space-y-1">
+                                        {bsd.pdf_ids && Array.isArray(bsd.pdf_ids) && bsd.pdf_ids.length > 0 && (
+                                            <div className="flex items-center justify-center">
+                                                <BoxIcon type='solid' name='file-pdf' color='red' size="30px" />
+                                                {bsd.pdf_ids.length > 1 && (
+                                                    <span className="text-xs text-gray-600 ml-1">+{bsd.pdf_ids.length - 1}</span>
+                                                )}
+                                            </div>
+                                        )}
+                                        
+                                        {/* Affichage DOE, Flux et REP */}
+                                        {bsd.other_infos && (
+                                            <div className="flex flex-col items-center text-xs space-y-0.5">
+                                                {bsd.other_infos?.doe && (
+                                                    <div className="bg-green-100 text-green-800 px-1 py-0.5 rounded text-[10px] font-medium">
+                                                        DOE
+                                                    </div>
+                                                )}
+                                                {bsd.other_infos.flux == "entrant" && (
+                                                    <div className="bg-blue-100 text-blue-800 px-1 py-0.5 rounded text-[10px] font-medium">
+                                                        Entrant
+                                                    </div>
+                                                )}
+                                                {bsd.other_infos.flux == "sortant" && (
+                                                    <div className="bg-orange-100 text-orange-800 px-1 py-0.5 rounded text-[10px] font-medium">
+                                                        Sortant
+                                                    </div>
+                                                )}
+                                                {bsd.other_infos?.rep?.sent_to_rep && (
+                                                    <div className="bg-purple-100 text-purple-800 px-1 py-0.5 rounded text-[10px] font-medium">
+                                                        REP
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </td>
                                 <td style={{ padding: '6px', width: '15%', height: '80px' }}>
                                     <div className="flex items-center justify-end gap-2 w-full">
