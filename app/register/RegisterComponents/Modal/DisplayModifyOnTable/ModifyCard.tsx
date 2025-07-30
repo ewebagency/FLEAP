@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useModalContextNew } from "../ContextModal";
 import { toast } from "react-hot-toast";
 import { useSession } from "@/app/component/SessionProvider";
@@ -118,6 +118,10 @@ const ModifyCard = () => {
     });
     const [createdAt, setCreatedAt] = useState<string>("");
     const [photo, setPhoto] = useState<string>("");
+    const [photoFile, setPhotoFile] = useState<File | null>(null);
+    const [photoPreview, setPhotoPreview] = useState<string>("");
+    const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const {entreprise_id, user_id} = useSession();
     const [filiere, setFiliere] = useState<string>("");
@@ -192,6 +196,7 @@ const ModifyCard = () => {
             setReadableId(result.data.readable_id_track_dechets);
             setCreatedAt(result.data.created_at);
             setPhoto(result.data.photo || "");
+            setPhotoPreview(result.data.photo || "");
             setOtherInfos(result.data.other_infos || {
                 containerDescription: "",
                 volume: "",
@@ -282,6 +287,218 @@ const ModifyCard = () => {
             current[keys[keys.length - 1]] = value;
             return newData;
         });
+    };
+
+    const handlePhotoUpload = async () => {
+        if (!photoFile || !modalId || !entreprise_id) {
+            toast.error("Aucun fichier sélectionné ou données manquantes");
+            return;
+        }
+
+        setIsUploadingPhoto(true);
+
+        try {
+            // Si une photo existe déjà, la supprimer du storage
+            if (photo) {
+                try {
+                    const urlParts = photo.split('/');
+                    const oldFileName = urlParts[urlParts.length - 1];
+                    const oldFilePath = `${oldFileName}`;
+
+                    const { error: deleteError } = await supabase.storage
+                        .from('photos')
+                        .remove([oldFilePath]);
+
+                    if (deleteError) {
+                        console.warn('Erreur suppression ancienne photo:', deleteError);
+                        // On continue même si la suppression échoue
+                    }
+                } catch (deleteError) {
+                    console.warn('Erreur lors de la suppression de l\'ancienne photo:', deleteError);
+                    // On continue même si la suppression échoue
+                }
+            }
+
+            // Générer un nom unique pour le fichier
+            const fileExtension = photoFile.name.split('.').pop();
+            const fileName = `${Date.now()}.${fileExtension}`;
+            const filePath = `${fileName}`;
+
+            // Upload vers le bucket photos
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('photos')
+                .upload(filePath, photoFile);
+
+            if (uploadError) {
+                throw new Error(`Erreur upload: ${uploadError.message}`);
+            }
+
+            // Obtenir l'URL publique
+            const { data: urlData } = supabase.storage
+                .from('photos')
+                .getPublicUrl(filePath);
+
+            if (!urlData.publicUrl) {
+                throw new Error('Impossible de générer l\'URL publique');
+            }
+
+            // Mettre à jour la colonne photo dans la table bsd
+            const { error: updateError } = await supabase
+                .from('bsd')
+                .update({ photo: urlData.publicUrl })
+                .eq('id', modalId)
+                .eq('entreprise_id', entreprise_id);
+
+            if (updateError) {
+                throw new Error(`Erreur mise à jour BDD: ${updateError.message}`);
+            }
+
+            // Mettre à jour l'état local
+            setPhoto(urlData.publicUrl);
+            setPhotoPreview(urlData.publicUrl);
+            setPhotoFile(null);
+            
+            // Réinitialiser l'input file
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+
+            toast.success(photo ? 'Photo modifiée avec succès' : 'Photo ajoutée avec succès');
+            
+            // Mettre à jour les BSDs dans le contexte
+            setAllBSDs(prev => prev.map(bsd => 
+                bsd.id === modalId 
+                    ? { ...bsd, photo: urlData.publicUrl } as unknown as BSD 
+                    : bsd
+            ));
+            setAllFilteredBSDs(prev => prev.map(bsd => 
+                bsd.id === modalId 
+                    ? { ...bsd, photo: urlData.publicUrl } as unknown as BSD 
+                    : bsd
+            ));
+            setDisplayedBSDs(prev => prev.map(bsd => 
+                bsd.id === modalId 
+                    ? { ...bsd, photo: urlData.publicUrl } as unknown as BSD 
+                    : bsd
+            ));
+
+        } catch (error) {
+            console.error('Erreur upload photo:', error);
+            toast.error(`Erreur lors de l'upload: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+        } finally {
+            setIsUploadingPhoto(false);
+        }
+    };
+
+    const handlePhotoDelete = async () => {
+        if (!modalId || !entreprise_id || !photo) {
+            toast.error("Aucune photo à supprimer");
+            return;
+        }
+
+        const result = await Swal.fire({
+            title: 'Supprimer la photo ?',
+            text: "Cette action est irréversible.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Oui, supprimer !',
+            cancelButtonText: 'Annuler'
+        });
+
+        if (!result.isConfirmed) return;
+
+        setIsUploadingPhoto(true);
+
+        try {
+            // Extraire le chemin du fichier depuis l'URL
+            const urlParts = photo.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            const filePath = `${fileName}`;
+
+            // Supprimer du storage
+            const { error: deleteError } = await supabase.storage
+                .from('photos')
+                .remove([filePath]);
+
+            if (deleteError) {
+                console.warn('Erreur suppression storage:', deleteError);
+                // On continue même si la suppression du storage échoue
+            }
+
+            // Mettre à jour la colonne photo dans la table bsd
+            const { error: updateError } = await supabase
+                .from('bsd')
+                .update({ photo: null })
+                .eq('id', modalId)
+                .eq('entreprise_id', entreprise_id);
+
+            if (updateError) {
+                throw new Error(`Erreur mise à jour BDD: ${updateError.message}`);
+            }
+
+            // Mettre à jour l'état local
+            setPhoto("");
+            setPhotoPreview("");
+            setPhotoFile(null);
+            
+            // Réinitialiser l'input file
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+
+            toast.success('Photo supprimée avec succès');
+            
+            // Mettre à jour les BSDs dans le contexte
+            setAllBSDs(prev => prev.map(bsd => 
+                bsd.id === modalId 
+                    ? { ...bsd, photo: null } as unknown as BSD 
+                    : bsd
+            ));
+            setAllFilteredBSDs(prev => prev.map(bsd => 
+                bsd.id === modalId 
+                    ? { ...bsd, photo: null } as unknown as BSD 
+                    : bsd
+            ));
+            setDisplayedBSDs(prev => prev.map(bsd => 
+                bsd.id === modalId 
+                    ? { ...bsd, photo: null } as unknown as BSD 
+                    : bsd
+            ));
+
+        } catch (error) {
+            console.error('Erreur suppression photo:', error);
+            toast.error(`Erreur lors de la suppression: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+        } finally {
+            setIsUploadingPhoto(false);
+        }
+    };
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            // Vérifier le type de fichier
+            if (!file.type.startsWith('image/')) {
+                toast.error('Veuillez sélectionner un fichier image');
+                return;
+            }
+
+            // Vérifier la taille (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                toast.error('La taille du fichier ne doit pas dépasser 5MB');
+                return;
+            }
+
+            setPhotoFile(file);
+            
+            // Créer un aperçu
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setPhotoPreview(e.target?.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const handleSubmit = async () => {
@@ -1134,12 +1351,14 @@ const ModifyCard = () => {
                         </div>
 
                         {/* Section photo du déchet */}
-                        {photo && (
-                            <div className="bg-orange-50 p-3 rounded border border-orange-100">
-                                <h3 className="font-semibold text-orange-800 mb-2">Photo du déchet</h3>
-                                <div className="relative w-full h-48 rounded-lg overflow-hidden">
+                        <div className="bg-orange-50 p-3 rounded border border-orange-100">
+                            <h3 className="font-semibold text-orange-800 mb-2">Photo du déchet</h3>
+                            
+                            {/* Affichage de la photo existante ou preview */}
+                            {photoPreview && (
+                                <div className="relative w-full h-48 rounded-lg overflow-hidden mb-3">
                                     <Image
-                                        src={photo}
+                                        src={photoPreview}
                                         alt="Photo du déchet"
                                         fill
                                         className="object-contain"
@@ -1150,16 +1369,78 @@ const ModifyCard = () => {
                                         }}
                                     />
                                 </div>
-                                <a 
-                                    href={photo} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="text-sm text-blue-600 hover:text-blue-800 mt-2 inline-block"
-                                >
-                                    Voir la photo en taille réelle
-                                </a>
+                            )}
+
+                            {/* Contrôles pour la photo */}
+                            <div className="space-y-2">
+                                {/* Input file caché */}
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleFileChange}
+                                    className="hidden"
+                                />
+
+                                {/* Boutons d'action */}
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isUploadingPhoto}
+                                        className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
+                                    >
+                                        {photo ? 'Changer la photo' : 'Ajouter une photo'}
+                                    </button>
+
+                                    {photoFile && (
+                                        <button
+                                            onClick={handlePhotoUpload}
+                                            disabled={isUploadingPhoto}
+                                            className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
+                                        >
+                                            {isUploadingPhoto ? 'Upload en cours...' : 'Sauvegarder'}
+                                        </button>
+                                    )}
+
+                                    {photo && !photoFile && (
+                                        <button
+                                            onClick={handlePhotoDelete}
+                                            disabled={isUploadingPhoto}
+                                            className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
+                                        >
+                                            {isUploadingPhoto ? 'Suppression...' : 'Supprimer'}
+                                        </button>
+                                    )}
+
+                                    {photoFile && (
+                                        <button
+                                            onClick={() => {
+                                                setPhotoFile(null);
+                                                setPhotoPreview(photo || "");
+                                                if (fileInputRef.current) {
+                                                    fileInputRef.current.value = '';
+                                                }
+                                            }}
+                                            className="px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
+                                        >
+                                            Annuler
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Lien vers la photo en taille réelle */}
+                                {photo && !photoFile && (
+                                    <a 
+                                        href={photo} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-blue-600 hover:text-blue-800 inline-block"
+                                    >
+                                        Voir la photo en taille réelle
+                                    </a>
+                                )}
                             </div>
-                        )}
+                        </div>
 
                         {/* Ajout de la section other_infos */}
                         <div className="bg-indigo-50 p-3 rounded border border-indigo-100 mt-4">
