@@ -1078,7 +1078,7 @@ const TableBSD = () => {
                                                     </div>
                                                 )}
                                                 {bsd.other_infos?.rep?.sent_to_rep && (
-                                                    <div className="bg-purple-100 text-purple-800 px-1 py-0.5 rounded text-[10px] font-medium">
+                                                    <div className={`px-1 py-0.5 rounded text-[10px] font-medium ${String(bsd.other_infos.rep.sent_to_rep) === "true" ? "bg-purple-100 text-purple-800" : "hidden"}`}>
                                                         REP
                                                     </div>
                                                 )}

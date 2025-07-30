@@ -41,6 +41,10 @@ export const tauxValorisationGlobale = [
     'R13'  // Stockage de déchets en attente de l'une des opérations numérotées R1 à R12
 ];
 
+export const tauxValorisationEnergetique = [
+    'R1'
+];
+
 export const tauxValorisationMatière = [
     'R2', // Régénération ou récupération des solvants
     'R3', // Recyclage ou récupération des substances organiques qui ne sont pas utilisées comme solvants

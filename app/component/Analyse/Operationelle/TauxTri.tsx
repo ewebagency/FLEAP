@@ -11,6 +11,10 @@ interface WasteDetail {
     quantity: number;
 }
 
+const removeAccents = (str: string) => {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+
 // Fonction exportée pour calculer le taux de tri
 export const calculateTauxTri = (
     bsds: BSD[], 
@@ -19,6 +23,7 @@ export const calculateTauxTri = (
 ) => {
     let totalWeight = 0;
     let nonRecycledWeight = 0;
+    let triByPresta = 0
     const wasteDetails: { [key: string]: WasteDetail } = {};
 
     bsds.forEach((bsd: BSD) => {
@@ -52,12 +57,27 @@ export const calculateTauxTri = (
             // Mode filiere_nom : évaluer le tri pour TOUS les déchets selon leur mapping individuel
             if (!tri_potentiel) {
                 nonRecycledWeight += quantity;
+            } else {
+                const wasteName = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
+                if(removeAccents(wasteName).toLowerCase().includes('melang')){
+                    triByPresta += quantity;
+                }
             }
         } else {
             // Mode filiere : évaluer le tri seulement pour les filières DIB, Autres, DAS
+            const wasteName = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
+            const isMixedWaste = removeAccents(wasteName).toLowerCase().includes('melang');
+            
             if (filiere === 'DIB' || filiere === 'Autres' || filiere === 'DAS') {
                 if (!tri_potentiel) {
                     nonRecycledWeight += quantity;
+                } else if (isMixedWaste) {
+                    triByPresta += quantity;
+                }
+            } else {
+                // Pour les autres filières, tous les déchets mélangés vont au triByPresta
+                if (isMixedWaste) {
+                    triByPresta += quantity;
                 }
             }
         }
@@ -86,47 +106,81 @@ export const calculateTauxTri = (
         .slice(0, 5); // Garder les 5 plus importants
 
     const tauxTri = totalWeight > 0 ? ((totalWeight - nonRecycledWeight) / totalWeight) * 100 : 0;
-    return { tauxTri, totalWeight, nonRecycledDetails };
+    const tauxTriSurSite = totalWeight > 0 ? ((totalWeight - nonRecycledWeight - triByPresta) / totalWeight) * 100 : 0;
+    return { tauxTri, totalWeight, nonRecycledDetails, tauxTriSurSite, triByPresta };
 };
 
 const TauxTri = () => {
     const { bsds, mappingTable, filieres_ou_prestataires } = useAnalysis();
-    const [showTooltip, setShowTooltip] = useState(false);
+    const [showTooltipSurSite, setShowTooltipSurSite] = useState(false);
+    const [showTooltipGlobal, setShowTooltipGlobal] = useState(false);
 
-    const { tauxTri, totalWeight, nonRecycledDetails } = useMemo(() => {
+    const { tauxTri, totalWeight, nonRecycledDetails, tauxTriSurSite, triByPresta } = useMemo(() => {
         return calculateTauxTri(bsds, mappingTable, filieres_ou_prestataires);
     }, [bsds, mappingTable, filieres_ou_prestataires]);
 
     return (
-        <div 
-            className="relative"
-            onMouseEnter={() => setShowTooltip(true)}
-            onMouseLeave={() => setShowTooltip(false)}
-        >
-            <div className="flex flex-col space-y-2">
-                <div className="text-sm text-gray-600">
-                    Taux de tri
+        <div className="grid grid-cols-2 gap-2">
+            {/* Taux de tri sur site */}
+            <div 
+                className="relative bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-2 shadow-sm hover:shadow-md transition-all duration-200"
+                onMouseEnter={() => setShowTooltipSurSite(true)}
+                onMouseLeave={() => setShowTooltipSurSite(false)}
+            >
+                <div className="text-sm text-green-600 mb-1">
+                    <p>Tri sur site</p>
                 </div>
-                <div className="text-xl font-medium text-gray-700 ml-2">
-                    {tauxTri.toFixed(1)} %
+                
+                <div className="flex items-center justify-between gap-2 ml-2">
+                    <div className="text-lg font-bold text-green-800">
+                        {tauxTriSurSite.toFixed(1)}%
+                    </div>
+
                 </div>
 
+                {showTooltipSurSite && nonRecycledDetails.length > 0 && (
+                    <div className="absolute z-20 bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-900 text-white p-3 rounded-lg shadow-xl text-xs w-56">
+                        <div className="font-semibold mb-1">Détails tri sur site</div>
+                        <div className="text-gray-300">Principaux déchets non triés:</div>
+                        {nonRecycledDetails.slice(0, 3).map((waste, index) => (
+                            <div key={index} className="text-gray-300">
+                                {waste.code}: {waste.quantity.toFixed(1)}T
+                            </div>
+                        ))}
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                )}
             </div>
 
-            {showTooltip && nonRecycledDetails.length > 0 && (
-                <div className="absolute z-10 bottom-0 right-full mr-2 bg-gray-800 text-white p-2 rounded-lg shadow-lg text-xs w-64">
-                    <div className="font-semibold mb-1">Déchets non triés :</div>
-                    {nonRecycledDetails.map((waste, index) => (
-                        <div key={index} className="mb-1">
-                            <div className="flex justify-between">
-                                <span>{waste.code}</span>
-                                <span>{waste.quantity.toFixed(1)}T</span>
-                            </div>
-                            <div className="text-gray-300 text-[10px]">{waste.description}</div>
-                        </div>
-                    ))}
+            {/* Taux de tri global */}
+            <div 
+                className="relative bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-lg p-2 shadow-sm hover:shadow-md transition-all duration-200"
+                onMouseEnter={() => setShowTooltipGlobal(true)}
+                onMouseLeave={() => setShowTooltipGlobal(false)}
+            >
+                <div className="text-sm text-indigo-600 mb-1">
+                    <p>Tri global</p>
                 </div>
-            )}
+                
+                <div className="flex items-center justify-between gap-2 ml-2">
+                    <div className="text-lg font-bold text-indigo-800">
+                        {tauxTri.toFixed(1)}%
+                    </div>
+                </div>
+
+                {showTooltipGlobal && nonRecycledDetails.length > 0 && (
+                    <div className="absolute z-20 bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-900 text-white p-3 rounded-lg shadow-xl text-xs w-56">
+                        <div className="font-semibold mb-1">Détails tri global</div>
+                        <div className="text-gray-300">Principaux déchets non triés:</div>
+                        {nonRecycledDetails.slice(0, 3).map((waste, index) => (
+                            <div key={index} className="text-gray-300">
+                                {waste.code}: {waste.quantity.toFixed(1)}T
+                            </div>
+                        ))}
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
