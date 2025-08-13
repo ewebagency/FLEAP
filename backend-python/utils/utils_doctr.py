@@ -10,21 +10,35 @@ os.environ["USE_TORCH"] = "1"
 
 # Variable globale pour stocker le modèle
 _model = None
+_model_initialized = False
+
+def initialize_model():
+    """Initialise le modèle OCR au démarrage du serveur"""
+    global _model, _model_initialized
+    if not _model_initialized:
+        print("Initialisation du modèle OCR DocTR...")
+        #_model = ocr_predictor('db_resnet50', 'crnn_vgg16_bn', pretrained=True) #Plus gros, pas forcément bien meilleur j'ai l'impression
+        _model = ocr_predictor('db_mobilenet_v3_large', 'crnn_mobilenet_v3_small', pretrained=True)
+        _model_initialized = True
+        print("Modèle OCR DocTR initialisé avec succès")
+    return _model
 
 def get_model():
-    """Charge le modèle de manière lazy pour éviter de le charger au démarrage"""
-    global _model
-    if _model is None:
-        _model = ocr_predictor('db_resnet50', 'crnn_vgg16_bn', pretrained=True)
+    """Récupère le modèle préchargé"""
+    global _model, _model_initialized
+    if not _model_initialized:
+        raise RuntimeError("Le modèle OCR n'a pas été initialisé. Appelez initialize_model() au démarrage du serveur.")
     return _model
 
 def cleanup_model():
     """Libère la mémoire du modèle"""
-    global _model
+    global _model, _model_initialized
     if _model is not None:
         del _model
         _model = None
+        _model_initialized = False
         gc.collect()
+        print("Modèle OCR nettoyé de la mémoire")
 
 def group_lines(result):
     lines = []

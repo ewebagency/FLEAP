@@ -15,16 +15,26 @@ from parse_ocr_extract_facture import process_facture_pdf, process_facture_pdf_o
 #from utils.utils_paddleocr import run_paddle_ocr 
 from utils.utils_gemini import extract_bsd_with_gemini, clean_gemini_response, clean_date, extract_json_with_gemini_using_prompt
 from prompts import prompt_bon
-from utils.utils_doctr import ocr_this_pdf_with_doctr, cleanup_model
+from utils.utils_doctr import ocr_this_pdf_with_doctr, cleanup_model, initialize_model
 
 load_dotenv()
 
 app = FastAPI()
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialise les ressources au démarrage du serveur"""
+    print("Démarrage du serveur Fleap...")
+    # Initialiser le modèle OCR
+    initialize_model()
+    print("Serveur Fleap démarré avec succès")
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Nettoyer les ressources lors de l'arrêt du serveur"""
+    print("Arrêt du serveur Fleap...")
     cleanup_model()
+    print("Serveur Fleap arrêté")
 
 
 # Définition du modèle de données pour la requête
