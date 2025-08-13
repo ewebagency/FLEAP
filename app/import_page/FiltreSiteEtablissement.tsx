@@ -92,6 +92,7 @@ const FiltreSiteEtablissement = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const { sites, setSites, toggleSite } = useFilterContext();
     const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState<string>('');
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -116,6 +117,7 @@ const FiltreSiteEtablissement = () => {
     const [isFullDataLoaded, setIsFullDataLoaded] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [userSiteAccess, setUserSiteAccess] = useState<string[]>([]);
+    const limiteBeforeSearch = 10;
 
     // Utilisation de SWR pour récupérer les données des émetteurs
     const { data: emitterData, error: swrError, isLoading: isLoadingSWR } = useSWR(
@@ -566,7 +568,7 @@ const FiltreSiteEtablissement = () => {
     const renderSites = () => {
         // Filtrer les sites en fonction de site_access si ce n'est pas vide
         // et s'assurer que les sites non autorisés sont décochés
-        const filteredSites = userSiteAccess.length > 0 
+        let filteredSites = userSiteAccess.length > 0 
             ? sites.filter(site => site.orgId === '----' || userSiteAccess.includes(site.orgId))
                 .map(site => {
                     // Si le site n'est pas dans userSiteAccess et n'est pas "Autres", le décocher
@@ -576,6 +578,16 @@ const FiltreSiteEtablissement = () => {
                     return site;
                 })
             : sites;
+
+        // Appliquer le filtre de recherche si il y a un terme de recherche
+        if (searchTerm) {
+            const searchLower = searchTerm.toLowerCase();
+            filteredSites = filteredSites.filter(site => 
+                site.name.toLowerCase().includes(searchLower) ||
+                site.orgId.toLowerCase().includes(searchLower) ||
+                (site.givenName && site.givenName.toLowerCase().includes(searchLower))
+            );
+        }
 
         if (!mappingSite || Object.keys(mappingSite).length === 0) {
             // Afficher les sites filtrés
@@ -701,6 +713,13 @@ const FiltreSiteEtablissement = () => {
         </div>
     );
 
+    // Réinitialiser la recherche quand le modal se ferme
+    useEffect(() => {
+        if (!isOpen) {
+            setSearchTerm('');
+        }
+    }, [isOpen]);
+
     // Mise à jour de la condition de rendu pour le chargement
     if (isInitialLoading || (isLoadingSWR || isLoadingTrack) && additionnalSites.length === 0) {
         return <div className="text-sm text-gray-500 ml-2">Chargement des sites...</div>;
@@ -772,6 +791,25 @@ const FiltreSiteEtablissement = () => {
                                 </div>
                             )}
                         </div>
+                        {sites.length > limiteBeforeSearch && (
+                            <div className="p-3 border-b border-gray-200">
+                                <div className="relative flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Rechercher un site..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                                    />
+                                    <BoxIcon 
+                                        name="search" 
+                                        size="16px" 
+                                        color="#6B7280"
+                                        className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                                    />
+                                </div>
+                            </div>
+                        )}
                         <div className="overflow-y-auto p-2">
                             {renderSites()}
                         </div>

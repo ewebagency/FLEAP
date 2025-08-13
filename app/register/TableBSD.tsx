@@ -53,7 +53,7 @@ const getWasteIcon = (filiere: string): { name: string, type?: 'solid' | 'regula
             icon: { name: 'wrench' }
         },
         {
-            keywords: ['gravat', 'beton', 'pierre', 'construction', 'demolition', 'btp'],
+            keywords: ['gravat', 'gravats', 'beton', 'pierre', 'construction', 'demolition', 'btp'],
             icon: { name: 'building-house' }
         },
         {
@@ -960,7 +960,7 @@ const TableBSD = () => {
                                                             {handleUpdateWeight(bsd)} T
                                                         </div>
                                                     :
-                                                        <div className="text-xs mt-0">
+                                                        <div className="text-sm mt-0">
                                                             {bsd.infos_json.formAPI.createFormInput.quantityReceived 
                                                             ? 
                                                                 `${parseFloat(String(bsd.infos_json.formAPI.createFormInput.quantityReceived)).toFixed(2)} T` 

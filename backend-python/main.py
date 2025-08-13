@@ -12,10 +12,19 @@ import re
 from datetime import datetime
 from typing import Dict, Any
 from parse_ocr_extract_facture import process_facture_pdf, process_facture_pdf_only_ocr, extract_facture_with_gemini_from_data
+#from utils.utils_paddleocr import run_paddle_ocr 
+from utils.utils_gemini import extract_bsd_with_gemini, clean_gemini_response, clean_date, extract_json_with_gemini_using_prompt
+from prompts import prompt_bon
+from utils.utils_doctr import ocr_this_pdf_with_doctr, cleanup_model
 
 load_dotenv()
 
 app = FastAPI()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Nettoyer les ressources lors de l'arrêt du serveur"""
+    cleanup_model()
 
 
 # Définition du modèle de données pour la requête
@@ -25,56 +34,7 @@ class PDFRequest(BaseModel):
 class MindeeDataRequest(BaseModel):
     mindee_data: dict[str, Any]
 
-def clean_date(date_str: str) -> str:
-    if not date_str or date_str == "null":
-        return None
-    
-    # Supprimer les espaces et les caractères non numériques
-    date_str = re.sub(r'[^\d/]', '', date_str)
-    
-    try:
-        # Essayer de parser la date
-        date_obj = datetime.strptime(date_str, '%d/%m/%Y')
-        return date_obj.strftime('%Y-%m-%d')
-    except ValueError:
-        return date_str
 
-def clean_gemini_response(text: str) -> str:
-    # Supprimer les backticks et le mot "json" s'ils sont présents
-    text = re.sub(r'^```json\s*', '', text)
-    text = re.sub(r'\s*```$', '', text)
-    text = text.strip()
-    
-    try:
-        # Parser le JSON
-        data = json.loads(text)
-        
-        # Nettoyer les dates dans les champs spécifiques
-        date_fields = [
-            'dateEnvoi',
-            'datePriseEnCharge',
-            'dateValiditeRecepisse',
-            'date'
-        ]
-        
-        def clean_dates_in_dict(d):
-            if isinstance(d, dict):
-                for key, value in d.items():
-                    if key in date_fields:
-                        d[key] = clean_date(value)
-                    elif isinstance(value, (dict, list)):
-                        clean_dates_in_dict(value)
-            elif isinstance(d, list):
-                for item in d:
-                    if isinstance(item, (dict, list)):
-                        clean_dates_in_dict(item)
-        
-        clean_dates_in_dict(data)
-        
-        # Convertir en JSON propre
-        return json.dumps(data, ensure_ascii=False)
-    except json.JSONDecodeError:
-        return text
 
 origins = [
     "http://localhost:3000",  # Development
@@ -99,6 +59,10 @@ app.add_middleware(
 # Endpoints existants
 # =============================================
 
+
+@app.get("/")
+async def root():
+    return {"message": "L'API Fleap est en ligne"}
 
 @app.post("/parse-pdf-and-extract-info/")
 async def parse_pdf_and_extract_info(request: PDFRequest):
@@ -314,3 +278,51 @@ async def extract_facture_with_gemini(request: MindeeDataRequest):
 
     except Exception as e:
         return {"error": f"Failed to extract with Gemini: {str(e)}"}
+    
+
+
+"""
+@app.post("/paddle-ocr")
+async def paddle_ocr_from_main(file: UploadFile):
+    return await run_paddle_ocr(file)
+
+
+@app.post("/extract-bsd-with-paddle-ocr")
+async def extract_bsd_with_paddle_ocr(file: UploadFile):
+    print("Extract Raw Data with Paddle OCR")
+    result = await run_paddle_ocr(file)
+    text = result["text"]
+    print("Text extracted from Paddle OCR", text)
+    print("Extract Parsed Data with Gemini")
+    parsed_info = await extract_bsd_with_gemini(text)
+    return parsed_info
+"""
+
+@app.post("/extract-bsd-with-doctr")
+async def extract_bsd_with_doctr(file: UploadFile):
+    print("Extract Raw Data with Doctr")
+    result = await ocr_this_pdf_with_doctr(file)
+    text = result["text"]
+    print("Text extracted from DocTR OCR", text)
+    print("Extract Parsed Data with Gemini")
+    parsed_info = await extract_bsd_with_gemini(text)
+    return parsed_info
+
+
+@app.post("/extract-with-doctr")
+async def extract_raw_text_with_doctr(file: UploadFile):
+    print("Extract Raw Data with Doctr")
+    result = await ocr_this_pdf_with_doctr(file)
+    text = result["text"]
+    print("Text extracted from DocTR OCR", text)
+    return result
+
+@app.post("/extract-with-doctr/bon")
+async def extract_json_with_gemini_using_prompt_bon(file: UploadFile):
+    print("Extract Raw Data with Doctr")
+    result = await ocr_this_pdf_with_doctr(file)
+    text = result["text"]
+    print("Text extracted from DocTR OCR", text)
+    print("Extract Parsed Data with Gemini")
+    parsed_info = await extract_json_with_gemini_using_prompt(text, prompt_bon)
+    return parsed_info
