@@ -1,19 +1,8 @@
 from fastapi import UploadFile
 from collections import defaultdict
 from paddleocr import PaddleOCR
-import numpy as np
-import cv2
 import tempfile
 import os
-import pdfplumber
-from PIL import Image
-import io
-import requests
-import json
-from typing import Dict, Any, Optional
-import re
-from datetime import datetime
-from utils.utils_gemini import extract_bsd_with_gemini
 
 # Configuration PaddleOCR
 ocr = PaddleOCR(

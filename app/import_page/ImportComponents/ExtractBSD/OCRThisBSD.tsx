@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
 import { toast } from 'react-hot-toast';
 import { BSDCerfa } from './ExtractBSD';
+import useSWR from 'swr';
+import { useSession } from '@/app/component/SessionProvider';
 
 interface OCRThisBSDProps {
     pdf_id: number;
@@ -9,11 +11,116 @@ interface OCRThisBSDProps {
     onDataExtracted?: (data: Partial<BSDCerfa>) => void;
 }
 
+// Types pour les données connues
+interface Site {
+    nom: string;
+    siret: string;
+}
+
+interface Prestataire {
+    nomBoite: string;
+    nomPrenom: string;
+    adresse: string;
+    siret: string;
+    email: string;
+    transporteur_ou_destinataire: 'transporteur' | 'destinataire';
+}
+
+interface Dechet {
+    nom: string;
+    codeCED: string;
+}
+
+interface KnownData {
+    sites: Site[];
+    prestataires: Prestataire[];
+    dechets: Dechet[];
+}
+
+// Fonction pour récupérer les données depuis Supabase
+const fetchKnownData = async (entreprise_id: string): Promise<KnownData> => {
+    const { data, error } = await supabase
+        .from('table_autocompletion')
+        .select('*')
+        .eq('entreprise_id', entreprise_id);
+
+    if (error) {
+        throw new Error(`Erreur lors de la récupération des données: ${error.message}`);
+    }
+
+    const sites: Site[] = [];
+    const prestataires: Prestataire[] = [];
+    const dechets: Dechet[] = [];
+
+    data?.forEach(record => {
+        // Sites
+        if (record.site) {
+            sites.push({
+                nom: record.site.nom || '',
+                siret: record.site.siret || ''
+            });
+        }
+
+        // Transporteurs
+        if (record.transporteur) {
+            prestataires.push({
+                nomBoite: record.transporteur.nomBoite || '',
+                nomPrenom: record.transporteur.nomPrenom || '',
+                adresse: record.transporteur.adresse || '',
+                siret: record.transporteur.siret || '',
+                email: record.transporteur.email || '',
+                transporteur_ou_destinataire: 'transporteur'
+            });
+        }
+
+        // Destinataires
+        if (record.destinataire) {
+            prestataires.push({
+                nomBoite: record.destinataire.nomBoite || '',
+                nomPrenom: record.destinataire.nomPrenom || '',
+                adresse: record.destinataire.adresse || '',
+                siret: record.destinataire.siret || '',
+                email: record.destinataire.email || '',
+                transporteur_ou_destinataire: 'destinataire'
+            });
+        }
+
+        // Déchets
+        if (record.dechet) {
+            dechets.push({
+                nom: record.dechet.nom || '',
+                codeCED: record.dechet.codeCED || ''
+            });
+        }
+    });
+
+    return {
+        sites,
+        prestataires,
+        dechets
+    };
+};
+
 const OCRThisBSD = ({ pdf_id, pdf_path, onDataExtracted }: OCRThisBSDProps) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingPaddle, setIsLoadingPaddle] = useState(false);
+    const { entreprise_id } = useSession();
+
+    // Requête SWR pour récupérer les données connues
+    const { data: known_data, error: knownDataError, isLoading: isLoadingKnownData } = useSWR(
+        entreprise_id ? `known-data-${entreprise_id}` : null,
+        () => fetchKnownData(entreprise_id!),
+        {
+            revalidateOnFocus: false,
+            revalidateOnReconnect: false
+        }
+    );
 
     const ocr_this_bsd_pdf = async () => {
+        if (!known_data) {
+            toast.error('Données non disponibles');
+            return;
+        }
         setIsLoading(true);
         try {
             // Get signed URL for the PDF
@@ -31,7 +138,7 @@ const OCRThisBSD = ({ pdf_id, pdf_path, onDataExtracted }: OCRThisBSDProps) => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ pdf_url: signedUrlData.signedUrl }),
+                body: JSON.stringify({ pdf_url: signedUrlData.signedUrl, known_data: known_data }),
             });
 
             if (!response.ok) {
@@ -60,6 +167,10 @@ const OCRThisBSD = ({ pdf_id, pdf_path, onDataExtracted }: OCRThisBSDProps) => {
     };
 
     const ocr_this_bsd_pdf_paddleocr = async () => {
+        if (!known_data) {
+            toast.error('Données non disponibles');
+            return;
+        }
         setIsLoadingPaddle(true);
         try {
             // Get signed URL for the PDF

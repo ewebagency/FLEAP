@@ -1,18 +1,15 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
-import shutil
 import tempfile
 import pdfplumber
 import requests
 import json
-import re
-from datetime import datetime
-from typing import Dict, Any
+from typing import Any
 #import psutil
-import gc
+#import gc
 from prompts import prompt_bon
 from parse_ocr_extract_facture import process_facture_pdf, process_facture_pdf_only_ocr, extract_facture_with_gemini_from_data
 from utils.utils_paddleocr import run_paddle_ocr, extract_bs_with_paddle_ocr
