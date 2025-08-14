@@ -5,8 +5,10 @@ import tempfile
 import os
 
 # Configuration PaddleOCR
-ocr = PaddleOCR(   
-    use_angle_cls=True,
+ocr = PaddleOCR(
+    lang='fr',
+    ocr_version='PP-OCRv3', # version Lite incluse
+    use_angle_cls=True
 )
 
 async def run_paddle_ocr(file: UploadFile):
