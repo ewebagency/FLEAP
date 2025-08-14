@@ -1,4 +1,3 @@
-"""
 from fastapi import UploadFile
 from collections import defaultdict
 from paddleocr import PaddleOCR
@@ -16,10 +15,14 @@ import re
 from datetime import datetime
 from utils.utils_gemini import extract_bsd_with_gemini
 
-ocr = PaddleOCR(lang='fr')  # ✅ Chargé une seule fois
-
+# Configuration PaddleOCR
+ocr = PaddleOCR(
+    lang='fr', 
+    use_angle_cls=True,
+)
 
 def group_lines(rec_texts, rec_boxes, y_thresh=10):
+    """Groupe les mots en lignes basées sur leur position Y"""
     lines = defaultdict(list)
     
     for text, box in zip(rec_texts, rec_boxes):
@@ -47,13 +50,38 @@ def group_lines(rec_texts, rec_boxes, y_thresh=10):
     return "\n".join(sorted_lines)
 
 def extract_text_from_result(result):
+    """Extrait le texte d'un résultat PaddleOCR multi-pages"""
     all_text = []
+    
+    if not result:
+        return ""
+    
     for page in result:  # multi-pages possible
-        lines_text = group_lines(page["rec_texts"], page["rec_boxes"])
-        all_text.append(lines_text)
+        if page and "rec_texts" in page and "rec_boxes" in page:
+            lines_text = group_lines(page["rec_texts"], page["rec_boxes"])
+            all_text.append(lines_text)
+    
     return "\n".join(all_text)
 
+def clean_paddle_result(result):
+    """Nettoie le résultat PaddleOCR pour la sérialisation JSON"""
+    if not result:
+        return None
+    
+    cleaned_result = []
+    for page in result:
+        if page and "rec_texts" in page and "rec_boxes" in page:
+            # Convertir les arrays numpy en listes Python
+            cleaned_page = {
+                "rec_texts": [str(text) for text in page["rec_texts"]],
+                "rec_boxes": [[float(coord) for coord in box] for box in page["rec_boxes"]]
+            }
+            cleaned_result.append(cleaned_page)
+    
+    return cleaned_result
+
 async def run_paddle_ocr(file: UploadFile):
+    """Traite un PDF avec PaddleOCR"""
     # Lire le contenu du fichier
     contents = await file.read()
 
@@ -62,26 +90,35 @@ async def run_paddle_ocr(file: UploadFile):
         tmp.write(contents)
         tmp_path = tmp.name
 
-    all_text = []
-    
     try:
-        # Convertir PDF en images avec pdfplumber
-        with pdfplumber.open(tmp_path) as pdf:
-            for page in pdf.pages:
-                # Convertir la page en image
-                img = page.to_image()
-                img_bytes = img.original.convert('RGB')
-                
-                # Convertir PIL Image en numpy array
-                img_array = np.array(img_bytes)
-                
-                # OCR sur l'image originale
-                result = ocr.predict(img_array)
-                
-                # Extraire le texte de cette page
-                if result:
-                    page_text = extract_text_from_result(result)
-                    all_text.append(page_text)
+        # OCR sur le PDF (PaddleOCR gère automatiquement les multi-pages)
+        print(f"🔍 Début OCR PaddleOCR sur: {file.filename}")
+        result = ocr.predict(tmp_path)
+        print("="*30, "Résultat PaddleOCR", "="*30)
+        print(result[0]["rec_texts"])
+        print("="*60)
+        # Extraire le texte
+        extracted_text = extract_text_from_result(result)
+        
+        # Nettoyer le résultat pour la sérialisation JSON
+        cleaned_result = clean_paddle_result(result)
+        
+        print(f"✅ OCR terminé - {len(extracted_text)} caractères extraits")
+        
+        return {
+            "text": extracted_text, 
+            "raw_result": cleaned_result,
+            "pages_count": len(result) if result else 0
+        }
+    
+    except Exception as e:
+        print(f"❌ Erreur lors de l'OCR: {str(e)}")
+        return {
+            "text": "",
+            "raw_result": None,
+            "error": str(e),
+            "pages_count": 0
+        }
     
     finally:
         # Nettoyer le fichier temporaire
@@ -91,13 +128,11 @@ async def run_paddle_ocr(file: UploadFile):
         except PermissionError:
             # Si on ne peut pas supprimer le fichier, on l'ignore
             pass
-    
-    return {"text": "\n".join(all_text), "raw_result": result}
 
-
-def extract_bs_with_paddle_ocr(text: str) -> str:
-    #Nettoie la réponse de Gemini en supprimant les backticks et le mot 'json'
-    # Supprimer les backticks et le mot "json" s'ils sont présents
+def extract_bs_with_paddle_ocr(text: str):
+    """
+    Nettoie la réponse de Gemini en supprimant les backticks et le mot 'json'
+    """
     cleaned = text.strip()
     if cleaned.startswith("```json"):
         cleaned = cleaned[7:]
@@ -109,4 +144,3 @@ def extract_bs_with_paddle_ocr(text: str) -> str:
     
     return cleaned.strip()
 
-"""
