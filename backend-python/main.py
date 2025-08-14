@@ -1,19 +1,16 @@
 from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import os
 from dotenv import load_dotenv
-import tempfile
-import pdfplumber
-import requests
-import json
 from typing import Any
 #import psutil
 #import gc
-from prompts import prompt_bon
+#from prompts import prompt_bon
 from parse_ocr_extract_facture import process_facture_pdf, process_facture_pdf_only_ocr, extract_facture_with_gemini_from_data
-from utils.utils_paddleocr import run_paddle_ocr, extract_bs_with_paddle_ocr
-from utils.utils_gemini import extract_bsd_with_gemini, clean_gemini_response, clean_date, extract_json_with_gemini_using_prompt
+from utils.utils_paddleocr import run_paddle_ocr
+from utils.utils_gemini import extract_gemini
+from utils.utils_parse import parse_pdf
+from prompts import prompt_bsd
 #from utils.utils_doctr import ocr_this_pdf_with_doctr, cleanup_model, initialize_model
 
 """
@@ -63,8 +60,6 @@ class PDFRequest(BaseModel):
 class MindeeDataRequest(BaseModel):
     mindee_data: dict[str, Any]
 
-
-
 origins = [
     "http://localhost:3000",  # Development
     "http://localhost:3000/",
@@ -93,158 +88,14 @@ app.add_middleware(
 async def root():
     return {"message": "L'API Fleap est en ligne"}
 
-@app.post("/parse-pdf-and-extract-info/")
+@app.post("/parse-pdf-and-extract-info/") #Sur les BSD
 async def parse_pdf_and_extract_info(request: PDFRequest):
-    try:
-        # Télécharger le PDF
-        response = requests.get(request.pdf_url)
-        if not response.ok:
-            return {"error": "Failed to fetch PDF"}
-        
-        # Sauvegarder temporairement le PDF
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(response.content)
-            tmp_path = tmp.name
-
-        # Extraire le texte du PDF
-        text = ""
-        with pdfplumber.open(tmp_path) as pdf:
-            for page in pdf.pages:
-                text += page.extract_text() or ""
-
-        # Nettoyer le fichier temporaire
-        os.unlink(tmp_path)
-
-        if not text:
-            return {"error": "No text could be extracted from PDF"}
-
-        # Appeler l'API Gemini
-        gemini_url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent"
-        headers = {
-            "Content-Type": "application/json",
-            "x-goog-api-key": os.getenv('GEMINI_API_KEY')
-        }
-
-        prompt = f"""Extract information from this BSD (Bordereau de Suivi de Déchets) text and format it according to this TypeScript interface. Only include fields that you can confidently extract from the text. Return the result as a valid JSON object without any markdown formatting or backticks. For dates, use the format DD/MM/YYYY:
-
-interface BSDCerfa {{
-    numeroBordereau: string;
-    emetteur: {{
-        statut: 'producteur' | 'collecteur' | 'transformateur' | 'autre';
-        siret: string;
-        nom: string;
-        adresse: string;
-        tel?: string;
-        fax?: string;
-        email?: string;
-        contact?: string;
-    }};
-    installationDestination: {{
-        entreposageProvisoire: boolean;
-        siret: string;
-        nom: string;
-        adresse: string;
-        tel?: string;
-        email?: string;
-        contact?: string;
-        numeroCAP?: string;
-        codeOperation: string;
-    }};
-    dechet: {{
-        code: string;
-        consistence: 'solide' | 'liquide' | 'gazeux';
-        denominationUsuelle: string;
-        categorie: 'solide' | 'liquide' | 'gazeux';
-        etiquetageADR: string;
-        conditionnement: string;
-        nombreColis: number;
-        poids: number;
-        volume: number;
-        volumeUnite: string;
-        reel: boolean;
-    }};
-    negociant?: {{
-        siren: string;
-        nom: string;
-        adresse: string;
-        contact?: string;
-        tel?: string;
-        email?: string;
-        fax?: string;
-        numeroRecepisse?: string;
-        departement?: string;
-        dateValiditeRecepisse?: string;
-    }};
-    collecteurTransporteur: {{
-        siren: string;
-        nom: string;
-        adresse: string;
-        tel?: string;
-        fax?: string;
-        email?: string;
-        contact?: string;
-        numeroRecepisse?: string;
-        departement?: string;
-        dateValiditeRecepisse?: string;
-        modeTransport: 'route' | 'multimodal';
-        datePriseEnCharge?: string;
-        signature?: string;
-    }};
-    expedition: {{
-        dateEnvoi: string;
-        heure: string;
-        signature: string;
-    }};
-    realisationOperation: {{
-        code: string;
-        description: string;
-        nom: string;
-        date: string;
-        signature: string;
-    }};
-    declarationEmetteur: {{
-        nom: string;
-        date: string;
-        signature: string;
-    }};
-}}
-
-Text to analyze:
-{text}"""
-
-        payload = {
-            "contents": [{
-                "parts": [{
-                    "text": prompt
-                }]
-            }]
-        }
-
-        gemini_response = requests.post(gemini_url, headers=headers, json=payload)
-        if not gemini_response.ok:
-            return {"error": f"Failed to get response from Gemini: {gemini_response.text}"}
-
-        gemini_data = gemini_response.json()
-        raw_extracted_data = gemini_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-        
-        # Nettoyer la réponse de Gemini
-        cleaned_data = clean_gemini_response(raw_extracted_data)
-        
-        # Vérifier que c'est du JSON valide
-        try:
-            json.loads(cleaned_data)
-        except json.JSONDecodeError as e:
-            return {"error": f"Invalid JSON from Gemini: {str(e)}", "raw_response": raw_extracted_data}
-
-        return {
-            "text": text,
-            "extracted_data": cleaned_data
-        }
-
-    except Exception as e:
-        return {"error": f"Failed to process PDF: {str(e)}"}
+    parsed_pdf = parse_pdf(request.pdf_url)
+    json_from_gemini = extract_gemini(parsed_pdf, prompt_bsd)
+    return json_from_gemini
 
 
+#=============================================FACTURES=============================================
 @app.post("/parse-or-ocr-facture-and-extract-info/")
 async def parse_or_ocr_facture_and_extract_info(request: PDFRequest): #not use anymore i think
     try:
@@ -307,15 +158,14 @@ async def extract_facture_with_gemini(request: MindeeDataRequest):
 
     except Exception as e:
         return {"error": f"Failed to extract with Gemini: {str(e)}"}
-    
+
+#=============================================FACTURES=============================================
 
 
 
-@app.post("/paddle-ocr")
-async def paddle_ocr_from_main(file: UploadFile):
-    return await run_paddle_ocr(file)
 
 
+#=============================================BSD=============================================
 @app.post("/extract-bsd-with-paddle-ocr")
 async def extract_bsd_with_paddle_ocr(file: UploadFile):
     print("Extract Raw Data with Paddle OCR")
@@ -323,7 +173,7 @@ async def extract_bsd_with_paddle_ocr(file: UploadFile):
     text = result["text"]
     print("Text extracted from Paddle OCR", text)
     print("Extract Parsed Data with Gemini")
-    parsed_info = await extract_bsd_with_gemini(text)
+    parsed_info = await extract_gemini(text, prompt_bsd)
     return parsed_info
 
 """
@@ -334,10 +184,20 @@ async def extract_bsd_with_doctr(file: UploadFile):
     text = result["text"]
     print("Text extracted from DocTR OCR", text)
     print("Extract Parsed Data with Gemini")
-    parsed_info = await extract_bsd_with_gemini(text)
+    parsed_info = await extract_gemini(text, prompt_bsd)
     return parsed_info
+"""
+#=============================================BSD=============================================
 
 
+
+
+#=============================================OCR ONLY=============================================
+@app.post("/paddle-ocr")
+async def paddle_ocr_from_main(file: UploadFile):
+    return await run_paddle_ocr(file)
+
+"""
 @app.post("/extract-with-doctr")
 async def extract_raw_text_with_doctr(file: UploadFile):
     print("=" * 60)
@@ -393,3 +253,4 @@ async def extract_json_with_gemini_using_prompt_bon(file: UploadFile):
     return parsed_info
 
 """
+#=============================================OCR ONLY=============================================

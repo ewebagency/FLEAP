@@ -199,6 +199,9 @@ const OCRThisBSD = ({ pdf_id, pdf_path, onDataExtracted }: OCRThisBSDProps) => {
             const response = await fetch(`${process.env.NEXT_PUBLIC_SERVER_PYTHON}/extract-bsd-with-paddle-ocr`, {
                 method: 'POST',
                 body: formData,
+                headers: {
+                    'known_data': JSON.stringify(known_data)
+                }
             });
 
             if (!response.ok) {
