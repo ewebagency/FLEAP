@@ -101,6 +101,10 @@ const ImportPDF = () => {
     const [selectedPresta, setSelectedPresta] = useState<Prestataire | null>(null);
     const [selectedDocumentType, setSelectedDocumentType] = useState<'bsd' | 'facture' | 'bon'>('bsd');
     const [filesToImport, setFilesToImport] = useState<File[]>([]);
+    const [siteSearchTerm, setSiteSearchTerm] = useState('');
+    const [prestaSearchTerm, setPrestaSearchTerm] = useState('');
+    const [showSiteDropdown, setShowSiteDropdown] = useState(false);
+    const [showPrestaDropdown, setShowPrestaDropdown] = useState(false);
 
     // Charger les données d'autocomplétion (comme dans l'import Excel)
     useEffect(() => {
@@ -162,6 +166,19 @@ const ImportPDF = () => {
       }))
     ];
 
+    // Filtrer les sites et prestataires selon les termes de recherche
+    const filteredSites = autocompletionData.sites.filter(site => {
+      const searchLower = siteSearchTerm.toLowerCase();
+      return site.value.nom.toLowerCase().includes(searchLower) || 
+             site.value.siret.toLowerCase().includes(searchLower);
+    });
+
+    const filteredPrestataires = prestataires.filter(presta => {
+      const searchLower = prestaSearchTerm.toLowerCase();
+      return presta.nom.toLowerCase().includes(searchLower) || 
+             (presta.siret && presta.siret.toLowerCase().includes(searchLower));
+    });
+
     // Fermer le menu si on clique en dehors
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -173,6 +190,22 @@ const ImportPDF = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    // Fermer les dropdowns si on clique en dehors
+    useEffect(() => {
+        const handleClickOutsideDropdowns = (event: MouseEvent) => {
+            const target = event.target as Element;
+            if (!target.closest('.site-dropdown') && !target.closest('.presta-dropdown')) {
+                setShowSiteDropdown(false);
+                setShowPrestaDropdown(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutsideDropdowns);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutsideDropdowns);
         };
     }, []);
 
@@ -293,6 +326,10 @@ const ImportPDF = () => {
       setSelectedSite(null);
       setSelectedPresta(null);
       setSelectedDocumentType('bsd');
+      setSiteSearchTerm('');
+      setPrestaSearchTerm('');
+      setShowSiteDropdown(false);
+      setShowPrestaDropdown(false);
       setPendingFiles([]);
       setDuplicateFiles([]);
     };
@@ -304,6 +341,10 @@ const ImportPDF = () => {
       setSelectedSite(null);
       setSelectedPresta(null);
       setSelectedDocumentType('bsd');
+      setSiteSearchTerm('');
+      setPrestaSearchTerm('');
+      setShowSiteDropdown(false);
+      setShowPrestaDropdown(false);
     };
 
     // Fonction pour confirmer l'import malgré les doublons
@@ -566,7 +607,8 @@ const ImportPDF = () => {
                   {/* Message d'aide */}
                   <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
                     <p className="text-sm text-blue-800">
-                      <strong>💡 Conseil :</strong> Si vos PDFs concernent des sites ou prestataires différents, 
+                      <strong>💡 Conseil :</strong> La sélection d&apos;un site et/ou prestataire est optionnelle. 
+                      Si vos PDFs concernent des sites ou prestataires différents, 
                       faites plusieurs imports séparés pour une meilleure organisation.
                     </p>
                   </div>
@@ -583,7 +625,7 @@ const ImportPDF = () => {
                     >
                       <option value="bsd">📄 Bordereau de Suivi de Déchets (BSD)</option>
                       <option value="facture">💲 Facture</option>
-                      <option value="bon">📋 Bon de livraison</option>
+                      <option value="bon">📋 Bon</option>
                       <option value="conformite">⚖ Conformité</option>
                     </select>
                   </div>
@@ -591,46 +633,141 @@ const ImportPDF = () => {
                   {/* Sélection du site */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Site <span className="text-red-500">*</span>
+                      Site
                     </label>
-                    <select
-                      value={selectedSite?.table_id || ''}
-                      onChange={(e) => {
-                        const site = autocompletionData.sites.find(s => s.table_id === Number(e.target.value)) || null;
-                        setSelectedSite(site);
-                      }}
-                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    >
-                      <option value="">Sélectionner un site</option>
-                      {autocompletionData.sites.map(site => (
-                        <option key={site.table_id} value={site.table_id}>
-                          🏢 {site.value.nom} ({site.value.siret})
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative site-dropdown">
+                      {/* Barre de recherche pour les sites */}
+                      <input
+                        type="text"
+                        placeholder="🔍 Rechercher par nom ou SIRET..."
+                        value={siteSearchTerm}
+                        onChange={(e) => setSiteSearchTerm(e.target.value)}
+                        onFocus={() => setShowSiteDropdown(true)}
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                      />
+                      
+                      {/* Dropdown des sites */}
+                      {showSiteDropdown && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                          <div className="p-2">
+                            {filteredSites.length > 0 ? (
+                              filteredSites.map(site => (
+                                <div
+                                  key={site.table_id}
+                                  onClick={() => {
+                                    setSelectedSite(site);
+                                    setSiteSearchTerm(site.value.nom);
+                                    setShowSiteDropdown(false);
+                                  }}
+                                  className="px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded"
+                                >
+                                  <div className="font-medium">🏢 {site.value.nom}</div>
+                                  <div className="text-gray-500 text-xs">{site.value.siret}</div>
+                                </div>
+                              ))
+                            ) : siteSearchTerm ? (
+                              <div className="px-3 py-2 text-sm text-gray-500">Aucun site trouvé</div>
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-gray-500">Commencez à taper pour rechercher...</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Affichage du site sélectionné */}
+                    {selectedSite && (
+                      <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded flex justify-between items-start">
+                        <div>
+                          <div className="text-sm font-medium">🏢 {selectedSite.value.nom}</div>
+                          <div className="text-xs text-gray-600">{selectedSite.value.siret}</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedSite(null);
+                            setSiteSearchTerm('');
+                          }}
+                          className="text-gray-400 hover:text-red-500 text-sm"
+                          title="Effacer la sélection"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Sélection du prestataire */}
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Prestataire <span className="text-red-500">*</span>
+                      Prestataire
                     </label>
-                    <select
-                      value={selectedPresta?.id || ''}
-                      onChange={(e) => {
-                        const presta = prestataires.find(p => p.id === Number(e.target.value)) || null;
-                        setSelectedPresta(presta);
-                      }}
-                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    >
-                      <option value="">Sélectionner un prestataire</option>
-                      {prestataires.map(presta => (
-                        <option key={`${presta.type}-${presta.id}`} value={presta.id}>
-                          {presta.type === 'transporteur' ? '🚛' : '🏭'} {presta.nom}
-                          {presta.siret && ` (${presta.siret})`}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative presta-dropdown">
+                      {/* Barre de recherche pour les prestataires */}
+                      <input
+                        type="text"
+                        placeholder="🔍 Rechercher par nom ou SIRET..."
+                        value={prestaSearchTerm}
+                        onChange={(e) => setPrestaSearchTerm(e.target.value)}
+                        onFocus={() => setShowPrestaDropdown(true)}
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                      />
+                      
+                      {/* Dropdown des prestataires */}
+                      {showPrestaDropdown && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                          <div className="p-2">
+                            {filteredPrestataires.length > 0 ? (
+                              filteredPrestataires.map(presta => (
+                                <div
+                                  key={`${presta.type}-${presta.id}`}
+                                  onClick={() => {
+                                    setSelectedPresta(presta);
+                                    setPrestaSearchTerm(presta.nom);
+                                    setShowPrestaDropdown(false);
+                                  }}
+                                  className="px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded"
+                                >
+                                  <div className="font-medium">
+                                    {presta.type === 'transporteur' ? '🚛' : '🏭'} {presta.nom}
+                                  </div>
+                                  {presta.siret && (
+                                    <div className="text-gray-500 text-xs">{presta.siret}</div>
+                                  )}
+                                </div>
+                              ))
+                            ) : prestaSearchTerm ? (
+                              <div className="px-3 py-2 text-sm text-gray-500">Aucun prestataire trouvé</div>
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-gray-500">Commencez à taper pour rechercher...</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Affichage du prestataire sélectionné */}
+                    {selectedPresta && (
+                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded flex justify-between items-start">
+                        <div>
+                          <div className="text-sm font-medium">
+                            {selectedPresta.type === 'transporteur' ? '🚛' : '🏭'} {selectedPresta.nom}
+                          </div>
+                          {selectedPresta.siret && (
+                            <div className="text-xs text-gray-600">{selectedPresta.siret}</div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedPresta(null);
+                            setPrestaSearchTerm('');
+                          }}
+                          className="text-gray-400 hover:text-red-500 text-sm"
+                          title="Effacer la sélection"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Boutons */}
@@ -643,8 +780,7 @@ const ImportPDF = () => {
                     </button>
                     <button
                       onClick={handleConfirmPDFMeta}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                      disabled={!selectedSite || !selectedPresta}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                     >
                       Importer {filesToImport.length} fichier{filesToImport.length > 1 ? 's' : ''}
                     </button>

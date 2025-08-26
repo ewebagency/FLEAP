@@ -369,7 +369,7 @@ const standard_with_ecobtp = async (data_excel: ExcelData, user_id: string, entr
     standardizedRow.status_track_dechets = "IMPORTED";
     standardizedRow.source = data_excel.nom_fichier;
     
-    standardizedRow.codeCed = mapping_ced[toString(standardizedRow.descDechet)].trim() || "";
+    standardizedRow.codeCed = mapping_ced[toString(standardizedRow.descDechet)]?.trim() || "";
 
     const poids_total = standardizedRow.quantiteEstimeeReelleTransporteur
     const poids_valo_matiere = standardizedRow.poids_matiere

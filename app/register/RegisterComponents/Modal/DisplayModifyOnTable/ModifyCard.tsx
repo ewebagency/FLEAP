@@ -12,6 +12,7 @@ import { BSD } from "@/app/register/TableBSD";
 import Image from "next/image";
 import BoxIcon from '@/app/component/BoxIconWrapper';
 import { handleDeleteLinkBSD_PDF } from "./deleteLinkBSD_PDF";
+import { handleDeleteLinkBon_PDF } from "./deleteLinkBon_PDF";
 import { cofounders_user_id } from "@/app/component/SideBar";
 
 interface PdfInfo {
@@ -2012,12 +2013,20 @@ const ModifyCard = () => {
                                         >
                                             {loadingUrls[pdf.id] ? 'Chargement...' : 'Ouvrir'}
                                         </button>
-                                       {modalId && modalId !== null && modalId !== undefined && modalId !== "" && cofounders_user_id(user_id) && <button
-                                            onClick={() => handleDeleteLinkBSD_PDF(pdf.id, modalId, entreprise_id)}
-                                            className="text-red-600 hover:text-red-800 hover:bg-red-100 p-1 rounded-md text-sm font-medium"
-                                        >
-                                            Supprimer
-                                        </button>}
+                                       {modalId && modalId !== null && modalId !== undefined && modalId !== "" && cofounders_user_id(user_id) && (
+                                            <button
+                                                onClick={() => {
+                                                    if (pdf.document_type === 'bon') {
+                                                        handleDeleteLinkBon_PDF(pdf.id, modalId, entreprise_id);
+                                                    } else {
+                                                        handleDeleteLinkBSD_PDF(pdf.id, modalId, entreprise_id);
+                                                    }
+                                                }}
+                                                className="text-red-600 hover:text-red-800 hover:bg-red-100 p-1 rounded-md text-sm font-medium"
+                                            >
+                                                Supprimer
+                                            </button>
+                                       )}
                                     </div>
                                 </div>
                             ))}

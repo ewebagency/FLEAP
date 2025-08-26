@@ -1,19 +1,25 @@
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Any
-#import psutil
-#import gc
-#from prompts import prompt_bon
+import json
+import psutil
+import os
+import gc
+from prompts import prompt_bon
 from parse_ocr_extract_facture import process_facture_pdf, process_facture_pdf_only_ocr, extract_facture_with_gemini_from_data
-from utils.utils_paddleocr import run_paddle_ocr
+#from utils.utils_paddleocr import run_paddle_ocr
 from utils.utils_gemini import extract_gemini
-from utils.utils_parse import parse_pdf
-from prompts import prompt_bsd
-#from utils.utils_doctr import ocr_this_pdf_with_doctr, cleanup_model, initialize_model
+from utils.utils_parse import parse_pdf, parse_pdf_file
+from prompts import prompt_bsd, prompt_bon
+from utils.utils_enrich import enrich_text
+from utils.document_types import get_prompt, transform_document_data
+from utils.utils_doctr import ocr_this_pdf_with_doctr, cleanup_model, initialize_model
+from utils.utils_manuscrit import classify_ocr_with_density, extract_handwritten_lines
 
-"""
+
+
 def get_memory_usage():
     #Retourne l'utilisation mémoire actuelle en MB
     process = psutil.Process(os.getpid())
@@ -27,14 +33,14 @@ def get_memory_usage():
 def print_memory_usage(stage=""):
     #Affiche l'utilisation mémoire avec un label
     memory = get_memory_usage()
-    print(f"🔄 MÉMOIRE {stage}: RSS={memory['rss_mb']:.1f}MB, VMS={memory['vms_mb']:.1f}MB, {memory['percent']:.1f}%")
-"""
+    #print(f"🔄 MÉMOIRE {stage}: RSS={memory['rss_mb']:.1f}MB, VMS={memory['vms_mb']:.1f}MB, {memory['percent']:.1f}%")
+
 
 load_dotenv()
 
 app = FastAPI()
 
-"""
+
 @app.on_event("startup")
 async def startup_event():
     #Initialise les ressources au démarrage du serveur
@@ -49,7 +55,7 @@ async def shutdown_event():
     print("Arrêt du serveur Fleap...")
     cleanup_model()
     print("Serveur Fleap arrêté")
-"""
+
 
 
 
@@ -169,7 +175,8 @@ async def extract_facture_with_gemini(request: MindeeDataRequest):
 @app.post("/extract-bsd-with-paddle-ocr")
 async def extract_bsd_with_paddle_ocr(file: UploadFile):
     print("Extract Raw Data with Paddle OCR")
-    result = await run_paddle_ocr(file)
+    #result = await run_paddle_ocr(file)
+    result = await ocr_this_pdf_with_doctr(file)
     text = result["text"]
     print("Text extracted from Paddle OCR", text)
     print("Extract Parsed Data with Gemini")
@@ -190,50 +197,123 @@ async def extract_bsd_with_doctr(file: UploadFile):
 #=============================================BSD=============================================
 
 
+#=============================================BONS=============================================
+@app.post("/ocr-enrich-bon")
+async def ocr_enrich_bon(file: UploadFile = Form(...), known_data: str = Form(...), pdf_status: str = Form(None), entreprise_name: str = Form(None)):
+    """
+    Parse le PDF, si ça marche pas utilise l'OCR
+    Enrichi le texte avec les données connues
+    Envoie le texte enrichi à Gemini
+    Renvoie les données structurées
+    """
+    known_data_dict = json.loads(known_data)
+    
+    # Log du statut du PDF reçu
+    if pdf_status:
+        print(f"📊 Statut du PDF reçu: {pdf_status}")
+    else:
+        print("📊 Aucun statut de PDF fourni")
+    
+    # Log du nom de l'entreprise reçu
+    if entreprise_name:
+        print(f"🏢 Nom de l'entreprise reçu: {entreprise_name}")
+    else:
+        print("🏢 Aucun nom d'entreprise fourni")
+   
+    print("\nTentative de parsing PDF...")
+    
+    # Essayer d'abord le parsing PDF
+    parse_result = await parse_pdf_file(file)
+    
+    if parse_result.get("success"):
+        print("✅ Parsing PDF réussi")
+        text = parse_result["text"]
+    else:
+        print("❌ Parsing PDF échoué, utilisation de l'OCR...")
+        # Réinitialiser le fichier pour l'OCR
+        await file.seek(0)
+        #result = await run_paddle_ocr(file)
+        result = await ocr_this_pdf_with_doctr(file)
+        text = result["text"]
+
+    print("\nEnrichment with BDD")
+    enriched_text = enrich_text(text, known_data_dict)
+    
+    print("\nExtract Data with Gemini")
+    prompt = get_prompt("bon", entreprise_name)
+    gemini_result = await extract_gemini(enriched_text, prompt)
+    
+    # Vérifier si Gemini a retourné une erreur
+    if "error" in gemini_result:
+        return {"error": gemini_result["error"]}
+    
+    # Extraire les données JSON de la réponse Gemini
+    extracted_data = gemini_result.get("extracted_data", "{}")
+    
+    # Transform the extracted data to BSDCerfa format
+    print("\nFormat data to JSON")
+    bsd_cerfa_data = transform_document_data("bon", extracted_data, known_data_dict)
+    
+    # Extraire le perfect_extract du résultat
+    perfect_extract = bsd_cerfa_data.get("perfect_extract", False)
+    
+    return {
+        "extracted_data": extracted_data,
+        "bsd_cerfa_data": bsd_cerfa_data,
+        "perfect_extract": perfect_extract
+    }
+
+
+#=============================================BONS=============================================
+
+
+
 
 
 #=============================================OCR ONLY=============================================
-@app.post("/paddle-ocr")
-async def paddle_ocr_from_main(file: UploadFile):
-    return await run_paddle_ocr(file)
+#@app.post("/paddle-ocr")
+#async def paddle_ocr_from_main(file: UploadFile):
+#    return await run_paddle_ocr(file)
 
-"""
+
 @app.post("/extract-with-doctr")
 async def extract_raw_text_with_doctr(file: UploadFile):
     print("=" * 60)
     print("🚀 DÉBUT EXTRACTION OCR AVEC DOCTR")
-    print("=" * 60)
     
     # Mémoire avant traitement
-    print_memory_usage("AVANT TRAITEMENT")
+    #print_memory_usage("AVANT TRAITEMENT")
     
     try:
-        print("📄 Début de l'extraction OCR...")
+        #print("📄 Début de l'extraction OCR...")
         result = await ocr_this_pdf_with_doctr(file)
         
         # Mémoire après OCR
-        print_memory_usage("APRÈS OCR")
+        #print_memory_usage("APRÈS OCR")
         
         text = result["text"]
         print(f"📝 Texte extrait: {len(text)} caractères")
         
         # Nettoyage mémoire
         gc.collect()
-        print_memory_usage("APRÈS NETTOYAGE")
+        #print_memory_usage("APRÈS NETTOYAGE")
         
         # Calcul de l'utilisation mémoire
         memory = get_memory_usage()
         memory_usage_mb = memory['rss_mb']
         
         print(f"📊 UTILISATION MÉMOIRE FINALE: {memory_usage_mb:.1f}MB")
+        print("=" * 60)
         if memory_usage_mb > 502:
-            print(f"⚠️  ATTENTION: Mémoire proche de la limite (502MB) - {memory_usage_mb:.1f}MB utilisés")
+            #print(f"⚠️  ATTENTION: Mémoire proche de la limite (502MB) - {memory_usage_mb:.1f}MB utilisés")
+            pass
         else:
-            print(f"✅ Mémoire dans les limites: {memory_usage_mb:.1f}MB / 502MB")
+            #print(f"✅ Mémoire dans les limites: {memory_usage_mb:.1f}MB / 502MB")
+            pass
         
-        print("=" * 60)
-        print("✅ EXTRACTION TERMINÉE")
-        print("=" * 60)
+        #print("=" * 60)
+        #print("✅ EXTRACTION TERMINÉE")
+        #print("=" * 60)
         
         return result
         
@@ -241,7 +321,7 @@ async def extract_raw_text_with_doctr(file: UploadFile):
         print(f"❌ ERREUR lors de l'extraction: {str(e)}")
         print_memory_usage("EN CAS D'ERREUR")
         raise e
-
+"""
 @app.post("/extract-with-doctr/bon")
 async def extract_json_with_gemini_using_prompt_bon(file: UploadFile):
     print("Extract Raw Data with Doctr")
@@ -251,6 +331,20 @@ async def extract_json_with_gemini_using_prompt_bon(file: UploadFile):
     print("Extract Parsed Data with Gemini")
     parsed_info = await extract_json_with_gemini_using_prompt(text, prompt_bon)
     return parsed_info
-
 """
+
 #=============================================OCR ONLY=============================================
+
+
+#=============================================OCR DENSITY=============================================
+@app.post("/ocr-density")
+async def ocr_density(file: UploadFile):
+    ocr_json = await ocr_this_pdf_with_doctr(file)
+    results = classify_ocr_with_density(file, ocr_json, threshold=0.03)
+    text_handwritten = extract_handwritten_lines(results)
+    return {
+        "results": results,
+        "text_handwritten": text_handwritten
+    }
+#=============================================OCR DENSITY=============================================
+

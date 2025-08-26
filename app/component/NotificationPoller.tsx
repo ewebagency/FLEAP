@@ -20,7 +20,7 @@ export default function NotificationPoller() {
                 if (data.notifications && data.notifications.length > 0) {
                     //data.notifications.forEach(() => {
                         toast.success('Notification TrackDéchets reçue !', {
-                            duration: 3000,
+                            duration: 10000,
                             position: 'top-right',
                         });
                         setModalReload(prev => !prev);
@@ -31,8 +31,8 @@ export default function NotificationPoller() {
             }
         };
 
-        // Démarrer le polling toutes les 5 secondes
-        const intervalId = setInterval(pollNotifications, 1*60*1000); // 1 minute
+        // Démarrer le polling toutes les 10 minutes
+        const intervalId = setInterval(pollNotifications, 10*60*1000); // 10 minute
 
         // Cleanup à la destruction du composant
         return () => clearInterval(intervalId);

@@ -34,7 +34,6 @@ async def run_paddle_ocr(file: UploadFile):
         # Nettoyer le résultat pour la sérialisation JSON
         cleaned_result = clean_paddle_result(result)
         
-        print(f"✅ OCR terminé - {len(extracted_text)} caractères extraits")
         
         return {
             "text": extracted_text, 

@@ -1,4 +1,3 @@
-"""
 from doctr.io import DocumentFile
 from doctr.models import ocr_predictor
 import tempfile
@@ -29,9 +28,9 @@ def initialize_model():
     if not _model_initialized:
         print("Initialisation du modèle OCR DocTR...")
         if SMALL_MODEL:
-            _model = ocr_predictor('db_mobilenet_v3_large', 'crnn_mobilenet_v3_small', pretrained=True)
+            _model = ocr_predictor('db_mobilenet_v3_large', 'crnn_mobilenet_v3_small', pretrained=True, detect_orientation=True)
         else:
-            _model = ocr_predictor('db_resnet50', 'crnn_vgg16_bn', pretrained=True)
+            _model = ocr_predictor('db_resnet50', 'crnn_vgg16_bn', pretrained=True, detect_orientation=True)
         _model_initialized = True
         print("Modèle OCR DocTR initialisé avec succès")
     return _model
@@ -75,7 +74,7 @@ def get_memory_usage():
 def print_memory_usage(stage=""):
     #Affiche l'utilisation mémoire avec un label
     memory = get_memory_usage()
-    print(f"🔄 MÉMOIRE {stage}: RSS={memory['rss_mb']:.1f}MB, VMS={memory['vms_mb']:.1f}MB, {memory['percent']:.1f}%")
+    #print(f"🔄 MÉMOIRE {stage}: RSS={memory['rss_mb']:.1f}MB, VMS={memory['vms_mb']:.1f}MB, {memory['percent']:.1f}%")
 
 def group_lines(result):
     lines = []
@@ -145,4 +144,3 @@ async def ocr_this_pdf_with_doctr(file: UploadFile):
 
     return {"text": group_lines(result), "raw_result": result}
 
-"""

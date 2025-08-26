@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
 import { useSession } from '@/app/component/SessionProvider';
 import CreatableSelect from 'react-select/creatable';
+import useSWR from 'swr';
 
 interface MappingSite {
     [key: string]: string[];
@@ -21,12 +22,14 @@ interface SiretDetail {
 
 export default function SiteTab() {
     const [mappings, setMappings] = useState<MappingSite>({});
-    const [newSiret, setNewSiret] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const session = useSession();
     const [selectedGroup, setSelectedGroup] = useState<OptionType | null>(null);
-    const [siretDetails, setSiretDetails] = useState<SiretDetail[]>([]);
+    
+    // Nouveaux états pour la sélection multiple
+    const [searchSiret, setSearchSiret] = useState('');
+    const [selectedSirets, setSelectedSirets] = useState<Set<string>>(new Set());
 
     // Récupérer les groupes uniques
     const groupOptions: OptionType[] = Object.keys(mappings).map(group => ({
@@ -36,7 +39,6 @@ export default function SiteTab() {
 
     useEffect(() => {
         fetchMappings();
-        fetchSiretDetails();
     }, []);
 
     const fetchMappings = async () => {
@@ -62,18 +64,23 @@ export default function SiteTab() {
         }
     };
 
-    const fetchSiretDetails = async () => {
-        try {
-            if (!session.entreprise_id) {
-                throw new Error('ID de l\'entreprise non trouvé');
-            }
+    // Fonction pour récupérer tous les SIRET avec pagination
+    const fetchAllSiretDetails = async (entrepriseId: string): Promise<SiretDetail[]> => {
+        const allSiretDetails: SiretDetail[] = [];
+        let from = 0;
+        const limit = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
             const { data, error } = await supabase
                 .from('bsd')
                 .select('infos_json->formAPI->createFormInput->emitter')
-                .eq('entreprise_id', session.entreprise_id);
+                .eq('entreprise_id', entrepriseId)
+                .range(from, from + limit - 1);
 
             if (error) throw error;
-            if (data) {
+
+            if (data && data.length > 0) {
                 const siretDetailsArray = data
                     .map(item => {
                         const emitter = item.emitter as { 
@@ -86,12 +93,27 @@ export default function SiteTab() {
                     })
                     .filter((detail): detail is SiretDetail => detail !== null);
 
-                setSiretDetails(siretDetailsArray);
+                allSiretDetails.push(...siretDetailsArray);
+                from += limit;
+                hasMore = data.length === limit;
+            } else {
+                hasMore = false;
             }
-        } catch (err) {
-            console.error('Erreur lors du chargement des détails SIRET:', err);
         }
+
+        return allSiretDetails;
     };
+
+    // Utilisation de SWR pour la mise en cache des données SIRET
+    const { data: siretDetails = [], error: siretError, isLoading: siretLoading } = useSWR(
+        session.entreprise_id ? `siret-details-${session.entreprise_id}` : null,
+        () => fetchAllSiretDetails(session.entreprise_id!),
+        {
+            revalidateOnFocus: false,
+            revalidateOnReconnect: false,
+            dedupingInterval: 10*60*1000, // 10 minutes
+        }
+    );
 
     // Créer un mapping SIRET -> nom prépondérant
     const siretToNameMapping = useMemo(() => {
@@ -117,28 +139,70 @@ export default function SiteTab() {
         }, {} as Record<string, string>);
     }, [siretDetails]);
 
-    // Options pour le CreatableSelect des SIRET
-    const siretOptions: OptionType[] = useMemo(() => {
-        return Object.entries(siretToNameMapping).map(([siret, name]) => ({
-            label: `${siret} - ${name}`,
-            value: siret,
-        }));
-    }, [siretToNameMapping]);
+    // Obtenir tous les SIRET déjà associés
+    const associatedSirets = useMemo(() => {
+        const allAssociated = new Set<string>();
+        Object.values(mappings).forEach(sirets => {
+            sirets.forEach(siret => allAssociated.add(siret));
+        });
+        return allAssociated;
+    }, [mappings]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedGroup || !newSiret) return;
+    // Filtrer les SIRET selon la recherche et exclure ceux déjà associés
+    const availableSirets = useMemo(() => {
+        return Object.entries(siretToNameMapping)
+            .filter(([siret, name]) => {
+                const matchesSearch = searchSiret === '' || 
+                    siret.toLowerCase().includes(searchSiret.toLowerCase()) ||
+                    name.toLowerCase().includes(searchSiret.toLowerCase());
+                const notAssociated = !associatedSirets.has(siret);
+                return matchesSearch && notAssociated;
+            })
+            .map(([siret, name]) => ({ siret, name }));
+    }, [siretToNameMapping, searchSiret, associatedSirets]);
 
-        const cleanedSiret = newSiret.replace(/\s/g, '');
-        const updatedMappings = { ...mappings };
-        
-        if (!updatedMappings[selectedGroup.value]) {
-            updatedMappings[selectedGroup.value] = [];
+    // Gérer la sélection/désélection de tous les SIRET
+    const handleSelectAllSirets = (checked: boolean) => {
+        if (checked) {
+            setSelectedSirets(new Set(availableSirets.map(item => item.siret)));
+        } else {
+            setSelectedSirets(new Set());
         }
-        
-        updatedMappings[selectedGroup.value].push(cleanedSiret);
+    };
+
+    // Gérer la sélection d'un SIRET individuel
+    const handleSelectSiret = (siret: string, checked: boolean) => {
+        const newSelected = new Set(selectedSirets);
+        if (checked) {
+            newSelected.add(siret);
+        } else {
+            newSelected.delete(siret);
+        }
+        setSelectedSirets(newSelected);
+    };
+
+
+
+
+
+    // Nouvelle fonction pour ajouter plusieurs SIRET en masse
+    const handleAddMultipleSirets = async () => {
+        if (!selectedGroup || selectedSirets.size === 0) return;
 
         try {
+            const updatedMappings = { ...mappings };
+            
+            if (!updatedMappings[selectedGroup.value]) {
+                updatedMappings[selectedGroup.value] = [];
+            }
+            
+            // Ajouter tous les SIRET sélectionnés
+            const newSirets = Array.from(selectedSirets);
+            updatedMappings[selectedGroup.value] = [
+                ...updatedMappings[selectedGroup.value],
+                ...newSirets
+            ];
+
             const { error } = await supabase
                 .from('entreprise')
                 .update({ mapping_site: updatedMappings })
@@ -147,8 +211,9 @@ export default function SiteTab() {
             if (error) throw error;
             
             setMappings(updatedMappings);
-            setNewSiret('');
+            setSelectedSirets(new Set());
             setSelectedGroup(null);
+            setSearchSiret('');
         } catch (err) {
             setError('Erreur lors de la mise à jour');
             console.error(err);
@@ -179,52 +244,102 @@ export default function SiteTab() {
         }
     };
 
-    if (isLoading) return <div>Chargement...</div>;
-    if (error) return <div className="text-red-500">{error}</div>;
+    if (isLoading || siretLoading) return <div>Chargement...</div>;
+    if (error || siretError) return <div className="text-red-500">{error || 'Erreur lors du chargement des données SIRET'}</div>;
 
     return (
         <div className="flex justify-center">
             <div className="bg-white rounded-lg shadow-lg p-8 w-[80%]">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">Paramètres de site</h2>
+                <h2 className="text-2xl font-bold text-gray-800 mb-6">Grouper les sites</h2>
                 
-                {/* Formulaire d'ajout */}
-                <form onSubmit={handleSubmit} className="mb-6 space-y-4 px-10">
-                    <div className="flex gap-4">
-                        <div className="flex-1">
+                {/* Section de sélection multiple */}
+                <div className="mb-8 px-10">
+                    
+                    <div className="grid grid-cols-2 gap-6">
+                        {/* Colonne gauche - Sélection des SIRET */}
+                        <div className="space-y-4">
+                            <h4 className="text-md font-medium text-gray-700">Sélectionner des sites :</h4>
+                            
+                            {/* Barre de recherche */}
+                            <input
+                                type="text"
+                                placeholder="Rechercher dans les sites..."
+                                value={searchSiret}
+                                onChange={(e) => setSearchSiret(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+
+                            {/* Checkbox "Sélectionner tout" */}
+                            {availableSirets.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedSirets.size === availableSirets.length}
+                                        onChange={(e) => handleSelectAllSirets(e.target.checked)}
+                                        className="form-checkbox h-4 w-4 text-blue-600"
+                                    />
+                                    <label className="text-sm text-gray-700">
+                                        Sélectionner tout ({availableSirets.length})
+                                    </label>
+                                </div>
+                            )}
+
+                            {/* Liste des SIRET disponibles */}
+                            <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-md">
+                                {availableSirets.length === 0 ? (
+                                    <div className="p-4 text-gray-500 text-center">
+                                        {searchSiret ? 'Aucun site trouvé' : 'Aucun site disponible'}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1 p-2">
+                                        {availableSirets.map(({ siret, name }) => (
+                                            <div key={siret} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedSirets.has(siret)}
+                                                    onChange={(e) => handleSelectSiret(siret, e.target.checked)}
+                                                    className="form-checkbox h-4 w-4 text-blue-600"
+                                                />
+                                                <div className="flex-1">
+                                                    <div className="text-sm font-medium text-gray-700">{siret}</div>
+                                                    <div className="text-xs text-gray-500">{name}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Colonne droite - Sélection du groupe et action */}
+                        <div className="space-y-4">
+                            <h4 className="text-md font-medium text-gray-700">Groupe de destination :</h4>
+                            
                             <CreatableSelect
                                 isClearable
                                 value={selectedGroup}
                                 onChange={(newValue) => setSelectedGroup(newValue)}
                                 options={groupOptions}
-                                placeholder="Sélectionner ou créer"
+                                placeholder="Sélectionner ou créer un groupe"
                                 className="flex-1"
                                 classNamePrefix="select"
                                 formatCreateLabel={(inputValue) => `Créer "${inputValue}"`}
                                 noOptionsMessage={() => "Aucun groupe trouvé"}
                             />
+                            
+                            {selectedGroup && selectedSirets.size > 0 && (
+                                <button
+                                    onClick={handleAddMultipleSirets}
+                                    className="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+                                >
+                                    Ajouter {selectedSirets.size} site(s) à &quot;{selectedGroup.label}&quot;
+                                </button>
+                            )}
                         </div>
-                        <div className="flex-1">
-                            <CreatableSelect
-                                isClearable
-                                value={newSiret ? { label: `${newSiret} - ${siretToNameMapping[newSiret] || ''}`, value: newSiret } : null}
-                                onChange={(newValue) => setNewSiret(newValue ? newValue.value : '')}
-                                options={siretOptions}
-                                placeholder="Sélectionner ou saisir un SIRET"
-                                className="flex-1"
-                                classNamePrefix="select"
-                                formatCreateLabel={(inputValue) => `Ajouter le SIRET "${inputValue}"`}
-                                noOptionsMessage={() => "Aucun SIRET trouvé"}
-                            />
-                        </div>
-                        <button
-                            type="submit"
-                            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                            disabled={!selectedGroup || !newSiret}
-                        >
-                            Ajouter
-                        </button>
                     </div>
-                </form>
+                </div>
+
+
 
                 {/* Liste groupée par type de site */}
                 <div className="space-y-3 px-10">

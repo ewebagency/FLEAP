@@ -8,6 +8,7 @@ import { useImport } from './ImportContext';
 import { toast } from 'react-hot-toast';
 import { cofounders_user_id } from '@/app/component/SideBar';
 import CofounderStatusFilter from './CofounderStatusFilter';
+import ExtractBonProcessor from './JobProcessor/ExtractBonProcessor';
 
 
 const TableImportedFilesFunctional: React.FC = () => {
@@ -102,6 +103,20 @@ const TableImportedFilesFunctional: React.FC = () => {
             : pdfInfos.filter(pdf => pdf.document_type === documentTypeFilter)
         : pdfInfos;
 
+    // Fonction helper pour obtenir les statuts correspondant au filtre
+    const getStatusesForFilter = (filter: string | null): string[] => {
+        switch (filter) {
+            case 'read':
+                return ['extracted', 'splitted_extracted', 'read'];
+            case 'unread':
+                return ['unread', 'splitted'];
+            case 'linked':
+                return ['linked'];
+            default:
+                return [];
+        }
+    };
+
     // Calculer le nombre de documents filtrés par statut (pour les cofounders)
     const getFilteredDocumentsCount = () => {
         if (!isCofounder || !statusFilter) return 0;
@@ -113,13 +128,15 @@ const TableImportedFilesFunctional: React.FC = () => {
                 : pdfInfos.filter(pdf => pdf.document_type === documentTypeFilter)
             : pdfInfos;
         
-        // Puis filtrer par statut
-        return tempFiltered.filter(pdf => pdf.status === statusFilter).length;
+        // Puis filtrer par statut avec les statuts multiples
+        const statusesToInclude = getStatusesForFilter(statusFilter);
+        return tempFiltered.filter(pdf => statusesToInclude.includes(pdf.status)).length;
     };
 
     // Filter pdfInfos based on statusFilter (only for cofounders)
     if (isCofounder && statusFilter) {
-        filteredPdfInfos = filteredPdfInfos.filter(pdf => pdf.status === statusFilter);
+        const statusesToInclude = getStatusesForFilter(statusFilter);
+        filteredPdfInfos = filteredPdfInfos.filter(pdf => statusesToInclude.includes(pdf.status));
     }
 
     if (loading && !entreprise_id) {
@@ -148,12 +165,18 @@ const TableImportedFilesFunctional: React.FC = () => {
 
     return (
         <div>
+            <div className="flex justify-between items-center w-full"> 
             {/* Afficher le filtre de statut pour les cofounders avec le nombre de documents filtrés */}
-            <CofounderStatusFilter 
-                totalDocuments={pdfInfos.length} 
-                filteredDocuments={getFilteredDocumentsCount()}
-            />
-            
+                <CofounderStatusFilter 
+                    totalDocuments={pdfInfos.length} 
+                    filteredDocuments={getFilteredDocumentsCount()}
+                />
+                <div className="flex justify-end">
+                    {cofounders_user_id(user_id) &&                    
+                        <ExtractBonProcessor />
+                    }            
+                </div>
+            </div>
             <TableImportedFiles 
                 pdfInfos={filteredPdfInfos} 
                 onDelete={handleDelete}

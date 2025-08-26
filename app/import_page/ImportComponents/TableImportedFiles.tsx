@@ -9,6 +9,8 @@ import { useFilterContext, Site as FilterSite } from '@/app/FilterContext';
 import ExtractBSD from './ExtractBSD/ExtractBSD';
 import LinkBSD from './ExtractBSD/LinkBSD';
 import ButtonExtractFacture from './NewExtractFacture/ButtonExtractFacture';
+import ExtractBon from './ExtractBon/ExtractBon';
+import LinkBon from './ExtractBon/LinkBon';
 
 export interface PdfInfo {
     status: string;
@@ -20,6 +22,7 @@ export interface PdfInfo {
     url?: string;
     file_size: number;
     document_type?: string;
+    date_extracted?: string;
     site_siret_plus?: string[];
     provider?: ProviderJSON;
 }
@@ -142,6 +145,15 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [fileToDelete, setFileToDelete] = useState<PdfInfo | null>(null);
     const [bsdCountToDelete, setBsdCountToDelete] = useState(0);
+
+    // État pour la ligne sélectionnée
+    const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
+
+    // Fonction pour gérer le clic sur une ligne
+    const handleRowClick = (event: React.MouseEvent, pdfId: number) => {
+        // Mettre à jour la ligne sélectionnée
+        setSelectedRowId(pdfId);
+    };
 
     // Filtrer les pdfInfos en fonction des sites cochés
     const filteredPdfInfos = pdfInfos.filter(pdf => {
@@ -283,6 +295,20 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                 }
             }
 
+            // Si c'est un bon de livraison, supprimer d'abord les enregistrements dans bon_pdf
+            if (pdf.document_type === 'bon') {
+                const { error: bonError } = await supabase
+                    .from('bon_pdf')
+                    .delete()
+                    .eq('pdf_id', pdf.id);
+
+                if (bonError) {
+                    console.error('Erreur lors de la suppression des données bon:', bonError);
+                    toast.error('Erreur lors de la suppression des données bon');
+                    return;
+                }
+            }
+
             // Ensuite supprimer le fichier PDF
             onDelete(pdf.name_pdf_in_bucket, pdf.id);
             setOpenMenuId(null);
@@ -342,16 +368,20 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
             <table style={{ width: '100%', borderCollapse: 'collapse' }} className="table-fixed">
                 <thead>
                     <tr style={{ backgroundColor: 'white' }}>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '5%', textAlign: 'left', paddingLeft: '0' }}
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '3%', textAlign: 'left', paddingLeft: '0' }}
                             className="text-xs font-normal text-gray-500 mb-0">Type</th>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '13%', textAlign: 'left', paddingLeft: '23px' }}
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '6%', textAlign: 'left', paddingLeft: '23px' }}
                             className="text-xs font-normal text-gray-500 mb-0">Statut</th>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '25px' }}
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '17%', textAlign: 'left', paddingLeft: '25px' }}
                             className="text-xs font-normal text-gray-500 mb-0">Nom</th>
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '12%', textAlign: 'left' }}
-                            className="text-xs font-normal text-gray-500 mb-0">Date</th>                            
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '14%', textAlign: 'left' }}
+                            className="text-xs font-normal text-gray-500 mb-0">Date d&apos;import</th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '3%', textAlign: 'left' }}
+                            className="text-xs font-normal text-gray-500 mb-0"></th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '10%', textAlign: 'left' }}
                             className="text-xs font-normal text-gray-500 mb-0">Document</th>
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '8%', textAlign: 'left' }}
+                            className="text-xs font-normal text-gray-500 mb-0">Date extraite</th>                            
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '16%', textAlign: 'left' }}
                             className="text-xs font-normal text-gray-500 mb-0">Site</th>
                         {cofounders_permission(user_id) && (
@@ -365,9 +395,13 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                 <tbody>
                     {[...filteredPdfInfos]
                         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                        .slice(0, 10*numberPage)
-                        .map((pdf) => (
-                        <tr key={pdf.id} style={{ borderBottom: '1px solid #ddd' }}>
+                        .slice(0, 20*numberPage)
+                        .map((pdf, index) => (
+                        <tr 
+                            key={pdf.id} 
+                            className={`border-b border-gray-200 cursor-pointer ${index %2 == 0 ? 'bg-gray-100' : 'bg-white'} ${selectedRowId === pdf.id ? 'bg-blue-200' : ''}`}
+                            onClick={(e) => handleRowClick(e, pdf.id)}
+                        >
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle mt-1">
                                 {pdf.document_type === 'excel' ? (
                                     <ExcelIcon />
@@ -382,11 +416,15 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                     </span>
                                 ) : pdf.status === 'linked' ? (
                                     <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
-                                        Document affilié
+                                        Affilié
                                     </span>
-                                ) : (
+                                ) : pdf.status === 'splitted' ? (
+                                    <span className="px-2 py-1 rounded-full font-semibold text-gray-600 text-xs">
+                                        Divisé
+                                    </span>
+                                ) : ( //extracted OU splitted_extracted
                                     <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
-                                        Extraction terminée
+                                        Extrait
                                     </span>
                                 )}
                             </td>
@@ -401,7 +439,10 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                         {new Date(pdf.created_at).toLocaleDateString('fr-FR')}
                                     </div>
                                 </div>
-                            </td>
+                            </td>   
+                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                                <p></p>
+                            </td>                                                  
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 {pdf.document_type !== 'excel' && (
                                     <SelectDocumentType 
@@ -410,6 +451,13 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                     />
                                 )}
                             </td>
+                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                                <div className="flex justify-start items-center space-x-1">
+                                    <div className="text-xs font-medium">
+                                        {pdf.date_extracted ? new Date(pdf.date_extracted).toLocaleDateString('fr-FR') : ''}
+                                    </div>
+                                </div>
+                            </td>                               
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                 <SelectSite 
                                     entreprise_id={entreprise_id} 
@@ -490,6 +538,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                         <ExtractBSD 
                                             pdf_id={pdf.id} 
                                             pdf_path={pdf.name_pdf_in_bucket}
+                                            pdf_status={pdf.status}
                                             onExtract={(pdfId: number, newStatus: string) => {
                                                 if (onPdfStatusUpdate) {
                                                     onPdfStatusUpdate(pdfId, newStatus);
@@ -497,7 +546,20 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             }}
                                         />
                                     }
-                                    {cofounders_permission(user_id) && pdf.document_type === 'bsd' && pdf.status === 'read' &&
+                                    {cofounders_permission(user_id) && pdf.document_type === 'bon' && 
+                                        <ExtractBon 
+                                            pdf_id={pdf.id} 
+                                            pdf_path={pdf.name_pdf_in_bucket}
+                                            pdf_status={pdf.status}
+                                            onExtract={(pdfId: number, newStatus: string) => {
+                                                if (onPdfStatusUpdate) {
+                                                    onPdfStatusUpdate(pdfId, newStatus);
+                                                }
+                                            }}
+                                        />
+                                    }
+                                    {cofounders_permission(user_id) && ['read','extracted','splitted_extracted'].includes(pdf.status) && (
+                                        pdf.document_type === 'bsd' &&
                                         <LinkBSD
                                             pdf_id={pdf.id}
                                             onLink={(bsd_id: string) => {
@@ -507,7 +569,25 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                                 }
                                             }}
                                         />
-                                    }
+                                    )}
+                                    {pdf.document_type === 'bon' && ['read','extracted','splitted_extracted'].includes(pdf.status) && (
+                                    <LinkBon
+                                        pdf_id={pdf.id}
+                                        onLink={(bsd_id: string) => {
+                                            // Mettre à jour localement le statut du PDF
+                                            if (onPdfStatusUpdate) {
+                                                onPdfStatusUpdate(pdf.id, 'linked');
+                                            }
+                                        }}
+                                        onCreate={(bsd_id: string) => {
+                                            // Mettre à jour localement le statut du PDF
+                                            if (onPdfStatusUpdate) {
+                                                onPdfStatusUpdate(pdf.id, 'linked');
+                                            }
+                                        }}
+                                    />
+                                    )}
+                                    <p className="text-xs text-gray-500">{index +1}</p>
                                 </div>
                             </td>
                         </tr>
@@ -520,7 +600,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                         className="px-3 py-2 text-sm text-gray-700 bg-[var(--green-medium)] hover:bg-[var(--green-dark)] rounded-md border border-gray-300 text-white"
                         onClick={() => setNumberPage(numberPage + 1)}
                     >
-                        Charger plus
+                        Charger plus ({Math.max(filteredPdfInfos.length - 20*numberPage, 0)})
                     </button>
                 ) : (
                     <div className="text-xs">Les {filteredPdfInfos.length} fichiers ont été chargés</div>
@@ -676,7 +756,7 @@ const SelectDocumentType: React.FC<{ pdf_id: number; initialType?: string }> = (
 
     return (
         <select 
-            className="border rounded p-1 text-xs w-full max-w-[100px]"
+            className="border rounded p-1 text-xs w-full max-w-[80px]"
             value={documentTypes.some(dt => dt.id === selectedType) ? selectedType : 'autre'}
             onChange={(e) => handleSelectType(e.target.value)}
         >

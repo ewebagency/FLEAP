@@ -14,6 +14,7 @@ import SiteTab from './components/Site/SiteTab';
 //import PermissionsTab from './components/Permissions/PermissionsTab';
 import ParametrageTab from './components/ParametrageTable/ParametrageTab';
 import AutocompletionTab from './components/TableAutocompletion/AutocompletionTab';
+import FormatDataTab from './components/ClusterParams/FormatDataTab';
 
 export default function UserSettings() {
     const router = useRouter();
@@ -83,6 +84,11 @@ export default function UserSettings() {
                             onClick={() => handleTabClick('tab_filiere_nom')}>
                             Filière par nom
                             </a>
+                            <a role="tab" 
+                                className={`tab border-0 ${activeTab === 'tab_format_data' ? 'border-b-4 border-green-500' : ''}`}
+                                onClick={() => handleTabClick('tab_format_data')}>
+                                Paramétrage format de site
+                            </a>                            
                         </div>
                     )}
                     {/*<a role="tab" 
@@ -109,6 +115,7 @@ export default function UserSettings() {
                 {/*activeTab === 'tab_permissions' && <PermissionsTab />*/}
                 {activeTab === 'tab_parametrage' && <ParametrageTab />}
                 {activeTab === 'tab_autocompletion' && <AutocompletionTab />}
+                {activeTab === 'tab_format_data' && <FormatDataTab />}
             </div>
         </div>
     );

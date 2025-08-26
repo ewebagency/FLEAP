@@ -19,7 +19,8 @@ export default function ButtonReportAMO() {
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [includeFinancial, setIncludeFinancial] = useState(true);
-    const { bsds, mappingTable } = useAnalysis();
+    const [searchTerm, setSearchTerm] = useState('');
+    const { bsds, mappingTable, filieres_ou_prestataires } = useAnalysis();
     const { entreprise_name } = useSession();
 
     const handleGenerateReport = async () => {
@@ -33,7 +34,12 @@ export default function ButtonReportAMO() {
                 selectedSites.has(bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret || '')
             );
 
-            // 2. Créer un seul ReportGenerator avec tous les BSDs filtrés
+            // 2. Préparer le mapping selon le mode de segmentation
+            const mappingForReport = filieres_ou_prestataires.nom === 'filiere_nom'
+                ? mappingTable.filter((m): m is { nom: string; filiere: string } => 'nom' in m && typeof m.nom === 'string')
+                : mappingTable.filter((m): m is { ced: string; filiere: string } => 'ced' in m && typeof m.ced === 'string');
+
+            // 3. Créer un seul ReportGenerator avec tous les BSDs filtrés
             const reportGenerator = new ReportGenerator(
                 filteredBsds,
                 {
@@ -46,7 +52,8 @@ export default function ButtonReportAMO() {
                         : undefined
                 },
                 entreprise_name,
-                mappingTable.filter((m): m is { ced: string; filiere: string } => typeof m.ced === 'string')
+                mappingForReport,
+                filieres_ou_prestataires.nom
             );
 
             // 3. Générer les données du rapport
@@ -125,6 +132,13 @@ export default function ButtonReportAMO() {
             };
         });
 
+    // Filtrer les sites selon le terme de recherche
+    const filteredSites = sites.filter(site => {
+        const searchLower = searchTerm.toLowerCase();
+        return site.givenName.toLowerCase().includes(searchLower) || 
+               site.orgId.toLowerCase().includes(searchLower);
+    });
+
     return (
         <div className="mb-8">
             <button
@@ -139,21 +153,39 @@ export default function ButtonReportAMO() {
                     <div className="relative top-20 mx-auto p-5 border w-1/3 shadow-lg rounded-md bg-white">
                         <div className="mt-3">
                             <h3 className="text-lg font-medium text-gray-900 mb-4">Sélectionner les sites</h3>
+                            
+                            {/* Barre de recherche */}
+                            <div className="mb-4">
+                                <input
+                                    type="text"
+                                    placeholder="Rechercher par nom ou SIRET..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                            </div>
+
                             <div className="mb-4 max-h-60 overflow-y-auto">
-                                {sites.map((site) => (
-                                    <div key={site.orgId} className="flex items-center mb-2">
-                                        <input
-                                            type="checkbox"
-                                            id={site.orgId}
-                                            checked={selectedSites.has(site.orgId)}
-                                            onChange={() => toggleSite(site.orgId)}
-                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                        />
-                                        <label htmlFor={site.orgId} className="ml-2 block text-sm text-gray-900">
-                                            {site.givenName} - {site.orgId}
-                                        </label>
+                                {filteredSites.length > 0 ? (
+                                    filteredSites.map((site) => (
+                                        <div key={site.orgId} className="flex items-center mb-2">
+                                            <input
+                                                type="checkbox"
+                                                id={site.orgId}
+                                                checked={selectedSites.has(site.orgId)}
+                                                onChange={() => toggleSite(site.orgId)}
+                                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                            />
+                                            <label htmlFor={site.orgId} className="ml-2 block text-sm text-gray-900">
+                                                {site.givenName} - {site.orgId}
+                                            </label>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-gray-500 text-center py-4">
+                                        {searchTerm ? 'Aucun site trouvé pour cette recherche' : 'Aucun site disponible'}
                                     </div>
-                                ))}
+                                )}
                             </div>
                             <div className="mt-2 mb-6">
                                 <div className="flex justify-end items-center gap-2">

@@ -108,13 +108,15 @@ export class ReportGenerator {
     private bsds: BSD[];
     private site: Site;
     private entrepriseName: string;
-    private mappingTable: Array<{ ced: string; filiere: string }>;
+    private mappingTable: Array<{ ced: string; filiere: string } | { nom: string; filiere: string }>;
+    private segmentationMode: 'filiere_nom' | 'filiere';
 
-    constructor(bsds: BSD[], site: Site, entrepriseName: string, mappingTable: Array<{ ced: string; filiere: string }>) {
+    constructor(bsds: BSD[], site: Site, entrepriseName: string, mappingTable: Array<{ ced: string; filiere: string } | { nom: string; filiere: string }>, segmentationMode: 'filiere_nom' | 'filiere') {
         this.bsds = bsds;
         this.site = site;
         this.entrepriseName = entrepriseName;
         this.mappingTable = mappingTable;
+        this.segmentationMode = segmentationMode;
     }
 
     private getDateRange(): { firstDate: Date; lastDate: Date } {
@@ -128,21 +130,39 @@ export class ReportGenerator {
         };
     }
 
-    private getFiliereName(wasteCode: string | undefined): string {
-        if (!wasteCode) return 'Autres';
-        
-        // Nettoyer le code CED
-        const cleanCode = wasteCode.replace(/[^\d]/g, '');
-        
-        // Chercher dans la table de mapping
-        const mapping = this.mappingTable.find(m => m.ced === cleanCode);
-        if (mapping) {
-            return mapping.filiere;
-        }
+    private getFiliereName(wasteCode: string | undefined, wasteName?: string): string {
+        if (this.segmentationMode === 'filiere_nom') {
+            // Mode filiere_nom : utiliser le nom du déchet
+            if (!wasteName) return 'Autres';
+            
+            // Chercher dans la table de mapping par nom
+            const mapping = this.mappingTable.find(m => 
+                'nom' in m && m.nom && typeof m.nom === 'string' && m.nom.trim() === wasteName.trim()
+            );
+            if (mapping) {
+                return mapping.filiere;
+            }
+            return 'Autres';
+        } else {
+            // Mode filiere : utiliser le code CED (logique existante)
+            if (!wasteCode) return 'Autres';
+            
+            // Nettoyer le code CED
+            const cleanCode = wasteCode.replace(/[^\d]/g, '');
+            
+            // Chercher dans la table de mapping
+            const mapping = this.mappingTable.find(m => 
+                'ced' in m && m.ced && m.ced.replace(/[^\d]/g, '') === cleanCode
+            );
+            if (mapping) {
+                return mapping.filiere;
+            }
 
-        // Si pas trouvé dans la table de mapping, utiliser getFiliere
-        const filiere = getFiliere(wasteCode, this.mappingTable);
-        return filiere || 'Autres';
+            // Si pas trouvé dans la table de mapping, utiliser getFiliere
+            const cedMappingTable = this.mappingTable.filter(m => 'ced' in m && m.ced) as Array<{ced: string, filiere: string}>;
+            const filiere = getFiliere(wasteCode, cedMappingTable);
+            return filiere || 'Autres';
+        }
     }
 
     private getFiliereColor(filiereName: string): string {
@@ -158,7 +178,8 @@ export class ReportGenerator {
         const allFilieres = new Set<string>();
         this.bsds.forEach(bsd => {
             const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
-            const filiere = this.getFiliereName(wasteCode);
+            const wasteName = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.name;
+            const filiere = this.getFiliereName(wasteCode, wasteName);
             allFilieres.add(filiere);
         });
 
@@ -196,7 +217,8 @@ export class ReportGenerator {
 
         this.bsds.forEach(bsd => {
             const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
-            const filiereName = this.getFiliereName(wasteCode);
+            const wasteName = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.name;
+            const filiereName = this.getFiliereName(wasteCode, wasteName);
             const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
             // Utiliser takenOverAt si disponible, sinon created_at (même logique que getDateRange et AnalOpMainChart)
             const date = new Date(bsd.infos_json?.formAPI?.createFormInput?.takenOverAt || bsd.created_at);
@@ -481,7 +503,7 @@ export class ReportGenerator {
                 
                 // Déterminer la filière
                 const mapping = this.mappingTable.find(m => 
-                    m.ced.replaceAll(' ', '').replace('*', '').trim() === cleanedCed
+                    'ced' in m && m.ced && m.ced.replaceAll(' ', '').replace('*', '').trim() === cleanedCed
                 );
                 const filiere = mapping?.filiere || 'Autres';
                 
@@ -563,7 +585,8 @@ export class ReportGenerator {
             if (date < firstDate || date > lastDate) return;
 
             const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
-            const filiereName = this.getFiliereName(wasteCode);
+            const wasteName = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.name;
+            const filiereName = this.getFiliereName(wasteCode, wasteName);
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
                            bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
 
@@ -944,7 +967,7 @@ export class ReportGenerator {
                 
                 // Déterminer la filière
                 const mapping = this.mappingTable.find(m => 
-                    m.ced.replaceAll(' ', '').replace('*', '').trim() === cleanedCed
+                    'ced' in m && m.ced && m.ced.replaceAll(' ', '').replace('*', '').trim() === cleanedCed
                 );
                 const filiere = mapping?.filiere || 'Autres';
                 
@@ -1148,6 +1171,8 @@ export class ReportGenerator {
         let processedBsdsCount = 0;
 
         this.bsds.forEach(bsd => {
+            const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
+            const wasteName = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.name;
             const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
             
             if (!recipient) return;
@@ -1216,7 +1241,8 @@ export class ReportGenerator {
         let nonTriQuantity = 0;
         this.bsds.forEach(bsd => {
             const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
-            const filiereName = this.getFiliereName(wasteCode);
+            const wasteName = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.name;
+            const filiereName = this.getFiliereName(wasteCode, wasteName);
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
                            bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
             

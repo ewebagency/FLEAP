@@ -1,11 +1,12 @@
+ #ajouter le nom de l'entreprise en dynamique si besoin en parametre : (Attention MICHEL SAS et son adresse c'est l'entreprise cliente, rien à voir avec le site)
 prompt_bon = """
 
     Tu es un expert en bon de pesée de déchets. Tu es en charge d'extraire les informations du bon de pesée de déchets.
     Détecte :
-    La date, le nom du déchet, le poids net du déchets, le code ced si possible.
+    La date, le nom du déchet, le poids net du déchets (en tonne, fait la conversion si besoin), le code ced si possible, le code de traitement (D/R) si possible.
     Le numéro de bon.
-    Le nom et siret du prestataire qui reçoit le déchet.
-    Le nom du site et l'adresse d'où provient le déchet.
+    Le nom du prestataire qui reçoit le déchet.
+    Le nom du site, le lieu d'origine du déchet.
 
     Utilise tous les stratèges de détection possible.
     N'invente pas d'informations.
@@ -16,13 +17,11 @@ prompt_bon = """
         "nom_dechet": "nom_dechet",
         "poids_net": "poids_net",
         "code_ced": "code_ced",
+        "code_traitement": "code_traitement",
         "num_bon": "num_bon",
         "nom_prestataire": "nom_prestataire",
-        "siret_prestataire": "siret_prestataire",
         "nom_site": "nom_site",
-        "adresse_site": "adresse_site",
     }
-
 
     Voici le texte brut du document PDF qui a été parsé par OCR:
 """

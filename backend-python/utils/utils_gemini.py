@@ -21,6 +21,7 @@ async def extract_gemini(text: str, prompt: str) -> Dict[str, Any]:
         }
 
         prompt_to_send = prompt + "\n\n" + text
+        print("====prompt envoyé à gemini=====", prompt_to_send)
         payload = {
             "contents": [{
                 "parts": [{
@@ -59,15 +60,29 @@ def clean_date(date_str: str) -> str:
     if not date_str or date_str == "null":
         return None
     
-    # Supprimer les espaces et les caractères non numériques
-    date_str = re.sub(r'[^\d/]', '', date_str)
+    # Nettoyer la chaîne de date
+    date_str = str(date_str).strip()
     
-    try:
-        # Essayer de parser la date
-        date_obj = datetime.strptime(date_str, '%d/%m/%Y')
-        return date_obj.strftime('%Y-%m-%d')
-    except ValueError:
-        return date_str
+    
+    # Essayer différents formats de date
+    date_formats = [
+        '%Y-%m-%d',      # 2025-07-17
+        '%d/%m/%Y',      # 17/07/2025
+        '%d-%m-%Y',      # 17-07-2025
+        '%Y/%m/%d',      # 2025/07/17
+    ]
+    
+    for date_format in date_formats:
+        try:
+            date_obj = datetime.strptime(date_str, date_format)
+            result = date_obj.strftime('%Y-%m-%d')  # Standardiser en YYYY-MM-DD
+            return result
+        except ValueError:
+            continue
+    
+    # Si aucun format ne fonctionne, retourner la date originale
+    # print(f"❌ clean_date: aucun format reconnu, retourne original: '{date_str}'")
+    return date_str
 
 def clean_gemini_response(text: str) -> str:
     # Supprimer les backticks et le mot "json" s'ils sont présents

@@ -8,6 +8,7 @@ import { useSession } from '@/app/component/SessionProvider';
 interface OCRThisBSDProps {
     pdf_id: number;
     pdf_path: string;
+    pdf_status?: string;
     onDataExtracted?: (data: Partial<BSDCerfa>) => void;
 }
 
@@ -101,7 +102,7 @@ const fetchKnownData = async (entreprise_id: string): Promise<KnownData> => {
     };
 };
 
-const OCRThisBSD = ({ pdf_id, pdf_path, onDataExtracted }: OCRThisBSDProps) => {
+const OCRThisBSD = ({ pdf_id, pdf_path, pdf_status, onDataExtracted }: OCRThisBSDProps) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingPaddle, setIsLoadingPaddle] = useState(false);
     const { entreprise_id } = useSession();
@@ -138,7 +139,7 @@ const OCRThisBSD = ({ pdf_id, pdf_path, onDataExtracted }: OCRThisBSDProps) => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ pdf_url: signedUrlData.signedUrl, known_data: known_data }),
+                body: JSON.stringify({ pdf_url: signedUrlData.signedUrl }),
             });
 
             if (!response.ok) {
@@ -157,7 +158,6 @@ const OCRThisBSD = ({ pdf_id, pdf_path, onDataExtracted }: OCRThisBSDProps) => {
                 onDataExtracted(extractedData);
             }
 
-            toast.success('Données extraites avec succès');
         } catch (error) {
             console.error('Error in OCR process:', error);
             toast.error(error instanceof Error ? error.message : 'Erreur lors de l\'extraction des données');
@@ -191,17 +191,21 @@ const OCRThisBSD = ({ pdf_id, pdf_path, onDataExtracted }: OCRThisBSDProps) => {
             const pdfBlob = await pdfResponse.blob();
             const pdfFile = new File([pdfBlob], 'document.pdf', { type: 'application/pdf' });
 
-            // Create FormData for file upload
+            console.log("known_data", known_data)
+            
+            // Create FormData for file upload and known_data
             const formData = new FormData();
             formData.append('file', pdfFile);
-
-            // Call Python backend to process PDF with PaddleOCR
-            const response = await fetch(`${process.env.NEXT_PUBLIC_SERVER_PYTHON}/extract-bsd-with-paddle-ocr`, {
+            formData.append('known_data', JSON.stringify(known_data));
+            
+            // Ajouter le statut du PDF s'il est disponible
+            if (pdf_status) {
+                formData.append('pdf_status', pdf_status);
+            }
+            
+            const response = await fetch(`${process.env.NEXT_PUBLIC_SERVER_PYTHON}/ocr-enrich-bon`, {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'known_data': JSON.stringify(known_data)
-                }
             });
 
             if (!response.ok) {
@@ -215,16 +219,40 @@ const OCRThisBSD = ({ pdf_id, pdf_path, onDataExtracted }: OCRThisBSDProps) => {
                 throw new Error(data.error);
             }
 
-            // Parse the extracted data
-            const extractedData = JSON.parse(data.extracted_data);
-            console.log('Extracted data with PaddleOCR:', extractedData);
+            // Get the BSDCerfa data directly
+            const bsdCerfaData = data.bsd_cerfa_data;
+            const perfect_extract = data.perfect_extract;
+            console.log('BSDCerfa data:', bsdCerfaData);
+            console.log('Extracted data:', data.extracted_data);
+            console.log('Perfect extract:', perfect_extract);
 
-            // Update parent component with extracted data
+            // Update parent component with BSDCerfa data
             if (onDataExtracted) {
-                onDataExtracted(extractedData);
+                onDataExtracted(bsdCerfaData);
             }
 
-            toast.success('Données extraites avec PaddleOCR avec succès');
+            // Afficher un toast différent selon le perfect_extract
+            if (perfect_extract) {
+                toast.success('🎯 Extraction parfaite ! Toutes les données ont été correctement identifiées et validées.', {
+                    duration: 5000,
+                    style: {
+                        background: '#10b981',
+                        color: 'white',
+                        fontSize: '16px',
+                        fontWeight: 'bold'
+                    }
+                });
+            } else {
+                toast('⚠️ Extraction partielle. Certaines données n\'ont pas pu être validées automatiquement. Vérifiez les informations extraites.', {
+                    duration: 5000,
+                    style: {
+                        background: '#f59e0b',
+                        color: 'white',
+                        fontSize: '16px',
+                        fontWeight: 'bold'
+                    }
+                });
+            }
         } catch (error) {
             console.error('Error in PaddleOCR process:', error);
             toast.error(error instanceof Error ? error.message : 'Erreur lors de l\'extraction des données avec PaddleOCR');

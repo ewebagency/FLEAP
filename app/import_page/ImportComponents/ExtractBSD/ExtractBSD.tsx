@@ -89,7 +89,7 @@ export interface BSDCerfa {
     };
 }
 
-const ExtractBSD = ({ pdf_id, pdf_path, onExtract }: { pdf_id: number, pdf_path: string, onExtract?: (pdfId: number, newStatus: string) => void }) => {
+const ExtractBSD = ({ pdf_id, pdf_path, pdf_status, onExtract }: { pdf_id: number, pdf_path: string, pdf_status?: string, onExtract?: (pdfId: number, newStatus: string) => void }) => {
     const [isOpen, setIsOpen] = useState(false);
     const {entreprise_id, user_id} = useSession();
     const [existingData, setExistingData] = useState<Partial<BSDCerfa> | null>(null);
@@ -511,6 +511,7 @@ const ExtractBSD = ({ pdf_id, pdf_path, onExtract }: { pdf_id: number, pdf_path:
                                 <OCRThisBSD 
                                     pdf_id={pdf_id}
                                     pdf_path={pdf_path}
+                                    pdf_status={pdf_status}
                                     onDataExtracted={(data: Partial<BSDCerfa>)=>setExistingData(data)}
                                 />       
                                 <SplitBsdPDF pdf_id={pdf_id} pdf_path={pdf_path} onClose={()=>setIsOpen(false)}/>                 

@@ -251,7 +251,7 @@ const standard_with_classic = async (data_excel: ExcelData, user_id: string, ent
   // Extraire les données standardisées (en commençant à partir de la ligne 1, après le header)
   const allStandardizedData: StandardizedData[] = [];
   
-  for (let i = 1; i < rows.length; i++) {
+  for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const standardizedRow: StandardizedData = {};
     

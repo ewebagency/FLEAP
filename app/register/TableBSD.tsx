@@ -19,6 +19,7 @@ import { CommonBSD } from "./FiltreFunctionnal";
 import ValidateCollecte from "./DemandeCollecteNew/ValidateCollecte";
 import { handleCancelCollecte } from "./DemandeCollecteNew/DemandeFonctions";
 import { useBSDs } from './BSDsProvider';
+import { handleDeleteLinkBon_PDF } from './RegisterComponents/Modal/DisplayModifyOnTable/deleteLinkBon_PDF';
 
 
 const cleanCED = (ced: string): string => {
@@ -518,10 +519,10 @@ const TableBSD = () => {
                     //setModalReload(prev => !prev);
                 }
             } else {
-                // Récupérer d'abord les informations du BSD pour avoir l'URL de la photo
+                // Récupérer d'abord les informations du BSD pour avoir l'URL de la photo et vérifier s'il est lié à un bon PDF ou BSD PDF
                 const { data: bsd, error: bsdError } = await supabase
                     .from('bsd')
-                    .select('photo')
+                    .select('photo, bon_extracted_then_linked_id, bsd_extracted_then_linked_id, pdf_ids')
                     .eq('id', id)
                     .single();
 
@@ -536,6 +537,112 @@ const TableBSD = () => {
                         
                         if (storageError) {
                             console.error('Erreur lors de la suppression de la photo:', storageError);
+                        }
+                    }
+                }
+
+                // Si le BSD est lié à un bon PDF, supprimer les liens associés
+                if (bsd?.bon_extracted_then_linked_id && bsd?.pdf_ids && bsd.pdf_ids.length > 0) {
+                    console.log('BSD lié à un bon PDF, suppression des liens...');
+                    
+                    // Pour chaque pdf_id associé au BSD, supprimer le lien dans bon_pdf
+                    for (const pdfId of bsd.pdf_ids) {
+                        try {
+                            // Récupérer l'ID du bon_pdf
+                            const { data: bonPdfData, error: bonPdfError } = await supabase
+                                .from('bon_pdf')
+                                .select('id')
+                                .eq('pdf_id', pdfId)
+                                .eq('entreprise_id', entreprise_id)
+                                .single();
+
+                            if (bonPdfError) {
+                                console.warn(`Erreur lors de la récupération du bon_pdf pour pdf_id ${pdfId}:`, bonPdfError);
+                                continue;
+                            }
+
+                            if (bonPdfData) {
+                                // Supprimer le linked_bsd_id du bon_pdf
+                                const { error: updateBonPdfError } = await supabase
+                                    .from('bon_pdf')
+                                    .update({
+                                        linked_bsd_id: null
+                                    })
+                                    .eq('id', bonPdfData.id)
+                                    .eq('entreprise_id', entreprise_id);
+
+                                if (updateBonPdfError) {
+                                    console.warn(`Erreur lors de la mise à jour du bon_pdf pour pdf_id ${pdfId}:`, updateBonPdfError);
+                                }
+
+                                // Mettre à jour le statut dans pdf_infos à 'read'
+                                const { error: updatePdfInfosError } = await supabase
+                                    .from('pdf_infos')
+                                    .update({ 
+                                        status: 'read'
+                                    })
+                                    .eq('id', pdfId)
+                                    .eq('entreprise_id', entreprise_id);
+
+                                if (updatePdfInfosError) {
+                                    console.warn(`Erreur lors de la mise à jour du statut pdf_infos pour pdf_id ${pdfId}:`, updatePdfInfosError);
+                                }
+                            }
+                        } catch (error) {
+                            console.warn(`Erreur lors de la suppression du lien pour pdf_id ${pdfId}:`, error);
+                        }
+                    }
+                }
+
+                // Si le BSD est lié à un BSD PDF, supprimer les liens associés
+                if (bsd?.bsd_extracted_then_linked_id && bsd?.pdf_ids && bsd.pdf_ids.length > 0) {
+                    console.log('BSD lié à un BSD PDF, suppression des liens...');
+                    
+                    // Pour chaque pdf_id associé au BSD, supprimer le lien dans bsd_pdf
+                    for (const pdfId of bsd.pdf_ids) {
+                        try {
+                            // Récupérer l'ID du bsd_pdf
+                            const { data: bsdPdfData, error: bsdPdfError } = await supabase
+                                .from('bsd_pdf')
+                                .select('id')
+                                .eq('pdf_id', pdfId)
+                                .eq('entreprise_id', entreprise_id)
+                                .single();
+
+                            if (bsdPdfError) {
+                                console.warn(`Erreur lors de la récupération du bsd_pdf pour pdf_id ${pdfId}:`, bsdPdfError);
+                                continue;
+                            }
+
+                            if (bsdPdfData) {
+                                // Supprimer le linked_bsd_id du bsd_pdf
+                                const { error: updateBsdPdfError } = await supabase
+                                    .from('bsd_pdf')
+                                    .update({
+                                        linked_bsd_id: null
+                                    })
+                                    .eq('id', bsdPdfData.id)
+                                    .eq('entreprise_id', entreprise_id);
+
+                                if (updateBsdPdfError) {
+                                    console.warn(`Erreur lors de la mise à jour du bsd_pdf pour pdf_id ${pdfId}:`, updateBsdPdfError);
+                                }
+
+                                // Mettre à jour le statut dans pdf_infos à 'read'
+                                const { error: updatePdfInfosError } = await supabase
+                                    .from('pdf_infos')
+                                    .update({ 
+                                        status: 'read'
+                                    })
+                                    .eq('id', pdfId)
+                                    .eq('entreprise_id', entreprise_id);
+
+                                if (updatePdfInfosError) {
+                                    console.warn(`Erreur lors de la mise à jour du statut pdf_infos pour pdf_id ${pdfId}:`, updatePdfInfosError);
+                                }
+                            }
+                        } catch (error) {
+                            console.warn(`Erreur lors de la suppression du lien pour pdf_id ${pdfId}:`, error);
                         }
                     }
                 }
@@ -1378,7 +1485,7 @@ const nonDangerousStatut = (statut: string) => {
 }
 
 const canModify = (id_track: string, statut_track: string) => {
-    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED" || statut_track === "DRAFT" || id_track === "Ligne validée" || id_track === "Ligne créée" || id_track === "Ligne automatique" || id_track === "Ligne demandée" || id_track === "Ligne de BSD PDF") {
+    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED" || statut_track === "DRAFT" || id_track === "Ligne validée" || id_track === "Ligne créée" || id_track === "Ligne automatique" || id_track === "Ligne demandée" || id_track === "Ligne de BSD PDF" || id_track === "Ligne de Bon PDF") {
         return true;
     }
     return false;

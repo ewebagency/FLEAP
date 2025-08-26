@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
 import { useSession } from '@/app/component/SessionProvider';
 import CreatableSelect from 'react-select/creatable';
@@ -29,6 +29,7 @@ export default function FiliereNomTab() {
     const [selectedNoms, setSelectedNoms] = useState<OptionType[]>([]);
     const [isTrie, setIsTrie] = useState<boolean>(true);
     const { mutate } = useSWRConfig();
+    const [searchNom, setSearchNom] = useState<string>('');
 
     // Récupérer les filières uniques
     const uniqueFilieres = Array.from(new Set(mappings.map(m => m.filiere))).sort();
@@ -43,18 +44,30 @@ export default function FiliereNomTab() {
     const usedWasteNames = new Set(mappings.map(m => m.nom));
     const availableWasteNames = wasteNames.filter(nom => !usedWasteNames.has(nom));
     
-    // Convertir les noms de déchets disponibles en options pour react-select
-    const nomOptions: OptionType[] = availableWasteNames.map(nom => ({
+    // Filtrer sur la recherche texte
+    const filteredAvailableWasteNames = useMemo(() => {
+        if (!searchNom) return availableWasteNames;
+        const lower = searchNom.toLowerCase();
+        return availableWasteNames.filter(n => n.toLowerCase().includes(lower));
+    }, [availableWasteNames, searchNom]);
+
+    // Convertir les noms de déchets disponibles (filtrés) en options pour react-select
+    const nomOptions: OptionType[] = filteredAvailableWasteNames.map(nom => ({
         label: nom,
         value: nom,
     }));
 
-    useEffect(() => {
-        fetchMappings();
-        fetchWasteNames();
-    }, []);
+    const handleSelectAllNoms = (checked: boolean) => {
+        if (checked) {
+            setSelectedNoms(nomOptions);
+        } else {
+            setSelectedNoms([]);
+        }
+    };
 
-    const fetchMappings = async () => {
+    
+
+    const fetchMappings = useCallback(async () => {
         try {
             if (!session.entreprise_id) {
                 throw new Error('ID de l\'entreprise non trouvé');
@@ -75,9 +88,9 @@ export default function FiliereNomTab() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [session.entreprise_id]);
 
-    const fetchWasteNames = async () => {
+    const fetchWasteNames = useCallback(async () => {
         try {
             if (!session.entreprise_id) {
                 throw new Error('ID de l\'entreprise non trouvé');
@@ -119,7 +132,12 @@ export default function FiliereNomTab() {
         } catch (err) {
             console.error('Erreur lors du chargement des noms de déchets:', err);
         }
-    };
+    }, [session.entreprise_id]);
+
+    useEffect(() => {
+        fetchMappings();
+        fetchWasteNames();
+    }, [fetchMappings, fetchWasteNames]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -196,6 +214,27 @@ export default function FiliereNomTab() {
         }
     };
 
+    const handleDeleteFiliere = async (filiereToDelete: string) => {
+        const updatedMappings = mappings.filter(m => m.filiere !== filiereToDelete);
+        try {
+            const { error } = await supabase
+                .from('entreprise')
+                .update({ mapping_nom_filiere: updatedMappings })
+                .eq('id', session.entreprise_id);
+
+            if (error) throw error;
+
+            setMappings(updatedMappings);
+            if (session.entreprise_id) {
+                await fetch(`/api/get_mapping_nom_filiere?entreprise_id=${session.entreprise_id}&clearCache=true`);
+                mutate(`/api/get_mapping_nom_filiere?entreprise_id=${session.entreprise_id}`, undefined, { revalidate: true });
+            }
+        } catch (err) {
+            setError('Erreur lors de la suppression de la filière');
+            console.error(err);
+        }
+    };
+
     // Fonction pour grouper les mappings par filière
     const groupedMappings = uniqueFilieres.reduce((acc, filiere) => {
         acc[filiere] = mappings.filter(m => m.filiere === filiere);
@@ -216,31 +255,75 @@ export default function FiliereNomTab() {
                 {/* Formulaire d'ajout */}
                 <form onSubmit={handleSubmit} className="mb-6 space-y-4 px-10">
                     <div className="flex gap-4 items-center">
-                        <div className="flex-1">
+                        <div className="w-1/3">
                             <CreatableSelect
                                 isClearable
                                 value={selectedFiliere}
                                 onChange={(newValue) => setSelectedFiliere(newValue)}
                                 options={filiereOptions}
-                                placeholder="Sélectionner/créer une filière"
+                                placeholder="Sélectionner une filière"
                                 className="flex-1"
                                 classNamePrefix="select"
                                 formatCreateLabel={(inputValue) => `Créer \"${inputValue}\"`}
                                 noOptionsMessage={() => "Aucune filière trouvée"}
                             />
                         </div>
-                        <div className="flex-1">
-                            <Select
-                                isMulti
-                                isClearable
-                                value={selectedNoms}
-                                onChange={(newValue: MultiValue<OptionType>) => setSelectedNoms(Array.from(newValue))}
-                                options={nomOptions}
-                                placeholder="Sélectionner des noms de déchets"
-                                className="flex-1"
-                                classNamePrefix="select"
-                                noOptionsMessage={() => "Aucun nom de déchet disponible"}
-                            />
+                        <div className="w-2/3">
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1">
+                                    <Select
+                                        isMulti
+                                        isClearable
+                                        value={selectedNoms}
+                                        onChange={(newValue: MultiValue<OptionType>) => setSelectedNoms(Array.from(newValue))}
+                                        options={nomOptions}
+                                        placeholder="Sélectionner des noms de déchets"
+                                        className="flex-1"
+                                        classNamePrefix="select"
+                                        inputValue={searchNom}
+                                        onInputChange={(val, meta) => {
+                                            if (meta.action === 'input-change') {
+                                                setSearchNom(val);
+                                            }
+                                        }}
+                                        styles={{
+                                            valueContainer: (base) => ({
+                                                ...base,
+                                                maxHeight: 128,
+                                                overflowY: 'auto',
+                                            }),
+                                            menuList: (base) => ({
+                                                ...base,
+                                                maxHeight: 240,
+                                            }),
+                                        }}
+                                        noOptionsMessage={() => "Aucun nom de déchet disponible"}
+                                    />
+                                </div>
+                                <div className="flex-6">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSelectAllNoms(true)}
+                                        disabled={nomOptions.length === 0}
+                                        className="text-xs shrink-0 bg-gray-100 text-gray-800 px-2 py-1 rounded hover:bg-gray-200 disabled:opacity-50"
+                                        title={nomOptions.length ? `Sélectionner tout (${nomOptions.length})` : 'Aucun élément'}
+                                    >
+                                        Sélectionner tout
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSelectAllNoms(false)}
+                                        disabled={selectedNoms.length === 0}
+                                        className="hidden shrink-0 bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200 disabled:opacity-50"
+                                        title={selectedNoms.length ? 'Effacer la sélection' : 'Rien à effacer'}
+                                    >
+                                        X
+                                    </button>
+                                    <div className="shrink-0 text-sm text-gray-600 ml-1">
+                                        {nomOptions.length} filtrés
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div className="flex items-center gap-2">
                             <input
@@ -269,9 +352,20 @@ export default function FiliereNomTab() {
                     {Object.entries(groupedMappings).map(([filiere, noms]) => (
                         <div key={filiere} className="border rounded-lg p-4">
                             <div className="flex">
-                                <h3 className="text-lg font-semibold text-gray-800 w-48 shrink-0">
-                                    {filiere}
-                                </h3>
+                                <div className="flex items-center gap-3 w-48 shrink-0">
+                                    <h3 className="text-lg font-semibold text-gray-800">
+                                        {filiere}
+                                    </h3>
+                                    <button
+                                        onClick={() => handleDeleteFiliere(filiere)}
+                                        className="text-red-500 hover:text-red-700"
+                                        title="Supprimer tous les noms de cette filière"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 100 2h.278l.84 9.243A2 2 0 007.11 17h5.78a2 2 0 001.992-1.757L15.722 6H16a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0010 2H9zM8 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+                                        </svg>
+                                    </button>
+                                </div>
                                 <div className="flex-1">
                                     <div className="flex flex-wrap gap-2 -ml-2">
                                         {noms.map((mapping) => (
