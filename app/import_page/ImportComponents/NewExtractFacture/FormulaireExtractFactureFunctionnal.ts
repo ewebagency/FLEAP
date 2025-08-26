@@ -575,37 +575,12 @@ export const saveFactureToDatabase = async (
                 modifiedFactureData.header.prestataire_siret = pdfInfosData.provider.siret || '';
             }
             
-            // Si site_siret_plus est rempli, écraser les SIRET des sites dans tous les départs
+            // Si site_siret_plus est rempli, on ne doit PAS écraser les SIRET des sites
+            // car l'utilisateur peut vouloir des sites différents pour chaque départ
+            // On garde les données saisies par l'utilisateur
             if (pdfInfosData.site_siret_plus && pdfInfosData.site_siret_plus.length > 0) {
-                const siteSiret = pdfInfosData.site_siret_plus[0]; // Prendre le premier SIRET
-                console.log(`🔄 Écrasement des SIRET de sites avec: ${siteSiret}`);
-                
-                // Récupérer le nom du site depuis table_autocompletion
-                const { data: autocompletionData, error: autocompletionError } = await supabase
-                    .from('table_autocompletion')
-                    .select('site')
-                    .eq('entreprise_id', entrepriseId);
-
-                if (!autocompletionError && autocompletionData) {
-                    // Chercher le site correspondant au SIRET
-                    const matchingSite = autocompletionData.find(item => 
-                        item.site?.siret?.replace(/\s/g, '') === siteSiret.replace(/\s/g, '')
-                    );
-                    
-                    const siteName = matchingSite?.site?.nom || '';
-                    
-                    // Écraser les données de site dans tous les départs
-                    modifiedFactureData.departs = modifiedFactureData.departs.map(depart => ({
-                        ...depart,
-                        line_header: {
-                            ...depart.line_header,
-                            site_siret: siteSiret,
-                            site_nom: siteName
-                        }
-                    }));
-                    
-                    console.log(`✅ Données de site écrasées: ${siteName} (${siteSiret})`);
-                }
+                console.log(`ℹ️ site_siret_plus trouvé dans pdf_infos: ${pdfInfosData.site_siret_plus.join(', ')}`);
+                console.log(`ℹ️ Les données de sites saisies par l'utilisateur sont conservées`);
             }
             
             // Utiliser les données modifiées pour la suite

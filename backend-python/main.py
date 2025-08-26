@@ -348,3 +348,36 @@ async def ocr_density(file: UploadFile):
     }
 #=============================================OCR DENSITY=============================================
 
+
+#=============================================META OCR - Nouvelle structure=============================================
+""""
+@app.post("/meta-ocr")
+async def meta_ocr(file: UploadFile, type="inconnu", liste_nom_a_eviter:list[str]=[], bdd_known_cluster_params:dict={}): #est-ce qu'on rajoute already_selected_data_by_user ?
+    
+    if type == "inconnu":
+        #type = detect_type(file)
+        type = "bsd"
+
+    prompt, json_interface = get_prompt(type, liste_nom_a_eviter)
+    print("Extraction de données : ", type)
+
+    raw_text, potential_json_from_ocr = get_raw_text_from_pdf(file)
+    print("Données brutes : ", "="*(43), "\n", raw_text, "="*60)
+    
+    gemini_data = await extract_gemini(raw_text, prompt)
+    print("Données trouvées par Gemini : ", "="*(43), "\n", gemini_data, "="*60)
+    
+    confidence = get_confidence(gemini_data, potential_json_from_ocr, bdd_known_cluster_params)
+    print("Confidence : ", "="*(43), "\n", confidence, "="*60)
+    
+    structured_response = structure(gemini_data, json_interface)
+    
+    return {
+        "structured_response": structured_response,
+        "confidence": confidence,        
+    }
+
+"""
+    
+    
+    

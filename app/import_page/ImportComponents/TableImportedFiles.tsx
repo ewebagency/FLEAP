@@ -11,6 +11,7 @@ import LinkBSD from './ExtractBSD/LinkBSD';
 import ButtonExtractFacture from './NewExtractFacture/ButtonExtractFacture';
 import ExtractBon from './ExtractBon/ExtractBon';
 import LinkBon from './ExtractBon/LinkBon';
+import useSWR from 'swr';
 
 export interface PdfInfo {
     status: string;
@@ -619,12 +620,53 @@ const cofounders_permission = (user_id:string|null) => {
     return false;
 }
 
-const getSites = async (entreprise_id: string, sitesFromContext: FilterSite[]): Promise<SiteInfo[]> => {
-    // Convertir les sites du FilterContext en format attendu
-    return sitesFromContext.map((site: FilterSite) => ({
-        siret: site.orgId,
-        name: site.name
-    }));
+// Hook SWR pour récupérer les sites depuis table_autocompletion
+const useSites = (entreprise_id: string | null) => {
+    const fetcher = async (url: string) => {
+        if (!entreprise_id) return [];
+        
+        const { data, error } = await supabase
+            .from('table_autocompletion')
+            .select('site')
+            .eq('entreprise_id', entreprise_id);
+
+        if (error) {
+            console.error('Erreur lors de la récupération des sites:', error);
+            throw error;
+        }
+
+        if (!data) return [];
+
+        // Extraire les sites avec nom et siret
+        const allSites: SiteInfo[] = [];
+        data.forEach((item: { site?: { nom?: string; siret?: string } }) => {
+            if (item.site?.nom && item.site?.siret) {
+                allSites.push({
+                    siret: item.site.siret,
+                    name: item.site.nom
+                });
+            }
+        });
+
+        return allSites;
+    };
+
+    const { data: sites, error, mutate } = useSWR(
+        entreprise_id ? `sites-${entreprise_id}` : null,
+        fetcher,
+        {
+            revalidateOnFocus: false,
+            revalidateOnReconnect: true,
+            dedupingInterval: 60000, // Cache pendant 1 minute
+        }
+    );
+
+    return {
+        sites: sites || [],
+        isLoading: !error && !sites,
+        isError: error,
+        mutate
+    };
 };
 
 const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initialSite?: string[] }> = ({ 
@@ -632,28 +674,37 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
     pdf_id, 
     initialSite 
 }) => {
-    const [sites, setSites] = useState<SiteInfo[]>([]);
     const [selectedSites, setSelectedSites] = useState<string[]>(initialSite || []);
-    const [isLoading, setIsLoading] = useState(true);
     const [isOpen, setIsOpen] = useState(false);
     const { sites: sitesFromContext } = useFilterContext();
     const dropdownRef = React.useRef<HTMLDivElement>(null);
+    
+    // Utiliser le hook SWR pour récupérer tous les sites
+    const { sites, isLoading, isError } = useSites(entreprise_id);
 
+    // Initialiser la sélection avec les sites cochés dans useFilterContext si aucun site n'est déjà sélectionné
     useEffect(() => {
-        const fetchSites = async () => {
-            setIsLoading(true);
-            if (entreprise_id) {
-                try {
-                    const sites = await getSites(entreprise_id, sitesFromContext);
-                    setSites(sites);
-                } catch (error) {
-                    console.error('Erreur lors du chargement des sites:', error);
-                }
+        if (!initialSite || initialSite.length === 0) {
+            const checkedSirets = sitesFromContext
+                .filter(site => site.checked)
+                .map(site => site.orgId);
+            
+            if (checkedSirets.length > 0) {
+                setSelectedSites(checkedSirets);
+                
+                // Mettre à jour la base de données avec les sites pré-cochés
+                supabase
+                    .from('pdf_infos')
+                    .update({ site_siret_plus: checkedSirets })
+                    .eq('id', pdf_id)
+                    .then(({ error }) => {
+                        if (error) {
+                            console.error('Erreur lors de la mise à jour initiale des sites:', error);
+                        }
+                    });
             }
-            setIsLoading(false);
-        };
-        fetchSites();
-    }, [entreprise_id, sitesFromContext]);
+        }
+    }, [sitesFromContext, initialSite, pdf_id]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -687,6 +738,10 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
 
     if (isLoading) {
         return <div className="text-xs">Chargement...</div>;
+    }
+
+    if (isError) {
+        return <div className="text-xs text-red-500">Erreur de chargement</div>;
     }
 
     return (
