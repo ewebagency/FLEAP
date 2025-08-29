@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-async def extract_gemini(text: str, prompt: str) -> Dict[str, Any]:
+async def extract_gemini(text: str | dict, prompt: str) -> Dict[str, Any]:
     """
-    Extrait les informations d'un texte brut avec un prompt défini en utilisant l'API Gemini
+    Extrait les informations d'un texte brut ou d'un dictionnaire avec un prompt défini en utilisant l'API Gemini
     """
     try:
         # Appeler l'API Gemini
@@ -20,8 +20,14 @@ async def extract_gemini(text: str, prompt: str) -> Dict[str, Any]:
             "x-goog-api-key": os.getenv('GEMINI_API_KEY')
         }
 
+        # Ensure text is not None before concatenation
+        if text is None:
+            text = ""
+        elif isinstance(text, dict):
+            text = json.dumps(text, ensure_ascii=False, indent=2)
+        
         prompt_to_send = prompt + "\n\n" + text
-        print("====prompt envoyé à gemini=====", prompt_to_send)
+        
         payload = {
             "contents": [{
                 "parts": [{
@@ -31,6 +37,7 @@ async def extract_gemini(text: str, prompt: str) -> Dict[str, Any]:
         }
 
         gemini_response = requests.post(gemini_url, headers=headers, json=payload)
+        
         if not gemini_response.ok:
             return {"error": f"Failed to get response from Gemini: {gemini_response.text}"}
 
@@ -43,14 +50,34 @@ async def extract_gemini(text: str, prompt: str) -> Dict[str, Any]:
         # Vérifier que c'est du JSON valide
         try:
             json.loads(cleaned_data)
+            return {
+                "success": True,
+                "text": text,
+                "extracted_data": cleaned_data
+            }
         except json.JSONDecodeError as e:
-            return {"error": f"Invalid JSON from Gemini: {str(e)}", "raw_response": raw_extracted_data}
-
-        return {
-            "success": True,
-            "text": text,
-            "extracted_data": cleaned_data
-        }
+            # Dernière tentative: essayer de créer un objet JSON minimal
+            try:
+                # Essayer d'extraire des paires clé-valeur du texte
+                import re
+                key_value_pattern = r'"([^"]+)"\s*:\s*"([^"]*)"'
+                matches = re.findall(key_value_pattern, raw_extracted_data)
+                
+                if matches:
+                    minimal_data = {}
+                    for key, value in matches:
+                        minimal_data[key] = value
+                    
+                    return {
+                        "success": True,
+                        "text": text,
+                        "extracted_data": json.dumps(minimal_data, ensure_ascii=False)
+                    }
+                else:
+                    return {"error": f"Invalid JSON from Gemini: {str(e)}", "raw_response": raw_extracted_data}
+                    
+            except Exception:
+                return {"error": f"Invalid JSON from Gemini: {str(e)}", "raw_response": raw_extracted_data}
 
     except Exception as e:
         return {"error": f"Failed to extract BSD with Gemini: {str(e)}"}
@@ -85,15 +112,17 @@ def clean_date(date_str: str) -> str:
     return date_str
 
 def clean_gemini_response(text: str) -> str:
+    """
+    Nettoie la réponse de Gemini pour extraire le JSON et corriger les erreurs de syntaxe courantes
+    """
     # Supprimer les backticks et le mot "json" s'ils sont présents
     text = re.sub(r'^```json\s*', '', text)
     text = re.sub(r'\s*```$', '', text)
     text = text.strip()
     
+    # Première tentative de parsing
     try:
-        # Parser le JSON
         data = json.loads(text)
-        
         # Nettoyer les dates dans les champs spécifiques
         date_fields = [
             'dateEnvoi',
@@ -118,5 +147,126 @@ def clean_gemini_response(text: str) -> str:
         
         # Convertir en JSON propre
         return json.dumps(data, ensure_ascii=False)
-    except json.JSONDecodeError:
-        return text
+    
+    except json.JSONDecodeError as e:
+        #print(f"❌ Erreur JSON initiale: {str(e)}")
+        #print(f"📝 Texte problématique: {text}")
+        
+        # Tentatives de correction automatique
+        corrected_text = text
+        
+        # 1. Supprimer les virgules trailing (virgules en trop à la fin des objets/listes)
+        # Pattern pour virgule trailing dans un objet: ,\s*}
+        corrected_text = re.sub(r',\s*}', '}', corrected_text)
+        # Pattern pour virgule trailing dans une liste: ,\s*]
+        corrected_text = re.sub(r',\s*]', ']', corrected_text)
+        
+        # 2. Supprimer les virgules trailing avant les fermetures de chaînes
+        # Pattern pour virgule trailing avant une chaîne fermée: ,\s*"
+        corrected_text = re.sub(r',\s*"([^"]*)"\s*}', r', "\1"}', corrected_text)
+        
+        # 3. Corriger les virgules multiples
+        corrected_text = re.sub(r',\s*,', ',', corrected_text)
+        
+        # 4. Supprimer les espaces en trop autour des virgules
+        corrected_text = re.sub(r'\s*,\s*', ', ', corrected_text)
+        
+        # 5. S'assurer que les chaînes sont bien fermées
+        # Compter les guillemets et s'assurer qu'ils sont pairs
+        quote_count = corrected_text.count('"')
+        if quote_count % 2 != 0:
+            # Ajouter un guillemet fermant si nécessaire
+            corrected_text += '"'
+        
+        # Deuxième tentative de parsing avec le texte corrigé
+        try:
+            data = json.loads(corrected_text)
+            
+            # Nettoyer les dates dans les champs spécifiques
+            date_fields = [
+                'dateEnvoi',
+                'datePriseEnCharge',
+                'dateValiditeRecepisse',
+                'date'
+            ]
+            
+            def clean_dates_in_dict(d):
+                if isinstance(d, dict):
+                    for key, value in d.items():
+                        if key in date_fields:
+                            d[key] = clean_date(value)
+                        elif isinstance(value, (dict, list)):
+                            clean_dates_in_dict(value)
+                elif isinstance(d, list):
+                    for item in d:
+                        if isinstance(item, (dict, list)):
+                            clean_dates_in_dict(item)
+            
+            clean_dates_in_dict(data)
+            
+            #print(f"✅ JSON corrigé avec succès")
+            return json.dumps(data, ensure_ascii=False)
+            
+        except json.JSONDecodeError as e2:
+            print(f"❌ Échec de la correction automatique: {str(e2)}")
+            print(f"📝 Texte corrigé: {corrected_text}")
+            
+            # Dernière tentative: essayer d'extraire un JSON valide en supprimant les lignes problématiques
+            try:
+                # Essayer de trouver un objet JSON valide dans le texte
+                lines = corrected_text.split('\n')
+                cleaned_lines = []
+                brace_count = 0
+                in_object = False
+                
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    # Compter les accolades pour détecter le début/fin d'objet
+                    brace_count += line.count('{') - line.count('}')
+                    
+                    if '{' in line and not in_object:
+                        in_object = True
+                    
+                    if in_object:
+                        # Nettoyer la ligne des virgules trailing
+                        line = re.sub(r',\s*$', '', line)
+                        cleaned_lines.append(line)
+                    
+                    if brace_count <= 0 and in_object:
+                        break
+                
+                final_text = '\n'.join(cleaned_lines)
+                data = json.loads(final_text)
+                
+                # Nettoyer les dates
+                date_fields = [
+                    'dateEnvoi',
+                    'datePriseEnCharge',
+                    'dateValiditeRecepisse',
+                    'date'
+                ]
+                
+                def clean_dates_in_dict(d):
+                    if isinstance(d, dict):
+                        for key, value in d.items():
+                            if key in date_fields:
+                                d[key] = clean_date(value)
+                            elif isinstance(value, (dict, list)):
+                                clean_dates_in_dict(value)
+                    elif isinstance(d, list):
+                        for item in d:
+                            if isinstance(item, (dict, list)):
+                                clean_dates_in_dict(item)
+                
+                clean_dates_in_dict(data)
+                
+                print(f"✅ JSON extrait avec succès après nettoyage avancé")
+                return json.dumps(data, ensure_ascii=False)
+                
+            except Exception as e3:
+                print(f"❌ Échec de l'extraction avancée: {str(e3)}")
+                # Retourner le texte original en cas d'échec total
+                return text

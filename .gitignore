@@ -38,3 +38,6 @@ next-env.d.ts
 
 # python311
 backend-python/venv_doctr_311
+
+#### Pour avoir l'ancien backend python -> à enlever bientot
+backend_python/new/

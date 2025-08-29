@@ -145,6 +145,10 @@ def extract_text_with_mindee(pdf_url: str) -> tuple[Optional[str], Optional[str]
         print(f"Erreur avec Mindee: {str(e)}")
         return None, None
 
+
+
+
+
 def extract_data_with_gemini(text: str) -> Dict[str, Any]:
     """
     Extrait les données structurées d'une facture avec Gemini

@@ -99,7 +99,7 @@ const ImportPDF = () => {
     const [showPDFMetaModal, setShowPDFMetaModal] = useState(false);
     const [selectedSite, setSelectedSite] = useState<SiteInterface | null>(null);
     const [selectedPresta, setSelectedPresta] = useState<Prestataire | null>(null);
-    const [selectedDocumentType, setSelectedDocumentType] = useState<'bsd' | 'facture' | 'bon'>('bsd');
+    const [selectedDocumentType, setSelectedDocumentType] = useState<'bsd' | 'facture' | 'bon' | 'inconnu' | ''>('');
     const [filesToImport, setFilesToImport] = useState<File[]>([]);
     const [siteSearchTerm, setSiteSearchTerm] = useState('');
     const [prestaSearchTerm, setPrestaSearchTerm] = useState('');
@@ -325,7 +325,7 @@ const ImportPDF = () => {
       setFilesToImport([]);
       setSelectedSite(null);
       setSelectedPresta(null);
-      setSelectedDocumentType('bsd');
+      setSelectedDocumentType('');
       setSiteSearchTerm('');
       setPrestaSearchTerm('');
       setShowSiteDropdown(false);
@@ -340,7 +340,7 @@ const ImportPDF = () => {
       setFilesToImport([]);
       setSelectedSite(null);
       setSelectedPresta(null);
-      setSelectedDocumentType('bsd');
+      setSelectedDocumentType('');
       setSiteSearchTerm('');
       setPrestaSearchTerm('');
       setShowSiteDropdown(false);
@@ -383,7 +383,7 @@ const ImportPDF = () => {
     };
 
     // Modifie la signature pour accepter les sélections site/presta
-    const handleFilesUpload = async (files: File[], metaSelections?: { site: SiteInterface | null; presta: Prestataire | null; documentType: 'bsd' | 'facture' | 'bon' }) => {
+    const handleFilesUpload = async (files: File[], metaSelections?: { site: SiteInterface | null; presta: Prestataire | null; documentType: 'bsd' | 'facture' | 'bon' | 'inconnu' | '' }) => {
         if (!user_id) {
             alert("Veuillez vous connecter pour importer des fichiers.");
             return;
@@ -442,7 +442,13 @@ const ImportPDF = () => {
                 let provider: { name: string; siret: string; is_destination: boolean; is_transporter: boolean } | null = null;
                 if (metaSelections) {
                   const { site, presta } = metaSelections;
-                  if (site) site_siret_plus = [site.value.siret];
+                  // Forcer site_siret_plus à null si aucun site n'est explicitement sélectionné
+                  console.log('site', site);
+                  if (site && site.value && site.value.siret) {
+                    site_siret_plus = [site.value.siret];
+                  } else {
+                    site_siret_plus = []; // Reset explicite
+                  }
                   if (presta) provider = {
                     name: presta.nom,
                     siret: presta.siret || '',
@@ -461,7 +467,7 @@ const ImportPDF = () => {
                         file_size: parseFloat(fileSizeInMB),
                         site_siret_plus,
                         provider,
-                        document_type: metaSelections?.documentType || 'bsd'
+                        document_type: metaSelections?.documentType === '' || !metaSelections?.documentType ? 'inconnu' : metaSelections.documentType
                     }]);
 
                 if (insertError) {
@@ -607,22 +613,21 @@ const ImportPDF = () => {
                   {/* Message d'aide */}
                   <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
                     <p className="text-sm text-blue-800">
-                      <strong>💡 Conseil :</strong> La sélection d&apos;un site et/ou prestataire est optionnelle. 
-                      Si vos PDFs concernent des sites ou prestataires différents, 
-                      faites plusieurs imports séparés pour une meilleure organisation.
+                      <strong>💡</strong> Site et prestataire optionnels
                     </p>
                   </div>
 
                   {/* Sélection du type de document */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Type de document <span className="text-red-500">*</span>
+                      Type de document
                     </label>
                     <select
                       value={selectedDocumentType}
-                      onChange={(e) => setSelectedDocumentType(e.target.value as 'bsd' | 'facture' | 'bon')}
+                      onChange={(e) => setSelectedDocumentType(e.target.value as 'bsd' | 'facture' | 'bon' | 'inconnu' | '')}
                       className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     >
+                      <option value=""></option>
                       <option value="bsd">📄 Bordereau de Suivi de Déchets (BSD)</option>
                       <option value="facture">💲 Facture</option>
                       <option value="bon">📋 Bon</option>

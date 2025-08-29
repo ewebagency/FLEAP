@@ -3,23 +3,38 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Any
-import json
-import psutil
-import os
-import gc
-from prompts import prompt_bon
+#import json
+#import psutil
+#import os
+#import gc
+#from prompts import prompt_bon
 from parse_ocr_extract_facture import process_facture_pdf, process_facture_pdf_only_ocr, extract_facture_with_gemini_from_data
 #from utils.utils_paddleocr import run_paddle_ocr
 from utils.utils_gemini import extract_gemini
 from utils.utils_parse import parse_pdf, parse_pdf_file
 from prompts import prompt_bsd, prompt_bon
-from utils.utils_enrich import enrich_text
-from utils.document_types import get_prompt, transform_document_data
-from utils.utils_doctr import ocr_this_pdf_with_doctr, cleanup_model, initialize_model
-from utils.utils_manuscrit import classify_ocr_with_density, extract_handwritten_lines
+#from utils.utils_enrich import enrich_text
+#from utils.document_types import get_prompt, transform_document_data
+#from utils.utils_doctr import ocr_this_pdf_with_doctr, cleanup_model, initialize_model
+#from utils.utils_manuscrit import classify_ocr_with_density, extract_handwritten_lines
+
+"""
+from new.new_prompts import get_specific_prompt
+from new.new_extract_raw import get_raw_text_from_pdf
+from new.new_confidence import get_confidence, handwritten_confidence
+from new.new_structure import structure
+from new.new_recognize_type import recognize_type_one_page
+from new.new_alerte import alerte_function
+
+import time
+"""
 
 
 
+
+
+
+"""
 def get_memory_usage():
     #Retourne l'utilisation mémoire actuelle en MB
     process = psutil.Process(os.getpid())
@@ -34,13 +49,13 @@ def print_memory_usage(stage=""):
     #Affiche l'utilisation mémoire avec un label
     memory = get_memory_usage()
     #print(f"🔄 MÉMOIRE {stage}: RSS={memory['rss_mb']:.1f}MB, VMS={memory['vms_mb']:.1f}MB, {memory['percent']:.1f}%")
-
+"""
 
 load_dotenv()
 
 app = FastAPI()
 
-
+"""
 @app.on_event("startup")
 async def startup_event():
     #Initialise les ressources au démarrage du serveur
@@ -56,7 +71,7 @@ async def shutdown_event():
     cleanup_model()
     print("Serveur Fleap arrêté")
 
-
+"""
 
 
 # Définition du modèle de données pour la requête
@@ -169,7 +184,7 @@ async def extract_facture_with_gemini(request: MindeeDataRequest):
 
 
 
-
+"""
 
 #=============================================BSD=============================================
 @app.post("/extract-bsd-with-paddle-ocr")
@@ -183,29 +198,29 @@ async def extract_bsd_with_paddle_ocr(file: UploadFile):
     parsed_info = await extract_gemini(text, prompt_bsd)
     return parsed_info
 
-"""
-@app.post("/extract-bsd-with-doctr")
-async def extract_bsd_with_doctr(file: UploadFile):
-    print("Extract Raw Data with Doctr")
-    result = await ocr_this_pdf_with_doctr(file)
-    text = result["text"]
-    print("Text extracted from DocTR OCR", text)
-    print("Extract Parsed Data with Gemini")
-    parsed_info = await extract_gemini(text, prompt_bsd)
-    return parsed_info
-"""
+
+#@app.post("/extract-bsd-with-doctr")
+#async def extract_bsd_with_doctr(file: UploadFile):
+#    print("Extract Raw Data with Doctr")
+#    result = await ocr_this_pdf_with_doctr(file)
+#    text = result["text"]
+#    print("Text extracted from DocTR OCR", text)
+#    print("Extract Parsed Data with Gemini")
+#    parsed_info = await extract_gemini(text, prompt_bsd)
+#    return parsed_info
+
 #=============================================BSD=============================================
 
 
 #=============================================BONS=============================================
 @app.post("/ocr-enrich-bon")
 async def ocr_enrich_bon(file: UploadFile = Form(...), known_data: str = Form(...), pdf_status: str = Form(None), entreprise_name: str = Form(None)):
-    """
-    Parse le PDF, si ça marche pas utilise l'OCR
-    Enrichi le texte avec les données connues
-    Envoie le texte enrichi à Gemini
-    Renvoie les données structurées
-    """
+    
+    #Parse le PDF, si ça marche pas utilise l'OCR
+    #Enrichi le texte avec les données connues
+    #Envoie le texte enrichi à Gemini
+    #Renvoie les données structurées
+
     known_data_dict = json.loads(known_data)
     
     # Log du statut du PDF reçu
@@ -321,17 +336,17 @@ async def extract_raw_text_with_doctr(file: UploadFile):
         print(f"❌ ERREUR lors de l'extraction: {str(e)}")
         print_memory_usage("EN CAS D'ERREUR")
         raise e
-"""
-@app.post("/extract-with-doctr/bon")
-async def extract_json_with_gemini_using_prompt_bon(file: UploadFile):
-    print("Extract Raw Data with Doctr")
-    result = await ocr_this_pdf_with_doctr(file)
-    text = result["text"]
-    print("Text extracted from DocTR OCR", text)
-    print("Extract Parsed Data with Gemini")
-    parsed_info = await extract_json_with_gemini_using_prompt(text, prompt_bon)
-    return parsed_info
-"""
+
+#@app.post("/extract-with-doctr/bon")
+#async def extract_json_with_gemini_using_prompt_bon(file: UploadFile):
+#    print("Extract Raw Data with Doctr")
+#    result = await ocr_this_pdf_with_doctr(file)
+#    text = result["text"]
+#    print("Text extracted from DocTR OCR", text)
+#    print("Extract Parsed Data with Gemini")
+#    parsed_info = await extract_json_with_gemini_using_prompt(text, prompt_bon)
+#    return parsed_info
+
 
 #=============================================OCR ONLY=============================================
 
@@ -350,34 +365,93 @@ async def ocr_density(file: UploadFile):
 
 
 #=============================================META OCR - Nouvelle structure=============================================
-""""
+
+#Related to import_page/ImportComponents/ExtractMeta/MetaDataInterface.ts
 @app.post("/meta-ocr")
-async def meta_ocr(file: UploadFile, type="inconnu", liste_nom_a_eviter:list[str]=[], bdd_known_cluster_params:dict={}): #est-ce qu'on rajoute already_selected_data_by_user ?
+async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: str = Form("{}"), type: str = Form("inconnu"), liste_nom_a_eviter: str = Form("[]"), voir: bool = Form(False)):
+    
+    start = time.time()
+    # Parser les paramètres JSON
+    try:
+        pdfInfos_dict = json.loads(pdfInfos) if pdfInfos else {"site_siret_plus": [], "provider": None}
+        clusterParams_dict = json.loads(clusterParams) if clusterParams else {"data": {"params_mapping_site": {}, "params_mapping_presta": {}}}
+        liste_nom_a_eviter_list = json.loads(liste_nom_a_eviter) if liste_nom_a_eviter else []
+    except json.JSONDecodeError as e:
+        return {"error": f"Invalid JSON format: {str(e)}"}
+    
+    ############### Détection du type à l'avance ###############
+    raw_text_first, _, _ = await get_raw_text_from_pdf(file, 'inconnu')
+    type_lu = recognize_type_one_page(raw_text_first)["type"]
     
     if type == "inconnu":
         #type = detect_type(file)
         type = "bsd"
+    else:
+        if type_lu != type:
+            alerte_type = True
+        else:
+            alerte_type = False
+    #########################################################
 
-    prompt, json_interface = get_prompt(type, liste_nom_a_eviter)
-    print("Extraction de données : ", type)
 
-    raw_text, potential_json_from_ocr = get_raw_text_from_pdf(file)
-    print("Données brutes : ", "="*(43), "\n", raw_text, "="*60)
+    # Reset file position to ensure it can be read properly
+    await file.seek(0)
     
-    gemini_data = await extract_gemini(raw_text, prompt)
-    print("Données trouvées par Gemini : ", "="*(43), "\n", gemini_data, "="*60)
+    try:
+        raw_text, potential_json_from_ocr, parse_or_ocr = await get_raw_text_from_pdf(file, type_lu) #ATTENTION TYPE LU OU NON LU ???
+        if voir:
+            print( "="*(43),"Données brutes : ", "\n", raw_text, "\n"*4)
+
+        prompt = get_specific_prompt(type_lu, liste_nom_a_eviter_list, parse_or_ocr) #prompt, json_interface
+        
+        gemini_response = await extract_gemini(raw_text, prompt) #gemini_data = json
+        
+        # Check if Gemini returned an error
+        if "error" in gemini_response:
+            return {"error": gemini_response["error"]}
+        
+        gemini_data = json.loads(gemini_response.get("extracted_data", "{}"))
+        
+        structured_response = structure(type_lu, gemini_data)
+        
+        if parse_or_ocr == "ocr":
+            confidence = get_confidence(gemini_data, potential_json_from_ocr)
+            confidence["handwritten"] = handwritten_confidence(file, potential_json_from_ocr)
+        else:
+            confidence =  { "brute": 100, "spec": 100, "handwritten": [0, False] }
+        
+        #print("\n"*4, "RECOGNIZE TYPE \n", "-"*50, recognize_type_one_page(raw_text), "-"*50, "\n"*4)
+        alerte = alerte_function(alerte_type, confidence, structured_response, pdfInfos_dict, clusterParams_dict)
+
+    except Exception as e:
+        print(f"❌ ERREUR dans meta-ocr: {str(e)}")
+        return {"error": f"Failed to process document: {str(e)}"}
     
-    confidence = get_confidence(gemini_data, potential_json_from_ocr, bdd_known_cluster_params)
-    print("Confidence : ", "="*(43), "\n", confidence, "="*60)
-    
-    structured_response = structure(gemini_data, json_interface)
-    
+    dt = time.time() - start
+    print("\n\n------------Result Meta OCR")
+    print("\nMéthode utilisée : ", parse_or_ocr)
+    print("Type détecté : ", type_lu)
+    print("Temps : ", dt//60, "min", dt%60, "s")
+    print("Confidence : ", confidence)
+    print("Alerte : ", alerte)
+    print("Response : ", structured_response)
+    print("\n"*2)
     return {
         "structured_response": structured_response,
-        "confidence": confidence,        
+        "confidence": confidence,  
+        "alerte" : alerte
     }
 
+#=============================================META OCR - Nouvelle structure Fin=============================================
+
+
+
+@app.post("/detect-type")
+async def detect_type(files: list[UploadFile]):
+    results = []
+    for file in files:
+        raw_text, _, _ = await get_raw_text_from_pdf(file, "inconnu")
+        results.append(recognize_type_one_page(raw_text))
+    return results
+
 """
-    
-    
-    

@@ -89,6 +89,9 @@ def group_lines(result):
 async def ocr_this_pdf_with_doctr(file: UploadFile):
     # Lire le contenu du fichier
     contents = await file.read()
+    
+    # Reset file position for potential future reads
+    await file.seek(0)
 
     # Sauvegarder temporairement le fichier
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
@@ -112,17 +115,11 @@ async def ocr_this_pdf_with_doctr(file: UploadFile):
         # Récupération du modèle
         model = get_model()
         
-        # Mémoire avant OCR
-        print_memory_usage("AVANT OCR")
-        
         # Traitement OCR
         if USE_PDF_DIRECT:
             result_model = model(doc)
         else:
             result_model = model(numpy_images)
-        
-        # Mémoire après OCR
-        print_memory_usage("APRÈS OCR")
         
         # Export des résultats
         result = result_model.export()

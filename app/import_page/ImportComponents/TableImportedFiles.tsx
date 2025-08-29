@@ -12,6 +12,9 @@ import ButtonExtractFacture from './NewExtractFacture/ButtonExtractFacture';
 import ExtractBon from './ExtractBon/ExtractBon';
 import LinkBon from './ExtractBon/LinkBon';
 import useSWR from 'swr';
+//import BoutonExtractDoc from './ExtractMetaDoc/components/BoutonExtractDoc';
+//import BoutonSplitDoc from './ExtractMetaDoc/components/BoutonSplitDoc';
+//import ExtractDoc from './ExtractMetaDoc/components/ExtractDoc';
 
 export interface PdfInfo {
     status: string;
@@ -524,6 +527,26 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             pdf_path={pdf.name_pdf_in_bucket} 
                                         /> ---> ancien extract facture
                                     */} 
+                                    {/*cofounders_permission(user_id) &&
+                                        <div className="flex gap-1">
+                                        <ExtractDoc //pour ouvrir le modal d'extraction
+                                            pdf_id={pdf.id}
+                                            pdf_path={pdf.name_pdf_in_bucket}
+                                            pdf_status={pdf.status}
+                                        />
+                                        <BoutonExtractDoc //pour lancer l'extraction
+                                            pdfId={pdf.id}
+                                        />
+                                        <BoutonSplitDoc 
+                                            pdfId={pdf.id}
+                                            entrepriseId={Number(entreprise_id)|| 0}
+                                            onSplitComplete={(newPdfIds) => {
+                                                console.log('Nouveaux PDFs créés:', newPdfIds);
+                                                // Rafraîchir la liste des PDFs, etc.
+                                            }}
+                                        />
+                                        </div>
+                                    */}   
                                     {cofounders_permission(user_id) && pdf.document_type === 'facture' && 
                                         <ButtonExtractFacture
                                             pdf_id={pdf.id} 
@@ -682,29 +705,17 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
     // Utiliser le hook SWR pour récupérer tous les sites
     const { sites, isLoading, isError } = useSites(entreprise_id);
 
-    // Initialiser la sélection avec les sites cochés dans useFilterContext si aucun site n'est déjà sélectionné
+    // Respecter la valeur réelle de la base de données
+    // Si initialSite est vide, ne pas afficher les sites du filtre global
     useEffect(() => {
-        if (!initialSite || initialSite.length === 0) {
-            const checkedSirets = sitesFromContext
-                .filter(site => site.checked)
-                .map(site => site.orgId);
-            
-            if (checkedSirets.length > 0) {
-                setSelectedSites(checkedSirets);
-                
-                // Mettre à jour la base de données avec les sites pré-cochés
-                supabase
-                    .from('pdf_infos')
-                    .update({ site_siret_plus: checkedSirets })
-                    .eq('id', pdf_id)
-                    .then(({ error }) => {
-                        if (error) {
-                            console.error('Erreur lors de la mise à jour initiale des sites:', error);
-                        }
-                    });
-            }
+        // Si initialSite est défini et non vide, l'utiliser
+        if (initialSite && initialSite.length > 0) {
+            setSelectedSites(initialSite);
+        } else {
+            // Si initialSite est vide, ne pas afficher les sites du filtre global
+            setSelectedSites([]);
         }
-    }, [sitesFromContext, initialSite, pdf_id]);
+    }, [initialSite]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {

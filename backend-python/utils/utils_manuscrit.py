@@ -7,7 +7,7 @@ from pathlib import Path
 import fitz  # PyMuPDF pour extraire les images des PDFs
 
 
-def classify_ocr_with_density(file, ocr_json: Dict, threshold: float = 0.02) -> List[Dict]:
+def classify_ocr_with_density(file, ocr_json: Dict, threshold: float = 0.02):
     """
     Fonction complète qui lit un PDF depuis un UploadFile et classifie chaque mot
     basé sur la densité basse des pixels.
@@ -22,9 +22,9 @@ def classify_ocr_with_density(file, ocr_json: Dict, threshold: float = 0.02) -> 
     """
     results = []
     
-    print(f"🔍 DEBUG: Début de classify_ocr_with_density")
-    print(f"📄 DEBUG: OCR JSON keys: {list(ocr_json.keys())}")
-    print(f"📄 DEBUG: raw_result keys: {list(ocr_json.get('raw_result', {}).keys())}")
+    #print(f"🔍 DEBUG: Début de classify_ocr_with_density")
+    #print(f"📄 DEBUG: OCR JSON keys: {list(ocr_json.keys())}")
+    #print(f"📄 DEBUG: raw_result keys: {list(ocr_json.get('raw_result', {}).keys())}")
     
     try:
         # Réinitialiser le curseur du fichier
@@ -32,14 +32,14 @@ def classify_ocr_with_density(file, ocr_json: Dict, threshold: float = 0.02) -> 
         
         # Lire le contenu du fichier PDF uploadé
         content = file.file.read()
-        print(f"📄 DEBUG: Taille du contenu PDF: {len(content)} bytes")
+        #print(f"📄 DEBUG: Taille du contenu PDF: {len(content)} bytes")
         
         # Ouvrir le PDF depuis les bytes
         doc = fitz.open(stream=content, filetype="pdf")
         if doc.page_count == 0:
             raise ValueError("PDF vide ou corrompu")
         
-        print(f"📄 DEBUG: PDF ouvert avec {doc.page_count} pages")
+        #print(f"📄 DEBUG: PDF ouvert avec {doc.page_count} pages")
         
         # Obtenir l'image de la première page
         page = doc[0]
@@ -50,49 +50,49 @@ def classify_ocr_with_density(file, ocr_json: Dict, threshold: float = 0.02) -> 
         )
         doc.close()
         
-        print(f"🖼️ DEBUG: Image extraite: {img_array.shape}")
+        #print(f"🖼️ DEBUG: Image extraite: {img_array.shape}")
         
         # Parcourir chaque page du résultat OCR
         pages = ocr_json.get('raw_result', {}).get('pages', [])
-        print(f"📄 DEBUG: Nombre de pages OCR: {len(pages)}")
+        #print(f"📄 DEBUG: Nombre de pages OCR: {len(pages)}")
         
         for page_idx, page_data in enumerate(pages):
-            print(f"📄 DEBUG: Traitement page {page_idx}")
+            #print(f"📄 DEBUG: Traitement page {page_idx}")
             blocks = page_data.get('blocks', [])
-            print(f"📄 DEBUG: Nombre de blocks: {len(blocks)}")
+            #print(f"📄 DEBUG: Nombre de blocks: {len(blocks)}")
             
             # Parcourir chaque block
             for block_idx, block in enumerate(blocks):
                 lines = block.get('lines', [])
-                print(f"📄 DEBUG: Block {block_idx}, nombre de lines: {len(lines)}")
+                #print(f"📄 DEBUG: Block {block_idx}, nombre de lines: {len(lines)}")
                 
                 # Parcourir chaque line
                 for line_idx, line in enumerate(lines):
                     words = line.get('words', [])
-                    print(f"📄 DEBUG: Line {line_idx}, nombre de words: {len(words)}")
+                    #print(f"📄 DEBUG: Line {line_idx}, nombre de words: {len(words)}")
                     
                     # Parcourir chaque word
                     for word_idx, word in enumerate(words):
                         word_text = word.get('value', '').strip()
-                        print(f"📄 DEBUG: Word {word_idx}: '{word_text}'")
+                        #print(f"📄 DEBUG: Word {word_idx}: '{word_text}'")
                         
                         if word_text:  # Ignorer les espaces vides
                             # Extraire la box de l'image
                             box_geometry = word.get('geometry', [[0, 0], [1, 1]])
-                            print(f"📄 DEBUG: Géométrie: {box_geometry}")
+                            #print(f"📄 DEBUG: Géométrie: {box_geometry}")
                             
                             try:
                                 # Extraire la box depuis l'image de la page
                                 box_img = extract_box_from_page_image(img_array, box_geometry)
-                                print(f"📄 DEBUG: Box extraite: {box_img.shape}")
+                                #print(f"📄 DEBUG: Box extraite: {box_img.shape}")
                                 
                                 # Calculer le ratio de densité basse
                                 low_density_ratio = calculate_low_density_ratio(box_img)
-                                print(f"📄 DEBUG: Densité basse: {low_density_ratio}")
+                                #print(f"📄 DEBUG: Densité basse: {low_density_ratio}")
                                 
                                 # Classifier le texte
                                 classification = classify_text_by_density(low_density_ratio, threshold)
-                                print(f"📄 DEBUG: Classification: {classification}")
+                                #print(f"📄 DEBUG: Classification: {classification}")
                                 
                                 # Ajouter le résultat
                                 result_item = {
@@ -104,7 +104,7 @@ def classify_ocr_with_density(file, ocr_json: Dict, threshold: float = 0.02) -> 
                                     'page': page_idx
                                 }
                                 results.append(result_item)
-                                print(f"✅ DEBUG: Résultat ajouté: {result_item}")
+                                #print(f"✅ DEBUG: Résultat ajouté: {result_item}")
                                 
                             except Exception as e:
                                 print(f"❌ Erreur lors du traitement du mot '{word_text}': {e}")
@@ -118,14 +118,14 @@ def classify_ocr_with_density(file, ocr_json: Dict, threshold: float = 0.02) -> 
                                     'page': page_idx
                                 }
                                 results.append(result_item)
-                                print(f"⚠️ DEBUG: Résultat par défaut ajouté: {result_item}")
+                                #print(f"⚠️ DEBUG: Résultat par défaut ajouté: {result_item}")
     
     except Exception as e:
         print(f"❌ Erreur générale dans classify_ocr_with_density: {e}")
         import traceback
         traceback.print_exc()
     
-    print(f"🔍 DEBUG: Fin de classify_ocr_with_density, {len(results)} résultats")
+    #print(f"🔍 DEBUG: Fin de classify_ocr_with_density, {len(results)} résultats")
     return results
 
 
@@ -216,7 +216,7 @@ def classify_text_by_density(low_density_ratio: float, threshold: float = 0.02) 
     return "handwritten" if low_density_ratio < threshold else "printed"
 
 
-def extract_handwritten_lines(ocr_results: List[Dict], vertical_threshold: float = 0.05) -> str:
+def extract_handwritten_lines(ocr_results: List[Dict], vertical_threshold: float = 0.05):
     """
     Extrait les lignes de texte manuscrit depuis les résultats OCR classifiés.
     
@@ -265,6 +265,7 @@ def extract_handwritten_lines(ocr_results: List[Dict], vertical_threshold: float
     # Ajouter la dernière ligne
     if current_line:
         lines.append(' '.join(current_line))
+    
     
     # Retourner le texte avec des sauts de ligne
     return '\n'.join(lines)
