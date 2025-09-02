@@ -26,7 +26,7 @@ export default function BoutonSplitDoc({
 
         try {
             // Récupérer les informations du PDF
-            const { data: pdfInfo, error: pdfError } = await getPdfInfoById(pdfId, entrepriseId);
+            const { data: pdfInfo, error: pdfError } = await getPdfInfoById(pdfId.toString(), entrepriseId);
             
             if (pdfError || !pdfInfo) {
                 setMessage('Erreur: Impossible de récupérer les informations du PDF');

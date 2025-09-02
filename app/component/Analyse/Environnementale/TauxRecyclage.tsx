@@ -1,4 +1,4 @@
-'use client'
+/*'use client'
 import React, { useMemo, useState } from "react";
 import { useAnalysis } from "@/app/analysis/AnalysisProvider";
 import { BSD } from '@/app/analysis/AnalysisProvider';
@@ -62,3 +62,4 @@ const TauxRecyclage = () => {
 }
 
 export default TauxRecyclage;
+*/

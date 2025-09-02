@@ -1,4 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
+import { supabase } from "@/app/database/supabaseClient";
 import {
     downloadPdfFromStorage,
     uploadPdfToStorage,
@@ -79,13 +80,18 @@ export const splitPdfByPages = async (
                 addDefaultPage: false
             });
 
-            // Générer un nouveau nom de fichier
+            // Générer un nouveau nom de fichier (comme dans les anciens fichiers)
             const originalName = pdfInfo.name_pdf || 'document';
             const newFileName = `${originalName}_page_${i + 1}.pdf`;
             const newPath = newFileName;
 
-            // Uploader le nouveau PDF
-            const { error: uploadError } = await uploadPdfToStorage(newPath, newPdfBytes);
+            // Uploader le nouveau PDF (comme dans les anciens fichiers)
+            const { error: uploadError } = await supabase.storage
+                .from('pdfs_bucket')
+                .upload(newPath, newPdfBytes, {
+                    contentType: 'application/pdf',
+                    cacheControl: '3600'
+                });
 
             if (uploadError) {
                 return {
@@ -96,25 +102,31 @@ export const splitPdfByPages = async (
             }
 
             // Vérifier l'URL signée immédiatement après l'upload
-            const { data: signedUrlData, error: signedUrlError } = await createSignedUrl(newPath, 3600);
+            const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+                .from('pdfs_bucket')
+                .createSignedUrl(newPath, 3600);
 
             console.log('URL signée générée:', signedUrlData?.signedUrl);
             console.log('Erreur URL signée:', signedUrlError);
 
-            // Créer une nouvelle entrée dans pdf_infos avec toutes les colonnes copiées
-            const { data: newPdfInfo, error: insertPdfError } = await insertPdfInfo({
-                user_id: pdfInfo.user_id,
-                pdf_path: newPath,
-                name_pdf: newFileName,
-                name_pdf_in_bucket: newFileName,
-                status: newStatus,
-                file_size: newPdfBytes.byteLength / 1024, // Taille en KB
-                site_siret: pdfInfo.site_siret,
-                document_type: pdfInfo.document_type,
-                provider: pdfInfo.provider,
-                entreprise_id: pdfInfo.entreprise_id,
-                site_siret_plus: pdfInfo.site_siret_plus
-            });
+            // Créer une nouvelle entrée dans pdf_infos (comme dans les anciens fichiers)
+            const { data: newPdfInfo, error: insertPdfError } = await supabase
+                .from('pdf_infos')
+                .insert({
+                    user_id: pdfInfo.user_id,
+                    pdf_path: newPath,
+                    name_pdf: newFileName,
+                    name_pdf_in_bucket: newFileName,
+                    status: 'splitted',
+                    file_size: newPdfBytes.byteLength / 1024, // Taille en KB
+                    site_siret: pdfInfo.site_siret,
+                    document_type: pdfInfo.document_type,
+                    provider: pdfInfo.provider,
+                    entreprise_id: pdfInfo.entreprise_id,
+                    site_siret_plus: pdfInfo.site_siret_plus
+                })
+                .select()
+                .single();
 
             if (insertPdfError) {
                 return {
@@ -129,8 +141,10 @@ export const splitPdfByPages = async (
             }
         }
 
-        // 5. Supprimer l'ancien PDF du storage
-        const { error: deleteError } = await deletePdfFromStorage(pdfInfo.name_pdf_in_bucket);
+        // 5. Supprimer l'ancien PDF du storage (comme dans les anciens fichiers)
+        const { error: deleteError } = await supabase.storage
+            .from('pdfs_bucket')
+            .remove([pdfInfo.name_pdf_in_bucket]);
 
         if (deleteError) {
             return {
@@ -140,8 +154,11 @@ export const splitPdfByPages = async (
             };
         }
 
-        // 6. Supprimer l'ancienne entrée dans pdf_infos
-        const { error: deleteInfoError } = await deletePdfInfo(pdfInfo.id, pdfInfo.entreprise_id || 0);
+        // 6. Supprimer l'ancienne entrée dans pdf_infos (comme dans les anciens fichiers)
+        const { error: deleteInfoError } = await supabase
+            .from('pdf_infos')
+            .delete()
+            .eq('id', pdfInfo.id);
 
         if (deleteInfoError) {
             return {

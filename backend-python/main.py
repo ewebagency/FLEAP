@@ -3,35 +3,33 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Any
-#import json
-#import psutil
-#import os
-#import gc
+"""
+import json
+import psutil
+import os
+import gc
+"""
 #from prompts import prompt_bon
 from parse_ocr_extract_facture import process_facture_pdf, process_facture_pdf_only_ocr, extract_facture_with_gemini_from_data
 #from utils.utils_paddleocr import run_paddle_ocr
 from utils.utils_gemini import extract_gemini
+
 from utils.utils_parse import parse_pdf, parse_pdf_file
 from prompts import prompt_bsd, prompt_bon
-#from utils.utils_enrich import enrich_text
-#from utils.document_types import get_prompt, transform_document_data
-#from utils.utils_doctr import ocr_this_pdf_with_doctr, cleanup_model, initialize_model
-#from utils.utils_manuscrit import classify_ocr_with_density, extract_handwritten_lines
-
 """
+from utils.utils_enrich import enrich_text
+from utils.document_types import get_prompt, transform_document_data
+from utils.utils_doctr import ocr_this_pdf_with_doctr, cleanup_model, initialize_model
+from utils.utils_manuscrit import classify_ocr_with_density, extract_handwritten_lines
+
 from new.new_prompts import get_specific_prompt
 from new.new_extract_raw import get_raw_text_from_pdf
 from new.new_confidence import get_confidence, handwritten_confidence
 from new.new_structure import structure
 from new.new_recognize_type import recognize_type_one_page
 from new.new_alerte import alerte_function
-
 import time
 """
-
-
-
-
 
 
 """
@@ -70,7 +68,6 @@ async def shutdown_event():
     print("Arrêt du serveur Fleap...")
     cleanup_model()
     print("Serveur Fleap arrêté")
-
 """
 
 
@@ -184,8 +181,8 @@ async def extract_facture_with_gemini(request: MindeeDataRequest):
 
 
 
-"""
 
+"""
 #=============================================BSD=============================================
 @app.post("/extract-bsd-with-paddle-ocr")
 async def extract_bsd_with_paddle_ocr(file: UploadFile):
@@ -386,6 +383,7 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
     if type == "inconnu":
         #type = detect_type(file)
         type = "bsd"
+        alerte_type = False
     else:
         if type_lu != type:
             alerte_type = True

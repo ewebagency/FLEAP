@@ -75,8 +75,8 @@ export const extractMetaOcr = async (params: MetaOcrParams): Promise<ExtractMeta
         const { error: updateError } = await updatePdfExtractionResults(
             params.infos_pdf.id,
             params.infos_pdf.entreprise_id,
-            result.structured_response,
-            result.alerte
+            result,
+            params.infos_pdf.status
         );
 
         if (updateError) {
@@ -137,7 +137,7 @@ export const extractMetaOcrSimple = async (
  * Orchestrateur: récupère les données nécessaires puis appelle extractMetaOcrSimple
  */
 export const runMetaOcrForPdf = async (
-    pdfId: number,
+    pdfId: string,
     entrepriseId: number
 ): Promise<ExtractMetaOcrResult> => {
     // 1) Récupérer pdf_info
@@ -200,7 +200,7 @@ export const runMetaOcrForPdf = async (
     const result: MetaOcrResponse = await response.json();
 
     // 7) Update BDD
-    const { error: updateError } = await updatePdfExtractionResults(pdfInfo.id, entrepriseId, result.structured_response, result.alerte);
+    const { error: updateError } = await updatePdfExtractionResults(pdfInfo.id, entrepriseId, result, pdfInfo.status);
     if (updateError) {
         return { success: false, message: 'Erreur lors de la mise à jour BDD', error: updateError.message };
     }

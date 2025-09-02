@@ -9,7 +9,7 @@ export const downloadPdfFromStorage = async (pdfPath: string) => {
 };
 
 // Récupérer les informations d'un PDF depuis la base de données
-export const getPdfInfoById = async (pdfId: number, entrepriseId: number) => {
+export const getPdfInfoById = async (pdfId: string, entrepriseId: number) => {
     return await supabase
         .from('pdf_infos')
         .select('*')
@@ -95,17 +95,48 @@ export const deletePdfInfo = async (pdfId: string, entrepriseId: number) => {
 export const updatePdfExtractionResults = async (
     pdfId: string, 
     entrepriseId: number,
-    infosRaw: Record<string, unknown>, 
-    alerte: Record<string, unknown>
+    result : {
+        alerte: Record<string, unknown>,
+        structured_response: Record<string, unknown>,
+        confidence: Record<string, unknown>
+    },
+    status: string
 ) => {
+    let new_status = "read";
+    if(status === "splitted") new_status = "splitted_extracted";
     return await supabase
         .from('pdf_infos')
         .update({
-            infos_raw: infosRaw,
-            alerte: alerte
+            infos_raw: result.structured_response,
+            alerte: result.alerte,
+            confidence: result.confidence,
+            status: new_status
         })
         .eq('id', pdfId)
         .eq('entreprise_id', entrepriseId)
         .select()
         .single();
+};
+
+// Récupérer les BSDs candidats pour une entreprise dans une plage de dates
+export const getBSDCandidates = async (
+    entrepriseId: number,
+    startDate: string,
+    endDate: string,
+    limit: number = 200
+) => {
+    return await supabase
+        .from('bsd')
+        .select(`
+            id,
+            created_at,
+            readable_id_track_dechets,
+            infos_json,
+            other_infos
+        `)
+        .eq('entreprise_id', entrepriseId)
+        .gte('created_at', startDate)
+        .lte('created_at', endDate)
+        .order('created_at', { ascending: false })
+        .limit(limit);
 };

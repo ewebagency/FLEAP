@@ -33,11 +33,12 @@ interface DechetMetaInterface {
 
 interface FactureInterface {
     ligne: {
-        operation: string;
-        quantite: number;
+        type_operation: string; // Changé de "type_presta" à "type_operation" pour correspondre au JSON
+        quantite: string; // Changé de number à string pour correspondre au JSON
         unite: string;
-        montant_ht: number;
-        tva_absolute: number;
+        prix_unitaire: string; // Changé de number à string pour correspondre au JSON
+        montant_ht: string; // Changé de number à string pour correspondre au JSON
+        tva_absolute: string | null; // Changé de number à string | null pour correspondre au JSON
     }[];
     declassement?: string;
 }
@@ -59,12 +60,14 @@ interface DechetBonInterface extends DechetMetaInterface {
 }
 
 interface DechetBsdInterface extends DechetMetaInterface {
-    num_bon: string;
+    num_bon: string; // Pour BSD, contient la valeur de num_bsd
+    num_bsd?: string; // Ajouté pour correspondre au JSON BSD
     contenant?: string;
     volume_m3?: string;
 }
 
 interface DechetFactureInterface extends DechetBsdInterface {
+    num_bsd?: string; // Ajouté pour correspondre au JSON facture
     facture: FactureInterface;
 }
 
@@ -75,7 +78,7 @@ interface DocBonInterface extends DocMetaInterface {
 
 interface DocBsdInterface extends DocMetaInterface {
     type_doc: "bsd";
-    num_bsd?: string;
+    num_bsd?: string; // Ajouté pour correspondre à Python
     conformite: {
         CAP: string;
         ADR: string;
@@ -86,7 +89,7 @@ interface DocBsdInterface extends DocMetaInterface {
 interface DocFactureInterface extends DocMetaInterface {
     type_doc: "facture";
     num_facture: string;
-    num_bsd?: string;
+    num_bsd?: string; // Ajouté pour correspondre à Python
     dechet: DechetFactureInterface[];
 }
 
@@ -99,6 +102,7 @@ interface DocInterface {
     dechet: DechetMetaInterface[];
     conformite?: { CAP: string; ADR: string };
     num_facture?: string;
+    num_bsd?: string; // Ajouté pour correspondre à Python
 }
 
 interface ExtractDocProps {
@@ -113,13 +117,17 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
     const [existingData, setExistingData] = useState<DocInterface | null>(null);
     const [documentType, setDocumentType] = useState<"bon" | "bsd" | "facture" | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [confidenceData, setConfidenceData] = useState<{brute?: number, spec?: number, handwritten?: [number, boolean]} | null>(null);
+    const [alerteData, setAlerteData] = useState<{stop?: boolean, message?: string} | null>(null);
+
+
 
     const loadExistingData = async () => {
         try {
             const { data, error } = await supabase
                 .from('pdf_infos')
                 .select('*')
-                .eq('id', pdf_id)
+                .eq('id', pdf_id.toString())
                 .single();
 
             if (error) {
@@ -133,6 +141,12 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                 setDocumentType(data.document_type as "bon" | "bsd" | "facture" | null);
                 if (data.infos_raw) {
                     setExistingData(data.infos_raw as DocInterface);
+                }
+                if (data.confidence) {
+                    setConfidenceData(data.confidence as {brute?: number, spec?: number, handwritten?: [number, boolean]});
+                }
+                if (data.alerte) {
+                    setAlerteData(data.alerte as {stop?: boolean, message?: string});
                 }
             }
         } catch (error) {
@@ -148,7 +162,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                 .update({
                     infos_raw: formData
                 })
-                .eq('id', pdf_id)
+                .eq('id', pdf_id.toString())
                 .eq('entreprise_id', entreprise_id);
 
             if (error) {
@@ -170,12 +184,12 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
     const OpenExtractModalButton = () => {
         return (
             <button 
-                className="bg-purple-800 text-xs text-white px-4 py-2 rounded-lg hover:bg-purple-900 transition-colors"
+                className="bg-yellow-600 text-xs text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
                 onClick={() => {
                     setIsOpen(true);
                     loadExistingData();
                 }}>
-                Extraire la donnée
+                Extraire le doc
             </button>
         );
     };
@@ -383,14 +397,14 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                         </button>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                         <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">Date</label>
                             <input
                                 type="date"
                                 value={dechet.date || ''}
                                 onChange={(e) => handleDechetChange(index, 'date', e.target.value)}
-                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                         </div>
                         <div>
@@ -399,7 +413,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                 type="text"
                                 value={dechet.nom || ''}
                                 onChange={(e) => handleDechetChange(index, 'nom', e.target.value)}
-                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                         </div>
                         <div>
@@ -408,7 +422,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                 type="text"
                                 value={dechet.tonnage || ''}
                                 onChange={(e) => handleDechetChange(index, 'tonnage', e.target.value)}
-                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                         </div>
                         <div>
@@ -417,7 +431,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                 type="text"
                                 value={dechet.ced || ''}
                                 onChange={(e) => handleDechetChange(index, 'ced', e.target.value)}
-                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                         </div>
                         <div>
@@ -426,7 +440,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                 type="text"
                                 value={dechet.d_r || ''}
                                 onChange={(e) => handleDechetChange(index, 'd_r', e.target.value)}
-                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                         </div>
                         <div>
@@ -435,7 +449,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                 type="text"
                                 value={dechet.tour || ''}
                                 onChange={(e) => handleDechetChange(index, 'tour', e.target.value)}
-                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                         </div>
                         
@@ -447,7 +461,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                      type="text"
                                      value={(dechet as DechetBonInterface).num_bon || ''}
                                      onChange={(e) => handleDechetChange(index, 'num_bon', e.target.value)}
-                                     className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                     className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                  />
                              </div>
                          )}
@@ -460,16 +474,27 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                          type="text"
                                          value={(dechet as DechetBsdInterface).num_bon || ''}
                                          onChange={(e) => handleDechetChange(index, 'num_bon', e.target.value)}
-                                         className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                      />
                                  </div>
+                                 {(documentType === "bsd" || documentType === "facture") && (
+                                     <div>
+                                         <label className="block text-xs font-medium text-gray-700 mb-1">Numéro BSD</label>
+                                         <input
+                                             type="text"
+                                             value={(dechet as DechetBsdInterface).num_bsd || ''}
+                                             onChange={(e) => handleDechetChange(index, 'num_bsd', e.target.value)}
+                                             className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                         />
+                                     </div>
+                                 )}
                                  <div>
                                      <label className="block text-xs font-medium text-gray-700 mb-1">Contenant</label>
                                      <input
                                          type="text"
                                          value={(dechet as DechetBsdInterface).contenant || ''}
                                          onChange={(e) => handleDechetChange(index, 'contenant', e.target.value)}
-                                         className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                      />
                                  </div>
                                  <div>
@@ -478,31 +503,49 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                          type="text"
                                          value={(dechet as DechetBsdInterface).volume_m3 || ''}
                                          onChange={(e) => handleDechetChange(index, 'volume_m3', e.target.value)}
-                                         className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                      />
                                  </div>
+                                 {documentType === "facture" && (
+                                     <div>
+                                         <label className="block text-xs font-medium text-gray-700 mb-1">Déclassement</label>
+                                         <input
+                                             type="text"
+                                             value={(dechet as DechetFactureInterface).facture?.declassement || ''}
+                                             onChange={(e) => {
+                                                 const factureData = formData as DocFactureInterface;
+                                                 const updatedDechet = [...factureData.dechet];
+                                                 if (updatedDechet[index] && updatedDechet[index].facture) {
+                                                     updatedDechet[index].facture.declassement = e.target.value;
+                                                     handleInputChange('dechet', updatedDechet);
+                                                 }
+                                             }}
+                                             className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                         />
+                                     </div>
+                                 )}
                              </>
                          )}
                          
                          {/* Section lignes de facturation pour les factures */}
                          {documentType === "facture" && (
-                             <div className="col-span-2 mt-2">
+                             <div className="col-span-3 mt-2">
                                  <h5 className="font-semibold text-gray-700 mb-2 text-sm">Lignes de facturation</h5>
                                  <div className="space-y-2">
                                      {(dechet as DechetFactureInterface).facture?.ligne?.map((ligne, ligneIndex) => (
                                          <div key={ligneIndex} className="bg-white p-2 rounded border">
-                                             <div className="grid grid-cols-5 gap-2">
-                                                 <div>
-                                                     <label className="block text-xs font-medium text-gray-600 mb-1">Opération</label>
+                                             <div className="grid grid-cols-7 gap-2">
+                                                 <div className="col-span-2">
+                                                     <label className="block text-xs font-medium text-gray-600 mb-1">Type opération</label>
                                                      <input
                                                          type="text"
-                                                         value={ligne.operation || ''}
+                                                         value={ligne.type_operation || ''}
                                                          onChange={(e) => {
                                                              const factureData = formData as unknown as DocFactureInterface;
                                                              const updatedDechet = [...factureData.dechet];
                                                              if (updatedDechet[index] && updatedDechet[index].facture) {
                                                                  const updatedLignes = [...updatedDechet[index].facture.ligne];
-                                                                 updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], operation: e.target.value };
+                                                                 updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], type_operation: e.target.value };
                                                                  updatedDechet[index].facture.ligne = updatedLignes;
                                                                  handleInputChange('dechet', updatedDechet);
                                                              }
@@ -513,14 +556,14 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                                  <div>
                                                      <label className="block text-xs font-medium text-gray-600 mb-1">Quantité</label>
                                                      <input
-                                                         type="number"
+                                                         type="text"
                                                          value={ligne.quantite || ''}
                                                          onChange={(e) => {
                                                              const factureData = formData as unknown as DocFactureInterface;
                                                              const updatedDechet = [...factureData.dechet];
                                                              if (updatedDechet[index] && updatedDechet[index].facture) {
                                                                  const updatedLignes = [...updatedDechet[index].facture.ligne];
-                                                                 updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], quantite: Number(e.target.value) };
+                                                                 updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], quantite: e.target.value };
                                                                  updatedDechet[index].facture.ligne = updatedLignes;
                                                                  handleInputChange('dechet', updatedDechet);
                                                              }
@@ -547,17 +590,34 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                                      />
                                                  </div>
                                                  <div>
+                                                     <label className="block text-xs font-medium text-gray-600 mb-1">Prix Unitaire</label>
+                                                     <input
+                                                         type="text"
+                                                         value={ligne.prix_unitaire || ''}
+                                                         onChange={(e) => {
+                                                             const factureData = formData as DocFactureInterface;
+                                                             const updatedDechet = [...factureData.dechet];
+                                                             if (updatedDechet[index] && updatedDechet[index].facture) {
+                                                                 const updatedLignes = [...updatedDechet[index].facture.ligne];
+                                                                 updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], prix_unitaire: e.target.value };
+                                                                 updatedDechet[index].facture.ligne = updatedLignes;
+                                                                 handleInputChange('dechet', updatedDechet);
+                                                             }
+                                                         }}
+                                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                                     />
+                                                 </div>
+                                                 <div>
                                                      <label className="block text-xs font-medium text-gray-600 mb-1">Montant HT</label>
                                                      <input
-                                                         type="number"
-                                                         step="0.01"
+                                                         type="text"
                                                          value={ligne.montant_ht || ''}
                                                          onChange={(e) => {
                                                              const factureData = formData as DocFactureInterface;
                                                              const updatedDechet = [...factureData.dechet];
                                                              if (updatedDechet[index] && updatedDechet[index].facture) {
                                                                  const updatedLignes = [...updatedDechet[index].facture.ligne];
-                                                                 updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], montant_ht: Number(e.target.value) };
+                                                                 updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], montant_ht: e.target.value };
                                                                  updatedDechet[index].facture.ligne = updatedLignes;
                                                                  handleInputChange('dechet', updatedDechet);
                                                              }
@@ -568,15 +628,14 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                                  <div>
                                                      <label className="block text-xs font-medium text-gray-600 mb-1">TVA</label>
                                                      <input
-                                                         type="number"
-                                                         step="0.01"
+                                                         type="text"
                                                          value={ligne.tva_absolute || ''}
                                                          onChange={(e) => {
                                                              const factureData = formData as DocFactureInterface;
                                                              const updatedDechet = [...factureData.dechet];
                                                              if (updatedDechet[index] && updatedDechet[index].facture) {
                                                                  const updatedLignes = [...updatedDechet[index].facture.ligne];
-                                                                 updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], tva_absolute: Number(e.target.value) };
+                                                                 updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], tva_absolute: e.target.value };
                                                                  updatedDechet[index].facture.ligne = updatedLignes;
                                                                  handleInputChange('dechet', updatedDechet);
                                                              }
@@ -594,22 +653,24 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                              const updatedDechet = [...factureData.dechet];
                                              if (updatedDechet[index] && updatedDechet[index].facture) {
                                                  updatedDechet[index].facture.ligne.push({
-                                                     operation: '',
-                                                     quantite: 0,
+                                                     type_operation: '',
+                                                     quantite: '',
                                                      unite: '',
-                                                     montant_ht: 0,
-                                                     tva_absolute: 0
+                                                     prix_unitaire: '',
+                                                     montant_ht: '',
+                                                     tva_absolute: null
                                                  });
                                                  handleInputChange('dechet', updatedDechet);
                                              } else if (updatedDechet[index]) {
                                                  // Initialiser la facture si elle n'existe pas
                                                  updatedDechet[index].facture = {
                                                      ligne: [{
-                                                         operation: '',
-                                                         quantite: 0,
+                                                         type_operation: '',
+                                                         quantite: '',
                                                          unite: '',
-                                                         montant_ht: 0,
-                                                         tva_absolute: 0
+                                                         prix_unitaire: '',
+                                                         montant_ht: '',
+                                                         tva_absolute: null
                                                      }],
                                                      declassement: ''
                                                  };
@@ -715,7 +776,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                     type="text"
                                     value={formData.site_raw || ''}
                                     onChange={(e) => handleInputChange('site_raw', e.target.value)}
-                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     placeholder="Coller ici le texte brut OCR du site"
                                 />
                             </div>
@@ -725,7 +786,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                     type="text"
                                     value={formData.presta_raw || ''}
                                     onChange={(e) => handleInputChange('presta_raw', e.target.value)}
-                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     placeholder="Coller ici le texte brut OCR du prestataire"
                                 />
                             </div>
@@ -733,16 +794,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                         
                         {/* Champs spécifiques selon le type - organisés sur 3 colonnes */}
                         {documentType === "bsd" && (
-                            <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">Numéro BSD</label>
-                                    <input
-                                        type="text"
-                                        value={(formData as unknown as DocBsdInterface).num_bsd || ''}
-                                        onChange={(e) => handleInputChange('num_bsd', e.target.value)}
-                                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    />
-                                </div>
+                            <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="block text-xs font-medium text-gray-700 mb-1">CAP</label>
                                     <input
@@ -755,7 +807,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                                 CAP: e.target.value
                                             });
                                         }}
-                                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
                                 <div>
@@ -770,49 +822,21 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                                                 ADR: e.target.value
                                             });
                                         }}
-                                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
                             </div>
                         )}
                         
                         {documentType === "facture" && (
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="block text-xs font-medium text-gray-700 mb-1">Numéro de facture</label>
                                     <input
                                         type="text"
                                         value={(formData as unknown as DocFactureInterface).num_facture || ''}
                                         onChange={(e) => handleInputChange('num_facture', e.target.value)}
-                                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">Numéro BSD</label>
-                                    <input
-                                        type="text"
-                                        value={(formData as unknown as DocFactureInterface).num_bsd || ''}
-                                        onChange={(e) => handleInputChange('num_bsd', e.target.value)}
-                                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">Déclassement</label>
-                                    <input
-                                        type="text"
-                                        value={(formData as unknown as DocFactureInterface).dechet?.[0]?.facture?.declassement || ''}
-                                        onChange={(e) => {
-                                            const factureData = formData as unknown as DocFactureInterface;
-                                            if (factureData.dechet && factureData.dechet.length > 0) {
-                                                const updatedDechet = [...factureData.dechet];
-                                                if (!updatedDechet[0].facture) {
-                                                    updatedDechet[0].facture = { ligne: [], declassement: '' };
-                                                }
-                                                updatedDechet[0].facture.declassement = e.target.value;
-                                                handleInputChange('dechet', updatedDechet);
-                                            }
-                                        }}
-                                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
                             </div>
@@ -877,26 +901,73 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                         </button>
                     </div>
 
-                    {/* Boutons d'action en haut */}
-                    <div className="absolute top-4 left-4 z-10 flex gap-2">
-                        <BoutonExtractDoc 
-                            pdfId={pdf_id}
-                            onExtractSuccess={(pdfId, data) => {
-                                console.log('Extraction réussie:', data);
-                                // Ici on pourrait mettre à jour le formulaire avec les données extraites
-                            }}
-                            onExtractError={(pdfId, error) => {
-                                console.error('Erreur extraction:', error);
-                            }}
-                        />
-                                                 <BoutonSplitDoc 
-                             pdfId={pdf_id}
-                             entrepriseId={Number(entreprise_id) || 0}
-                             onSplitComplete={(newPdfIds) => {
-                                 console.log('Split terminé:', newPdfIds);
-                                 setIsOpen(false);
-                             }}
-                         />
+                    {/* Boutons d'action et Scores en haut */}
+                    <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
+                        <div className="flex gap-2">
+                            <BoutonExtractDoc 
+                                pdfId={pdf_id.toString()}
+                                onExtractSuccess={(pdfId, data) => {
+                                    console.log('Extraction réussie:', data);
+                                    // Ici on pourrait mettre à jour le formulaire avec les données extraites
+                                }}
+                                onExtractError={(pdfId, error) => {
+                                    console.error('Erreur extraction:', error);
+                                }}
+                            />
+                            <BoutonSplitDoc 
+                                pdfId={pdf_id}
+                                entrepriseId={Number(entreprise_id) || 0}
+                                onSplitComplete={(newPdfIds) => {
+                                    console.log('Split terminé:', newPdfIds);
+                                    setIsOpen(false);
+                                }}
+                            />
+                        </div>
+                        
+                        {/* Scores de confiance et Alertes */}
+                        {(confidenceData || alerteData) && (
+                            <div className="flex items-center gap-4 bg-white rounded-lg p-2 shadow-sm border">
+                                {/* Scores de confiance */}
+                                {confidenceData && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-gray-600">Confidence:</span>
+                                        {confidenceData.brute !== undefined && (
+                                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                                Brute: {confidenceData.brute}%
+                                            </span>
+                                        )}
+                                        {confidenceData.spec !== undefined && (
+                                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                                Spec: {confidenceData.spec}%
+                                            </span>
+                                        )}
+                                        {confidenceData.handwritten && (
+                                            <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                                                Manuscrit: {confidenceData.handwritten[0]}% {confidenceData.handwritten[1] ? '(Oui)' : '(Non)'}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                                
+                                {/* Alerte */}
+                                {alerteData && alerteData.stop && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-red-600">⚠️ Alerte Stop</span>
+                                        <div className="relative group">
+                                            <button className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded hover:bg-red-200 transition-colors">
+                                                Info
+                                            </button>
+                                            {alerteData.message && (
+                                                <div className="absolute bottom-full left-0 mb-2 w-64 bg-gray-900 text-white text-xs rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                                                    {alerteData.message}
+                                                    <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Contenu principal */}

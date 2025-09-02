@@ -1,10 +1,10 @@
 import React from 'react';
 import { useAnalysis } from '../../../analysis/AnalysisProvider';
 import { estimerCarbone } from './environnement_utils';
-import TauxRecyclage from './TauxRecyclage';
+//import TauxRecyclage from './TauxRecyclage';
 import TauxValorisation from './TauxValorisation';
 import ButtonReportAMO from '../../ReportAMO/ButtonReportAMO';
-import { cofounders_user_id } from '../../SideBar';
+//import { cofounders_user_id } from '../../SideBar';
 import { useSession } from '../../SessionProvider';
 
 const COMPARISONS = [

@@ -37,7 +37,7 @@ def extract_text_with_pdfplumber(pdf_url: str) -> Optional[str]:
         print(f"Erreur avec pdfplumber: {str(e)}")
         return None
 
-def extract_text_with_mindee(pdf_url: str) -> tuple[Optional[str], Optional[str]]:
+def extract_text_with_mindee(pdf_url: str):
     """
     Extrait le texte d'un PDF avec l'API Mindee en utilisant le client Python officiel
     Retourne (prediction_text, full_result)
@@ -325,7 +325,7 @@ def process_facture_pdf(pdf_url: str) -> Dict[str, Any]:
             "success": False
         }
 
-def process_facture_pdf_only_ocr(pdf_url: str) -> Dict[str, Any]:
+def process_facture_pdf_only_ocr(pdf_url: str):
     """
     Fonction pour seulement parser/OCR sans Gemini
     """

@@ -38,7 +38,8 @@ facture = {
 
         "collecte" : {
                     "nom_site": "nom_site",
-                    "num_be": "num_be",
+                    "num_bon": "num_bon",
+                    "num_bsd": "num_bsd",
                     "date": "date",
                     "nom_dechet": "nom_dechet", 
                     "ced": "ced",
@@ -58,7 +59,7 @@ facture = {
         "montant_total_ht": "montant_total_ht"
     }
 
-def structure(type_doc: str, gemini_data: dict) -> dict:
+def structure(type_doc: str, gemini_data: dict) :
     """
     Transforme les données JSON de Gemini en respectant la structure des interfaces TypeScript
     définies dans MetaDataInterface.ts
@@ -80,7 +81,7 @@ def structure(type_doc: str, gemini_data: dict) -> dict:
     else:
         raise ValueError(f"Type de document non supporté: {type_doc}")
 
-def structure_bon(gemini_data: dict) -> dict:
+def structure_bon(gemini_data: dict):
     """Structure les données d'un bon de livraison"""
     
     # Extraire les données de base
@@ -118,7 +119,7 @@ def structure_bon(gemini_data: dict) -> dict:
         "dechet": dechets
     }
 
-def structure_bsd(gemini_data: dict) -> dict:
+def structure_bsd(gemini_data: dict) :
     """Structure les données d'un BSD"""
     
     # Extraire les données de base
@@ -132,7 +133,7 @@ def structure_bsd(gemini_data: dict) -> dict:
                 "tonnage": gemini_data.get("quantite_relle_tonne", [""])[i] if i < len(gemini_data.get("quantite_relle_tonne", [])) else "",
                 "ced": gemini_data.get("code_ced", [""])[i] if i < len(gemini_data.get("code_ced", [])) else "",
                 "d_r": gemini_data.get("code_traitement", [""])[i] if i < len(gemini_data.get("code_traitement", [])) else "",
-                "num_bon": gemini_data.get("num_bsd", [""])[i] if i < len(gemini_data.get("num_bsd", [])) else "",
+                "num_bsd": gemini_data.get("num_bsd", [""])[i] if i < len(gemini_data.get("num_bsd", [])) else "",
                 "contenant": gemini_data.get("nom_contenant", [""])[i] if i < len(gemini_data.get("nom_contenant", [])) else "",
                 "volume_m3": gemini_data.get("volume_m3", [""])[i] if i < len(gemini_data.get("volume_m3", [])) else ""
             }
@@ -145,7 +146,7 @@ def structure_bsd(gemini_data: dict) -> dict:
             "tonnage": gemini_data.get("quantite_relle_tonne", ""),
             "ced": gemini_data.get("code_ced", ""),
             "d_r": gemini_data.get("code_traitement", ""),
-            "num_bon": gemini_data.get("num_bsd", ""),
+            "num_bsd": gemini_data.get("num_bsd", ""),
             "contenant": gemini_data.get("nom_contenant", ""),
             "volume_m3": gemini_data.get("volume_m3", "")
         }
@@ -180,7 +181,7 @@ def structure_bsd(gemini_data: dict) -> dict:
         "dechet": dechets
     }
 
-def structure_facture(gemini_data: dict) -> dict:
+def structure_facture(gemini_data: dict) :
     """Structure les données d'une facture"""
     
     # Extraire les données de collecte (peut être une liste ou un dictionnaire)
@@ -198,7 +199,7 @@ def structure_facture(gemini_data: dict) -> dict:
             if isinstance(collecte.get("prestations"), list):
                 for presta in collecte.get("prestations", []):
                     prestation = {
-                        "type_presta": presta.get("type_presta", ""),
+                        "type_operation": presta.get("type_presta", ""),
                         "unite": presta.get("unite", ""),
                         "quantite": presta.get("quantite", 0),
                         "prix_unitaire": presta.get("prix_unitaire", 0),
@@ -210,7 +211,6 @@ def structure_facture(gemini_data: dict) -> dict:
             # Créer l'objet facture pour cette collecte
             facture_obj = {
                 "ligne": prestations,
-                "declassement": ""
             }
             
             # Créer le déchet pour cette collecte
@@ -220,9 +220,11 @@ def structure_facture(gemini_data: dict) -> dict:
                 "tonnage": "",
                 "ced": collecte.get("ced", ""),
                 "d_r": "",
-                "num_bon": collecte.get("num_be", ""),
+                "num_bon": collecte.get("num_bon", ""),
+                "num_bsd": collecte.get("num_bsd", ""),
                 "contenant": collecte.get("contenant", ""),
                 "volume_m3": collecte.get("volume_m3", ""),
+                "declassement": collecte.get("declassement", ""),
                 "facture": facture_obj
             }
             dechets.append(dechet)
@@ -234,7 +236,7 @@ def structure_facture(gemini_data: dict) -> dict:
         if isinstance(collecte_data.get("prestations"), list):
             for presta in collecte_data.get("prestations", []):
                 prestation = {
-                    "type_presta": presta.get("type_presta", ""),
+                    "type_operation": presta.get("type_presta", ""),
                     "unite": presta.get("unite", ""),
                     "quantite": presta.get("quantite", 0),
                     "prix_unitaire": presta.get("prix_unitaire", 0),
@@ -256,9 +258,11 @@ def structure_facture(gemini_data: dict) -> dict:
             "tonnage": "",
             "ced": collecte_data.get("ced", ""),
             "d_r": "",
-            "num_bon": collecte_data.get("num_be", ""),
+            "num_bon": collecte_data.get("num_bon", ""),
+            "num_bsd": collecte_data.get("num_bsd", ""),
             "contenant": collecte_data.get("contenant", ""),
             "volume_m3": collecte_data.get("volume_m3", ""),
+            "declassement": collecte_data.get("declassement", ""),
             "facture": facture_obj
         }
         dechets.append(dechet)

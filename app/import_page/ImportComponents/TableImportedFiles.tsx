@@ -2,10 +2,8 @@ import React, { useState, useEffect } from 'react';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 import { supabase } from '@/app/database/supabaseClient';
 import { useSession } from '@/app/component/SessionProvider';
-import ExtractData from './ExtractData';
 import { toast } from 'react-hot-toast';
-import { RowBSD } from '@/app/register/interface/BSD_Interface';
-import { useFilterContext, Site as FilterSite } from '@/app/FilterContext';
+import { useFilterContext } from '@/app/FilterContext';
 import ExtractBSD from './ExtractBSD/ExtractBSD';
 import LinkBSD from './ExtractBSD/LinkBSD';
 import ButtonExtractFacture from './NewExtractFacture/ButtonExtractFacture';
@@ -15,6 +13,7 @@ import useSWR from 'swr';
 //import BoutonExtractDoc from './ExtractMetaDoc/components/BoutonExtractDoc';
 //import BoutonSplitDoc from './ExtractMetaDoc/components/BoutonSplitDoc';
 //import ExtractDoc from './ExtractMetaDoc/components/ExtractDoc';
+//import LinkMeta from './ExtractMetaDoc/components/LinkMeta';
 
 export interface PdfInfo {
     status: string;
@@ -29,6 +28,8 @@ export interface PdfInfo {
     date_extracted?: string;
     site_siret_plus?: string[];
     provider?: ProviderJSON;
+    alerte?: Record<string, unknown>;
+    //confidence?: Record<string, unknown>;
 }
 
 interface TableImportedFilesProps {
@@ -48,12 +49,7 @@ interface DocumentType {
     name: string;
 }
 
-interface Provider {
-    siret: string;
-    name: string;
-    is_transporter: boolean;
-    is_destination: boolean;
-}
+// (removed unused Provider interface)
 
 interface ProviderJSON {
     siret: string;
@@ -173,7 +169,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
 
     // Gestionnaire de clic en dehors du menu
     React.useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
+        const handleClickOutside = () => {
             if (openMenuId !== null) {
                 setOpenMenuId(null);
             }
@@ -529,22 +525,27 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                     */} 
                                     {/*cofounders_permission(user_id) &&
                                         <div className="flex gap-1">
-                                        <ExtractDoc //pour ouvrir le modal d'extraction
-                                            pdf_id={pdf.id}
-                                            pdf_path={pdf.name_pdf_in_bucket}
-                                            pdf_status={pdf.status}
-                                        />
-                                        <BoutonExtractDoc //pour lancer l'extraction
-                                            pdfId={pdf.id}
-                                        />
-                                        <BoutonSplitDoc 
-                                            pdfId={pdf.id}
-                                            entrepriseId={Number(entreprise_id)|| 0}
-                                            onSplitComplete={(newPdfIds) => {
-                                                console.log('Nouveaux PDFs créés:', newPdfIds);
-                                                // Rafraîchir la liste des PDFs, etc.
-                                            }}
-                                        />
+                                            <div className="relative">
+                                                <ExtractDoc //pour ouvrir le modal d'extraction
+                                                    pdf_id={pdf.id}
+                                                    pdf_path={pdf.name_pdf_in_bucket}
+                                                    pdf_status={pdf.status}
+                                                />
+                                                {/* Bulle de notification rouge si alerte.stop=true 
+                                                {pdf.alerte && (pdf.alerte as {stop?: boolean}).stop && (
+                                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
+                                                )}
+                                            </div>
+                                            <div className="relative">
+                                                <LinkMeta
+                                                    pdf_id={pdf.id}
+                                                    onLink={() => {
+                                                        if (onPdfStatusUpdate) {
+                                                            onPdfStatusUpdate(pdf.id, 'linked');
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
                                         </div>
                                     */}   
                                     {cofounders_permission(user_id) && pdf.document_type === 'facture' && 
@@ -586,7 +587,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                         pdf.document_type === 'bsd' &&
                                         <LinkBSD
                                             pdf_id={pdf.id}
-                                            onLink={(bsd_id: string) => {
+                                            onLink={() => {
                                                 // Mettre à jour localement le statut du PDF
                                                 if (onPdfStatusUpdate) {
                                                     onPdfStatusUpdate(pdf.id, 'linked');
@@ -597,13 +598,13 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                     {pdf.document_type === 'bon' && ['read','extracted','splitted_extracted'].includes(pdf.status) && (
                                     <LinkBon
                                         pdf_id={pdf.id}
-                                        onLink={(bsd_id: string) => {
+                                        onLink={() => {
                                             // Mettre à jour localement le statut du PDF
                                             if (onPdfStatusUpdate) {
                                                 onPdfStatusUpdate(pdf.id, 'linked');
                                             }
                                         }}
-                                        onCreate={(bsd_id: string) => {
+                                        onCreate={() => {
                                             // Mettre à jour localement le statut du PDF
                                             if (onPdfStatusUpdate) {
                                                 onPdfStatusUpdate(pdf.id, 'linked');
@@ -645,7 +646,7 @@ const cofounders_permission = (user_id:string|null) => {
 
 // Hook SWR pour récupérer les sites depuis table_autocompletion
 const useSites = (entreprise_id: string | null) => {
-    const fetcher = async (url: string) => {
+    const fetcher = async () => {
         if (!entreprise_id) return [];
         
         const { data, error } = await supabase
@@ -699,7 +700,7 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
 }) => {
     const [selectedSites, setSelectedSites] = useState<string[]>(initialSite || []);
     const [isOpen, setIsOpen] = useState(false);
-    const { sites: sitesFromContext } = useFilterContext();
+    // removed unused sitesFromContext
     const dropdownRef = React.useRef<HTMLDivElement>(null);
     
     // Utiliser le hook SWR pour récupérer tous les sites

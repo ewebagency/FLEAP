@@ -5,9 +5,9 @@ import { useSession } from '@/app/component/SessionProvider';
 import { MetaOcrResponse } from '../interface/pdf_interface';
 
 interface BoutonExtractDocProps {
-    pdfId: number;
-    onExtractSuccess?: (pdfId: number, data: MetaOcrResponse) => void;
-    onExtractError?: (pdfId: number, error: string) => void;
+    pdfId: string;
+    onExtractSuccess?: (pdfId: string, data: MetaOcrResponse) => void;
+    onExtractError?: (pdfId: string, error: string) => void;
 }
 
 const BoutonExtractDoc: React.FC<BoutonExtractDocProps> = ({ 
@@ -26,7 +26,11 @@ const BoutonExtractDoc: React.FC<BoutonExtractDocProps> = ({
 
         setIsLoading(true);
         try {
-            const result = await runMetaOcrForPdf(pdfId, Number(entreprise_id));
+            if (!entreprise_id) {
+                toast.error('Entreprise non identifiée');
+                return;
+            }
+            const result = await runMetaOcrForPdf(pdfId.toString(), Number(entreprise_id));
 
             if (result.success) {
                 toast.success('Extraction réussie !');
@@ -36,33 +40,38 @@ const BoutonExtractDoc: React.FC<BoutonExtractDocProps> = ({
                     const { structured_response, confidence, alerte } = result.data;
                     
                     console.log("Données de l'extraction", structured_response)
-                    // Afficher les alertes si il y en a
-                    if (alerte.stop) {
-                        toast.error(`⚠️ ${alerte.message}`, { duration: 5000 });
-                    } else if (alerte.message) {
-                        toast(`ℹ️ ${alerte.message}`, { duration: 3000 });
+                    
+                    // Afficher les alertes si il y en a (avec vérification de sécurité)
+                    if (alerte && typeof alerte === 'object') {
+                        if (alerte.stop) {
+                            toast.error(`⚠️ ${alerte.message || 'Alerte stop'}`, { duration: 5000 });
+                        } else if (alerte.message) {
+                            toast(`ℹ️ ${alerte.message}`, { duration: 3000 });
+                        }
                     }
 
-                    // Afficher le niveau de confiance
-                    const confidenceLevel = confidence.brute >= 80 && confidence.spec >= 80 
-                        ? 'Élevée' 
-                        : confidence.brute >= 60 && confidence.spec >= 60 
-                            ? 'Moyenne' 
-                            : 'Faible';
-                    
-                    toast.success(`Confiance: ${confidenceLevel} (${confidence.brute}% brute, ${confidence.spec}% spécifique)`, { duration: 4000 });
+                    // Afficher le niveau de confiance (avec vérification de sécurité)
+                    if (confidence && typeof confidence === 'object') {
+                        const confidenceLevel = confidence.brute >= 80 && confidence.spec >= 80 
+                            ? 'Élevée' 
+                            : confidence.brute >= 60 && confidence.spec >= 60 
+                                ? 'Moyenne' 
+                                : 'Faible';
+                        
+                        toast.success(`Confiance: ${confidenceLevel} (${confidence.brute || 0}% brute, ${confidence.spec || 0}% spécifique)`, { duration: 4000 });
+                    }
                 }
 
                 // Callback de succès
                 if (onExtractSuccess && result.data) {
-                    onExtractSuccess(pdfId, result.data);
+                    onExtractSuccess(pdfId.toString(), result.data);
                 }
             } else {
                 toast.error(`Erreur: ${result.message}`);
                 
                 // Callback d'erreur
                 if (onExtractError) {
-                    onExtractError(pdfId, result.error || result.message);
+                    onExtractError(pdfId.toString(), result.error || result.message);
                 }
             }
         } catch (error) {
@@ -72,7 +81,7 @@ const BoutonExtractDoc: React.FC<BoutonExtractDocProps> = ({
             
             // Callback d'erreur
             if (onExtractError) {
-                onExtractError(pdfId, errorMessage);
+                onExtractError(pdfId.toString(), errorMessage);
             }
         } finally {
             setIsLoading(false);

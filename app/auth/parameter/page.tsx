@@ -15,6 +15,7 @@ import SiteTab from './components/Site/SiteTab';
 import ParametrageTab from './components/ParametrageTable/ParametrageTab';
 import AutocompletionTab from './components/TableAutocompletion/AutocompletionTab';
 import FormatDataTab from './components/ClusterParams/FormatDataTab';
+import MetaClusterParamsTab from './components/MetaClusterParams/MetaClusterParamsTab';
 
 export default function UserSettings() {
     const router = useRouter();
@@ -88,7 +89,12 @@ export default function UserSettings() {
                                 className={`tab border-0 ${activeTab === 'tab_format_data' ? 'border-b-4 border-green-500' : ''}`}
                                 onClick={() => handleTabClick('tab_format_data')}>
                                 Paramétrage format de site
-                            </a>                            
+                            </a>           
+                            <a role="tab" 
+                                className={`tab border-0 ${activeTab === 'tab_meta_cluster_params' ? 'border-b-4 border-green-500' : ''}`}
+                                onClick={() => handleTabClick('tab_meta_cluster_params')}>
+                                Meta cluster params
+                            </a>                                                   
                         </div>
                     )}
                     {/*<a role="tab" 
@@ -116,6 +122,7 @@ export default function UserSettings() {
                 {activeTab === 'tab_parametrage' && <ParametrageTab />}
                 {activeTab === 'tab_autocompletion' && <AutocompletionTab />}
                 {activeTab === 'tab_format_data' && <FormatDataTab />}
+                {activeTab === 'tab_meta_cluster_params' && <MetaClusterParamsTab />}
             </div>
         </div>
     );

@@ -11,7 +11,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { TooltipItem as ChartTooltipItem, Chart as ChartJS, ChartOptions, ChartDataset, ScaleOptionsByType, Scale, ScaleType } from 'chart.js';
 import { Context } from 'chartjs-plugin-datalabels';
-import { typeTraitement, codeTraitementDefinitions, findBestMatchingCode } from './codeTraitement';
+import { typeTraitement, codeTraitementDefinitions, classifyTreatmentCode } from './codeTraitement';
 
 const { Bar } = DynamicCharts;
 
@@ -56,6 +56,8 @@ export const treatmentLabels = {
   "D14": "D14 - Reconditionnement avant D1-D13", // D14 : Reconditionnement avant une opération D1 à D13
   "D15": "D15 - Stockage en attente D1-D14", // D15 : Stockage en attente d'une opération D1 à D14
   "R0": "R0 - Réutilisation", // R0 : Réutilisation
+  "PR": "PR - Réutilisation", // PR : Réutilisation
+  "RX": "RX - Réemploi", // RX : Réemploi
   "R1": "R1 - Valorisation énergétique", // R1 : Utilisation principale comme combustible ou autre moyen de produire de l'énergie
   "R2": "R2 - Récupération de solvants", // R2 : Récupération ou régénération de solvants
   "R3": "R3 - Recyclage substances organiques", // R3 : Recyclage ou récupération des substances organiques ne utilisées comme solvants
@@ -308,21 +310,31 @@ const EnvBarChart = () => {
                     
                     if (tonnage > 0) {
 
-                        // Trouver la catégorie du traitement
+                        // Classifier le traitement avec notre fonction simplifiée
+                        const treatmentType = classifyTreatmentCode(processingOperation);
                         let category = 'Inconnu';
-                        // Trier les catégories pour prioriser les codes plus spécifiques (plus longs)
-                        const sortedCategories = Object.entries(typeTraitement).sort((a, b) => {
-                            const maxLengthA = Math.max(...a[1].map(code => code.length));
-                            const maxLengthB = Math.max(...b[1].map(code => code.length));
-                            return maxLengthB - maxLengthA; // Codes plus longs en premier
-                        });
                         
-                        for (const [cat, codes] of sortedCategories) {
-                            const matchedCode = findBestMatchingCode(processingOperation, codes);
-                            if (matchedCode) {
-                                category = cat;
-                                break;
-                            }
+                        // Log pour vérifier les codes RX et PR
+                        if (processingOperation === 'RX' || processingOperation === 'PR') {
+                            console.log('🔍 Code RX/PR détecté:', {
+                                code: processingOperation,
+                                tonnage: tonnage,
+                                treatmentType: treatmentType,
+                                category: category,
+                                bsdId: bsd.id
+                            });
+                        }
+                        
+                        if (treatmentType === 'energetique') {
+                            category = 'Valorisation énergétique';
+                        } else if (treatmentType === 'matiere') {
+                            category = 'Valorisation matière';
+                        } else if (treatmentType === 'reemploi') {
+                            category = 'Réemploi';
+                        } else if (treatmentType === 'reutilisation') {
+                            category = 'Réutilisation';
+                        } else if (treatmentType === 'elimination') {
+                            category = 'Élimination';
                         }
 
                         if (!treatmentStats.has(category)) {
@@ -359,21 +371,31 @@ const EnvBarChart = () => {
                 const processingOperation = (recipient.processingOperation || '').trim();
                 
                 if (quantity > 0) {
-                    // Trouver la catégorie du traitement
+                    // Classifier le traitement avec notre fonction simplifiée
+                    const treatmentType = classifyTreatmentCode(processingOperation);
                     let category = 'Inconnu';
-                    // Trier les catégories pour prioriser les codes plus spécifiques (plus longs)
-                    const sortedCategories = Object.entries(typeTraitement).sort((a, b) => {
-                        const maxLengthA = Math.max(...a[1].map(code => code.length));
-                        const maxLengthB = Math.max(...b[1].map(code => code.length));
-                        return maxLengthB - maxLengthA; // Codes plus longs en premier
-                    });
                     
-                    for (const [cat, codes] of sortedCategories) {
-                        const matchedCode = findBestMatchingCode(processingOperation, codes);
-                        if (matchedCode) {
-                            category = cat;
-                            break;
-                        }
+                    // Log pour vérifier les codes RX et PR
+                    if (processingOperation === 'RX' || processingOperation === 'PR') {
+                        console.log('🔍 Code RX/PR détecté (fallback):', {
+                            code: processingOperation,
+                            tonnage: quantity,
+                            treatmentType: treatmentType,
+                            category: category,
+                            bsdId: bsd.id
+                        });
+                    }
+                    
+                    if (treatmentType === 'energetique') {
+                        category = 'Valorisation énergétique';
+                    } else if (treatmentType === 'matiere') {
+                        category = 'Valorisation matière';
+                    } else if (treatmentType === 'reemploi') {
+                        category = 'Réemploi';
+                    } else if (treatmentType === 'reutilisation') {
+                        category = 'Réutilisation';
+                    } else if (treatmentType === 'elimination') {
+                        category = 'Élimination';
                     }
 
                     if (!treatmentStats.has(category)) {
@@ -432,6 +454,20 @@ const EnvBarChart = () => {
                     ],
                     backgroundColor: treatmentColors[category as keyof typeof treatmentColors] || treatmentColors.default
                 }))
+        });
+
+        // Log des statistiques finales par catégorie
+        console.log('📊 Statistiques finales par catégorie:');
+        treatmentStats.forEach((stats, category) => {
+            console.log(`  ${category}:`, {
+                tonnage: stats.tonnage.toFixed(2),
+                carbon: stats.carbon.toFixed(2),
+                details: Array.from(stats.details.entries()).map(([code, detail]) => ({
+                    code,
+                    tonnage: detail.tonnage.toFixed(2),
+                    carbon: detail.carbon.toFixed(2)
+                }))
+            });
         });
 
         // Stocker les détails pour le tooltip

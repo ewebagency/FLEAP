@@ -73,10 +73,11 @@ prompt_facture = """
     Détecte :
         Le nom du prestataire qui a édité la facture, le numéro de facture
         Pour chaque collecte de déchet identifie :
-            Le nom du site/point de collecte, le numéro du bon (BE), la date
+            Le nom du site/point de collecte, le numéro du bon (BE, BL) et/ou le numéro de BSD, la date
             Le nom du déchet, son code CED, le nom du contenant et son volume en m3
+            S'il y a un déclassement (True/False)
             Puis pour chaque prestation liée à ce déchet identifie :
-                Le type de prestation (rotation, transport, traitement...), l'unité (T:tonnes U:unité, L:Litre...), la quantité (nombre de tonne, de tour..), le prix unitaire (P.U), le montant total HT, et la tva en €
+                Le type de prestation (rotation, transport, traitement...), l'unité (T:tonnes U:unité, L:Litre...), la quantité (tonnage, nombre de tour..), le prix unitaire (P.U), le montant total HT, et la tva en €
         
         A la fin détecte également le montant total HT en bas de la facture
 
@@ -91,12 +92,14 @@ prompt_facture = """
         "collecte": [
                     {
                     "nom_site": "nom_site",
-                    "num_be": "num_be",
+                    "num_bon": "num_bon",
+                    "num_bsd": "num_bsd",
                     "date": "date",
                     "nom_dechet": "nom_dechet", 
                     "ced": "ced",
                     "contenant": "contenant",
                     "volume_m3": "volume_m3",
+                    "declassement": "declassement",
                     "prestations": [
                                     {
                                     "type_presta": "type_presta",
