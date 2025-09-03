@@ -198,13 +198,14 @@ export const candidats_BDD = async (
 const normalizePdfData = (
     rawData: Record<string, unknown>,
     siteMapping: Record<string, string[]>,
-    prestaMapping: Record<string, string[]>
+    prestaMapping: Record<string, string[]>,
+    dechetIndex: number = 0
 ): Record<string, string> => {
     const normalized: Record<string, string> = {};
     
     // Extraire les données selon le type de document
-    if (rawData.type_doc === 'bon' && Array.isArray(rawData.dechet) && rawData.dechet.length > 0) {
-        const dechet = rawData.dechet[0] as Record<string, unknown>;
+    if (rawData.type_doc === 'bon' && Array.isArray(rawData.dechet) && rawData.dechet.length > dechetIndex) {
+        const dechet = rawData.dechet[dechetIndex] as Record<string, unknown>;
         normalized.date = (dechet.date as string) || '';
         normalized.ced = (dechet.ced as string) || '';
         normalized.waste_name = (dechet.nom as string) || '';
@@ -214,21 +215,19 @@ const normalizePdfData = (
         normalized.prestataire = (rawData.presta_raw as string) || '';
         normalized.destinataire = (rawData.presta_raw as string) || ''; // Pour les bons, le prestataire est souvent le destinataire
         normalized.transporteur = (rawData.presta_raw as string) || ''; // Ou le transporteur
-    } else if (rawData.type_doc === 'facture' && Array.isArray(rawData.dechet)) {
-        // Pour les factures, on prend le premier déchet comme référence
-        if (rawData.dechet.length > 0) {
-            const dechet = rawData.dechet[0] as Record<string, unknown>;
-            normalized.date = (dechet.date as string) || '';
-            normalized.ced = (dechet.ced as string) || '';
-            normalized.waste_name = (dechet.nom as string) || '';
-            normalized.num_bon = (dechet.num_bon as string) || '';
-            normalized.num_bsd = (dechet.num_bsd as string) || '';
-            normalized.tonnage = (dechet.tonnage as string) || '';
-            normalized.site = (rawData.site_raw as string) || '';
-            normalized.prestataire = (rawData.presta_raw as string) || '';
-            normalized.destinataire = (rawData.presta_raw as string) || ''; // Pour les factures aussi
-            normalized.transporteur = (rawData.presta_raw as string) || '';
-        }
+    } else if (rawData.type_doc === 'facture' && Array.isArray(rawData.dechet) && rawData.dechet.length > dechetIndex) {
+        // Pour les factures, on prend le déchet spécifique
+        const dechet = rawData.dechet[dechetIndex] as Record<string, unknown>;
+        normalized.date = (dechet.date as string) || '';
+        normalized.ced = (dechet.ced as string) || '';
+        normalized.waste_name = (dechet.nom as string) || '';
+        normalized.num_bon = (dechet.num_bon as string) || '';
+        normalized.num_bsd = (dechet.num_bsd as string) || '';
+        normalized.tonnage = (dechet.tonnage as string) || '';
+        normalized.site = (rawData.site_raw as string) || '';
+        normalized.prestataire = (rawData.presta_raw as string) || '';
+        normalized.destinataire = (rawData.presta_raw as string) || ''; // Pour les factures aussi
+        normalized.transporteur = (rawData.presta_raw as string) || '';
     }
     
     // Appliquer les mappings pour normaliser les noms de sites
@@ -315,6 +314,7 @@ const computeSimilarity = (a: string, b: string): number => {
 export const LinkOrCreate = async (
     pdfInfo: PdfInfo,
     entrepriseId: number,
+    dechetIndex: number = 0,
     config = DEFAULT_CONFIG,
     rulesOverride?: Partial<LinkRules>
 ): Promise<LinkResult> => {
@@ -331,7 +331,8 @@ export const LinkOrCreate = async (
         const normalizedPdf = normalizePdfData(
             pdfInfo.infos_raw || {},
             mappings.params_mapping_site || {},
-            mappings.params_mapping_presta || {}
+            mappings.params_mapping_presta || {},
+            dechetIndex
         );
 
         // Récupérer les candidats BSD autour de la date cible (fenêtre large)

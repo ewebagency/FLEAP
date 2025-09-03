@@ -4,7 +4,7 @@ import { PdfInfo } from '../interface/pdf_interface';
 
 type BsdLinkedItem = { bsd_id: string; index_dechet: number };
 
-const translateByMapping = (value: string, mapping: Record<string, string[]>): {name: string, siret: string} => {
+export const translateByMapping = (value: string, mapping: Record<string, string[]>): {name: string, siret: string} => {
     if (!value) return {"name": "", "siret": ""};
     const normalized = value.toLowerCase().trim();
     for (const [key, originals] of Object.entries(mapping || {})) {
@@ -112,10 +112,11 @@ export const link_in_bdd = async (
         throw updateBsdError;
     }
 
-    // Met à jour pdf_infos: status=linked et ajoute {bsd_id, index_dechet} dans bsd_linked
+    // Met à jour pdf_infos: ajoute {bsd_id, index_dechet} dans bsd_linked
+    // et ne passe status=linked QUE si tous les déchets sont traités
     const { data: pdfRow, error: fetchPdfError } = await supabase
         .from('pdf_infos')
-        .select('id, bsd_linked')
+        .select('id, bsd_linked, infos_raw')
         .eq('id', pdfId)
         .eq('entreprise_id', entrepriseId)
         .single();
@@ -129,9 +130,21 @@ export const link_in_bdd = async (
         nextBsdLinked.push({ bsd_id: bsdId, index_dechet: indexDechet });
     }
 
+    // Vérifier si tous les déchets du PDF sont couverts par bsd_linked
+    const totalDechets: number = Array.isArray((pdfRow as unknown as { infos_raw?: { dechet?: unknown[] } })?.infos_raw?.dechet)
+        ? ((pdfRow as unknown as { infos_raw: { dechet: unknown[] } }).infos_raw.dechet.length)
+        : 0;
+    const uniqueLinkedCount = new Set(nextBsdLinked.map(it => it.index_dechet)).size;
+    const allDone = totalDechets > 0 && uniqueLinkedCount >= totalDechets;
+
+    const updatePayload: Record<string, unknown> = { bsd_linked: nextBsdLinked };
+    if (allDone) {
+        updatePayload.status = 'linked';
+    }
+
     const { error: updatePdfError } = await supabase
         .from('pdf_infos')
-        .update({ status: 'linked', bsd_linked: nextBsdLinked })
+        .update(updatePayload)
         .eq('id', pdfId)
         .eq('entreprise_id', entrepriseId);
     if (updatePdfError) {
@@ -264,15 +277,7 @@ export const create_in_bdd = async (
             : "",
     };
 
-    if (pdf_type === 'facture') {
-        // On stocke les lignes de facture en texte pour audit dans comments
-        const lignes = dechet.facture?.ligne || [];
-        try {
-            other_infos.comments = JSON.stringify({ invoice: { numero: infos.num_facture || '', lignes } });
-        } catch {
-            other_infos.comments = undefined;
-        }
-    }
+    // Suppression de la logique d'ajout des lignes de facture en commentaire
 
     // Enrichissements spécifiques PDF BSD gérés dans la construction ci-dessus
     // Création de la ligne BSD
@@ -311,10 +316,11 @@ export const create_in_bdd = async (
 
     const newBsdId: string = createdBsd.id;
 
-    // Mettre à jour le PDF: status=linked et bsd_linked += {bsd_id, index_dechet}
+    // Mettre à jour le PDF: bsd_linked += {bsd_id, index_dechet}
+    // et ne passe status=linked QUE si tous les déchets sont traités
     const { data: existingPdf, error: getPdfErr } = await supabase
         .from('pdf_infos')
-        .select('bsd_linked')
+        .select('bsd_linked, infos_raw')
         .eq('id', pdfId)
         .eq('entreprise_id', entrepriseId)
         .single();
@@ -325,9 +331,20 @@ export const create_in_bdd = async (
         nextBsdLinked.push({ bsd_id: newBsdId, index_dechet: indexDechet });
     }
 
+    const totalDechets: number = Array.isArray((existingPdf as unknown as { infos_raw?: { dechet?: unknown[] } })?.infos_raw?.dechet)
+        ? ((existingPdf as unknown as { infos_raw: { dechet: unknown[] } }).infos_raw.dechet.length)
+        : 0;
+    const uniqueLinkedCount = new Set(nextBsdLinked.map(it => it.index_dechet)).size;
+    const allDone = totalDechets > 0 && uniqueLinkedCount >= totalDechets;
+
+    const updatePayload: Record<string, unknown> = { bsd_linked: nextBsdLinked };
+    if (allDone) {
+        updatePayload.status = 'linked';
+    }
+
     const { error: updatePdfError } = await supabase
         .from('pdf_infos')
-        .update({ status: 'linked', bsd_linked: nextBsdLinked })
+        .update(updatePayload)
         .eq('id', pdfId)
         .eq('entreprise_id', entrepriseId);
     if (updatePdfError) throw updatePdfError;

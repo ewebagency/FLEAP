@@ -3,12 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Any
-"""
-import json
-import psutil
-import os
-import gc
-"""
+
 #from prompts import prompt_bon
 from parse_ocr_extract_facture import process_facture_pdf, process_facture_pdf_only_ocr, extract_facture_with_gemini_from_data
 #from utils.utils_paddleocr import run_paddle_ocr
@@ -16,6 +11,13 @@ from utils.utils_gemini import extract_gemini
 
 from utils.utils_parse import parse_pdf, parse_pdf_file
 from prompts import prompt_bsd, prompt_bon
+
+"""
+import json
+import psutil
+import os
+import gc
+"""
 """
 from utils.utils_enrich import enrich_text
 from utils.document_types import get_prompt, transform_document_data

@@ -242,8 +242,8 @@ export class ReportGenerator {
             if (date < current.firstDate) current.firstDate = date;
             if (date > current.lastDate) current.lastDate = date;
 
-            // Vérifier si valoParts existe
-            if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+            // Vérifier si valoParts existe ET n'est pas vide
+            if (recipient?.valoParts && Array.isArray(recipient.valoParts) && recipient.valoParts.length > 0) {
                 // Pour le KPI tonnage total : utiliser quantityReceived puis quantity (PAS valoParts)
                 const bsdQuantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
                                    bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
@@ -275,7 +275,7 @@ export class ReportGenerator {
                     current.globalValorized += bsdGlobalValorized;
                     current.processedCount += bsdProcessedTonnage; // Utiliser le tonnage comme poids
                 }
-            } else if (recipient?.processingOperation) {
+            } else {
                 // Fallback sur processingOperation (ancienne méthode)
                 const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
                                bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
@@ -283,20 +283,15 @@ export class ReportGenerator {
                 
                 current.quantity += quantity;
 
-            if (processingCode) {
+                if (processingCode) {
                     current.processedCount += quantity; // Utiliser le tonnage comme poids
-                if (tauxValorisationMatière.includes(processingCode)) {
+                    if (tauxValorisationMatière.includes(processingCode)) {
                         current.materialValorized += quantity;
-                }
-                if (tauxValorisationGlobale.includes(processingCode)) {
+                    }
+                    if (tauxValorisationGlobale.includes(processingCode)) {
                         current.globalValorized += quantity;
+                    }
                 }
-                }
-            } else {
-                // BSD sans code de traitement : inclure dans le tonnage total mais pas dans les taux de valorisation
-                const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
-                               bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
-                current.quantity += quantity;
             }
 
             filiereMap.set(filiereName, current);
@@ -689,8 +684,8 @@ export class ReportGenerator {
         bsds.forEach(bsd => {
             const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
             
-            // Vérifier si valoParts existe
-            if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+            // Vérifier si valoParts existe ET n'est pas vide
+            if (recipient?.valoParts && Array.isArray(recipient.valoParts) && recipient.valoParts.length > 0) {
                 // Utiliser valoParts avec les tonnages fractionnés
                 recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
                     const tonnage = part.tonnage || 0;
@@ -704,7 +699,7 @@ export class ReportGenerator {
                         treatmentStats[processingCode].count += 1;
                     }
                 });
-            } else if (recipient?.processingOperation) {
+            } else {
                 // Fallback sur processingOperation (ancienne méthode)
                 const processingCode = recipient.processingOperation?.replace(/\s+/g, '');
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
@@ -742,8 +737,8 @@ export class ReportGenerator {
         this.bsds.forEach(bsd => {
             const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
             
-            // Vérifier si valoParts existe
-            if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+            // Vérifier si valoParts existe ET n'est pas vide
+            if (recipient?.valoParts && Array.isArray(recipient.valoParts) && recipient.valoParts.length > 0) {
                 // Utiliser valoParts avec les tonnages fractionnés
                 recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
                     const tonnage = part.tonnage || 0;
@@ -757,7 +752,7 @@ export class ReportGenerator {
                         treatmentStats[processingCode].count += 1;
                     }
                 });
-            } else if (recipient?.processingOperation) {
+            } else {
                 // Fallback sur processingOperation (ancienne méthode)
                 const processingCode = recipient.processingOperation?.replace(/\s+/g, '');
             const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived || 
@@ -1177,8 +1172,8 @@ export class ReportGenerator {
             
             if (!recipient) return;
 
-            // Vérifier si valoParts existe
-            if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+            // Vérifier si valoParts existe ET n'est pas vide
+            if (recipient?.valoParts && Array.isArray(recipient.valoParts) && recipient.valoParts.length > 0) {
                 // Utiliser valoParts avec les tonnages fractionnés
                 let bsdTotalTonnage = 0;
                 let bsdGloballyValorizedTonnage = 0;
@@ -1205,7 +1200,7 @@ export class ReportGenerator {
                     materiallyValorizedTonnage += bsdMateriallyValorizedTonnage;
                     processedBsdsCount++;
                 }
-            } else if (recipient?.processingOperation) {
+            } else {
                 // Fallback sur processingOperation (ancienne méthode)
                 const processingCode = recipient.processingOperation?.replace(/\s+/g, '');
                 const tonnage = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;

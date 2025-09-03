@@ -13,6 +13,7 @@ export interface PdfInfo {
     site_siret_plus: string[] | null; // text[]
     infos_raw?: Record<string, unknown> | null; // jsonb
     alerte?: Record<string, unknown> | null; // jsonb
+    bsd_linked?: Record<string, unknown> | null; // jsonb
 }
 
 export interface NewPdfInfo {

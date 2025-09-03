@@ -49,7 +49,7 @@ export const calculateTauxValorisation = (bsds: BSD[], dateFilter?: DateFilter):
         if (!recipient) return;
 
         // Traitement avec valoParts (méthode moderne)
-        if (recipient.valoParts && Array.isArray(recipient.valoParts)) {
+        if (recipient.valoParts && Array.isArray(recipient.valoParts) && recipient.valoParts.length > 0) {
             let bsdTotalTonnage = 0;
             let bsdEnergeticTonnage = 0;
             let bsdMaterialTonnage = 0;
@@ -85,8 +85,8 @@ export const calculateTauxValorisation = (bsds: BSD[], dateFilter?: DateFilter):
                 processedBsdsCount++;
             }
         } 
-        // Fallback sur processingOperation (ancienne méthode)
-        else if (recipient.processingOperation) {
+        // Fallback sur processingOperation (valoParts n'existe pas OU est vide)
+        else {
             const processingCode = recipient.processingOperation;
             // Harmoniser avec EnvBarChart.tsx : utiliser quantityReceived OU wasteDetails.quantity
             const tonnage = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? 
@@ -118,8 +118,8 @@ export const calculateTauxValorisation = (bsds: BSD[], dateFilter?: DateFilter):
     const reemploiRate = totalTonnage > 0 ? (reemploiTonnage / totalTonnage) * 100 : 0;
     const reutilisationRate = totalTonnage > 0 ? (reutilisationTonnage / totalTonnage) * 100 : 0;
     
-    // Valorisation globale = énergétique + matière + réemploi + réutilisation, mais limitée à 100%
-    const globalRate = Math.min(energeticRate + materialRate + reemploiRate + reutilisationRate, 100);
+    // Valorisation globale = énergétique + matière (exclut PR et RX), mais limitée à 100%
+    const globalRate = Math.min(energeticRate + materialRate, 100);
     
     const credibilityScore = bsds.length > 0 ? (processedBsdsCount / bsds.length) * 100 : 0;
 
@@ -130,7 +130,7 @@ export const calculateTauxValorisation = (bsds: BSD[], dateFilter?: DateFilter):
         credibilityScore,
         processedBsdsCount,
         totalTonnage,
-        valorizedTonnage: energeticTonnage + materialTonnage + reemploiTonnage + reutilisationTonnage,
+        valorizedTonnage: energeticTonnage + materialTonnage,
         reemploiTonnage,
         reutilisationTonnage,
         reemploiRate,
@@ -315,33 +315,35 @@ const TauxValorisation = () => {
                         )}
                     </div>
 
-                    {/* Valorisation globale (1 KPI avec split) */}
-                    <div 
-                        className="relative bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-2 shadow-sm hover:shadow-md transition-all duration-200"
-                        onMouseEnter={() => setShowTooltipGlobale(true)}
-                        onMouseLeave={() => setShowTooltipGlobale(false)}
-                    >
-                        <div className="text-xs text-blue-600 mb-1">
-                            <p>Valorisation</p>
-                            <p>Globale</p>
-                        </div>
-                        
-                        <div className="flex items-center justify-between gap-2">
-                            <div className="text-lg font-bold text-blue-800">
-                                {globalValorizationRate.toFixed(1)}%
+                    {/* Valorisation globale (1 KPI avec split) - masqué quand PR/RX présents */}
+                    {!hasReemploiReutilisation && (
+                        <div 
+                            className="relative bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-2 shadow-sm hover:shadow-md transition-all duration-200"
+                            onMouseEnter={() => setShowTooltipGlobale(true)}
+                            onMouseLeave={() => setShowTooltipGlobale(false)}
+                        >
+                            <div className="text-xs text-blue-600 mb-1">
+                                <p>Valorisation</p>
+                                <p>Globale</p>
                             </div>
-                        </div>
+                            
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="text-lg font-bold text-blue-800">
+                                    {globalValorizationRate.toFixed(1)}%
+                                </div>
+                            </div>
 
-                        {showTooltipGlobale && (
-                            <div className="absolute z-20 bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-900 text-white p-3 rounded-lg shadow-xl text-xs w-56">
-                                <div className="font-semibold mb-1">Détails Valorisation Globale</div>
-                                <div className="text-gray-300">Réemploi + Réutilisation: {(reemploiRate + reutilisationRate).toFixed(1)}% - {(reemploiTonnage + reutilisationTonnage).toFixed(1)} T</div>
-                                <div className="text-gray-300">Matière + Énergie: {(materialValorizationRate + energeticValorizationRate).toFixed(1)}% - {(materialValorizationRate + energeticValorizationRate) * totalTonnage / 100} T</div>
-                                <div className="text-gray-300">Total: {totalTonnage.toFixed(1)} tonnes</div>
-                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                            </div>
-                        )}
-                    </div>
+                            {showTooltipGlobale && (
+                                <div className="absolute z-20 bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-900 text-white p-3 rounded-lg shadow-xl text-xs w-56">
+                                    <div className="font-semibold mb-1">Détails Valorisation Globale</div>
+                                    <div className="text-gray-300">Matière (R2-R13): {materialValorizationRate.toFixed(1)}% - {materialValorizationRate * totalTonnage / 100} T</div>
+                                    <div className="text-gray-300">Énergie (R1): {energeticValorizationRate.toFixed(1)}% - {energeticValorizationRate * totalTonnage / 100} T</div>
+                                    <div className="text-gray-300">Total: {totalTonnage.toFixed(1)} tonnes</div>
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </>
             )}
         </div>

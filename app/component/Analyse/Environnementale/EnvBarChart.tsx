@@ -11,7 +11,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { TooltipItem as ChartTooltipItem, Chart as ChartJS, ChartOptions, ChartDataset, ScaleOptionsByType, Scale, ScaleType } from 'chart.js';
 import { Context } from 'chartjs-plugin-datalabels';
-import { typeTraitement, codeTraitementDefinitions, classifyTreatmentCode } from './codeTraitement';
+import { typeTraitement, codeTraitementDefinitions, classifyTreatmentCode, tauxValorisationGlobale, tauxValorisationReemploiReutilisation } from './codeTraitement';
 
 const { Bar } = DynamicCharts;
 
@@ -193,8 +193,8 @@ const EnvBarChart = () => {
             }
 
             try {
-                // Vérifier si valoParts existe
-                if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+                // Vérifier si valoParts existe ET n'est pas vide
+                if (recipient?.valoParts && Array.isArray(recipient.valoParts) && recipient.valoParts.length > 0) {
                     // Utiliser valoParts avec les tonnages fractionnés
                     recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
                         const tonnage = part.tonnage || 0;
@@ -222,8 +222,8 @@ const EnvBarChart = () => {
                             treatmentMap.set(key, (treatmentMap.get(key) || 0) + carbonEmission);
                         }
                     });
-                } else if (recipient?.processingOperation) {
-                    // Fallback sur processingOperation (ancienne méthode)
+                } else {
+                    // Fallback sur processingOperation (valoParts n'existe pas OU est vide)
                     const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? 
                         bsd.infos_json?.formAPI?.createFormInput?.quantityReceived : 
                         bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
@@ -301,8 +301,8 @@ const EnvBarChart = () => {
             const cedCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code;
             const recipient = bsd.infos_json?.formAPI?.createFormInput?.recipient;
 
-            // Vérifier si valoParts existe
-            if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+            // Vérifier si valoParts existe ET n'est pas vide
+            if (recipient?.valoParts && Array.isArray(recipient.valoParts) && recipient.valoParts.length > 0) {
                 // Utiliser valoParts avec les tonnages fractionnés
                 recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
                     const tonnage = part.tonnage || 0;
@@ -337,6 +337,8 @@ const EnvBarChart = () => {
                             category = 'Élimination';
                         }
 
+
+
                         if (!treatmentStats.has(category)) {
                             treatmentStats.set(category, { 
                                 tonnage: 0, 
@@ -363,8 +365,8 @@ const EnvBarChart = () => {
                         }
                     }
                 });
-            } else if (recipient?.processingOperation) {
-                // Fallback sur processingOperation (ancienne méthode)
+            } else {
+                // Fallback sur processingOperation (valoParts n'existe pas OU est vide)
                 const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? 
                     bsd.infos_json?.formAPI?.createFormInput?.quantityReceived : 
                     bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || 0;
@@ -397,6 +399,8 @@ const EnvBarChart = () => {
                     } else if (treatmentType === 'elimination') {
                         category = 'Élimination';
                     }
+
+
 
                     if (!treatmentStats.has(category)) {
                         treatmentStats.set(category, { 

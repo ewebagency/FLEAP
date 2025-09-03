@@ -12,8 +12,8 @@ import LinkBon from './ExtractBon/LinkBon';
 import useSWR from 'swr';
 //import BoutonExtractDoc from './ExtractMetaDoc/components/BoutonExtractDoc';
 //import BoutonSplitDoc from './ExtractMetaDoc/components/BoutonSplitDoc';
-//import ExtractDoc from './ExtractMetaDoc/components/ExtractDoc';
-//import LinkMeta from './ExtractMetaDoc/components/LinkMeta';
+import ExtractDoc from './ExtractMetaDoc/components/ExtractDoc';
+import LinkMetaButton from './ExtractMetaDoc/components/LinkMetaButton';
 
 export interface PdfInfo {
     status: string;
@@ -531,19 +531,13 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                                     pdf_path={pdf.name_pdf_in_bucket}
                                                     pdf_status={pdf.status}
                                                 />
-                                                {/* Bulle de notification rouge si alerte.stop=true 
                                                 {pdf.alerte && (pdf.alerte as {stop?: boolean}).stop && (
                                                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
                                                 )}
                                             </div>
                                             <div className="relative">
-                                                <LinkMeta
-                                                    pdf_id={pdf.id}
-                                                    onLink={() => {
-                                                        if (onPdfStatusUpdate) {
-                                                            onPdfStatusUpdate(pdf.id, 'linked');
-                                                        }
-                                                    }}
+                                                <LinkMetaButton
+                                                    pdfId={String(pdf.id)}
                                                 />
                                             </div>
                                         </div>

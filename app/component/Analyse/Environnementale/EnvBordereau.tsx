@@ -82,8 +82,8 @@ const EnvBordereau = () => {
                 
                 const month = date.getMonth();
 
-                // Vérifier si valoParts existe
-                if (recipient?.valoParts && Array.isArray(recipient.valoParts)) {
+                // Vérifier si valoParts existe ET n'est pas vide
+                if (recipient?.valoParts && Array.isArray(recipient.valoParts) && recipient.valoParts.length > 0) {
                     // Utiliser valoParts avec les tonnages fractionnés
                     recipient.valoParts.forEach((part: { tonnage: number; code_valo: string }) => {
                         const tonnage = part.tonnage || 0;
@@ -97,8 +97,8 @@ const EnvBordereau = () => {
                             }
                         }
                     });
-                } else if (recipient?.processingOperation) {
-                    // Fallback sur processingOperation (ancienne méthode)
+                } else {
+                    // Fallback sur processingOperation (valoParts n'existe pas OU est vide)
                     const quantity = bsd.infos_json?.formAPI?.createFormInput?.quantityReceived ? 
                         Number(bsd.infos_json?.formAPI?.createFormInput?.quantityReceived) : 
                         Number(bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity) || 0;

@@ -6,8 +6,11 @@ export const CODES_REUTILISATION = ['PR'];
 export const CODES_ELIMINATION = ['DE', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'D14', 'D15'];
 
 // Exports pour ReportGenerator.ts
+// Valorisation globale = énergétique + matière (exclut PR et RX)
 export const tauxValorisationGlobale = [...CODES_VALORISATION_ENERGETIQUE, ...CODES_VALORISATION_MATIERE];
 export const tauxValorisationMatière = CODES_VALORISATION_MATIERE;
+// Réemploi et réutilisation (PR et RX) - séparés de la valorisation
+export const tauxValorisationReemploiReutilisation = [...CODES_REEMPLOI, ...CODES_REUTILISATION];
 
 // Fonction simple pour classifier un code de traitement
 export const classifyTreatmentCode = (code: string): 'energetique' | 'matiere' | 'reemploi' | 'reutilisation' | 'elimination' | 'autre' => {
