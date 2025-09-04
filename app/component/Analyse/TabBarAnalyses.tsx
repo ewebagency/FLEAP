@@ -8,6 +8,7 @@ import { SessionMore } from "../SessionProvider";
 import { useSession } from "../SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
 import { useEntrepriseId } from "@/app/interface_admin_2/InterfaceAdmin2/hooks/useEntrepriseId";
+import ExcelAnomaliesFinanciere from "./Financiere/New/ExcelAnomaliesFinanciere";
 //import OptiTab from "./Optimisation/OptiTab";
 
 export interface Material { id: number, checked: boolean, color: string, label: string}
@@ -19,6 +20,7 @@ const TabBarAnalyses = () => {
     const [activeTab, setActiveTab] = useState('tab_ops');
     const session = useSession();
     const [hasFinanceData, setHasFinanceData] = useState(false);
+    const [hasExcelAnomalies, setHasExcelAnomalies] = useState(false);
     const [entrepriseId, setEntrepriseId] = useState<string | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
     const handleTabClick = (tab:string) => {
@@ -40,6 +42,16 @@ const TabBarAnalyses = () => {
             }
         };
         checkFinanceData();
+    }, [session?.entreprise_id]);
+
+    useEffect(() => {
+        const checkExcelAnomalies = async () => {
+            if (session?.entreprise_id) {
+                const hasData = await has_excel_anomalies(session.entreprise_id);
+                setHasExcelAnomalies(hasData);
+            }
+        };
+        checkExcelAnomalies();
     }, [session?.entreprise_id]);
 
       const cofounders_user_id = (user_id: string | null) => {
@@ -66,6 +78,25 @@ const TabBarAnalyses = () => {
                 return false;
             }
             return data.length > 0;
+        }
+        return false;
+    }
+
+    const has_excel_anomalies = async (entreprise_id: string | null) => {
+        if (entreprise_id) {
+            const { data, error } = await supabase
+                .from('entreprise')
+                .select('excel_anomalies')
+                .eq('id', entreprise_id)
+                .single();
+
+            if (error) {
+                console.error("Error checking excel anomalies:", error);
+                return false;
+            }
+
+            const excelFiles = data?.excel_anomalies || [];
+            return Array.isArray(excelFiles) && excelFiles.length > 0;
         }
         return false;
     }
@@ -98,6 +129,11 @@ const TabBarAnalyses = () => {
                    onClick={() => handleTabClick('tab_opti')}>
                    Optimisations
                 </a>*/}
+                <a role="tab" 
+                   className={`tab border-0 ${activeTab === 'tab_anomalies' ? 'border-b-4 border-green-500' : ''} ${(cofounders_user_id(session?.user_id) || hasExcelAnomalies) ? '' : 'hidden'}`} 
+                   onClick={() => handleTabClick('tab_anomalies')}>
+                   Anomalies
+                </a>
             </div>
 
             {hasFinanceData ? <FinancialAnalyse active={activeTab == 'tab_finance'}/> : null}
@@ -105,6 +141,9 @@ const TabBarAnalyses = () => {
             {/*<FactureAnalyse active={activeTab == 'tab_facture'}/>*/}
             <EnvAnalyse active={activeTab == 'tab_env'}/>
             {/*<OptiTab active={activeTab == 'tab_opti'}/>*/}
+            {activeTab == 'tab_anomalies' && <div className="bg-white rounded-lg">
+                <ExcelAnomaliesFinanciere />
+            </div>}
         </div>
     )
 }
