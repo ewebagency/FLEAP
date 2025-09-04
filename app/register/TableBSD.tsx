@@ -1485,7 +1485,7 @@ const nonDangerousStatut = (statut: string) => {
 }
 
 const canModify = (id_track: string, statut_track: string) => {
-    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED" || statut_track === "DRAFT" || id_track === "Ligne validée" || id_track === "Ligne créée" || id_track === "Ligne automatique" || id_track === "Ligne demandée" || id_track === "Ligne de BSD PDF" || id_track === "Ligne de Bon PDF") {
+    if(id_track === "Déchet non dangereux" || id_track === "draft" || statut_track === "IMPORTED" || statut_track === "DRAFT" || id_track === "Ligne validée" || id_track === "Ligne créée" || id_track === "Ligne automatique" || id_track === "Ligne demandée" || id_track === "Ligne de BSD PDF" || id_track === "Ligne de Bon PDF" || id_track === "Ligne de Facture PDF") {
         return true;
     }
     return false;

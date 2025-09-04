@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
 import { useSession } from '@/app/component/SessionProvider';
 import CreatableSelect from 'react-select/creatable';
@@ -8,6 +8,8 @@ import CreatableSelect from 'react-select/creatable';
 interface MappingCedFiliere {
     ced: string;
     filiere: string;
+    multiflux?: boolean;
+    tri?: boolean;
 }
 
 interface OptionType {
@@ -30,13 +32,13 @@ const formatCedCode = (code: string) => {
 export default function FiliereTab() {
     const [mappings, setMappings] = useState<MappingCedFiliere[]>([]);
     const [wasteDetails, setWasteDetails] = useState<WasteDetail[]>([]);
-    const [newCed, setNewCed] = useState('');
-    const [newFiliere, setNewFiliere] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const session = useSession();
     const [selectedFiliere, setSelectedFiliere] = useState<OptionType | null>(null);
     const [selectedCed, setSelectedCed] = useState<OptionType | null>(null);
+    const [isMultiflux, setIsMultiflux] = useState<boolean>(false);
+    const [isTri, setIsTri] = useState<boolean>(false);
 
     // Récupérer les filières uniques
     const uniqueFilieres = Array.from(new Set(mappings.map(m => m.filiere))).sort();
@@ -47,12 +49,7 @@ export default function FiliereTab() {
         value: filiere,
     }));
 
-    useEffect(() => {
-        fetchMappings();
-        fetchWasteDetails();
-    }, []);
-
-    const fetchMappings = async () => {
+    const fetchMappings = useCallback(async () => {
         try {
             if (!session.entreprise_id) {
                 throw new Error('ID de l\'entreprise non trouvé');
@@ -73,30 +70,64 @@ export default function FiliereTab() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [session.entreprise_id]);
 
-    const fetchWasteDetails = async () => {
+    const fetchWasteDetails = useCallback(async () => {
         try {
             if (!session.entreprise_id) {
                 throw new Error('ID de l\'entreprise non trouvé');
             }
-            const { data, error } = await supabase
-                .from('bsd')
-                .select('infos_json->formAPI->createFormInput->wasteDetails')
-                .eq('entreprise_id', session.entreprise_id);
 
-            if (error) throw error;
-            if (data) {
-                const wasteDetailsArray = data
-                    .map(item => item.wasteDetails as { code: string, name: string })
-                    .filter(detail => detail?.code && detail?.name);
+            const allWasteDetails: { code: string; name: string }[] = [];
+            let hasMore = true;
+            let lastId: string | null = null;
 
-                setWasteDetails(wasteDetailsArray);
+            while (hasMore) {
+                let query = supabase
+                    .from('bsd')
+                    .select('id, infos_json->formAPI->createFormInput->wasteDetails')
+                    .eq('entreprise_id', session.entreprise_id)
+                    .order('id', { ascending: false })
+                    .limit(1000);
+
+                if (lastId) {
+                    query = query.lt('id', lastId);
+                }
+
+                const { data, error } = await query;
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
+                    hasMore = false;
+                    break;
+                }
+
+                const batch = (data as Array<{ id: string; wasteDetails: { code: string; name: string } | null }>)
+                    .map((item) => item.wasteDetails as { code: string; name: string })
+                    .filter((detail): detail is { code: string; name: string } => Boolean(detail?.code && detail?.name));
+
+                allWasteDetails.push(...batch);
+                lastId = data[data.length - 1].id as string;
+
+                const { count } = await supabase
+                    .from('bsd')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('entreprise_id', session.entreprise_id)
+                    .lt('id', lastId);
+
+                hasMore = count ? count > 0 : false;
             }
+
+            setWasteDetails(allWasteDetails);
         } catch (err) {
             console.error('Erreur lors du chargement des waste details:', err);
         }
-    };
+    }, [session.entreprise_id]);
+
+    useEffect(() => {
+        fetchMappings();
+        fetchWasteDetails();
+    }, [fetchMappings, fetchWasteDetails]);
 
     // Créer un mapping CED -> nom prépondérant
     const cedToNameMapping = useMemo(() => {
@@ -124,13 +155,16 @@ export default function FiliereTab() {
 
     console.log('cedToNameMapping', cedToNameMapping);
 
-    // Options pour le CreatableSelect
+    // Options pour le CreatableSelect (exclure les CED déjà mappés)
     const cedOptions: OptionType[] = useMemo(() => {
-        return Object.entries(cedToNameMapping).map(([code, name]) => ({
-            label: `${formatCedCode(code)} - ${name}`,
-            value: code,
-        }));
-    }, [cedToNameMapping]);
+        const mappedCeds = new Set(mappings.map(m => m.ced));
+        return Object.entries(cedToNameMapping)
+            .filter(([code]) => !mappedCeds.has(code))
+            .map(([code, name]) => ({
+                label: `${formatCedCode(code)} - ${name}`,
+                value: code,
+            }));
+    }, [cedToNameMapping, mappings]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -138,7 +172,7 @@ export default function FiliereTab() {
         
         // On ne garde que le code CED sans le nom
         const cleanedCed = selectedCed.value;
-        const updatedMappings = [...mappings, { ced: cleanedCed, filiere: selectedFiliere.value }];
+        const updatedMappings = [...mappings, { ced: cleanedCed, filiere: selectedFiliere.value, multiflux: isMultiflux, tri: isTri }];
         
         try {
             const { error } = await supabase
@@ -151,6 +185,8 @@ export default function FiliereTab() {
             setMappings(updatedMappings);
             setSelectedCed(null);
             setSelectedFiliere(null);
+            setIsMultiflux(false);
+            setIsTri(false);
         } catch (err) {
             setError('Erreur lors de la mise à jour');
             console.error(err);
@@ -218,6 +254,25 @@ export default function FiliereTab() {
                             noOptionsMessage={() => "Aucun code CED trouvé"}
                         />
                     </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setIsMultiflux(v => !v)}
+                            className={`px-3 py-2 rounded border ${isMultiflux ? 'bg-green-600 text-white border-green-700' : 'bg-gray-100 text-gray-700 border-gray-300'}`}
+                            title="Basculer multi/mono flux"
+                        >
+                            {isMultiflux ? 'Multi-flux' : 'Mono-flux'}
+                        </button>
+                        <label className="inline-flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                className="checkbox checkbox-sm"
+                                checked={isTri}
+                                onChange={(e) => setIsTri(e.target.checked)}
+                            />
+                            <span>Tri</span>
+                        </label>
+                    </div>
                     <button
                         type="submit"
                         className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
@@ -255,6 +310,24 @@ export default function FiliereTab() {
                                             <span className="text-xs text-gray-500">
                                                 {cedToNameMapping[code] || 'Nom inconnu'}
                                             </span>
+                                            {(() => {
+                                                const mappingObj = mappings.find(m => m.ced === code && m.filiere === filiere);
+                                                const mf = mappingObj?.multiflux;
+                                                const tr = mappingObj?.tri;
+                                                const chips: { key: string; label: string; style: string }[] = [];
+                                                if (mf === true) chips.push({ key: 'mf-true', label: 'multiflux', style: 'bg-green-100 text-green-700 border-green-200' });
+                                                else if (mf === false) chips.push({ key: 'mf-false', label: 'monoflux', style: 'bg-gray-100 text-gray-700 border-gray-200' });
+                                                if (tr === true) chips.push({ key: 'tr-true', label: 'trié', style: 'bg-green-100 text-green-700 border-green-200' });
+                                                else if (tr === false) chips.push({ key: 'tr-false', label: 'non trié', style: 'bg-gray-100 text-gray-700 border-gray-200' });
+                                                if (chips.length === 0) return null;
+                                                return (
+                                                    <div className="mt-1 flex gap-2 text-xs flex-wrap">
+                                                        {chips.map(c => (
+                                                            <span key={c.key} className={`px-2 py-0.5 rounded border ${c.style}`}>{c.label}</span>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     ))}
                                 </div>

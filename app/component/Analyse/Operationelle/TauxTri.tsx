@@ -3,7 +3,6 @@ import React, { useMemo, useState } from "react";
 import { useAnalysis } from "@/app/analysis/AnalysisProvider";
 import { getFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { BSD } from '@/app/analysis/AnalysisProvider';
-import { useFilterContext } from "@/app/FilterContext";
 
 interface WasteDetail {
     code: string;
@@ -18,7 +17,7 @@ const removeAccents = (str: string) => {
 // Fonction exportée pour calculer le taux de tri
 export const calculateTauxTri = (
     bsds: BSD[], 
-    mappingTable: Array<{ced?: string, nom?: string, filiere: string, trie?: boolean}>, 
+    mappingTable: Array<{ced?: string, nom?: string, filiere: string, trie?: boolean, multiflux?: boolean, tri?: boolean}>, 
     filieres_ou_prestataires: { nom: 'filiere' | 'filiere_nom' }
 ) => {
     let totalWeight = 0;
@@ -27,7 +26,10 @@ export const calculateTauxTri = (
     const wasteDetails: { [key: string]: WasteDetail } = {};
 
     bsds.forEach((bsd: BSD) => {
-        const quantity = bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0;
+        const quantityReceived = bsd.infos_json.formAPI.createFormInput.quantityReceived;
+        const quantity = (typeof quantityReceived === 'number' && !isNaN(quantityReceived) && quantityReceived > 0)
+            ? quantityReceived
+            : (bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity || 0);
         totalWeight += quantity;
 
         let filiere: string;
@@ -49,6 +51,42 @@ export const calculateTauxTri = (
             // Utiliser other_infos.tri pour le mode filiere
             if (bsd.other_infos?.tri) {
                 tri_potentiel = bsd.other_infos.tri;
+            }
+
+            // Priorité aux flags au niveau CED (multiflux/tri) si présents dans le mapping
+            const cedCodeRaw = bsd.infos_json.formAPI.createFormInput.wasteDetails.code || '';
+            const cedCode = cedCodeRaw.replace(/[^\d]/g, '');
+            const cleanCed = (c?: string) => (c || '').replace(/[^\d]/g, '');
+            const mappingEntryCed = (mappingTable as Array<{ced?: string, multiflux?: boolean, tri?: boolean}>).find(item => cleanCed(item.ced) === cedCode);
+            const mappingMultiflux: boolean | undefined = mappingEntryCed?.multiflux;
+            const mappingTri: boolean | undefined = mappingEntryCed?.tri;
+
+            if (mappingMultiflux === true && mappingTri === true) {
+                // Multiflux + trié => tri global (prestataire)
+                triByPresta += quantity;
+                // Ne pas compter comme non trié, et ignorer la suite
+                return;
+            }
+            if (mappingMultiflux === true && mappingTri === false) {
+                // Multiflux + non trié => pas trié
+                nonRecycledWeight += quantity;
+                // Ajouter au détail des non triés
+                const code = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
+                const description = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
+                if (!wasteDetails[description]) {
+                    wasteDetails[description] = {
+                        code,
+                        description,
+                        quantity: 0
+                    };
+                }
+                wasteDetails[description].quantity += quantity;
+                // Ignorer la suite
+                return;
+            }
+            if (mappingMultiflux === false) {
+                // Monoflux => trié sur site: ne rien ajouter à nonRecycledWeight ni triByPresta
+                return;
             }
         }
 
@@ -115,7 +153,7 @@ const TauxTri = () => {
     const [showTooltipSurSite, setShowTooltipSurSite] = useState(false);
     const [showTooltipGlobal, setShowTooltipGlobal] = useState(false);
 
-    const { tauxTri, totalWeight, nonRecycledDetails, tauxTriSurSite, triByPresta } = useMemo(() => {
+    const { tauxTri, nonRecycledDetails, tauxTriSurSite } = useMemo(() => {
         return calculateTauxTri(bsds, mappingTable, filieres_ou_prestataires);
     }, [bsds, mappingTable, filieres_ou_prestataires]);
 

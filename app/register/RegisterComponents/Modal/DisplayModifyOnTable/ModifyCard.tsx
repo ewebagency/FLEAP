@@ -14,6 +14,7 @@ import BoxIcon from '@/app/component/BoxIconWrapper';
 import { handleDeleteLinkBSD_PDF } from "./deleteLinkBSD_PDF";
 import { handleDeleteLinkBon_PDF } from "./deleteLinkBon_PDF";
 import { cofounders_user_id } from "@/app/component/SideBar";
+import { handleDeleteLinkMetaDoc } from "@/app/import_page/ImportComponents/ExtractMetaDoc/utils/link_or_create_bdd";
 
 interface PdfInfo {
     id: number;
@@ -24,6 +25,7 @@ interface PdfInfo {
     document_type?: string;
     url?: string;
     file_size?: number;
+    bsd_linked?: {bsd_id:string, index_dechet:number}[];
 }
 
 const LabelInput = ({ label, value, onChange, path, readOnly, inputWidth }: { 
@@ -2016,10 +2018,15 @@ const ModifyCard = () => {
                                        {modalId && modalId !== null && modalId !== undefined && modalId !== "" && cofounders_user_id(user_id) && (
                                             <button
                                                 onClick={() => {
-                                                    if (pdf.document_type === 'bon') {
-                                                        handleDeleteLinkBon_PDF(pdf.id, modalId, entreprise_id);
+                                                    if(pdf.bsd_linked!==null && pdf.bsd_linked && pdf.bsd_linked.filter((b:{bsd_id:string})=>b.bsd_id===modalId).length>0) {
+                                                        const index = pdf.bsd_linked.filter((b:{bsd_id:string})=>b.bsd_id===modalId)[0].index_dechet;
+                                                        handleDeleteLinkMetaDoc(pdf.id, modalId, index, entreprise_id);
                                                     } else {
-                                                        handleDeleteLinkBSD_PDF(pdf.id, modalId, entreprise_id);
+                                                        if (pdf.document_type === 'bon') {
+                                                            handleDeleteLinkBon_PDF(pdf.id, modalId, entreprise_id);
+                                                        } else {
+                                                            handleDeleteLinkBSD_PDF(pdf.id, modalId, entreprise_id);
+                                                        }
                                                     }
                                                 }}
                                                 className="text-red-600 hover:text-red-800 hover:bg-red-100 p-1 rounded-md text-sm font-medium"

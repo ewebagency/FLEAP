@@ -12,8 +12,8 @@ import LinkBon from './ExtractBon/LinkBon';
 import useSWR from 'swr';
 //import BoutonExtractDoc from './ExtractMetaDoc/components/BoutonExtractDoc';
 //import BoutonSplitDoc from './ExtractMetaDoc/components/BoutonSplitDoc';
-import ExtractDoc from './ExtractMetaDoc/components/ExtractDoc';
-import LinkMetaButton from './ExtractMetaDoc/components/LinkMetaButton';
+//import ExtractDoc from './ExtractMetaDoc/components/ExtractDoc';
+//import LinkMetaButton from './ExtractMetaDoc/components/LinkMetaButton';
 
 export interface PdfInfo {
     status: string;

@@ -1,6 +1,8 @@
 import { supabase } from '@/app/database/supabaseClient';
 import { getPdfInfoById, getParamsMappingByEntreprise } from './bdd';
 import { PdfInfo } from '../interface/pdf_interface';
+import Swal from "sweetalert2";
+import { toast } from 'react-hot-toast';
 
 type BsdLinkedItem = { bsd_id: string; index_dechet: number };
 
@@ -362,3 +364,145 @@ export const create_in_bdd_preview = async (
 };
 
 
+export const handleDeleteLinkMetaDoc = async (pdfId: number, bsdId: string, index_dechet: number, entrepriseId: string|null) => {
+    console.log('[handleDeleteLinkMetaDoc] inputs', { pdfId, bsdId, index_dechet, entrepriseId });
+    
+    //Message pour demander confirmation de suppression
+    const confirm = await Swal.fire({
+        title: "Supprimer le lien Meta Doc-BSD",
+        text: "Voulez-vous vraiment supprimer le lien entre le Meta Doc et le BSD ?",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Oui, supprimer !',
+        cancelButtonText: 'Annuler'
+    });
+
+    if (!confirm.isConfirmed) return;
+    
+    // Validation entrepriseId et normalisation des types
+    const entrepriseIdNum = Number(entrepriseId);
+    if (!entrepriseId || Number.isNaN(entrepriseIdNum)) {
+        await Swal.fire({
+            title: "Entreprise manquante",
+            text: "Impossible de supprimer le lien sans identifiant d'entreprise.",
+            icon: 'error'
+        });
+        return;
+    }
+    
+    const pdfIdStr = String(pdfId);
+    
+    try {
+        // 1. Récupérer les données de la table bsd
+        const { data: existingBsd, error: fetchBsdError } = await supabase
+            .from('bsd')
+            .select('id, pdf_infos_id, pdf_ids, index_dechet_pdf')
+            .eq('id', bsdId)
+            .eq('entreprise_id', entrepriseIdNum)
+            .maybeSingle();
+            
+        if (fetchBsdError) {
+            console.error('[handleDeleteLinkMetaDoc] fetchBsdError', fetchBsdError);
+            throw fetchBsdError;
+        }
+
+        if (!existingBsd) {
+            await Swal.fire({
+                title: "BSD introuvable",
+                text: "Aucune ligne BSD correspondante n'a été trouvée.",
+                icon: 'error'
+            });
+            return;
+        }
+
+        // Préparer les mises à jour pour la table bsd
+        const updateBsdPayload: Record<string, unknown> = {};
+        
+        // Si pdf_infos_id == pdfId, supprimer le pdf_infos_id
+        if (existingBsd.pdf_infos_id != null && String(existingBsd.pdf_infos_id) === pdfIdStr) {
+            updateBsdPayload.pdf_infos_id = null;
+        }
+        
+        // Si pdfId est dans pdf_ids, l'enlever de l'array
+        if (Array.isArray(existingBsd.pdf_ids)) {
+            const currentPdfIds = (existingBsd.pdf_ids as unknown[]).map(id => String(id));
+            if (currentPdfIds.includes(pdfIdStr)) {
+                const nextPdfIds = currentPdfIds.filter(id => id !== pdfIdStr);
+                updateBsdPayload.pdf_ids = nextPdfIds;
+            }
+        }
+        
+        // Si index_dechet == index_dechet_pdf, supprimer l'index_dechet_pdf
+        if (existingBsd.index_dechet_pdf === index_dechet) {
+            updateBsdPayload.index_dechet_pdf = null;
+        }
+
+        // Mettre à jour la table bsd si nécessaire
+        if (Object.keys(updateBsdPayload).length > 0) {
+            const { error: updateBsdError } = await supabase
+                .from('bsd')
+                .update(updateBsdPayload)
+                .eq('id', bsdId)
+                .eq('entreprise_id', entrepriseIdNum);
+                
+            if (updateBsdError) {
+                console.error('[handleDeleteLinkMetaDoc] updateBsdError', updateBsdError);
+                throw updateBsdError;
+            }
+        }
+
+        // 2. Mettre à jour la table pdf_infos
+        const { data: existingPdf, error: fetchPdfError } = await supabase
+            .from('pdf_infos')
+            .select('id, bsd_linked')
+            .eq('id', pdfIdStr)
+            .eq('entreprise_id', entrepriseIdNum)
+            .maybeSingle();
+            
+        if (fetchPdfError) {
+            console.error('[handleDeleteLinkMetaDoc] fetchPdfError', fetchPdfError);
+            throw fetchPdfError;
+        }
+
+        if (!existingPdf) {
+            await Swal.fire({
+                title: "PDF introuvable",
+                text: "Aucun PDF correspondant n'a été trouvé.",
+                icon: 'error'
+            });
+            return;
+        }
+
+        // Filtrer l'item à supprimer de bsd_linked
+        const nextBsdLinked: BsdLinkedItem[] = Array.isArray(existingPdf.bsd_linked) 
+            ? existingPdf.bsd_linked.filter(item => 
+                !(item.bsd_id === bsdId && item.index_dechet === index_dechet)
+            )
+            : [];
+
+        // Mettre à jour pdf_infos : supprimer l'item de bsd_linked et passer status à 'read'
+        const { error: updatePdfError } = await supabase
+            .from('pdf_infos')
+            .update({
+                bsd_linked: nextBsdLinked,
+                status: 'read'
+            })
+            .eq('id', pdfIdStr)
+            .eq('entreprise_id', entrepriseIdNum);
+            
+        if (updatePdfError) {
+            console.error('[handleDeleteLinkMetaDoc] updatePdfError', updatePdfError);
+            throw updatePdfError;
+        }
+
+        console.log('[handleDeleteLinkMetaDoc] success');
+        toast.success('Lien Meta Doc-BSD supprimé avec succès');
+        return { ok: true };
+        
+    } catch (error) {
+        console.error('[handleDeleteLinkMetaDoc] error', error);
+        throw error;
+    }
+};
