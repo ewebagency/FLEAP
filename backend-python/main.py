@@ -17,8 +17,7 @@ import json
 import psutil
 import os
 import gc
-"""
-"""
+
 from utils.utils_enrich import enrich_text
 from utils.document_types import get_prompt, transform_document_data
 from utils.utils_doctr import ocr_this_pdf_with_doctr, cleanup_model, initialize_model
@@ -111,7 +110,9 @@ async def root():
 @app.post("/parse-pdf-and-extract-info/") #Sur les BSD
 async def parse_pdf_and_extract_info(request: PDFRequest):
     parsed_pdf = parse_pdf(request.pdf_url)
-    json_from_gemini = extract_gemini(parsed_pdf, prompt_bsd)
+    print("======Parsed PDF:", parsed_pdf)
+    json_from_gemini = await extract_gemini(parsed_pdf, prompt_bsd)
+    print("======JSON from Gemini:", json_from_gemini)
     return json_from_gemini
 
 
@@ -183,9 +184,9 @@ async def extract_facture_with_gemini(request: MindeeDataRequest):
 
 
 
-
 """
 #=============================================BSD=============================================
+
 @app.post("/extract-bsd-with-paddle-ocr")
 async def extract_bsd_with_paddle_ocr(file: UploadFile):
     print("Extract Raw Data with Paddle OCR")

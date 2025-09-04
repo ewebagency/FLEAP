@@ -3,7 +3,7 @@ import tempfile
 import pdfplumber
 import os
 
-async def parse_pdf(pdf_url):
+def parse_pdf(pdf_url):
     try:
         # Télécharger le PDF
         response = requests.get(pdf_url)

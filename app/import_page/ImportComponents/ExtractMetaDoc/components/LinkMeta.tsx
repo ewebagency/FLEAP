@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSession } from '@/app/component/SessionProvider';
 import { PdfInfo } from '../interface/pdf_interface';
 import { getPdfInfoById, getBSDCandidates } from '../utils/bdd';
-import { LinkOrCreate, LINK_RULES_DEFAULT, BSDCandidate } from '../utils/link';
+import { LinkOrCreate, LINK_RULES_DEFAULT, BSDCandidate, AutoLinkWithParams, AutoLinkParams, AutoLinkResult } from '../utils/link';
 import { create_in_bdd, create_in_bdd_preview, link_in_bdd, translateByMapping } from '../utils/link_or_create_bdd';
 import { useParamsMapping } from '../utils/extract';
 
@@ -16,6 +16,71 @@ type LinkAutoResult = {
 	action: 'to_link' | 'to_create' | 'to_check_by_user';
 	id_link?: string;
 	error?: string;
+};
+
+// Paramètres par défaut pour la nouvelle logique
+const DEFAULT_AUTO_LINK_PARAMS: AutoLinkParams = {
+	to_link: [
+		{
+			num_bsd: true,
+			num_bon: false,
+			site: true,
+			presta: true,
+			ced: false,
+			nom_dechet_tresh: 0,
+			nom_dechet: false,
+			date: true,
+			date_tresh: 10
+		},
+		{
+			num_bsd: false,
+			num_bon: true,
+			site: true,
+			presta: true,
+			ced: false,
+			nom_dechet_tresh: 0,
+			nom_dechet: false,
+			date: true,
+			date_tresh: 10
+		}
+	],
+	to_check_by_user: [
+		{
+			num_bsd: false,
+			num_bon: false,
+			site: true,
+			presta: true,
+			ced: true,
+			nom_dechet_tresh: 0,
+			nom_dechet: false,
+			date: true,
+			date_tresh: 2
+		},
+		{
+			num_bsd: false,
+			num_bon: false,
+			site: true,
+			presta: true,
+			ced: false,
+			nom_dechet_tresh: 80,
+			nom_dechet: true,
+			date: true,
+			date_tresh: 3
+		}
+	],
+	create: [
+		{
+			num_bsd: false,
+			num_bon: false,
+			site: true,
+			presta: true,
+			ced: false,
+			nom_dechet_tresh: 0,
+			nom_dechet: false,
+			date: true,
+			date_tresh: 10
+		}
+	]
 };
 
 type DechetItem = {
@@ -93,10 +158,11 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	const [errors, setErrors] = useState<string | null>(null);
 
 	const [autoResults, setAutoResults] = useState<Record<number, LinkAutoResult | undefined>>({});
+	const [newAutoResults, setNewAutoResults] = useState<Record<number, AutoLinkResult | undefined>>({});
 	const [candidatesByIndex, setCandidatesByIndex] = useState<Record<number, BSDCandidate[]>>({});
 	const [allCandidates, setAllCandidates] = useState<BSDCandidate[] | null>(null);
 	const [rawCandidatesByIndex, setRawCandidatesByIndex] = useState<Record<number, BSDCandidate[]>>({});
-	const [filtersByIndex, setFiltersByIndex] = useState<Record<number, { site: boolean; presta: boolean; numBon: boolean; ced: boolean; wasteName: boolean; date: boolean }>>({});
+	const [filtersByIndex, setFiltersByIndex] = useState<Record<number, { site: boolean; presta: boolean; numBon: boolean; numBsd: boolean; ced: boolean; wasteName: boolean; date: boolean }>>({});
 	const [daysByIndex, setDaysByIndex] = useState<Record<number, number>>({});
 	const [busyIndex, setBusyIndex] = useState<number | null>(null);
 	const [actionMsg, setActionMsg] = useState<string | null>(null);
@@ -210,6 +276,21 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		}
 	};
 
+	const runNewLinkAuto = async (index: number) => {
+		if (!pdfInfo || entrepriseIdNum == null) return;
+		setBusyIndex(index);
+		setActionMsg(null);
+		try {
+			const res = await AutoLinkWithParams(pdfInfo as PdfInfo, entrepriseIdNum, index, DEFAULT_AUTO_LINK_PARAMS);
+			setNewAutoResults(prev => ({ ...prev, [index]: res }));
+		} catch (error) {
+			console.error('Erreur dans runNewLinkAuto:', error);
+			setNewAutoResults(prev => ({ ...prev, [index]: { result: 'create', pluto: 'create' } }));
+		} finally {
+			setBusyIndex(null);
+		}
+	};
+
 	const openForIndex = (index: number) => {
 		if (!dechets[index]) return;
 		// toggle behavior
@@ -219,7 +300,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		const d = dechets[index] as DechetItem;
 		const rawList = allCandidates;
 		setRawCandidatesByIndex(prev => ({ ...prev, [index]: rawList }));
-		setFiltersByIndex(prev => ({ ...prev, [index]: prev[index] || { site: true, presta: true, numBon: true, ced: true, wasteName: true, date: true } }));
+		setFiltersByIndex(prev => ({ ...prev, [index]: prev[index] || { site: true, presta: true, numBon: true, numBsd: true, ced: true, wasteName: true, date: true } }));
 		setDaysByIndex(prev => ({ ...prev, [index]: prev[index] ?? LINK_RULES_DEFAULT.looseDays }));
 		const filtered = applyFilters(index, rawList, d);
 		setCandidatesByIndex(prev => ({ ...prev, [index]: filtered }));
@@ -253,10 +334,11 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	};
 
 	const applyFilters = (index: number, rawList: BSDCandidate[], d: DechetItem): BSDCandidate[] => {
-		const active = filtersByIndex[index] || { site: true, presta: true, numBon: true, ced: true, wasteName: true, date: true };
+		const active = filtersByIndex[index] || { site: true, presta: true, numBon: true, numBsd: true, ced: true, wasteName: true, date: true };
 		const siteLc = (translated.site.name || '').toLowerCase().trim();
 		const prestaLc = (translated.presta.name || '').toLowerCase().trim();
 		const numBonLc = (d?.num_bon || '').toLowerCase().trim();
+		const numBsdLc = (d?.num_bsd || '').toLowerCase().trim();
 		const cedNumbers = (d?.ced || '').replace(/[^\d]/g, '').trim();
 		const wasteNameLc = (d?.nom || '').toLowerCase().trim();
 		const pdfDate = d?.date || '';
@@ -267,6 +349,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 			const recip = (c.infos_json?.formAPI?.createFormInput?.recipient?.company?.name || '').toLowerCase().trim();
 			const transp = (c.infos_json?.formAPI?.createFormInput?.transporter?.company?.name || '').toLowerCase().trim();
 			const candNumBon = (c.other_infos?.numeroBon || '').toLowerCase().trim();
+			const candNumBsd = (c.readable_id_track_dechets || '').toLowerCase().trim();
 			const candCed = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '').replace(/[^\d]/g, '').trim();
 			const candWaste = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '').toLowerCase().trim();
 			const takenOverAt = (c.infos_json?.formAPI?.createFormInput?.takenOverAt || '') as string;
@@ -277,6 +360,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 			const bySite = !active.site || (siteLc && siteLc === siteName);
 			const byPresta = !active.presta || (prestaLc && (prestaLc === recip || prestaLc === transp));
 			const byNumBon = !active.numBon || (numBonLc && numBonLc === candNumBon);
+			const byNumBsd = !active.numBsd || (numBsdLc && numBsdLc === candNumBsd);
 			const byCed = !active.ced || (cedNumbers && cedNumbers === candCed);
 			
 			// Fuzzy matching pour les noms de déchets (même seuil que LinkAuto)
@@ -285,14 +369,14 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 			
 			const byDate = !active.date || (pdfDate && isDateInRange(candDate, pdfDate, nDays));
 			
-			return bySite && byPresta && byNumBon && byCed && byWaste && byDate;
+			return bySite && byPresta && byNumBon && byNumBsd && byCed && byWaste && byDate;
 		});
 	};
 
-	const toggleFilter = (index: number, key: 'site' | 'presta' | 'numBon' | 'ced' | 'wasteName' | 'date') => {
+	const toggleFilter = (index: number, key: 'site' | 'presta' | 'numBon' | 'numBsd' | 'ced' | 'wasteName' | 'date') => {
 		const d = dechets[index];
 		if (!d) return;
-		const current = filtersByIndex[index] || { site: true, presta: true, numBon: true, ced: true, wasteName: true, date: true };
+		const current = filtersByIndex[index] || { site: true, presta: true, numBon: true, numBsd: true, ced: true, wasteName: true, date: true };
 		const newValue = !current[key];
 		
 		// Mettre à jour le state immédiatement
@@ -306,6 +390,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 			const siteLc = (translated.site.name || '').toLowerCase().trim();
 			const prestaLc = (translated.presta.name || '').toLowerCase().trim();
 			const numBonLc = (d?.num_bon || '').toLowerCase().trim();
+			const numBsdLc = (d?.num_bsd || '').toLowerCase().trim();
 			const cedNumbers = (d?.ced || '').replace(/[^\d]/g, '').trim();
 			const wasteNameLc = (d?.nom || '').toLowerCase().trim();
 			const pdfDate = d?.date || '';
@@ -314,6 +399,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 			const recip = (c.infos_json?.formAPI?.createFormInput?.recipient?.company?.name || '').toLowerCase().trim();
 			const transp = (c.infos_json?.formAPI?.createFormInput?.transporter?.company?.name || '').toLowerCase().trim();
 			const candNumBon = (c.other_infos?.numeroBon || '').toLowerCase().trim();
+			const candNumBsd = (c.readable_id_track_dechets || '').toLowerCase().trim();
 			const candCed = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '').replace(/[^\d]/g, '').trim();
 			const candWaste = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '').toLowerCase().trim();
 			const takenOverAt = (c.infos_json?.formAPI?.createFormInput?.takenOverAt || '') as string;
@@ -322,6 +408,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 			const bySite = !newFilters.site || (siteLc && siteLc === siteName);
 			const byPresta = !newFilters.presta || (prestaLc && (prestaLc === recip || prestaLc === transp));
 			const byNumBon = !newFilters.numBon || (numBonLc && numBonLc === candNumBon);
+			const byNumBsd = !newFilters.numBsd || (numBsdLc && numBsdLc === candNumBsd);
 			const byCed = !newFilters.ced || (cedNumbers && cedNumbers === candCed);
 			
 			// Fuzzy matching pour les noms de déchets (même seuil que LinkAuto)
@@ -331,7 +418,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 			
 			const byDate = !newFilters.date || (pdfDate && isDateInRange(candDate, pdfDate, currentDays));
 			
-			return bySite && byPresta && byNumBon && byCed && byWaste && byDate;
+			return bySite && byPresta && byNumBon && byNumBsd && byCed && byWaste && byDate;
 		});
 		setCandidatesByIndex(prev => ({ ...prev, [index]: filtered }));
 	};
@@ -346,11 +433,12 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		
 		// Appliquer le filtre avec la nouvelle valeur
 		const rawList = rawCandidatesByIndex[index] || [];
-		const currentFilters = filtersByIndex[index] || { site: true, presta: true, numBon: true, ced: true, wasteName: true, date: true };
+		const currentFilters = filtersByIndex[index] || { site: true, presta: true, numBon: true, numBsd: true, ced: true, wasteName: true, date: true };
 		const filtered = rawList.filter(c => {
 			const siteLc = (translated.site.name || '').toLowerCase().trim();
 			const prestaLc = (translated.presta.name || '').toLowerCase().trim();
 			const numBonLc = (d?.num_bon || '').toLowerCase().trim();
+			const numBsdLc = (d?.num_bsd || '').toLowerCase().trim();
 			const cedNumbers = (d?.ced || '').replace(/[^\d]/g, '').trim();
 			const wasteNameLc = (d?.nom || '').toLowerCase().trim();
 			const pdfDate = d?.date || '';
@@ -359,6 +447,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 			const recip = (c.infos_json?.formAPI?.createFormInput?.recipient?.company?.name || '').toLowerCase().trim();
 			const transp = (c.infos_json?.formAPI?.createFormInput?.transporter?.company?.name || '').toLowerCase().trim();
 			const candNumBon = (c.other_infos?.numeroBon || '').toLowerCase().trim();
+			const candNumBsd = (c.readable_id_track_dechets || '').toLowerCase().trim();
 			const candCed = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '').replace(/[^\d]/g, '').trim();
 			const candWaste = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '').toLowerCase().trim();
 			const takenOverAt = (c.infos_json?.formAPI?.createFormInput?.takenOverAt || '') as string;
@@ -367,6 +456,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 			const bySite = !currentFilters.site || (siteLc && siteLc === siteName);
 			const byPresta = !currentFilters.presta || (prestaLc && (prestaLc === recip || prestaLc === transp));
 			const byNumBon = !currentFilters.numBon || (numBonLc && numBonLc === candNumBon);
+			const byNumBsd = !currentFilters.numBsd || (numBsdLc && numBsdLc === candNumBsd);
 			const byCed = !currentFilters.ced || (cedNumbers && cedNumbers === candCed);
 			
 			// Fuzzy matching pour les noms de déchets (même seuil que LinkAuto)
@@ -376,7 +466,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 			
 			const byDate = !currentFilters.date || (pdfDate && isDateInRange(candDate, pdfDate, newDays));
 			
-			return bySite && byPresta && byNumBon && byCed && byWaste && byDate;
+			return bySite && byPresta && byNumBon && byNumBsd && byCed && byWaste && byDate;
 		});
 		setCandidatesByIndex(prev => ({ ...prev, [index]: filtered }));
 	};
@@ -454,7 +544,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		<>
 			<div className="space-y-4">
 				<div className="rounded border p-3 bg-gray-50">
-					<div className="text-sm text-gray-700">PDF: {pdfInfo.name_pdf} • Type: {typeDoc} • Site(trad): <span className="font-medium">{translated.site.name}</span> • Presta(trad): <span className="font-medium">{translated.presta.name}</span></div>
+					<div className="text-sm text-gray-700">{typeDoc.toUpperCase()} : {pdfInfo.name_pdf}</div>
 				</div>
 
 				{dechets.map((d, idx) => {
@@ -464,14 +554,15 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 					const num_bon = d?.num_bon || '';
 					const num_bsd = d?.num_bsd || '';
 					const result = autoResults[idx];
+					const newResult = newAutoResults[idx];
 					const cands = candidatesByIndex[idx] || [];
 					const dechetStatus = getDechetStatus(idx);
 					return (
-						<div key={idx} className="rounded border p-4">
+						<div key={idx} className="rounded border p-4 bg-gray-200">
 							<div className="flex items-center justify-between">
 								<div onClick={() => openForIndex(idx)} className="cursor-pointer select-none">
 									<div className="flex items-center gap-2">
-										<div className="font-semibold">Déchet #{idx + 1} — {nom}</div>
+										<div className="font-semibold">Déchet N°{idx + 1}</div>
 										{dechetStatus && (
 											<span className={`px-2 py-1 rounded text-xs font-medium ${
 												dechetStatus.status === 'linked' 
@@ -489,19 +580,20 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 										<span className="px-2 py-1 rounded bg-green-100 text-green-800 text-xs">{ced}</span>
 										<span className="px-2 py-1 rounded bg-indigo-100 text-indigo-800 text-xs">{nom}</span>
 										<span className="px-2 py-1 rounded bg-purple-100 text-purple-800 text-xs">{d?.tonnage || 'N/A'}</span>
-										<span className="px-2 py-1 rounded bg-orange-100 text-orange-800 text-xs">{num_bon}</span>
-										<span className="px-2 py-1 rounded bg-red-100 text-red-800 text-xs">{num_bsd || 'N/A'}</span>
+										<span className="px-2 py-1 rounded bg-orange-100 text-orange-800 text-xs">Bon: {num_bon}</span>
+										<span className="px-2 py-1 rounded bg-red-100 text-red-800 text-xs">BSD: {num_bsd || 'N/A'}</span>
 									</div>
 								</div>
 								<div className="flex gap-2">
-									<button onClick={() => runLinkAuto(idx)} disabled={busyIndex === idx || !!dechetStatus} className="px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-50">Link auto</button>
+									<button onClick={() => runLinkAuto(idx)} disabled={busyIndex === idx || !!dechetStatus} className="px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-50">Link auto (ancien)</button>
+									<button onClick={() => runNewLinkAuto(idx)} disabled={busyIndex === idx || !!dechetStatus} className="px-3 py-1 text-sm rounded bg-purple-600 text-white disabled:opacity-50">Link auto (nouveau)</button>
 									<button onClick={() => doCreate(idx)} disabled={busyIndex === idx || !!dechetStatus} className="px-3 py-1 text-sm rounded bg-green-600 text-white disabled:opacity-50">Créer</button>
 								</div>
 							</div>
 
 							{result && (
-								<div className="mt-3 text-sm">
-									<div>Decision: <span className="font-medium">{result.action}</span>{result.id_link ? ` → ${result.id_link}` : ''}{result.error ? ` • ${result.error}` : ''}</div>
+								<div className="mt-0.5 text-sm font-bold flex justify-end mr-2">
+									<div><span className="font-medium">Ancien: {result.action}</span>{result.id_link ? ` → ${result.id_link}` : ''}{result.error ? ` • ${result.error}` : ''}</div>
 									{result.action === 'to_link' && result.id_link && (
 										<div className="mt-2">
 											<button onClick={() => doLink(idx, result.id_link!)} disabled={busyIndex === idx || !!dechetStatus} className="px-3 py-1 text-sm rounded bg-indigo-600 text-white disabled:opacity-50">Lier au BSD suggéré</button>
@@ -510,15 +602,26 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 								</div>
 							)}
 
+							{newResult && (
+								<div className="mt-0.5 text-sm font-bold flex justify-end mr-2">
+									<div><span className="font-medium text-purple-600">Nouveau: {newResult.result}</span>{newResult.id ? ` → ${newResult.id}` : ''}{newResult.pluto ? ` (${newResult.pluto})` : ''}</div>
+									{newResult.result === 'to_link' && newResult.id && (
+										<div className="mt-2">
+											<button onClick={() => doLink(idx, newResult.id!)} disabled={busyIndex === idx || !!dechetStatus} className="px-3 py-1 text-sm rounded bg-purple-600 text-white disabled:opacity-50">Lier au BSD suggéré (nouveau)</button>
+										</div>
+									)}
+								</div>
+							)}
+
 							{openIndex === idx && (
-								<div className="mt-4">
-									<div className="text-sm font-semibold mb-2">BSD candidats {allCandidates ? `(${cands.length})` : '(chargement...)'}</div>
+								<div className="mt-0">
 									{!allCandidates && (
 										<div className="text-sm text-gray-600">Préchargement des candidats...</div>
 									)}
 									{allCandidates && (
 									<>
 									<div className="flex flex-wrap items-center gap-4 mb-3 text-sm">
+									<div className="text-sm font-semibold">Candidats {allCandidates ? `(${cands.length})` : '(chargement...)'}</div>
 										<label className="inline-flex items-center gap-2">
 											<input type="checkbox" checked={(filtersByIndex[idx]?.site) ?? true} onChange={() => toggleFilter(idx, 'site')} />
 											<span>Site</span>
@@ -529,8 +632,12 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 										</label>
 										<label className="inline-flex items-center gap-2">
 											<input type="checkbox" checked={(filtersByIndex[idx]?.numBon) ?? true} onChange={() => toggleFilter(idx, 'numBon')} />
-											<span>Numéro de bon</span>
+											<span>N°Bon</span>
 										</label>
+										<label className="inline-flex items-center gap-2">
+											<input type="checkbox" checked={(filtersByIndex[idx]?.numBsd) ?? true} onChange={() => toggleFilter(idx, 'numBsd')} />
+											<span>N°BSD</span>
+										</label>										
 										<label className="inline-flex items-center gap-2">
 											<input type="checkbox" checked={(filtersByIndex[idx]?.ced) ?? true} onChange={() => toggleFilter(idx, 'ced')} />
 											<span>CED</span>
@@ -547,7 +654,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 									</div>
 									<div className="space-y-2">
 										{cands.map(c => (
-											<div key={c.id} className="rounded border p-2 text-sm flex items-center justify-between">
+											<div key={c.id} className="rounded border p-2 text-sm flex items-center justify-between bg-white">
 																							<div>
 												<div className="font-medium mb-2">{c.readable_id_track_dechets || 'Sans numéro'} <span className="text-gray-500 text-xs">(ID: {c.id})</span></div>
 												<div className="text-sm space-x-2">
@@ -599,3 +706,4 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		</>
 	);
 }
+

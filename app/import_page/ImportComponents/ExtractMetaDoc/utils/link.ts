@@ -11,6 +11,31 @@ export interface LinkResult {
     candidates?: string[];
 }
 
+// Types pour la nouvelle logique de matching automatique
+export interface AutoLinkParams {
+    to_link: MatchingRule[];
+    to_check_by_user: MatchingRule[];
+    create: MatchingRule[];
+}
+
+export interface MatchingRule {
+    num_bsd: boolean;
+    num_bon: boolean;
+    site: boolean;
+    presta: boolean;
+    ced: boolean;
+    nom_dechet_tresh: number;
+    nom_dechet: boolean;
+    date: boolean;
+    date_tresh: number;
+}
+
+export interface AutoLinkResult {
+    result: 'to_link' | 'to_check_by_user' | 'create';
+    id?: string;
+    pluto?: 'link' | 'create';
+}
+
 // Règles paramétrables pour contrôler la logique de liaison
 export interface LinkRules {
     // Fenêtres de dates
@@ -547,6 +572,160 @@ export const LinkOrCreate = async (
         console.error('Erreur dans LinkOrCreate:', error);
         return {
             action: 'to_check_by_user'
+        };
+    }
+};
+
+// Nouvelle fonction de matching automatique basée sur les paramètres JSON
+export const AutoLinkWithParams = async (
+    pdfInfo: PdfInfo,
+    entrepriseId: number,
+    dechetIndex: number = 0,
+    params: AutoLinkParams,
+    config = DEFAULT_CONFIG
+): Promise<AutoLinkResult> => {
+    try {
+        // Récupérer les mappings de traduction
+        const { data: mappings, error: mappingError } = await getParamsMappingByEntreprise(entrepriseId);
+        if (mappingError || !mappings) {
+            throw new Error('Impossible de récupérer les mappings');
+        }
+
+        // Normaliser les données du PDF
+        const normalizedPdf = normalizePdfData(
+            pdfInfo.infos_raw || {},
+            mappings.params_mapping_site || {},
+            mappings.params_mapping_presta || {},
+            dechetIndex
+        );
+
+        // Récupérer les candidats BSD autour de la date cible (fenêtre large)
+        const candidates = await candidats_BDD(
+            entrepriseId,
+            normalizedPdf.date || new Date().toISOString(),
+            200,
+            config
+        );
+
+        // Fonction pour vérifier si un candidat correspond à une règle
+        const matchesRule = (candidate: BSDCandidate, rule: MatchingRule): boolean => {
+            // Vérification num_bsd
+            if (rule.num_bsd) {
+                const pdfNumBsd = normalizedPdf.num_bsd || '';
+                const candidateNumBsd = (candidate.readable_id_track_dechets || '').toLowerCase().trim();
+                if (!pdfNumBsd || !candidateNumBsd || pdfNumBsd !== candidateNumBsd) {
+                    return false;
+                }
+            }
+
+            // Vérification num_bon
+            if (rule.num_bon) {
+                const pdfNumBon = normalizedPdf.num_bon || '';
+                const candidateNumBon = (candidate.other_infos?.numeroBon || '').toLowerCase().trim();
+                if (!pdfNumBon || !candidateNumBon || pdfNumBon !== candidateNumBon) {
+                    return false;
+                }
+            }
+
+            // Vérification site
+            if (rule.site) {
+                const pdfSite = normalizedPdf.site || '';
+                const candidateSite = (candidate.infos_json.formAPI.createFormInput.emitter.company?.name || '').toLowerCase().trim();
+                if (!pdfSite || !candidateSite || pdfSite !== candidateSite) {
+                    return false;
+                }
+            }
+
+            // Vérification prestataire (destinataire OU transporteur)
+            if (rule.presta) {
+                const pdfDestinataire = normalizedPdf.destinataire || '';
+                const pdfTransporteur = normalizedPdf.transporteur || '';
+                const candidateRecipient = (candidate.infos_json.formAPI.createFormInput.recipient.company.name || '').toLowerCase().trim();
+                const candidateTransporter = (candidate.infos_json.formAPI.createFormInput.transporter.company.name || '').toLowerCase().trim();
+                
+                const recipientOk = pdfDestinataire && candidateRecipient && candidateRecipient === pdfDestinataire;
+                const transporterOk = pdfTransporteur && candidateTransporter && candidateTransporter === pdfTransporteur;
+                
+                if (!recipientOk && !transporterOk) {
+                    return false;
+                }
+            }
+
+            // Vérification CED
+            if (rule.ced) {
+                const pdfCedNumbers = extractNumbersFromCed(normalizedPdf.ced || '');
+                const candidateCedNumbers = extractNumbersFromCed(candidate.infos_json.formAPI.createFormInput.wasteDetails.code || '');
+                if (!pdfCedNumbers || !candidateCedNumbers || pdfCedNumbers !== candidateCedNumbers) {
+                    return false;
+                }
+            }
+
+            // Vérification nom de déchet (fuzzy matching)
+            if (rule.nom_dechet) {
+                const pdfWaste = normalizedPdf.waste_name || '';
+                const candidateWaste = (candidate.infos_json.formAPI.createFormInput.wasteDetails.name || '').toLowerCase().trim();
+                const similarity = computeSimilarity(pdfWaste, candidateWaste);
+                if (!pdfWaste || !candidateWaste || similarity < rule.nom_dechet_tresh) {
+                    return false;
+                }
+            }
+
+            // Vérification date
+            if (rule.date) {
+                const takenOverAt = candidate.infos_json?.formAPI?.createFormInput?.takenOverAt || '';
+                const candidateDate = takenOverAt || candidate.created_at;
+                if (!normalizedPdf.date || !isDateInRange(candidateDate, normalizedPdf.date, rule.date_tresh)) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        // Parcourir les règles dans l'ordre : to_link -> to_check_by_user -> create
+        for (const rule of params.to_link) {
+            const matchingCandidates = candidates.filter(candidate => matchesRule(candidate, rule));
+            if (matchingCandidates.length >= 1) {
+                return {
+                    result: 'to_link',
+                    id: matchingCandidates[0].id,
+                    pluto: 'link'
+                };
+            }
+        }
+
+        for (const rule of params.to_check_by_user) {
+            const matchingCandidates = candidates.filter(candidate => matchesRule(candidate, rule));
+            if (matchingCandidates.length >= 1) {
+                return {
+                    result: 'to_check_by_user',
+                    id: matchingCandidates[0].id,
+                    pluto: matchingCandidates.length === 1 ? 'link' : 'create'
+                };
+            }
+        }
+
+        for (const rule of params.create) {
+            const matchingCandidates = candidates.filter(candidate => matchesRule(candidate, rule));
+            if (matchingCandidates.length >= 1) {
+                return {
+                    result: 'create',
+                    pluto: 'create'
+                };
+            }
+        }
+
+        // Si aucune règle ne correspond, retourner create par défaut
+        return {
+            result: 'create',
+            pluto: 'create'
+        };
+
+    } catch (error) {
+        console.error('Erreur dans AutoLinkWithParams:', error);
+        return {
+            result: 'create',
+            pluto: 'create'
         };
     }
 };
