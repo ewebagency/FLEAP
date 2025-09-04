@@ -10,6 +10,8 @@ import useSWR from 'swr';
 // Utiliser l'interface commune
 export type BSD = CommonBSD;
 
+type FilterType = 'all' | 'imported' | 'registres';
+
 interface AnalysisContextType {
   bsds: BSD[];
   loading: boolean;
@@ -17,8 +19,8 @@ interface AnalysisContextType {
   mappingTable: Array<{ ced?: string; nom?: string; filiere: string }>;
   siretToName: Record<string, string>;
   filieres_ou_prestataires: FiliereOuPrestataireInterface;
-  filterImportedOnly: boolean;
-  setFilterImportedOnly: (val: boolean) => void;
+  filterType: FilterType;
+  setFilterType: (val: FilterType) => void;
 }
 
 // Ajout du type intermédiaire
@@ -103,7 +105,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
     const [mappingTable, setMappingTable] = useState<Array<{ ced?: string; nom?: string; filiere: string }>>([]);
     const [siretToName, setSiretToName] = useState<Record<string, string>>({});
     const [filtersInitialized, setFiltersInitialized] = useState(false);
-    const [filterImportedOnly, setFilterImportedOnly] = useState(false);
+    const [filterType, setFilterType] = useState<FilterType>('all');
 
     const { filterFunctions } = useFiltresPerso();
 
@@ -315,12 +317,27 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
         }
 
         let finalFiltered = filteredData;
-        if (filterImportedOnly) {
-            finalFiltered = filteredData.filter(bsd => bsd.status_track_dechets === 'IMPORTED');
+        
+        // Appliquer le filtre selon le type sélectionné
+        switch (filterType) {
+            case 'imported':
+                // Importés (pdf/excel) : created_on_fleap == false
+                finalFiltered = filteredData.filter(bsd => bsd.created_on_fleap === false);
+                break;
+            case 'registres':
+                // Registres : status_track_dechets == 'IMPORTED'
+                finalFiltered = filteredData.filter(bsd => bsd.status_track_dechets === 'IMPORTED');
+                break;
+            case 'all':
+            default:
+                // Tous : pas de filtre supplémentaire
+                finalFiltered = filteredData;
+                break;
         }
+        
         setFilteredBSDs(finalFiltered);
 
-    }, [rawBSDs, filieres, points_collecte, sites, segmentDates, filterFunctions, filtersInitialized, filterImportedOnly, filieres_ou_prestataires.nom, mappingTable]);
+    }, [rawBSDs, filieres, points_collecte, sites, segmentDates, filterFunctions, filtersInitialized, filterType, filieres_ou_prestataires.nom, mappingTable]);
 
     return (
         <AnalysisContext.Provider value={{ 
@@ -330,8 +347,8 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
             mappingTable,
             siretToName,
             filieres_ou_prestataires,
-            filterImportedOnly,
-            setFilterImportedOnly
+            filterType,
+            setFilterType
         }}>
             {children}
         </AnalysisContext.Provider>

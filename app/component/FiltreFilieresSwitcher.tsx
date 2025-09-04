@@ -11,7 +11,7 @@ const FiltreFilieresSwitcher = () => {
     const { filieres_ou_prestataires, setFilieresOuPrestataires } = useFilterContext();
     const { entreprise_id } = useSession();
     const { mutate } = useSWRConfig();
-    const { filterImportedOnly, setFilterImportedOnly } = useAnalysis();
+    const { filterType, setFilterType } = useAnalysis();
     const mode = filieres_ou_prestataires.nom;
 
     return (
@@ -46,15 +46,43 @@ const FiltreFilieresSwitcher = () => {
                         Nom
                     </button>
                 </div>
-                {/* Mini bouton filterLineRegister */}
+                {/* Bouton à 3 états pour le filtrage */}
                 <div className="ml-4 mb-2">
-                    <button
-                        onClick={() => setFilterImportedOnly(!filterImportedOnly)}
-                        className={`px-2 py-1 rounded text-xs font-medium border transition-colors duration-150 ${filterImportedOnly ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-blue-500 border-blue-500 hover:bg-blue-50'}`}
-                        title={filterImportedOnly ? 'Afficher toutes les lignes' : 'Afficher uniquement les lignes importées'}
-                    >
-                        {filterImportedOnly ? 'Importées' : 'Toutes'}
-                    </button>
+                    <div className="flex rounded-md overflow-hidden border border-gray-300">
+                        <button
+                            onClick={() => setFilterType('all')}
+                            className={`px-3 py-1 text-xs font-medium transition-colors duration-150 ${
+                                filterType === 'all' 
+                                    ? 'bg-blue-500 text-white' 
+                                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                            }`}
+                            title="Affiche tout (Excels, PDFs, Demandes)"
+                        >
+                            Tous
+                        </button>
+                        <button
+                            onClick={() => setFilterType('imported')}
+                            className={`px-3 py-1 text-xs font-medium transition-colors duration-150 border-l border-gray-300 ${
+                                filterType === 'imported' 
+                                    ? 'bg-blue-500 text-white' 
+                                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                            }`}
+                            title="Affiche uniquement les données importés (Excels, PDFs)"
+                        >
+                            Importés
+                        </button>
+                        <button
+                            onClick={() => setFilterType('registres')}
+                            className={`hidden px-3 py-1 text-xs font-medium transition-colors duration-150 border-l border-gray-300 ${
+                                filterType === 'registres' 
+                                    ? 'bg-blue-500 text-white' 
+                                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                            }`}
+                            title="Affiche uniquement les registres (Excels)"
+                        >
+                            Registres
+                        </button>
+                    </div>
                 </div>        
             </div>    
         </div>

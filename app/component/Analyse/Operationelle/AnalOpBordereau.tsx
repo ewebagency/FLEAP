@@ -5,7 +5,7 @@ import TauxRemplissage from "./TauxRemplissage";
 import ObjectifTonnage from "./ObjectifTonnage";
 
 const AnalOpBordereau = () => {
-    const { bsds, loading, filterImportedOnly, setFilterImportedOnly } = useAnalysis();
+    const { bsds, loading, filterType, setFilterType } = useAnalysis();
 
     
 
@@ -93,16 +93,6 @@ const AnalOpBordereau = () => {
                     <div className="font-medium text-xl text-gray-700 mt-2 ml-2">
                         {stats.totalDeclassements}
                     </div>
-                </div>
-                {/* Mini bouton filterLineRegister */}
-                <div className="ml-4 hidden">
-                    <button
-                        onClick={() => setFilterImportedOnly(!filterImportedOnly)}
-                        className={`px-2 py-1 rounded text-xs font-medium border transition-colors duration-150 ${filterImportedOnly ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-blue-500 border-blue-500 hover:bg-blue-50'}`}
-                        title={filterImportedOnly ? 'Afficher toutes les lignes' : 'Afficher uniquement les lignes importées'}
-                    >
-                        {filterImportedOnly ? 'Lignes importées' : 'Toutes'}
-                    </button>
                 </div>
             </div>
         </div>
