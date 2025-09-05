@@ -77,7 +77,7 @@ export default function AutoLinkDemo({ pdfId, onTestParams }: AutoLinkDemoProps)
 					<div>1. <strong>to_link:</strong> Règles pour lier automatiquement (≥1 candidat trouvé)</div>
 					<div>2. <strong>to_check_by_user:</strong> Règles pour vérification manuelle (≥1 candidat trouvé)</div>
 					<div>3. <strong>create:</strong> Règles pour créer un nouveau BSD (≥1 candidat trouvé)</div>
-					<div>4. Si aucune règle ne correspond, retourne "create" par défaut</div>
+					<div>4. Si aucune règle ne correspond, retourne create par défaut</div>
 				</div>
 			</div>
 		</div>
