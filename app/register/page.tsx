@@ -1,7 +1,7 @@
 "use client"
 export const dynamic = 'force-dynamic';
 import React from "react";
-import FiltreFilieres from "../component/FiltreFilieres";
+import FiltreFilieresSwitcher from "../component/FiltreFilieresSwitcher";
 import TableBSD from "./TableBSD";
 import { Toaster } from "react-hot-toast";
 import ImportRegisterButton from "./ImportRegisterButton";
@@ -17,9 +17,10 @@ import FiltreSiteEtablissement from "../import_page/FiltreSiteEtablissement";
 import { useRouter } from 'next/navigation';
 import { supabase } from '../database/supabaseClient';
 import BoxIcon from '../component/BoxIconWrapper';
-import { FiltresPersoProvider } from "../component/FiltresPerso/FiltresPersoProvider";
+// import { FiltresPersoProvider } from "../component/FiltresPerso/FiltresPersoProvider";
 import { useSession } from "../component/SessionProvider";
-import ButtonReportAMO from "../component/ReportAMO/ButtonReportAMO";
+// import ButtonReportAMO from "../component/ReportAMO/ButtonReportAMO";
+import { AnalysisProvider } from "../analysis/AnalysisProvider";
 
 const RegisterPage = () => {
     const router = useRouter();
@@ -31,12 +32,13 @@ const RegisterPage = () => {
     };
 
     return (
+        <AnalysisProvider>
         <div className='m-4'>
             <Toaster position="top-right"/>
             <div className="mb-0">
                 <div className="text-xl font-bold mb-2 hidden">Registre</div>
                 <div className="hidden md:flex justify-between items-center mb-0">
-                    <FiltreFilieres/>
+                    <FiltreFilieresSwitcher showTypeFilter={false}/>
                     <ConnectedToTrack/>
                 </div>
                 <div className="md:hidden flex items-center gap-2 mb-2">
@@ -71,6 +73,7 @@ const RegisterPage = () => {
             <DisplayCard/>
             <ModifyCard/>
         </div>
+        </AnalysisProvider>
     )
 }
 

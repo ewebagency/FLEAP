@@ -90,7 +90,7 @@ const FiltreSiteEtablissement = () => {
     const [error, setError] = useState<string | null>(null);
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const { sites, setSites, toggleSite } = useFilterContext();
+    const { sites, setSites, toggleSite, siteFilterMode, setSiteFilterMode, selectedSiteId, setSelectedSiteId } = useFilterContext();
     const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState<string>('');
 
@@ -305,7 +305,9 @@ const FiltreSiteEtablissement = () => {
         };
 
         const sites_from_db: ContextSite[] = additionnalSites.map(site => {
-            const isChecked = getSavedState(site.siret);
+            const isChecked = siteFilterMode === 'per_site' 
+                ? (selectedSiteId ? selectedSiteId === site.siret : false)
+                : getSavedState(site.siret);
             return {
                 orgId: site.siret,
                 name: site.name,
@@ -323,7 +325,7 @@ const FiltreSiteEtablissement = () => {
             orgId: '----',
             name: 'Autres',
             givenName: '',
-            checked: getSavedState('----'),
+            checked: siteFilterMode === 'per_site' ? false : getSavedState('----'),
             activated: true,
             isTrackDechets: false,
             isInDb: false
@@ -331,7 +333,9 @@ const FiltreSiteEtablissement = () => {
 
         if (etablissementsWithStatus.length > 0) {
             const vrai_sites: ContextSite[] = etablissementsWithStatus.map((etablissement: Etablissement) => {
-                const isChecked = getSavedState(etablissement.orgId);
+                const isChecked = siteFilterMode === 'per_site'
+                    ? (selectedSiteId ? selectedSiteId === etablissement.orgId : false)
+                    : getSavedState(etablissement.orgId);
                 return {
                     orgId: etablissement.orgId,
                     name: etablissement.name,
@@ -368,7 +372,7 @@ const FiltreSiteEtablissement = () => {
 
             const sitesAutre = {
                 ...sites_autre,
-                checked: savedSiteStates['----']?.checked ?? sites_autre.checked
+                checked: siteFilterMode === 'per_site' ? false : (savedSiteStates['----']?.checked ?? sites_autre.checked)
             };
 
             let allSites = [...mergedSites, ...uniqueDbSites, sitesAutre];
@@ -394,8 +398,11 @@ const FiltreSiteEtablissement = () => {
                 if (firstValidSite) {
                     allSites = allSites.map(site => ({
                         ...site,
-                        checked: site.orgId === firstValidSite.orgId
+                        checked: siteFilterMode === 'per_site' ? (selectedSiteId ? site.orgId === selectedSiteId : site.orgId === firstValidSite.orgId) : site.orgId === firstValidSite.orgId
                     }));
+                    if (siteFilterMode === 'per_site' && !selectedSiteId) {
+                        setSelectedSiteId(firstValidSite.orgId);
+                    }
                 }
             }
 
@@ -435,7 +442,9 @@ const FiltreSiteEtablissement = () => {
         } else {
             
             let sitesWithSavedStates = [...sites_from_db, sites_autre].map(site => {
-                const isChecked = getSavedState(site.orgId);
+                const isChecked = siteFilterMode === 'per_site' 
+                    ? (selectedSiteId ? selectedSiteId === site.orgId : false)
+                    : getSavedState(site.orgId);
                 return {
                     ...site,
                     checked: isChecked
@@ -447,8 +456,11 @@ const FiltreSiteEtablissement = () => {
                 if (firstValidSite) {
                     sitesWithSavedStates = sitesWithSavedStates.map(site => ({
                         ...site,
-                        checked: site.orgId === firstValidSite.orgId
+                        checked: siteFilterMode === 'per_site' ? (selectedSiteId ? site.orgId === selectedSiteId : site.orgId === firstValidSite.orgId) : site.orgId === firstValidSite.orgId
                     }));
+                    if (siteFilterMode === 'per_site' && !selectedSiteId) {
+                        setSelectedSiteId(firstValidSite.orgId);
+                    }
                 }
             }
 
@@ -510,6 +522,9 @@ const FiltreSiteEtablissement = () => {
     const isGroupChecked = (groupName: string) => {
         const groupSirets = mappingSite[groupName] || [];
         // Ne prendre en compte que les sites visibles (cochés ou "Autres")
+        if (siteFilterMode === 'per_site') {
+            return groupSirets.includes(selectedSiteId || '');
+        }
         const visibleSites = sites.filter(site => 
             groupSirets.includes(site.orgId) && (site.checked || site.orgId === '----')
         );
@@ -525,22 +540,35 @@ const FiltreSiteEtablissement = () => {
     // Fonction pour gérer le clic sur la checkbox d'un groupe
     const handleGroupToggle = (groupName: string, event: React.MouseEvent | React.ChangeEvent) => {
         event.stopPropagation();
-        const isCurrentlyChecked = isGroupChecked(groupName);
         const groupSirets = mappingSite[groupName] || [];
         
+        if (siteFilterMode === 'per_site') {
+            const firstSite = sites.find(s => groupSirets.includes(s.orgId));
+            if (firstSite) {
+                if (selectedSiteId !== firstSite.orgId) {
+                    setSelectedSiteId(firstSite.orgId);
+                    if (!firstSite.checked) {
+                        handleSiteToggle(firstSite.orgId);
+                    }
+                }
+            }
+            setFilterPendingBSDs(false);
+            return;
+        }
+
+        const isCurrentlyChecked = isGroupChecked(groupName);
         // Prendre en compte tous les sites du groupe, pas seulement ceux qui sont déjà cochés
         const allSiretsInGroup = groupSirets.filter(siret => {
             const site = sites.find(s => s.orgId === siret);
             return site !== undefined; // Vérifier seulement si le site existe
         });
-        
+
         if (window.innerWidth <= 768) {
             sites.forEach(site => {
                 if (site.checked) {
                     handleSiteToggle(site.orgId);
                 }
             });
-            
             const firstSite = sites.find(s => allSiretsInGroup.includes(s.orgId));
             if (firstSite) {
                 handleSiteToggle(firstSite.orgId);
@@ -578,6 +606,16 @@ const FiltreSiteEtablissement = () => {
                     return site;
                 })
             : sites;
+
+        // En mode per_site, forcer l'affichage à une seule case cochée et désactiver "Autres"
+        if (siteFilterMode === 'per_site') {
+            filteredSites = filteredSites
+                .map(site => ({
+                    ...site,
+                    checked: selectedSiteId ? site.orgId === selectedSiteId : false
+                }))
+                .filter(site => site.orgId !== '----');
+        }
 
         // Appliquer le filtre de recherche si il y a un terme de recherche
         if (searchTerm) {
@@ -655,7 +693,16 @@ const FiltreSiteEtablissement = () => {
                 className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md mb-0 cursor-pointer"
                 onClick={(e) => {
                     e.stopPropagation();
-                    if (window.innerWidth <= 768) {
+                    if (siteFilterMode === 'per_site') {
+                        if (site.orgId !== '----') {
+                            if (selectedSiteId !== site.orgId) {
+                                setSelectedSiteId(site.orgId);
+                            }
+                            if (!site.checked) {
+                                handleSiteToggle(site.orgId);
+                            }
+                        }
+                    } else if (window.innerWidth <= 768) {
                         sites.forEach(s => {
                             if (s.orgId !== site.orgId && s.checked) {
                                 handleSiteToggle(s.orgId);
@@ -686,7 +733,7 @@ const FiltreSiteEtablissement = () => {
                 <input
                     type="checkbox"
                     name="site-selection"
-                    checked={site.checked}
+                    checked={siteFilterMode === 'per_site' ? (selectedSiteId === site.orgId) : site.checked}
                     /*onChange={(e) => {
                         e.stopPropagation();
                         if (window.innerWidth <= 768) {
@@ -757,6 +804,19 @@ const FiltreSiteEtablissement = () => {
                             <h1 className="text-sm font-semibold text-gray-700">Sites</h1>
                         )}
                     </div>
+                    {isOpen && (
+                        <div className="text-xs text-gray-600 ml-2">
+                            <div className="w-18">
+                                <button
+                                    className={`w-18 px-2 py-0.5 rounded ${siteFilterMode === 'per_site' ? 'bg-green-100 text-green-700' : 'bg-gray-100'}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSiteFilterMode(siteFilterMode === 'all' ? 'per_site' : 'all');
+                                    }}
+                                >{siteFilterMode === 'all' ? 'Tous' : 'Site par site'}</button>
+                            </div>
+                        </div>
+                    )}
                     {!isFullDataLoaded && !isInitialLoad && (
                         <span className="text-xs text-blue-600 flex items-center hidden">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -781,16 +841,13 @@ const FiltreSiteEtablissement = () => {
                         className="absolute top-full left-0 w-80 mt-0 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="p-3 border-b border-gray-200">
-                            <span className="text-sm font-semibold text-gray-700">
-                                Sites disponibles
-                            </span>
+
                             {isLoadingTrack && (
                                 <div className="text-xs text-gray-500 mt-1">
                                     Chargement des sites TrackDéchets...
                                 </div>
                             )}
-                        </div>
+                        
                         {sites.length > limiteBeforeSearch && (
                             <div className="p-3 border-b border-gray-200">
                                 <div className="relative flex items-center gap-2">
@@ -821,3 +878,4 @@ const FiltreSiteEtablissement = () => {
 }
 
 export default FiltreSiteEtablissement;
+

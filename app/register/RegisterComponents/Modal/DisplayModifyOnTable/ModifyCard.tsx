@@ -605,8 +605,12 @@ const ModifyCard = () => {
                                     path="readable_id_track_dechets"
                                 />
                                 <div className="flex items-center text-sm">
-                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Filière: </span>
-                                    <span className="text-gray-600">{filiere}</span>
+                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Numéro bon: </span>
+                                    <span className="text-gray-600">{otherInfos.numeroBon || ""}</span>
+                                </div>
+                                <div className="flex items-center text-sm">
+                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Nom du déchet: </span>
+                                    <span className="text-gray-600">{localData.wasteDetails.name || ""}</span>
                                 </div>
                                 <div className="flex items-center text-sm">
                                     <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Code déchet: </span>

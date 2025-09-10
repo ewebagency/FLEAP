@@ -31,7 +31,7 @@ export const getEntrepriseNameById = async (entrepriseId: number) => {
 export const getParamsMappingByEntreprise = async (entrepriseId: number) => {
     const { data, error } = await supabase
         .from('entreprise')
-        .select('params_mapping_site, params_mapping_presta')
+        .select('params_mapping_site, params_mapping_presta, params_mapping_operation, params_mapping_unite, params_mapping_contenant')
         .eq('id', entrepriseId)
         .single();
 
@@ -41,7 +41,10 @@ export const getParamsMappingByEntreprise = async (entrepriseId: number) => {
 
     const params: ParamsMapping = {
         params_mapping_site: data.params_mapping_site,
-        params_mapping_presta: data.params_mapping_presta
+        params_mapping_presta: data.params_mapping_presta,
+        params_mapping_operation: data.params_mapping_operation,
+        params_mapping_unite: data.params_mapping_unite,
+        params_mapping_contenant: data.params_mapping_contenant
     };
 
     return { data: params, error: null };
@@ -102,16 +105,146 @@ export const updatePdfExtractionResults = async (
     },
     status: string
 ) => {
-    let new_status = "read";
-    if(status === "splitted") new_status = "splitted_extracted";
+    // Determine next status
+    let newStatus = "read";
+    if (status === "splitted") newStatus = "splitted_extracted";
+
+    // 1) Read current pdf_infos to know current document_type
+    const { data: existingPdf, error: fetchErr } = await supabase
+        .from('pdf_infos')
+        .select('document_type, site_siret_plus')
+        .eq('id', pdfId)
+        .eq('entreprise_id', entrepriseId)
+        .single();
+    if (fetchErr) {
+        return { data: null, error: fetchErr };
+    }
+
+    // 2) Try to infer mapped site and provider from structured response using entreprise mappings
+    interface MinimalStructuredResponse {
+        type_doc?: string;
+        site_raw?: string;
+        presta_raw?: string;
+    }
+
+    const structured: MinimalStructuredResponse = (result.structured_response || {}) as MinimalStructuredResponse;
+
+    // Get mappings
+    const { data: mappings } = await getParamsMappingByEntreprise(entrepriseId);
+
+    // Helper to translate using mappings (replicated to avoid cross-file coupling)
+    const translateByMapping = (
+        value: string,
+        mapping: Record<string, string[]>
+    ): { name: string; siret: string } => {
+        if (!value) return { name: "", siret: "" };
+        const normalized = value.toLowerCase().trim();
+        for (const [key, originals] of Object.entries(mapping || {})) {
+            const nameTranslated = (key || '').split('|')[0] || '';
+            const siretTranslated = (key || '').split('|')[1] || '';
+            if (Array.isArray(originals) && originals.some(o => (o || '').toLowerCase().trim() === normalized)) {
+                return { name: nameTranslated, siret: siretTranslated };
+            }
+            if (nameTranslated.toLowerCase().trim() === normalized) {
+                return { name: nameTranslated, siret: siretTranslated };
+            }
+        }
+        return { name: value, siret: "" };
+    };
+
+    // Role detection from table_autocompletion for provider
+    type ProviderRole = 'destinataire' | 'transporteur' | null;
+    const detectProviderRole = async (entreprise: number, providerName: string): Promise<ProviderRole> => {
+        try {
+            if (!providerName) return null;
+            const nameNorm = providerName.toLowerCase().trim();
+            const { data, error } = await supabase
+                .from('table_autocompletion')
+                .select('transporteur, destinataire')
+                .eq('entreprise_id', entreprise);
+            if (error || !data) return null;
+
+            const extractNames = (node: unknown): string[] => {
+                const results: string[] = [];
+                if (!node) return results;
+                if (Array.isArray(node)) {
+                    for (const item of node) results.push(...extractNames(item));
+                } else if (typeof node === 'object') {
+                    const obj = node as Record<string, unknown>;
+                    if (typeof obj.nomBoite === 'string') results.push(obj.nomBoite);
+                    for (const v of Object.values(obj)) results.push(...extractNames(v));
+                }
+                return results;
+            };
+
+            for (const row of data as Array<{ transporteur: unknown; destinataire: unknown }>) {
+                const transNames = extractNames(row.transporteur).map(s => s.toLowerCase().trim());
+                if (transNames.includes(nameNorm)) return 'transporteur';
+                const destNames = extractNames(row.destinataire).map(s => s.toLowerCase().trim());
+                if (destNames.includes(nameNorm)) return 'destinataire';
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    };
+
+    // Compute mapped values
+    const siteRaw = structured.site_raw || '';
+    const prestaRaw = structured.presta_raw || '';
+    const siteTranslated = mappings ? translateByMapping(siteRaw, mappings.params_mapping_site || {}) : { name: '', siret: '' };
+    const prestaTranslated = mappings ? translateByMapping(prestaRaw, mappings.params_mapping_presta || {}) : { name: '', siret: '' };
+
+    const providerRole = await detectProviderRole(entrepriseId, prestaTranslated.name);
+
+    type ProviderJSON = { name: string; siret: string; is_destination: boolean; is_transporter: boolean };
+
+    // Build update payload
+    const updatePayload: Partial<PdfInfo> & {
+        infos_raw: Record<string, unknown>;
+        alerte: Record<string, unknown>;
+        confidence: Record<string, unknown>;
+        status: string;
+    } = {
+        infos_raw: result.structured_response,
+        alerte: result.alerte,
+        confidence: result.confidence,
+        status: newStatus
+    };
+
+    // Overwrite document_type if unknown and backend inferred type is present in structured_response
+    const currentDocType = (existingPdf?.document_type || '').toLowerCase();
+    const structuredType = (structured.type_doc || '').toLowerCase();
+    if (!currentDocType || currentDocType === 'inconnu') {
+        if (structuredType) {
+            // Normalize a bit
+            const mapped = ['bon', 'bsd', 'facture', 'conformite', 'autre'].includes(structuredType)
+                ? structuredType
+                : structuredType;
+            (updatePayload as { document_type?: string }).document_type = mapped;
+        }
+    }
+
+    // If site mapping found, set site_siret_plus to only the siret
+    if (siteTranslated.siret) {
+        (updatePayload as { site_siret_plus?: string[] }).site_siret_plus = [siteTranslated.siret];
+    }
+
+    // If presta mapping found, set provider JSON
+    if (prestaTranslated.name || prestaTranslated.siret) {
+        const provider: ProviderJSON = {
+            name: prestaTranslated.name,
+            siret: prestaTranslated.siret,
+            is_destination: providerRole === 'destinataire',
+            is_transporter: providerRole === 'transporteur'
+        };
+        (updatePayload as { provider?: ProviderJSON }).provider = provider;
+    }
+
+    // 3) Apply update
     return await supabase
         .from('pdf_infos')
-        .update({
-            infos_raw: result.structured_response,
-            alerte: result.alerte,
-            confidence: result.confidence,
-            status: new_status
-        })
+        .update(updatePayload)
         .eq('id', pdfId)
         .eq('entreprise_id', entrepriseId)
         .select()

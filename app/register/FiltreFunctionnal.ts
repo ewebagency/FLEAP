@@ -56,7 +56,8 @@ export const filterBSDs = (
     mappingTable: { ced?: string, nom?: string, filiere: string }[],
     filterFunctions: ((bsds: CommonBSD[]) => CommonBSD[])[] = [],
     filterPendingBSDs: boolean = false,
-    mode: 'ced' | 'nom' = 'ced'
+    mode: 'ced' | 'nom' = 'ced',
+    skipSiteFilter: boolean = false
 ): CommonBSD[] => {
     let filtered = [...bsds];
     console.log("1. BSDs entrants:", filtered.length);
@@ -143,19 +144,20 @@ export const filterBSDs = (
         console.log("3. Après filtre filières:", filtered.length);
     }
 
-    // 3. Filtre des sites
-    const checkedSites = sites.filter(site => site.checked).map(site => site.orgId);
-    //console.log("Sites cochés:", checkedSites);
-
-    if (checkedSites.length >= 0) {
-        filtered = filtered.filter(bsd => {
-            const emitterSiret = bsd.infos_json.formAPI.createFormInput.emitter?.company?.siret;
-            if (checkedSites.includes('----')) {
-                return !emitterSiret || emitterSiret === '' || checkedSites.includes(emitterSiret);
-            }
-            return checkedSites.includes(emitterSiret);
-        });
-        console.log("4. Après filtre sites:", filtered.length);
+    // 3. Filtre des sites (optionnel si skipSiteFilter)
+    if (!skipSiteFilter) {
+        const checkedSites = sites.filter(site => site.checked).map(site => site.orgId);
+        //console.log("Sites cochés:", checkedSites);
+        if (checkedSites.length >= 0) {
+            filtered = filtered.filter(bsd => {
+                const emitterSiret = bsd.infos_json.formAPI.createFormInput.emitter?.company?.siret;
+                if (checkedSites.includes('----')) {
+                    return !emitterSiret || emitterSiret === '' || checkedSites.includes(emitterSiret);
+                }
+                return checkedSites.includes(emitterSiret);
+            });
+            console.log("4. Après filtre sites:", filtered.length);
+        }
     }
 
     // 5. Appliquer les filtres personnalisés

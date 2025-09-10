@@ -4,6 +4,7 @@ import { supabase } from '@/app/database/supabaseClient';
 import { useSession } from '@/app/component/SessionProvider';
 import { toast } from 'react-hot-toast';
 import { useFilterContext } from '@/app/FilterContext';
+import Swal from "sweetalert2";
 import ExtractBSD from './ExtractBSD/ExtractBSD';
 import LinkBSD from './ExtractBSD/LinkBSD';
 import ButtonExtractFacture from './NewExtractFacture/ButtonExtractFacture';
@@ -12,8 +13,9 @@ import LinkBon from './ExtractBon/LinkBon';
 import useSWR from 'swr';
 //import BoutonExtractDoc from './ExtractMetaDoc/components/BoutonExtractDoc';
 //import BoutonSplitDoc from './ExtractMetaDoc/components/BoutonSplitDoc';
-//import ExtractDoc from './ExtractMetaDoc/components/ExtractDoc';
-//import LinkMetaButton from './ExtractMetaDoc/components/LinkMetaButton';
+import ExtractDoc from './ExtractMetaDoc/components/ExtractDoc';
+import LinkMetaButton from './ExtractMetaDoc/components/LinkMetaButton';
+import {handleDeleteMetaDocFromPdf, TablePdfInfo} from './ExtractMetaDoc/utils/delete_bsd_from_pdf';
 
 export interface PdfInfo {
     status: string;
@@ -29,7 +31,9 @@ export interface PdfInfo {
     site_siret_plus?: string[];
     provider?: ProviderJSON;
     alerte?: Record<string, unknown>;
-    //confidence?: Record<string, unknown>;
+    confidence?: Record<string, unknown>;
+    infos_raw?: Record<string, unknown>;
+    bsd_linked?: Array<{ index_dechet: number; bsd_id?: string; status?: 'linked' | 'created' | 'check_by_user' }>; 
 }
 
 interface TableImportedFilesProps {
@@ -239,73 +243,134 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                 }
             }
 
-            // Si c'est un BSD, supprimer d'abord les enregistrements dans bsd_pdf
-            if (pdf.document_type === 'bsd') {
-                // 1. Récupérer les BSDs associés à ce PDF
-                const { data: bsdPdfData, error: fetchError } = await supabase
-                    .from('bsd_pdf')
-                    .select('linked_bsd_id')
-                    .eq('pdf_id', pdf.id);
+            // Si c'est un PDF avec des données liées (bsd_linked), demander confirmation
+            if (pdf.infos_raw !== null && pdf.bsd_linked !== null && Array.isArray(pdf.bsd_linked) && pdf.bsd_linked.length > 0) {
+                const createdItems = pdf.bsd_linked.filter(item => item.status === 'created');
+                const linkedItems = pdf.bsd_linked.filter(item => item.status === 'linked');
+                const isFacture = pdf.document_type?.toLowerCase() === 'facture';
 
-                if (fetchError) {
-                    console.error('Erreur lors de la récupération des BSDs:', fetchError);
-                    toast.error('Erreur lors de la récupération des BSDs');
+                const createdIds = createdItems.map(item => `BSD ${item.bsd_id} (index ${item.index_dechet})`).join(', ');
+                const linkedIds = linkedItems.map(item => `BSD ${item.bsd_id} (index ${item.index_dechet})`).join(', ');
+
+                const confirmMessage = `
+                    <div style="text-align: left;">
+                        <h3>Suppression des données liées au PDF</h3>
+                        <p><strong>PDF:</strong> ${pdf.name_pdf || pdf.id}</p>
+                        <p><strong>PDF ID:</strong> ${pdf.id}</p>
+                        <p><strong>Type:</strong> ${pdf.document_type || 'Non défini'}</p>
+                        <br>
+                        <p><strong>Actions qui seront effectuées:</strong></p>
+                        <ul>
+                            ${createdItems.length > 0 ? `<li>Suppression de <strong>${createdItems.length}</strong> ligne(s) BSD créée(s): ${createdIds}</li>` : ''}
+                            ${linkedItems.length > 0 ? `<li>Nettoyage des liens PDF de <strong>${linkedItems.length}</strong> ligne(s) BSD existante(s): ${linkedIds}</li>` : ''}
+                            ${isFacture ? '<li>Suppression des lignes de facture correspondantes</li>' : ''}
+                        </ul>
+                        <br>
+                        <p style="color: #d32f2f;"><strong>⚠️ Cette action est irréversible!</strong></p>
+                    </div>
+                `;
+
+                const result = await Swal.fire({
+                    title: 'Confirmer la suppression',
+                    html: confirmMessage,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d32f2f',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Oui, supprimer',
+                    cancelButtonText: 'Annuler',
+                    width: '600px'
+                });
+
+                if (!result.isConfirmed) {
+                    setOpenMenuId(null);
                     return;
                 }
 
-                // 2. Mettre à jour chaque BSD pour retirer le pdf_id de pdf_ids
-                if (bsdPdfData && bsdPdfData.length > 0) {
-                    for (const bsdPdf of bsdPdfData) {
-                        const { data: bsdData, error: bsdFetchError } = await supabase
-                            .from('bsd')
-                            .select('pdf_ids')
-                            .eq('id', bsdPdf.linked_bsd_id)
-                            .single();
+                // Maintenant on peut appeler la fonction de suppression
+                const pdfForDeletion: TablePdfInfo = {
+                    id: pdf.id,
+                    name_pdf: pdf.name_pdf,
+                    document_type: pdf.document_type,
+                    infos_raw: pdf.infos_raw,
+                    bsd_linked: pdf.bsd_linked
+                };
+                await handleDeleteMetaDocFromPdf(pdfForDeletion, entreprise_id||'');
+                toast.success('Les données liées au PDF ont été supprimées avec succès.');
+                // Supprimer le fichier et la ligne pdf_infos via le handler commun
+                onDelete(pdf.name_pdf_in_bucket, pdf.id);
+                setOpenMenuId(null);
+                return;
+            } else {
+                //En dessous à terme ça sera deprecated
+                // Si c'est un BSD, supprimer d'abord les enregistrements dans bsd_pdf
+                if (pdf.document_type === 'bsd') {
+                    // 1. Récupérer les BSDs associés à ce PDF
+                    const { data: bsdPdfData, error: fetchError } = await supabase
+                        .from('bsd_pdf')
+                        .select('linked_bsd_id')
+                        .eq('pdf_id', pdf.id);
 
-                        if (bsdFetchError) {
-                            console.error('Erreur lors de la récupération du BSD:', bsdFetchError);
-                            continue;
-                        }
+                    if (fetchError) {
+                        console.error('Erreur lors de la récupération des BSDs:', fetchError);
+                        toast.error('Erreur lors de la récupération des BSDs');
+                        return;
+                    }
 
-                        if (bsdData && bsdData.pdf_ids) {
-                            const updatedPdfIds = bsdData.pdf_ids.filter((id: string) => id !== String(pdf.id));
-                            
-                            const { error: updateError } = await supabase
+                    // 2. Mettre à jour chaque BSD pour retirer le pdf_id de pdf_ids
+                    if (bsdPdfData && bsdPdfData.length > 0) {
+                        for (const bsdPdf of bsdPdfData) {
+                            const { data: bsdData, error: bsdFetchError } = await supabase
                                 .from('bsd')
-                                .update({ pdf_ids: updatedPdfIds })
-                                .eq('id', bsdPdf.linked_bsd_id);
+                                .select('pdf_ids')
+                                .eq('id', bsdPdf.linked_bsd_id)
+                                .single();
 
-                            if (updateError) {
-                                console.error('Erreur lors de la mise à jour du BSD:', updateError);
+                            if (bsdFetchError) {
+                                console.error('Erreur lors de la récupération du BSD:', bsdFetchError);
+                                continue;
+                            }
+
+                            if (bsdData && bsdData.pdf_ids) {
+                                const updatedPdfIds = bsdData.pdf_ids.filter((id: string) => id !== String(pdf.id));
+                                
+                                const { error: updateError } = await supabase
+                                    .from('bsd')
+                                    .update({ pdf_ids: updatedPdfIds })
+                                    .eq('id', bsdPdf.linked_bsd_id);
+
+                                if (updateError) {
+                                    console.error('Erreur lors de la mise à jour du BSD:', updateError);
+                                }
                             }
                         }
                     }
+
+                    // 3. Supprimer les enregistrements dans bsd_pdf
+                    const { error: bsdError } = await supabase
+                        .from('bsd_pdf')
+                        .delete()
+                        .eq('pdf_id', pdf.id);
+
+                    if (bsdError) {
+                        console.error('Erreur lors de la suppression des données BSD:', bsdError);
+                        toast.error('Erreur lors de la suppression des données BSD');
+                        return;
+                    }
                 }
 
-                // 3. Supprimer les enregistrements dans bsd_pdf
-                const { error: bsdError } = await supabase
-                    .from('bsd_pdf')
-                    .delete()
-                    .eq('pdf_id', pdf.id);
+                // Si c'est un bon de livraison, supprimer d'abord les enregistrements dans bon_pdf
+                if (pdf.document_type === 'bon') {
+                    const { error: bonError } = await supabase
+                        .from('bon_pdf')
+                        .delete()
+                        .eq('pdf_id', pdf.id);
 
-                if (bsdError) {
-                    console.error('Erreur lors de la suppression des données BSD:', bsdError);
-                    toast.error('Erreur lors de la suppression des données BSD');
-                    return;
-                }
-            }
-
-            // Si c'est un bon de livraison, supprimer d'abord les enregistrements dans bon_pdf
-            if (pdf.document_type === 'bon') {
-                const { error: bonError } = await supabase
-                    .from('bon_pdf')
-                    .delete()
-                    .eq('pdf_id', pdf.id);
-
-                if (bonError) {
-                    console.error('Erreur lors de la suppression des données bon:', bonError);
-                    toast.error('Erreur lors de la suppression des données bon');
-                    return;
+                    if (bonError) {
+                        console.error('Erreur lors de la suppression des données bon:', bonError);
+                        toast.error('Erreur lors de la suppression des données bon');
+                        return;
+                    }
                 }
             }
 
@@ -523,7 +588,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             pdf_path={pdf.name_pdf_in_bucket} 
                                         /> ---> ancien extract facture
                                     */} 
-                                    {/*cofounders_permission(user_id) &&
+                                    {cofounders_permission(user_id) &&
                                         <div className="flex gap-1">
                                             <div className="relative">
                                                 <ExtractDoc //pour ouvrir le modal d'extraction
@@ -538,10 +603,11 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             <div className="relative">
                                                 <LinkMetaButton
                                                     pdfId={String(pdf.id)}
+                                                    bsd_linked={pdf.bsd_linked as Array<{ index_dechet: number; bsd_id?: string; status?: 'linked' | 'created' | 'check_by_user' }>}
                                                 />
                                             </div>
                                         </div>
-                                    */}   
+                                    }   
                                     {cofounders_permission(user_id) && pdf.document_type === 'facture' && 
                                         <ButtonExtractFacture
                                             pdf_id={pdf.id} 

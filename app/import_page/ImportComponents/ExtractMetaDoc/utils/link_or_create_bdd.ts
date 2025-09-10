@@ -3,8 +3,47 @@ import { getPdfInfoById, getParamsMappingByEntreprise } from './bdd';
 import { PdfInfo } from '../interface/pdf_interface';
 import Swal from "sweetalert2";
 import { toast } from 'react-hot-toast';
+import { 
+    buildFactureFromNormalized, 
+    push_in_facture_bdd,
+    normalizePdfData
+} from './link';
 
-type BsdLinkedItem = { bsd_id: string; index_dechet: number };
+type BsdLinkedItem = { bsd_id: string; index_dechet: number; status?: 'linked' | 'created' | 'check_by_user' };
+
+// Types pour la fonction determineTonnage
+type FactureLigne = { 
+    unite?: string; 
+    quantite?: string; 
+    montant_ht?: string; 
+    tva_absolute?: string; 
+    prix_unitaire?: string; 
+    type_operation?: string 
+};
+
+type DechetItemWithFacture = {
+    ced?: string;
+    d_r?: string;
+    nom?: string;
+    date?: string;
+    tour?: string;
+    num_bon?: string;
+    num_bsd?: string;
+    tonnage?: string;
+    contenant?: string;
+    volume_m3?: string;
+    facture?: { ligne?: FactureLigne[] };
+};
+
+type InfosRawWithDechets = {
+    dechet?: DechetItemWithFacture[];
+    site_raw?: string;
+    presta_raw?: string;
+    type_doc?: string;
+    num_facture?: string;
+    conformite?: Record<string, unknown>;
+    add_presta_raw?: Record<string, unknown>;
+};
 
 export const translateByMapping = (value: string, mapping: Record<string, string[]>): {name: string, siret: string} => {
     if (!value) return {"name": "", "siret": ""};
@@ -24,6 +63,62 @@ export const translateByMapping = (value: string, mapping: Record<string, string
 };
 
 const normalizeNumbers = (value: string): string => (value || '').replace(/[\s*]/g, '');
+
+/**
+ * Détermine le tonnage pour les factures en analysant les lignes de déchets
+ * @param document_type - Type de document (doit être "facture")
+ * @param infos_raw - Données brutes du PDF contenant les informations des déchets
+ * @returns Les infos_raw mis à jour avec les tonnages calculés
+ */
+// Pas encore utilisé
+export const determineTonnage = (
+    document_type: string, 
+    infos_raw: InfosRawWithDechets
+): InfosRawWithDechets => {
+    // Vérifier que c'est une facture
+    if (!document_type || document_type.toLowerCase() !== 'facture') {
+        return infos_raw;
+    }
+
+    // Vérifier que infos_raw contient des déchets
+    if (!infos_raw.dechet || !Array.isArray(infos_raw.dechet)) {
+        return infos_raw;
+    }
+
+    // Créer une copie des infos_raw pour éviter de modifier l'original
+    const updatedInfosRaw: InfosRawWithDechets = {
+        ...infos_raw,
+        dechet: infos_raw.dechet.map(dechet => ({ ...dechet }))
+    };
+
+    // Traiter chaque déchet
+    if (updatedInfosRaw.dechet) {
+        updatedInfosRaw.dechet = updatedInfosRaw.dechet.map(dechet => {
+        // Vérifier que le déchet a des lignes de facture
+        if (!dechet.facture?.ligne || !Array.isArray(dechet.facture.ligne)) {
+            return dechet;
+        }
+
+        // Parcourir chaque ligne de facture
+        dechet.facture.ligne.forEach(ligne => {
+            const unite = ligne.unite?.trim().toUpperCase();
+            const typeOperation = ligne.type_operation?.trim();
+            const quantite = ligne.quantite;
+
+            // Vérifier les conditions : type_operation = "Traitement" et unite = "T"
+            if (typeOperation === 'Traitement' && unite === 'T' && quantite) {
+                // Copier la quantité dans le champ tonnage du déchet
+                dechet.tonnage = quantite;
+            }
+        });
+
+        return dechet;
+        });
+    }
+
+    return updatedInfosRaw;
+};
+
 
 // Détermine le rôle d'un prestataire (destinataire ou transporteur) via table_autocompletion
 const getPrestaRole = async (
@@ -128,18 +223,18 @@ export const link_in_bdd = async (
     }
 
     const nextBsdLinked: BsdLinkedItem[] = Array.isArray(pdfRow?.bsd_linked) ? pdfRow!.bsd_linked : [];
-    if (!nextBsdLinked.some(it => it.bsd_id === bsdId && it.index_dechet === indexDechet)) {
-        nextBsdLinked.push({ bsd_id: bsdId, index_dechet: indexDechet });
-    }
+    // Overwrite any existing entry for this index_dechet
+    const filteredLinked = nextBsdLinked.filter(it => it.index_dechet !== indexDechet);
+    filteredLinked.push({ bsd_id: bsdId, index_dechet: indexDechet, status: 'linked' });
 
     // Vérifier si tous les déchets du PDF sont couverts par bsd_linked
     const totalDechets: number = Array.isArray((pdfRow as unknown as { infos_raw?: { dechet?: unknown[] } })?.infos_raw?.dechet)
         ? ((pdfRow as unknown as { infos_raw: { dechet: unknown[] } }).infos_raw.dechet.length)
         : 0;
-    const uniqueLinkedCount = new Set(nextBsdLinked.map(it => it.index_dechet)).size;
+    const uniqueLinkedCount = new Set(filteredLinked.map(it => it.index_dechet)).size;
     const allDone = totalDechets > 0 && uniqueLinkedCount >= totalDechets;
 
-    const updatePayload: Record<string, unknown> = { bsd_linked: nextBsdLinked };
+    const updatePayload: Record<string, unknown> = { bsd_linked: filteredLinked };
     if (allDone) {
         updatePayload.status = 'linked';
     }
@@ -154,6 +249,36 @@ export const link_in_bdd = async (
         throw updatePdfError;
     }
 
+    // Invalidate BSD cache for this entreprise
+    await invalidateCache(entrepriseId);
+
+    // Push facture si le document est une facture
+    try {
+        const { data: pdfInfo, error: pdfError } = await getPdfInfoById(pdfId, entrepriseId);
+        if (!pdfError && pdfInfo && (pdfInfo.document_type || '').toLowerCase() === 'facture') {
+            const { data: mappings, error: mappingError } = await getParamsMappingByEntreprise(entrepriseId);
+        if (!mappingError && mappings) {
+            const normalized = normalizePdfData(
+                pdfInfo.infos_raw || {},
+                mappings.params_mapping_site || {},
+                mappings.params_mapping_presta || {},
+                indexDechet,
+                true // preserveCase pour les factures
+            );
+            const factureJson = buildFactureFromNormalized(
+                normalized,
+                pdfInfo.infos_raw || {},
+                indexDechet,
+                mappings
+            );
+            await push_in_facture_bdd(entrepriseId, pdfId, indexDechet, factureJson);
+        }
+        }
+    } catch (error) {
+        console.warn('[link_in_bdd] Erreur lors du push facture:', error);
+        // Ne pas faire échouer le lien pour une erreur de facture
+    }
+
     return { ok: true };
 };
 
@@ -163,7 +288,10 @@ export const create_in_bdd = async (
     indexDechet: number,
     options?: { previewOnly?: boolean; user_id?: string }
 ) => {
-    console.log('[create_in_bdd] inputs', { entrepriseId, pdfId, indexDechet, previewOnly: options?.previewOnly });
+    console.log('[create_in_bdd] inputs', { entrepriseId, pdfId, indexDechet, previewOnly: options?.previewOnly, user_id: options?.user_id });
+    if (!options?.user_id) {
+        console.warn('[create_in_bdd] user_id manquant');
+    }
     // Récupère le PDF et les mappings
     const { data: pdfInfo, error: pdfError } = await getPdfInfoById(pdfId, entrepriseId);
     if (pdfError || !pdfInfo) {
@@ -245,7 +373,7 @@ export const create_in_bdd = async (
                 emitter: { company: { name: siteTranslated.name, siret: siteTranslated.siret } },
                 recipient: { company: { name: prestaRole === 'destinataire' || !prestaRole ? prestaTranslated.name : '', siret: prestaRole === 'destinataire' || !prestaRole ? prestaTranslated.siret : '' }, processingOperation: processingOperationDR, cap: pdf_type === 'bsd' ? capVal : '' },
                 transporter: { company: { name: prestaRole === 'transporteur' ? prestaTranslated.name : '', siret: prestaRole === 'transporteur' ? prestaTranslated.siret : '', address: transporterAddress, phone: transporterPhone, mail: transporterMail }, isExemptedOfReceipt: false, receipt: pdf_type === 'bsd' ? receiptVal : '', customInfo: transporterCustomInfo },
-                wasteDetails: { code: wasteCode, name: wasteName, quantity: dechet.tonnage || '', quantityType: 'REAL', consistence: 'SOLIDE', 
+                wasteDetails: { code: wasteCode, name: wasteName, quantity: dechet.tonnage || 0.0, quantityType: 'REAL', consistence: 'SOLIDE', 
                     isSubjectToADR: false, onuCode: capVal, packagingInfos: [{ type: 'AUTRE', quantity: 1, other: dechet.contenant || '' }], pop: false, isDangerous: wasteCode.includes('*') },
                 takenOverAt: takenOverAt
             }
@@ -285,7 +413,7 @@ export const create_in_bdd = async (
     // Création de la ligne BSD
     const insertPayload = {
         entreprise_id: entrepriseId,
-        user_id: options?.user_id || '',
+        user_id: options?.user_id ?? null,
         created_at: takenOverAt,
         on_track_dechets: false,
         id_track_dechets: line_type,
@@ -305,7 +433,7 @@ export const create_in_bdd = async (
         return { ok: true, preview: insertPayload };
     }
 
-    console.log('[create_in_bdd] inserting payload', insertPayload);
+    console.log('[create_in_bdd] inserting payload', { ...insertPayload, infos_json: '[omitted]' });
     const { data: createdBsd, error: insertError } = await supabase
         .from('bsd')
         .insert(insertPayload)
@@ -329,17 +457,16 @@ export const create_in_bdd = async (
     if (getPdfErr) throw getPdfErr;
 
     const nextBsdLinked: BsdLinkedItem[] = Array.isArray(existingPdf?.bsd_linked) ? existingPdf!.bsd_linked : [];
-    if (!nextBsdLinked.some(it => it.bsd_id === newBsdId && it.index_dechet === indexDechet)) {
-        nextBsdLinked.push({ bsd_id: newBsdId, index_dechet: indexDechet });
-    }
+    const filteredLinked = nextBsdLinked.filter(it => it.index_dechet !== indexDechet);
+    filteredLinked.push({ bsd_id: newBsdId, index_dechet: indexDechet, status: 'created' });
 
     const totalDechets: number = Array.isArray((existingPdf as unknown as { infos_raw?: { dechet?: unknown[] } })?.infos_raw?.dechet)
         ? ((existingPdf as unknown as { infos_raw: { dechet: unknown[] } }).infos_raw.dechet.length)
         : 0;
-    const uniqueLinkedCount = new Set(nextBsdLinked.map(it => it.index_dechet)).size;
+    const uniqueLinkedCount = new Set(filteredLinked.map(it => it.index_dechet)).size;
     const allDone = totalDechets > 0 && uniqueLinkedCount >= totalDechets;
 
-    const updatePayload: Record<string, unknown> = { bsd_linked: nextBsdLinked };
+    const updatePayload: Record<string, unknown> = { bsd_linked: filteredLinked };
     if (allDone) {
         updatePayload.status = 'linked';
     }
@@ -350,6 +477,32 @@ export const create_in_bdd = async (
         .eq('id', pdfId)
         .eq('entreprise_id', entrepriseId);
     if (updatePdfError) throw updatePdfError;
+
+    // Invalidate BSD cache for this entreprise
+    await invalidateCache(entrepriseId, options?.user_id);
+
+    // Push facture si le document est une facture
+    try {
+        if ((infos.type_doc || '').toLowerCase() === 'facture') {
+            const normalized = normalizePdfData(
+                infos,
+                mappings.params_mapping_site || {},
+                mappings.params_mapping_presta || {},
+                indexDechet,
+                true // preserveCase pour les factures
+            );
+            const factureJson = buildFactureFromNormalized(
+                normalized,
+                infos,
+                indexDechet,
+                mappings
+            );
+            await push_in_facture_bdd(entrepriseId, pdfId, indexDechet, factureJson, options?.user_id);
+        }
+    } catch (error) {
+        console.warn('[create_in_bdd] Erreur lors du push facture:', error);
+        // Ne pas faire échouer la création pour une erreur de facture
+    }
 
     return { ok: true, bsd_id: newBsdId };
 };
@@ -504,5 +657,20 @@ export const handleDeleteLinkMetaDoc = async (pdfId: number, bsdId: string, inde
     } catch (error) {
         console.error('[handleDeleteLinkMetaDoc] error', error);
         throw error;
+    }
+};
+
+const invalidateCache = async (entrepriseId: number, userId?: string): Promise<void> => {
+    try {
+        const res = await fetch('/api/invalidate_bsd_cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entreprise_id: String(entrepriseId), user_id: userId || '' })
+        });
+        if (!res.ok) {
+            console.warn('[invalidateCache] failed with status', res.status);
+        }
+    } catch (e) {
+        console.warn('[invalidateCache] error', e);
     }
 };

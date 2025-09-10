@@ -20,6 +20,7 @@ import ValidateCollecte from "./DemandeCollecteNew/ValidateCollecte";
 import { handleCancelCollecte } from "./DemandeCollecteNew/DemandeFonctions";
 import { useBSDs } from './BSDsProvider';
 import { handleDeleteLinkBon_PDF } from './RegisterComponents/Modal/DisplayModifyOnTable/deleteLinkBon_PDF';
+import { handleDeleteLinkMetaDoc } from '@/app/import_page/ImportComponents/ExtractMetaDoc/utils/link_or_create_bdd';
 
 
 const cleanCED = (ced: string): string => {
@@ -154,7 +155,7 @@ const TableBSD = () => {
     //const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
     //A faire passer sur useModalContextNew
     const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType, filterPendingBSDs, setFilterPendingBSDs } = useModalContextNew();
-    const { sites, filieres, points_collecte, segmentDates } = useFilterContext();
+    const { sites, filieres, points_collecte, segmentDates, siteFilterMode, selectedSiteId, filieres_ou_prestataires } = useFilterContext();
     const { allBSDs, setAllBSDs, allFilteredBSDs, setAllFilteredBSDs, displayedBSDs, setDisplayedBSDs } = useBSDs();
 
     const [webhooksInitialized, setWebhooksInitialized] = useState(false);
@@ -185,16 +186,26 @@ const TableBSD = () => {
     const [totalBSDsCount, setTotalBSDsCount] = useState(0);
     const [displayLimit, setDisplayLimit] = useState(50);
 
-    // Ajouter un useEffect pour charger la table de mapping au démarrage
+    // Charger la table de mapping en fonction du mode (CED vs NOM)
     useEffect(() => {
         const loadMappingTable = async () => {
-            if (entreprise_id) {
+            if (!entreprise_id) return;
+            if (filieres_ou_prestataires?.nom === 'filiere_nom') {
+                try {
+                    const res = await fetch(`/api/get_mapping_nom_filiere?entreprise_id=${entreprise_id}`);
+                    const json = await res.json();
+                    setMappingTable(json.data || []);
+                } catch (e) {
+                    console.error('Erreur chargement mapping nom filiere', e);
+                    setMappingTable([]);
+                }
+            } else {
                 const mapping = await getMappingTableFiliere(entreprise_id);
                 setMappingTable(mapping || []);
             }
         };
         loadMappingTable();
-    }, [entreprise_id]);
+    }, [entreprise_id, filieres_ou_prestataires?.nom]);
 
 
 
@@ -308,7 +319,8 @@ const TableBSD = () => {
                 await invalidateCache();
             }
             
-            const url = `/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}${shouldFastLoad ? '&fastLoad=true' : ''}${loadMore && lastLoadedDate && lastLoadedId ? `&lastDate=${encodeURIComponent(lastLoadedDate)}&lastId=${encodeURIComponent(lastLoadedId)}` : ''}`;
+            const siteParam = siteFilterMode === 'per_site' && selectedSiteId ? `&site=${encodeURIComponent(selectedSiteId)}` : '';
+            const url = `/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}${shouldFastLoad ? '&fastLoad=true' : ''}${loadMore && lastLoadedDate && lastLoadedId ? `&lastDate=${encodeURIComponent(lastLoadedDate)}&lastId=${encodeURIComponent(lastLoadedId)}` : ''}${siteParam}`;
             //console.log('Fetching BSDs from:', url);
             const response = await fetch(url);
             const result = await response.json();
@@ -387,7 +399,9 @@ const TableBSD = () => {
                 segmentDates,
                 mappingTable,
                 filterFunctions,
-                filterPendingBSDs
+                filterPendingBSDs,
+                filieres_ou_prestataires?.nom === 'filiere_nom' ? 'nom' : 'ced',
+                siteFilterMode === 'per_site'
             );
             
             //console.log("Nombre de BSDs après filtrage (filteredData):", filteredData.length);
@@ -423,7 +437,10 @@ const TableBSD = () => {
         segmentDates,
         filterPendingBSDs,
         filterFunctions,
-        allBSDs
+        allBSDs,
+        siteFilterMode,
+        selectedSiteId,
+        mappingTable
     ]);
 
     // Effet pour charger les données initiales
@@ -433,7 +450,7 @@ const TableBSD = () => {
             setIsLoadingFullData(false);
             fetchBSDs();
         }
-    }, [entreprise_id]);
+    }, [entreprise_id, siteFilterMode, selectedSiteId]);
 
     // Effet pour charger plus de données quand nécessaire
     useEffect(() => {
@@ -519,10 +536,10 @@ const TableBSD = () => {
                     //setModalReload(prev => !prev);
                 }
             } else {
-                // Récupérer d'abord les informations du BSD pour avoir l'URL de la photo et vérifier s'il est lié à un bon PDF ou BSD PDF
+                // Récupérer d'abord les informations du BSD pour avoir l'URL de la photo et vérifier s'il est lié à un Meta Doc, bon PDF ou BSD PDF
                 const { data: bsd, error: bsdError } = await supabase
                     .from('bsd')
-                    .select('photo, bon_extracted_then_linked_id, bsd_extracted_then_linked_id, pdf_ids')
+                    .select('photo, bon_extracted_then_linked_id, bsd_extracted_then_linked_id, pdf_ids, index_dechet_pdf')
                     .eq('id', id)
                     .single();
 
@@ -537,6 +554,17 @@ const TableBSD = () => {
                         
                         if (storageError) {
                             console.error('Erreur lors de la suppression de la photo:', storageError);
+                        }
+                    }
+                }
+
+                // Si le BSD est lié à un Meta Doc (pdf_infos + index_dechet_pdf), supprimer proprement le lien
+                if (bsd?.pdf_ids && bsd?.pdf_ids.length > 0 && (bsd.index_dechet_pdf!== null && bsd.index_dechet_pdf>=0)) {
+                    for (const pdfId of bsd.pdf_ids) {
+                        try {
+                            await handleDeleteLinkMetaDoc(pdfId, id, bsd.index_dechet_pdf as number, entreprise_id);
+                        } catch (e) {
+                            console.warn('Erreur lors de la suppression du lien Meta Doc-BSD:', e);
                         }
                     }
                 }
@@ -973,6 +1001,56 @@ const TableBSD = () => {
         setShowValidateModal(true);
     };
 
+    const openPDFs = async (pdfIds: string[]) => {
+        if (!pdfIds || pdfIds.length === 0) return;
+        
+        try {
+            // Récupérer les informations des PDFs depuis la table pdf_infos
+            const { data: pdfInfos, error } = await supabase
+                .from('pdf_infos')
+                .select('name_pdf_in_bucket')
+                .in('id', pdfIds)
+                .eq('entreprise_id', entreprise_id);
+
+            if (error) {
+                console.error('Erreur lors de la récupération des PDFs:', error);
+                toast.error('Erreur lors de l\'ouverture des PDFs');
+                return;
+            }
+
+            if (!pdfInfos || pdfInfos.length === 0) {
+                toast.error('Aucun PDF trouvé');
+                return;
+            }
+
+            // Générer l'URL signée pour chaque PDF et l'ouvrir
+            for (let i = 0; i < pdfInfos.length; i++) {
+                const pdfInfo = pdfInfos[i];
+                if (pdfInfo.name_pdf_in_bucket) {
+                    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+                        .from('pdfs_bucket')
+                        .createSignedUrl(pdfInfo.name_pdf_in_bucket, 3600); // URL valide 1h
+
+                    if (signedUrlError) {
+                        console.error('Erreur lors de la génération de l\'URL signée:', signedUrlError);
+                        continue;
+                    }
+
+                    if (signedUrlData?.signedUrl) {
+                        // Ajouter un délai pour éviter le blocage des popups par le navigateur
+                        setTimeout(() => {
+                            window.open(signedUrlData.signedUrl, '_blank');
+                        }, i * 100); // 100ms de délai entre chaque ouverture
+                    }
+                }
+            }
+
+        } catch (error) {
+            console.error('Erreur lors de l\'ouverture des PDFs:', error);
+            toast.error('Erreur lors de l\'ouverture des PDFs');
+        }
+    };
+
     return (
         <>
             <div className="overflow-x-auto">
@@ -1155,10 +1233,17 @@ const TableBSD = () => {
                                         <div className="text-md font-550 text-right mr-5">-€ HT</div>
                                     }
                                 </td>*/}
-                                <td style={{ padding: '6px', width: '5%', height: '80px' }} className="hidden md:table-cell">
+                                <td style={{ padding: '6px', width: '5%', height: '80px' }} className="hidden md:table-cell">                                     
                                     <div className="flex flex-wrap items-center justify-center space-y-1">
                                         {bsd.pdf_ids && Array.isArray(bsd.pdf_ids) && bsd.pdf_ids.length > 0 && (
-                                            <div className="flex items-center justify-center">
+                                            <div 
+                                                className="flex items-center justify-center cursor-pointer hover:opacity-70 transition-opacity"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openPDFs(bsd.pdf_ids || []);
+                                                }}
+                                                title="Cliquer pour ouvrir les PDFs"
+                                            >
                                                 <BoxIcon type='solid' name='file-pdf' color='red' size="30px" />
                                                 {bsd.pdf_ids.length > 1 && (
                                                     <span className="text-xs text-gray-600 ml-1">+{bsd.pdf_ids.length - 1}</span>
@@ -1168,7 +1253,7 @@ const TableBSD = () => {
                                         
                                         {/* Affichage DOE, Flux et REP */}
                                         {bsd.other_infos && (
-                                            <div className="flex flex-col items-center text-xs space-y-0.5">
+                                            <div className="flex flex-col items-center text-xs space-y-0.5">                                             
                                                 {bsd.other_infos?.doe && (
                                                     <div className="bg-green-100 text-green-800 px-1 py-0.5 rounded text-[10px] font-medium">
                                                         DOE
@@ -1195,7 +1280,6 @@ const TableBSD = () => {
                                 </td>
                                 <td style={{ padding: '6px', width: '15%', height: '80px' }}>
                                     <div className="flex items-center justify-end gap-2 w-full">
-
 
                                         {/* Actions principales */}
                                         <div className="flex items-center">
@@ -1289,6 +1373,11 @@ const TableBSD = () => {
 
                                         {/* Menu trois points */}
                                         <div className="relative">
+                                            {bsd.other_infos?.numeroBon && (
+                                                <div className="text-gray-600 text-[10px] absolute -top-4 right-2 whitespace-nowrap">
+                                                    {bsd.other_infos.numeroBon}
+                                                </div>
+                                            )}                                           
                                             <button 
                                                 className="px-1 py-1 text-gray-600 rounded-md hover:bg-gray-100 mt-0.5 h-8"
                                                 onClick={(e) => {
@@ -1663,5 +1752,6 @@ const checkBSDBeforeSeal = (bsd: BSD|undefined) => {
 
     return true;
 }
+
 
 

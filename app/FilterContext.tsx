@@ -43,6 +43,8 @@ export interface FilterContextType {
   filieres_ced: Filiere[];
   filieres_nom: Filiere[];
   sites: Site[];
+  siteFilterMode: 'all' | 'per_site';
+  selectedSiteId: string | null;
   points_collecte: PointCollecte[];
   prestataires: Prestataire[];
   segmentDates: SegmentDates;
@@ -56,6 +58,8 @@ export interface FilterContextType {
   setPrestataires: (prestataires: Prestataire[]) => void;
   setSegmentDates: (dates: SegmentDates) => void;
   setFilieresOuPrestataires: (filieres_ou_prestataires: FiliereOuPrestataireInterface) => void;
+  setSiteFilterMode: (mode: 'all' | 'per_site') => void;
+  setSelectedSiteId: (siteId: string | null) => void;
 
   toggleFiliere: (name: string) => void;
   toggleSite: (orgId: string) => void;
@@ -82,6 +86,8 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   const [filieres_ced, setFilieresCed] = useState<Filiere[]>([]);
   const [filieres_nom, setFilieresNom] = useState<Filiere[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [siteFilterMode, setSiteFilterMode] = useState<'all' | 'per_site'>('all');
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [points_collecte, setPointsCollecte] = useState<PointCollecte[]>([]);
   const [prestataires, setPrestataires] = useState<Prestataire[]>([]);
   const [segmentDates, setSegmentDates] = useState<SegmentDates>({ debut: null, fin: null });
@@ -117,9 +123,17 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
 
   const toggleSite = useCallback((siteId: string) => {
     setSites(prevSites => {
-        const newSites = prevSites.map(site =>
-            site.orgId === siteId ? { ...site, checked: !site.checked } : site
-        );
+        let newSites: Site[];
+        if (siteFilterMode === 'per_site') {
+            // En mode per_site, on sélectionne toujours le site cliqué et on décoche les autres
+            newSites = prevSites.map(s => ({ ...s, checked: s.orgId === siteId }));
+            setSelectedSiteId(siteId);
+        } else {
+            // Mode all: toggle classique
+            newSites = prevSites.map(site =>
+                site.orgId === siteId ? { ...site, checked: !site.checked } : site
+            );
+        }
 
         if (session?.entreprise_id) {
             const siteStates = newSites.reduce((acc, site) => ({
@@ -139,7 +153,7 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
 
         return newSites;
     });
-  }, [session?.entreprise_id]);
+  }, [session?.entreprise_id, siteFilterMode]);
 
   const togglePointsCollecte = (name: string) => {
     setPointsCollecte(prev => prev.map(point_collecte => 
@@ -194,15 +208,50 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
         setPointsCollecte(JSON.parse(savedPointsCollecte));
       }
 
+      const savedMode = localStorage.getItem(`siteFilterMode-${session.entreprise_id}`);
+      if (savedMode === 'all' || savedMode === 'per_site') {
+        setSiteFilterMode(savedMode);
+      }
+
+      const savedSelected = localStorage.getItem(`selectedSiteId-${session.entreprise_id}`);
+      if (savedSelected) {
+        setSelectedSiteId(savedSelected);
+      }
+
       setIsInitialized(true);
     }
   }, [isInitialized, session?.entreprise_id]);
+
+  // Persistance du mode et du site sélectionné
+  useEffect(() => {
+    if (session?.entreprise_id) {
+      localStorage.setItem(`siteFilterMode-${session.entreprise_id}`, siteFilterMode);
+      if (selectedSiteId) {
+        localStorage.setItem(`selectedSiteId-${session.entreprise_id}`, selectedSiteId);
+      } else {
+        localStorage.removeItem(`selectedSiteId-${session.entreprise_id}`);
+      }
+    }
+  }, [siteFilterMode, selectedSiteId, session?.entreprise_id]);
+
+  // Fonction pour changer le mode avec logique de recheck des sites
+  const handleSetSiteFilterMode = useCallback((mode: 'all' | 'per_site') => {
+    setSiteFilterMode(mode);
+    
+    // Si on passe de "per_site" à "all", rechecker tous les sites
+    if (mode === 'all') {
+      setSites(prevSites => prevSites.map(site => ({ ...site, checked: true })));
+      setSelectedSiteId(null);
+    }
+  }, [setSites]);
 
   const value = {
     filieres,
     filieres_ced,
     filieres_nom,
     sites,
+    siteFilterMode,
+    selectedSiteId,
     points_collecte,
     prestataires,
     segmentDates,
@@ -222,6 +271,8 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
     setPrestataires,
     setSegmentDates,
     setFilieresOuPrestataires,
+    setSiteFilterMode: handleSetSiteFilterMode,
+    setSelectedSiteId,
     toggleFiliere,
     toggleSite,
     togglePointsCollecte,

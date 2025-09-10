@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSession } from '@/app/component/SessionProvider';
 import { supabase } from '@/app/database/supabaseClient';
 import { processPdfList } from '../utils/loop';
+import { autoLinkDocs, BulkAutoLinkOutcome } from '../utils/bulk_autolink';
 import { verifierEtMettreAJourAlerte } from '../utils/alerte';
 import { toast } from 'react-hot-toast';
 import BoxIcon from '@/app/component/BoxIconWrapper';
@@ -62,6 +63,7 @@ interface ProcessingResult {
     };
     wasSplit?: boolean;
     originalPdfName?: string;
+    autoLinkDetails?: Array<{ index: number; performed: 'linked' | 'created' | 'to_check_by_user' | 'skipped'; bsd_id?: string }>;
 }
 
 interface LoopStarterProps {
@@ -212,11 +214,12 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValues, onCh
 };
 
 const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => {
-    const { entreprise_id } = useSession();
+    const { entreprise_id, user_id } = useSession();
     const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
     const [sites, setSites] = useState<SiteInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
+    const [processingAutoLink, setProcessingAutoLink] = useState(false);
     const [processingAlertes, setProcessingAlertes] = useState(false);
     const [selectedPdfIds, setSelectedPdfIds] = useState<string[]>([]);
     const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([]);
@@ -294,10 +297,10 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                     }
                 });
 
-                // Extraire les types de documents uniques depuis la BDD
+                // Extraire les types de documents uniques depuis la BDD (exclure excel)
                 const uniqueDocumentTypes = new Set<string>();
                 pdfData?.forEach(pdf => {
-                    if (pdf.document_type) {
+                    if (pdf.document_type && pdf.document_type !== 'excel') {
                         uniqueDocumentTypes.add(pdf.document_type);
                     }
                 });
@@ -353,6 +356,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     // Filtrer les PDFs selon les critères multiselect
     const filteredPdfs = useMemo(() => {
         return pdfInfos.filter(pdf => {
+            // Exclure systématiquement les fichiers Excel
+            if (pdf.document_type === 'excel') return false;
             // Filtre alerte.stop
             if (filters.alerteStop !== null) {
                 const alerteStop = pdf.alerte?.stop === true;
@@ -466,6 +471,17 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             
             if (result.success) {
                 toast.success(`Traitement terminé : ${result.processedCount} PDFs traités avec succès`);
+                // Enchaîner automatiquement avec la vérification des alertes
+                try {
+                    // Lancer la vérification pour les mêmes IDs sélectionnés
+                    for (const pdfId of selectedPdfIds) {
+                        await verifierEtMettreAJourAlerte(pdfId, entreprise_id);
+                    }
+                    toast.success('Vérification des alertes terminée');
+                } catch (e) {
+                    console.error('Erreur lors de la vérification automatique des alertes:', e);
+                    toast.error('Erreur lors de la vérification des alertes');
+                }
                 setSelectedPdfIds([]);
             } else {
                 toast.error(`Traitement terminé avec des erreurs : ${result.message}`);
@@ -478,6 +494,76 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             toast.error('Erreur lors du traitement des PDFs');
         } finally {
             setProcessing(false);
+        }
+    };
+
+    // Auto-link selected PDFs
+    const handleAutoLinkSelected = async () => {
+        if (selectedPdfIds.length === 0) {
+            toast.error('Veuillez sélectionner au moins un PDF');
+            return;
+        }
+
+        if (!entreprise_id) {
+            toast.error('ID entreprise manquant');
+            return;
+        }
+
+        if (!user_id) {
+            console.error('[handleAutoLinkSelected] user_id manquant dans la session');
+            toast.error('Utilisateur manquant pour l\'auto-link');
+            return;
+        }
+
+        setProcessingAutoLink(true);
+        setProcessingResults([]);
+        setShowReview(false);
+
+        try {
+            const outcome: BulkAutoLinkOutcome = await autoLinkDocs(selectedPdfIds, parseInt(entreprise_id), user_id);
+
+            const detailedResults: ProcessingResult[] = [];
+            outcome.results.forEach(item => {
+                const originalPdf = pdfInfos.find(pdf => pdf.id === item.pdfId);
+                const autoLinkDetails = (item.results || []).map(r => ({
+                    index: r.index_dechet,
+                    performed: r.performed,
+                    bsd_id: r.bsd_id
+                }));
+                detailedResults.push({
+                    pdfId: item.pdfId,
+                    success: item.success,
+                    message: item.message,
+                    originalPdfName: originalPdf?.name_pdf || 'Inconnu',
+                    autoLinkDetails
+                });
+            });
+
+            outcome.errors.forEach(err => {
+                const originalPdf = pdfInfos.find(pdf => pdf.id === err.pdfId);
+                detailedResults.push({
+                    pdfId: err.pdfId,
+                    success: false,
+                    message: err.error,
+                    error: err.error,
+                    originalPdfName: originalPdf?.name_pdf || 'Inconnu'
+                });
+            });
+
+            setProcessingResults(detailedResults);
+            setShowReview(true);
+
+            if (outcome.success) {
+                toast.success(`Auto-link terminé : ${outcome.processedCount} document(s)`);
+                setSelectedPdfIds([]);
+            } else {
+                toast.error(outcome.message || 'Auto-link terminé avec des erreurs');
+            }
+        } catch (error) {
+            console.error('Erreur auto-link:', error);
+            toast.error('Erreur lors de l\'auto-link des PDFs');
+        } finally {
+            setProcessingAutoLink(false);
         }
     };
 
@@ -614,7 +700,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                 <div className="p-4">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-2xl font-bold text-gray-800">
-                            Extraction en boucle - Sélection des PDFs
+                            Traitement des documents PDF
                         </h2>
                         {onClose && (
                             <button
@@ -705,7 +791,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                             </div>
                         </div>
 
-                        <div className="max-h-[300px] overflow-y-auto">
+                        <div className="max-h-[200px] overflow-y-auto">
                             {filteredPdfs.length === 0 ? (
                                 <div className="p-8 text-center text-gray-500">
                                     <BoxIcon name="bx-file" size="48" className="mx-auto mb-4 text-gray-300" />
@@ -805,10 +891,28 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-2">
+                                <button
+                                        onClick={handleProcessPdfs}
+                                        disabled={processing || processingAlertes || selectedPdfIds.length === 0}
+                                        className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
+                                    >
+                                        {processing ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                                <span>Traitement...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <BoxIcon name="bx-play" size="16" />
+                                                <span>Extraire ({selectedPdfIds.length})</span>
+                                            </>
+                                        )}
+                                    </button>                                    
                                     <button
                                         onClick={handleCheckAlertes}
                                         disabled={processingAlertes || selectedPdfIds.length === 0}
                                         className="px-3 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
+                                        title="Mettre à jour les notifications après changement dans les cluster parameters"
                                     >
                                         {processingAlertes ? (
                                             <>
@@ -823,19 +927,20 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         )}
                                     </button>
                                     <button
-                                        onClick={handleProcessPdfs}
-                                        disabled={processing || processingAlertes || selectedPdfIds.length === 0}
-                                        className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
+                                        onClick={handleAutoLinkSelected}
+                                        disabled={processingAutoLink || processing || processingAlertes || selectedPdfIds.length === 0}
+                                        className="px-3 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
+                                        title="Auto-linker les documents sélectionnés"
                                     >
-                                        {processing ? (
+                                        {processingAutoLink ? (
                                             <>
                                                 <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                                <span>Traitement...</span>
+                                                <span>Auto-link...</span>
                                             </>
                                         ) : (
                                             <>
-                                                <BoxIcon name="bx-play" size="16" />
-                                                <span>Extraire ({selectedPdfIds.length})</span>
+                                                <BoxIcon name="bx-link" size="16" />
+                                                <span>Auto-link ({selectedPdfIds.length})</span>
                                             </>
                                         )}
                                     </button>
@@ -896,11 +1001,44 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         >
                                             <div className="flex justify-between items-start">
                                                 <div className="flex-1">
-                                                    <div className="font-medium text-sm mb-1">{result.originalPdfName}</div>
+                                                    <div className="font-medium text-sm mb-2">{result.originalPdfName}</div>
                                                     {result.error && (
                                                         <div className="text-xs text-red-600 mb-2">{result.error}</div>
                                                     )}
-                                                    <div className="text-sm text-gray-600">{result.message}</div>
+                                                    {/* Liste des déchets auto-linkés */}
+                                                    {Array.isArray(result.autoLinkDetails) && result.autoLinkDetails.length > 0 ? (
+                                                        <ul className="space-y-1">
+                                                            {result.autoLinkDetails.map((item, i) => {
+                                                                const label = item.performed === 'linked' ? 'Lié au BSD'
+                                                                    : item.performed === 'created' ? 'BSD créé'
+                                                                    : item.performed === 'to_check_by_user' ? 'À vérifier manuellement'
+                                                                    : 'Déjà traité';
+                                                                const icon = item.performed === 'linked' ? '🔗'
+                                                                    : item.performed === 'created' ? '✨'
+                                                                    : item.performed === 'to_check_by_user' ? '👀'
+                                                                    : '⏭️';
+                                                                const badgeClass = item.performed === 'linked' ? 'bg-green-100 text-green-800'
+                                                                    : item.performed === 'created' ? 'bg-blue-100 text-blue-800'
+                                                                    : item.performed === 'to_check_by_user' ? 'bg-yellow-100 text-yellow-800'
+                                                                    : 'bg-gray-100 text-gray-800';
+                                                                return (
+                                                                    <li key={i} className="flex items-center justify-between text-sm">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-gray-500">Déchet #{item.index + 1}</span>
+                                                                            <span className={`px-2 py-0.5 rounded text-xs ${badgeClass}`}>
+                                                                                {icon} {label}
+                                                                            </span>
+                                                                        </div>
+                                                                        {item.bsd_id && (
+                                                                            <span className="text-xs text-gray-500">BSD: {item.bsd_id}</span>
+                                                                        )}
+                                                                    </li>
+                                                                );
+                                                            })}
+                                                        </ul>
+                                                    ) : (
+                                                        <div className="text-sm text-gray-600">{result.message}</div>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     {result.success && (

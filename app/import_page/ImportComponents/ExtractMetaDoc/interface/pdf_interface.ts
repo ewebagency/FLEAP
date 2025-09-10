@@ -68,4 +68,7 @@ export interface MetaOcrParams {
 export interface ParamsMapping {
     params_mapping_site: Record<string, string[]>;
     params_mapping_presta: Record<string, string[]>;
+    params_mapping_operation: Record<string, string[]>;
+    params_mapping_unite: Record<string, string[]>;
+    params_mapping_contenant: Record<string, string[]>;
 }

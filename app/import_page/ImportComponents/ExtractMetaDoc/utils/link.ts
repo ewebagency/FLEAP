@@ -1,5 +1,7 @@
 import { PdfInfo } from '../interface/pdf_interface';
 import { getParamsMappingByEntreprise, getBSDCandidates } from './bdd';
+import { supabase } from '@/app/database/supabaseClient';
+import { link_in_bdd, create_in_bdd } from './link_or_create_bdd';
 // import { RowBSD } from '@/app/register/interface/BSD_Interface';
 
 // Types pour la logique de liaison
@@ -220,28 +222,17 @@ export const candidats_BDD = async (
 };
 
 // Fonction pour extraire et normaliser les données du PDF
-const normalizePdfData = (
+export const normalizePdfData = (
     rawData: Record<string, unknown>,
     siteMapping: Record<string, string[]>,
     prestaMapping: Record<string, string[]>,
-    dechetIndex: number = 0
+    dechetIndex: number = 0,
+    preserveCase: boolean = false
 ): Record<string, string> => {
     const normalized: Record<string, string> = {};
     
-    // Extraire les données selon le type de document
-    if (rawData.type_doc === 'bon' && Array.isArray(rawData.dechet) && rawData.dechet.length > dechetIndex) {
-        const dechet = rawData.dechet[dechetIndex] as Record<string, unknown>;
-        normalized.date = (dechet.date as string) || '';
-        normalized.ced = (dechet.ced as string) || '';
-        normalized.waste_name = (dechet.nom as string) || '';
-        normalized.num_bon = (dechet.num_bon as string) || '';
-        normalized.tonnage = (dechet.tonnage as string) || '';
-        normalized.site = (rawData.site_raw as string) || '';
-        normalized.prestataire = (rawData.presta_raw as string) || '';
-        normalized.destinataire = (rawData.presta_raw as string) || ''; // Pour les bons, le prestataire est souvent le destinataire
-        normalized.transporteur = (rawData.presta_raw as string) || ''; // Ou le transporteur
-    } else if (rawData.type_doc === 'facture' && Array.isArray(rawData.dechet) && rawData.dechet.length > dechetIndex) {
-        // Pour les factures, on prend le déchet spécifique
+    // Extraire les données du déchet (tous types de documents)
+    if (Array.isArray(rawData.dechet) && rawData.dechet.length > dechetIndex) {
         const dechet = rawData.dechet[dechetIndex] as Record<string, unknown>;
         normalized.date = (dechet.date as string) || '';
         normalized.ced = (dechet.ced as string) || '';
@@ -281,9 +272,9 @@ const normalizePdfData = (
     if (normalized.destinataire) normalized.destinataire = normalizePresta(normalized.destinataire);
     if (normalized.transporteur) normalized.transporteur = normalizePresta(normalized.transporteur);
     
-    // Normaliser tous les champs (minuscules et trim)
+    // Normaliser tous les champs (trim + optionnellement minuscules)
     for (const [key, value] of Object.entries(normalized)) {
-        normalized[key] = value.toLowerCase().trim();
+        normalized[key] = preserveCase ? value.trim() : value.toLowerCase().trim();
     }
     
     return normalized;
@@ -292,6 +283,36 @@ const normalizePdfData = (
 // Fonction pour extraire les chiffres d'un CED
 const extractNumbersFromCed = (ced: string): string => {
     return ced.replace(/[^\d]/g, '').replace(/\s/g, '');
+};
+
+// Format CED for display: keep 6 digits and insert spaces as XX XX XX
+const formatCedForDisplay = (ced: string): string => {
+    const digits = extractNumbersFromCed(ced).slice(0, 6);
+    if (digits.length !== 6) return digits; // fallback
+    return `${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 6)}`;
+};
+
+// Parse numbers that may use French formatting (e.g., "2,24")
+const parseLocaleNumber = (value: string | number | undefined): number => {
+    if (typeof value === 'number') return value;
+    const raw = (value || '').toString().trim();
+    if (!raw) return 0;
+    // Remove spaces (thousands separators)
+    let s = raw.replace(/\s/g, '');
+    // If comma used as decimal and dot not used, replace comma with dot
+    if (s.includes(',') && !s.includes('.')) {
+        s = s.replace(/,/g, '.');
+    } else if (s.includes(',') && s.includes('.')) {
+        // Heuristic: if last comma is after last dot, commas are decimal separators; remove dots
+        if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+            s = s.replace(/\./g, '').replace(/,/g, '.');
+        } else {
+            // Dots as decimal separators; remove commas
+            s = s.replace(/,/g, '');
+        }
+    }
+    const n = Number.parseFloat(s);
+    return Number.isFinite(n) ? n : 0;
 };
 
 // Fonction pour comparer les dates avec un écart
@@ -335,7 +356,7 @@ const computeSimilarity = (a: string, b: string): number => {
     return 1 - dist / maxLen;
 };
 
-// Fonction principale de liaison
+// Fonction principale de liaison (version simplifiée utilisant ProposeActionAuto)
 export const LinkOrCreate = async (
     pdfInfo: PdfInfo,
     entrepriseId: number,
@@ -344,228 +365,65 @@ export const LinkOrCreate = async (
     rulesOverride?: Partial<LinkRules>
 ): Promise<LinkResult> => {
     try {
-        // Règles effectives (defaults + override)
-        const rules: LinkRules = { ...LINK_RULES_DEFAULT, ...(rulesOverride || {}) };
         // Récupérer les mappings de traduction
         const { data: mappings, error: mappingError } = await getParamsMappingByEntreprise(entrepriseId);
         if (mappingError || !mappings) {
             throw new Error('Impossible de récupérer les mappings');
         }
 
-        // Normaliser les données du PDF (site + prestataire)
-        const normalizedPdf = normalizePdfData(
-            pdfInfo.infos_raw || {},
-            mappings.params_mapping_site || {},
-            mappings.params_mapping_presta || {},
-            dechetIndex
-        );
-
         // Récupérer les candidats BSD autour de la date cible (fenêtre large)
+        const pdfDechets = pdfInfo.infos_raw?.dechet as Record<string, unknown>[] | undefined;
+        const pdfDate = pdfDechets?.[dechetIndex] ? (pdfDechets[dechetIndex] as Record<string, unknown>)?.date as string : undefined;
         const candidates = await candidats_BDD(
             entrepriseId,
-            normalizedPdf.date || new Date().toISOString(),
+            pdfDate || new Date().toISOString(),
             200,
             config
         );
-        console.log("MinDate Candidates", candidates.map(candidate => candidate));
 
-        // ÉTAPE 1: Liaison ultra évidente (correspondance exacte des numéros)
-        if (rules.includeUltraStrictStep) {
-            const ultraStrictCandidates = candidates.filter(candidate => {
-                const pdfNumBon = normalizedPdf.num_bon;
-                const pdfNumBsd = normalizedPdf.num_bsd;
-                const candidateNumBon = candidate.other_infos?.numeroBon || '';
-                const candidateNumBsd = candidate.readable_id_track_dechets || '';
-                return (
-                    (pdfNumBon && candidateNumBon && pdfNumBon === candidateNumBon) ||
-                    (pdfNumBsd && candidateNumBsd && pdfNumBsd === candidateNumBsd)
-                );
-            });
-            if (ultraStrictCandidates.length === 1) {
-                console.log("NumBSD ou BON trouvé, on link");
-                return {
-                    action: 'to_link',
-                    id_link: ultraStrictCandidates[0].id
-                };
-            }
-            console.log("Pas de NumBSD ou BON trouvé");
-        }
-        console.log("laaaaa");
-        // ÉTAPE 2: Liaison évidente (filtrage strict)
-        if (rules.includeStrictStep) {
-            console.log("check date");
-            const strictCandidates = candidates.filter(candidate => {
-                // Date stricte (priorité à takenOverAt si présent)
-                if (rules.useDateStrict) {
-                    const takenOverAt = candidate.infos_json?.formAPI?.createFormInput?.takenOverAt || '';
-                    const candidateDate = takenOverAt || candidate.created_at;
-                    console.log("candidateDate", candidateDate);
-                    console.log("normalizedPdf.date", normalizedPdf.date);
-                    console.log("isDateInRange", isDateInRange(candidateDate, normalizedPdf.date, rules.strictDays));
-                    if (!isDateInRange(candidateDate, normalizedPdf.date, rules.strictDays)) {
-                        return false;
-                    }
-                    console.log("Date trouvée");
+        // Convertir les règles en paramètres auto_link pour la compatibilité
+        const autoLinkParams: AutoLinkParams = {
+            to_link: [
+                {
+                    num_bsd: true,
+                    num_bon: true,
+                    site: rulesOverride?.useSiteStrict ?? LINK_RULES_DEFAULT.useSiteStrict,
+                    presta: rulesOverride?.usePrestaStrict ?? LINK_RULES_DEFAULT.usePrestaStrict,
+                    ced: rulesOverride?.useCedStrict ?? LINK_RULES_DEFAULT.useCedStrict,
+                    nom_dechet_tresh: Math.round((rulesOverride?.wasteNameThresholdStrict ?? LINK_RULES_DEFAULT.wasteNameThresholdStrict) * 100),
+                    nom_dechet: rulesOverride?.useWasteNameStrict ?? LINK_RULES_DEFAULT.useWasteNameStrict,
+                    date: rulesOverride?.useDateStrict ?? LINK_RULES_DEFAULT.useDateStrict,
+                    date_tresh: rulesOverride?.strictDays ?? LINK_RULES_DEFAULT.strictDays
                 }
-
-                // Prestataire (destinataire OU transporteur)
-                if (rules.usePrestaStrict) {
-                    const pdfDestinataire = normalizedPdf.destinataire || '';
-                    const pdfTransporteur = normalizedPdf.transporteur || '';
-                    const candidateRecipient = candidate.infos_json.formAPI.createFormInput.recipient.company.name || '';
-                    const candidateTransporter = candidate.infos_json.formAPI.createFormInput.transporter.company.name || '';
-                    const recipientOk = pdfDestinataire && candidateRecipient && candidateRecipient.toLowerCase() === pdfDestinataire;
-                    const transporterOk = pdfTransporteur && candidateTransporter && candidateTransporter.toLowerCase() === pdfTransporteur;
-                    if (!recipientOk && !transporterOk) {
-                        return false;
-                    }
-                    console.log("Prestataire trouvé");
+            ],
+            to_check_by_user: [
+                {
+                    num_bsd: false,
+                    num_bon: false,
+                    site: rulesOverride?.useSiteLoose ?? LINK_RULES_DEFAULT.useSiteLoose,
+                    presta: rulesOverride?.usePrestaLoose ?? LINK_RULES_DEFAULT.usePrestaLoose,
+                    ced: rulesOverride?.useCedLoose ?? LINK_RULES_DEFAULT.useCedLoose,
+                    nom_dechet_tresh: Math.round((rulesOverride?.wasteNameThresholdLoose ?? LINK_RULES_DEFAULT.wasteNameThresholdLoose) * 100),
+                    nom_dechet: rulesOverride?.useWasteNameLoose ?? LINK_RULES_DEFAULT.useWasteNameLoose,
+                    date: rulesOverride?.useDateLoose ?? LINK_RULES_DEFAULT.useDateLoose,
+                    date_tresh: rulesOverride?.looseDays ?? LINK_RULES_DEFAULT.looseDays
                 }
+            ],
+            create: []
+        };
 
-                // Site strict (toujours emitter.company.name)
-                if (rules.useSiteStrict) {
-                    const candidateSite = (candidate.infos_json.formAPI.createFormInput.emitter.company?.name || '');
-                    if (normalizedPdf.site && candidateSite.toLowerCase() !== normalizedPdf.site) {
-                        return false;
-                    }
-                    console.log("Site trouvé");
-                }
+        // Utiliser la nouvelle fonction ProposeActionAuto
+        const result = ProposeActionAuto(
+            pdfInfo.infos_raw || {},
+            candidates,
+            mappings,
+            autoLinkParams,
+            dechetIndex
+        );
 
-                // Matière: combinaison CED et/ou nom déchet (fuzzy)
-                let cedOk = true;
-                let wasteOk = true;
-
-                if (rules.useCedStrict) {
-                    if (normalizedPdf.ced && candidate.infos_json.formAPI.createFormInput.wasteDetails.code) {
-                        const pdfCedNumbers = extractNumbersFromCed(normalizedPdf.ced);
-                        const candidateCedNumbers = extractNumbersFromCed(candidate.infos_json.formAPI.createFormInput.wasteDetails.code);
-                        cedOk = !(pdfCedNumbers && candidateCedNumbers) || pdfCedNumbers === candidateCedNumbers;
-                    }
-                    console.log("CED trouvé :", cedOk);
-                }
-
-                if (rules.useWasteNameStrict) {
-                    const pdfWaste = normalizedPdf.waste_name || '';
-                    const candidateWaste = candidate.infos_json.formAPI.createFormInput.wasteDetails.name || '';
-                    const score = computeSimilarity(pdfWaste, candidateWaste);
-                    wasteOk = score >= rules.wasteNameThresholdStrict;
-                    console.log("Nom déchet trouvé :", wasteOk);
-                }
-
-                // Si aucun des deux filtres matière n'est activé, on n'en tient pas compte
-                if (!rules.useCedStrict && !rules.useWasteNameStrict) {
-                    console.log("Pas de CED ou de nom déchet trouvé");
-                    return true;
-                }
-
-                // Si un seul est activé, utiliser celui-ci
-                if (rules.useCedStrict && !rules.useWasteNameStrict) {
-                    console.log("CED trouvé :", cedOk);
-                    return cedOk;
-                }
-                if (!rules.useCedStrict && rules.useWasteNameStrict) {
-                    console.log("Nom déchet trouvé :", wasteOk);
-                    return wasteOk;
-                }
-
-                // Les deux sont activés: combiner selon l'opérateur
-                console.log('cedOk', cedOk, 'wasteOk', wasteOk);
-                return rules.wasteNameCedOperatorStrict === 'AND' ? (cedOk && wasteOk) : (cedOk || wasteOk);
-            });
-
-            if (strictCandidates.length === 1) {
-                return {
-                    action: 'to_link',
-                    id_link: strictCandidates[0].id
-                };
-            }
-        }
-
-        // ÉTAPE 3: Vérification pour création (filtrage large)
-        if (rules.includeLooseStep) {
-            const looseCandidates = candidates.filter(candidate => {
-                // Date large (priorité à takenOverAt si présent)
-                if (rules.useDateLoose) {
-                    const takenOverAt = candidate.infos_json?.formAPI?.createFormInput?.takenOverAt || '';
-                    const candidateDate = takenOverAt || candidate.created_at;
-                    if (!isDateInRange(candidateDate, normalizedPdf.date, rules.looseDays)) {
-                        return false;
-                    }
-                }
-
-                // Prestataire large
-                if (rules.usePrestaLoose) {
-                    const pdfDestinataire = normalizedPdf.destinataire || '';
-                    const pdfTransporteur = normalizedPdf.transporteur || '';
-                    const candidateRecipient = candidate.infos_json.formAPI.createFormInput.recipient.company.name || '';
-                    const candidateTransporter = candidate.infos_json.formAPI.createFormInput.transporter.company.name || '';
-                    const recipientOk = pdfDestinataire && candidateRecipient && candidateRecipient.toLowerCase() === pdfDestinataire;
-                    const transporterOk = pdfTransporteur && candidateTransporter && candidateTransporter.toLowerCase() === pdfTransporteur;
-                    if (!recipientOk && !transporterOk) {
-                        return false;
-                    }
-                }
-
-                // Site large (toujours emitter.company.name)
-                if (rules.useSiteLoose) {
-                    const candidateSite = (candidate.infos_json.formAPI.createFormInput.emitter.company?.name || '');
-                    if (normalizedPdf.site && candidateSite.toLowerCase() !== normalizedPdf.site) {
-                        return false;
-                    }
-                }
-
-                // Matière: combinaison CED et/ou nom déchet (fuzzy) en large
-                let cedOk = true;
-                let wasteOk = true;
-
-                if (rules.useCedLoose) {
-                    if (normalizedPdf.ced && candidate.infos_json.formAPI.createFormInput.wasteDetails.code) {
-                        const pdfCedNumbers = extractNumbersFromCed(normalizedPdf.ced);
-                        const candidateCedNumbers = extractNumbersFromCed(candidate.infos_json.formAPI.createFormInput.wasteDetails.code);
-                        cedOk = !(pdfCedNumbers && candidateCedNumbers) || pdfCedNumbers === candidateCedNumbers;
-                    }
-                }
-
-                if (rules.useWasteNameLoose) {
-                    const pdfWaste = normalizedPdf.waste_name || '';
-                    const candidateWaste = candidate.infos_json.formAPI.createFormInput.wasteDetails.name || '';
-                    const score = computeSimilarity(pdfWaste, candidateWaste);
-                    wasteOk = score >= rules.wasteNameThresholdLoose;
-                }
-
-                if (!rules.useCedLoose && !rules.useWasteNameLoose) {
-                    return true;
-                }
-                if (rules.useCedLoose && !rules.useWasteNameLoose) {
-                    return cedOk;
-                }
-                if (!rules.useCedLoose && rules.useWasteNameLoose) {
-                    return wasteOk;
-                }
-                return rules.wasteNameCedOperatorLoose === 'AND' ? (cedOk && wasteOk) : (cedOk || wasteOk);
-            });
-
-            if (looseCandidates.length === 1) {
-                return {
-                    action: 'to_check_by_user',
-                    id_link: looseCandidates[0].id
-                };
-            }
-
-            if (looseCandidates.length === 0) {
-                return {
-                    action: 'to_create'
-                };
-            }
-
-            return {
-                action: 'to_check_by_user'
-            };
-        }
-
-        // Si les étapes précédentes sont désactivées ou n'ont rien donné
         return {
-            action: 'to_check_by_user'
+            action: result.action,
+            id_link: result.id_candidat
         };
 
     } catch (error) {
@@ -576,7 +434,190 @@ export const LinkOrCreate = async (
     }
 };
 
-// Nouvelle fonction de matching automatique basée sur les paramètres JSON
+// Interface pour les données PDF normalisées
+export interface NormalizedPdfData {
+    date: string;
+    ced: string;
+    waste_name: string;
+    num_bon: string;
+    num_bsd: string;
+    tonnage: string;
+    site: string;
+    prestataire: string;
+    destinataire: string;
+    transporteur: string;
+}
+
+// Interface pour les mappings de paramètres
+export interface ParamsMapping {
+    params_mapping_site?: Record<string, string[]>;
+    params_mapping_presta?: Record<string, string[]>;
+    params_mapping_contenant?: Record<string, string[]>;
+    params_mapping_unite?: Record<string, string[]>;
+    params_mapping_operation?: Record<string, string[]>;
+}
+
+// Interface pour le résultat de la proposition d'action
+export interface ProposeActionResult {
+    action: 'to_link' | 'to_check_by_user' | 'to_create';
+    id_candidat?: string;
+    nb_candidats?: number; // Nombre de candidats trouvés pour to_check_by_user
+    matched_rule?: MatchingRule; // Règle exacte qui a matché
+    rule_info?: string; // Info sur la règle (ex: "to_check_by_user #2")
+}
+
+// Fonction principale simplifiée pour proposer une action
+export const ProposeActionAuto = (
+    pdf_infos: Record<string, unknown>,
+    bsds: BSDCandidate[],
+    params_mapping: ParamsMapping,
+    auto_link_params: AutoLinkParams,
+    dechetIndex: number = 0
+): ProposeActionResult => {
+        // Normaliser les données du PDF
+        const normalizedPdf = normalizePdfData(
+        pdf_infos,
+        params_mapping.params_mapping_site || {},
+        params_mapping.params_mapping_presta || {},
+            dechetIndex
+        );
+    // Fonction pour créer une condition basée sur une règle
+    const createCondition = (rule: MatchingRule) => {
+        return (pdfData: Record<string, string>, bsdCandidate: BSDCandidate): boolean => {
+            // Vérification num_bsd
+            if (rule.num_bsd) {
+                // Normaliser le numéro BSD issu du PDF :
+                // cas particulier si format "8chiffres-LETTRES-1chiffre" -> ne garder que les 8 premiers chiffres
+                const rawPdfNumBsd = pdfData.num_bsd || '';
+                const pdfNumBsd = (() => {
+                    //const match = rawPdfNumBsd.match(/^(\d{8})-[a-zA-Z]+-\d$/);
+                    //if (match) return match[1]; // Pour les id du style 09242253-DECHETSULTIMES-4 mais pour registre et bsd ont toute la chaine donc pas besoin 
+                    return rawPdfNumBsd;
+                })();
+                const candidateNumBsd = (bsdCandidate.readable_id_track_dechets || '').toLowerCase().trim();
+                if (!pdfNumBsd || !candidateNumBsd || pdfNumBsd !== candidateNumBsd) {
+                    return false;
+                }
+            }
+
+            // Vérification num_bon
+            if (rule.num_bon) {
+                const pdfNumBon = pdfData.num_bon || '';
+                const candidateNumBon = (bsdCandidate.other_infos?.numeroBon || '').toLowerCase().trim();
+                if (!pdfNumBon || !candidateNumBon || pdfNumBon !== candidateNumBon) {
+                    return false;
+                }
+            }
+
+            // Vérification site
+            if (rule.site) {
+                const pdfSite = pdfData.site || '';
+                const candidateSite = (bsdCandidate.infos_json.formAPI.createFormInput.emitter.company?.name || '').toLowerCase().trim();
+                if (!pdfSite || !candidateSite || pdfSite !== candidateSite) {
+                    return false;
+                }
+            }
+
+            // Vérification prestataire (destinataire OU transporteur)
+            if (rule.presta) {
+                const pdfDestinataire = pdfData.destinataire || '';
+                const pdfTransporteur = pdfData.transporteur || '';
+                const candidateRecipient = (bsdCandidate.infos_json.formAPI.createFormInput.recipient.company.name || '').toLowerCase().trim();
+                const candidateTransporter = (bsdCandidate.infos_json.formAPI.createFormInput.transporter.company.name || '').toLowerCase().trim();
+                
+                const recipientOk = pdfDestinataire && candidateRecipient && candidateRecipient === pdfDestinataire;
+                const transporterOk = pdfTransporteur && candidateTransporter && candidateTransporter === pdfTransporteur;
+                
+                if (!recipientOk && !transporterOk) {
+                    return false;
+                }
+            }
+
+            // Vérification CED
+            if (rule.ced) {
+                const pdfCedNumbers = extractNumbersFromCed(pdfData.ced || '');
+                const candidateCedNumbers = extractNumbersFromCed(bsdCandidate.infos_json.formAPI.createFormInput.wasteDetails.code || '');
+                if (!pdfCedNumbers || !candidateCedNumbers || pdfCedNumbers !== candidateCedNumbers) {
+                    return false;
+                }
+            }
+
+            // Vérification nom de déchet (fuzzy matching)
+            if (rule.nom_dechet) {
+                const pdfWaste = pdfData.waste_name || '';
+                const candidateWaste = (bsdCandidate.infos_json.formAPI.createFormInput.wasteDetails.name || '').toLowerCase().trim();
+                const similarity = computeSimilarity(pdfWaste, candidateWaste);
+                if (!pdfWaste || !candidateWaste || similarity < (rule.nom_dechet_tresh / 100)) {
+                    return false;
+                }
+            }
+
+            // Vérification date
+            if (rule.date) {
+                const takenOverAt = bsdCandidate.infos_json?.formAPI?.createFormInput?.takenOverAt || '';
+                const candidateDate = takenOverAt || bsdCandidate.created_at;
+                const dateMatch = isDateInRange(candidateDate, pdfData.date, rule.date_tresh);
+                if (!pdfData.date || !dateMatch) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+        };
+
+        // Parcourir les règles dans l'ordre : to_link -> to_check_by_user -> create
+    for (let i = 0; i < auto_link_params.to_link.length; i++) {
+        const rule = auto_link_params.to_link[i];
+        const isInCondition = createCondition(rule);
+        for (const bsd of bsds) {
+            if (isInCondition(normalizedPdf, bsd)) { 
+                return {
+                    action: 'to_link',
+                    id_candidat: bsd.id,
+                    matched_rule: rule,
+                    rule_info: `to_link #${i + 1}`
+                };
+            }
+        }
+    }
+
+    for (let i = 0; i < auto_link_params.to_check_by_user.length; i++) {
+        const rule = auto_link_params.to_check_by_user[i];
+        const isInCondition = createCondition(rule);
+        const matchingCandidates = bsds.filter(bsd => isInCondition(normalizedPdf, bsd));
+        if (matchingCandidates.length > 0) {
+                return {
+                action: 'to_check_by_user',
+                id_candidat: matchingCandidates[0].id,
+                nb_candidats: matchingCandidates.length,
+                matched_rule: rule,
+                rule_info: `to_check_by_user #${i + 1}`
+            };
+        }
+    }
+
+    for (let i = 0; i < auto_link_params.create.length; i++) {
+        const rule = auto_link_params.create[i];
+        const isInCondition = createCondition(rule);
+        for (const bsd of bsds) {
+            if (isInCondition(normalizedPdf, bsd)) {
+                return {
+                    action: 'to_create',
+                    matched_rule: rule,
+                    rule_info: `create #${i + 1}`
+                };
+            }
+        }
+    }
+
+    // Si aucune règle ne correspond, retourner to_create par défaut
+    return {
+        action: 'to_create'
+    };
+};
+
+// Nouvelle fonction de matching automatique basée sur les paramètres JSON (version simplifiée)
 export const AutoLinkWithParams = async (
     pdfInfo: PdfInfo,
     entrepriseId: number,
@@ -591,134 +632,29 @@ export const AutoLinkWithParams = async (
             throw new Error('Impossible de récupérer les mappings');
         }
 
-        // Normaliser les données du PDF
-        const normalizedPdf = normalizePdfData(
-            pdfInfo.infos_raw || {},
-            mappings.params_mapping_site || {},
-            mappings.params_mapping_presta || {},
-            dechetIndex
-        );
-
         // Récupérer les candidats BSD autour de la date cible (fenêtre large)
+        const pdfDechets = pdfInfo.infos_raw?.dechet as Record<string, unknown>[] | undefined;
+        const pdfDate = pdfDechets?.[dechetIndex] ? (pdfDechets[dechetIndex] as Record<string, unknown>)?.date as string : undefined;
         const candidates = await candidats_BDD(
             entrepriseId,
-            normalizedPdf.date || new Date().toISOString(),
+            pdfDate || new Date().toISOString(),
             200,
             config
         );
 
-        // Fonction pour vérifier si un candidat correspond à une règle
-        const matchesRule = (candidate: BSDCandidate, rule: MatchingRule): boolean => {
-            // Vérification num_bsd
-            if (rule.num_bsd) {
-                const pdfNumBsd = normalizedPdf.num_bsd || '';
-                const candidateNumBsd = (candidate.readable_id_track_dechets || '').toLowerCase().trim();
-                if (!pdfNumBsd || !candidateNumBsd || pdfNumBsd !== candidateNumBsd) {
-                    return false;
-                }
-            }
+        // Utiliser la nouvelle fonction ProposeActionAuto
+        const result = ProposeActionAuto(
+            pdfInfo.infos_raw || {},
+            candidates,
+            mappings,
+            params,
+            dechetIndex
+        );
 
-            // Vérification num_bon
-            if (rule.num_bon) {
-                const pdfNumBon = normalizedPdf.num_bon || '';
-                const candidateNumBon = (candidate.other_infos?.numeroBon || '').toLowerCase().trim();
-                if (!pdfNumBon || !candidateNumBon || pdfNumBon !== candidateNumBon) {
-                    return false;
-                }
-            }
-
-            // Vérification site
-            if (rule.site) {
-                const pdfSite = normalizedPdf.site || '';
-                const candidateSite = (candidate.infos_json.formAPI.createFormInput.emitter.company?.name || '').toLowerCase().trim();
-                if (!pdfSite || !candidateSite || pdfSite !== candidateSite) {
-                    return false;
-                }
-            }
-
-            // Vérification prestataire (destinataire OU transporteur)
-            if (rule.presta) {
-                const pdfDestinataire = normalizedPdf.destinataire || '';
-                const pdfTransporteur = normalizedPdf.transporteur || '';
-                const candidateRecipient = (candidate.infos_json.formAPI.createFormInput.recipient.company.name || '').toLowerCase().trim();
-                const candidateTransporter = (candidate.infos_json.formAPI.createFormInput.transporter.company.name || '').toLowerCase().trim();
-                
-                const recipientOk = pdfDestinataire && candidateRecipient && candidateRecipient === pdfDestinataire;
-                const transporterOk = pdfTransporteur && candidateTransporter && candidateTransporter === pdfTransporteur;
-                
-                if (!recipientOk && !transporterOk) {
-                    return false;
-                }
-            }
-
-            // Vérification CED
-            if (rule.ced) {
-                const pdfCedNumbers = extractNumbersFromCed(normalizedPdf.ced || '');
-                const candidateCedNumbers = extractNumbersFromCed(candidate.infos_json.formAPI.createFormInput.wasteDetails.code || '');
-                if (!pdfCedNumbers || !candidateCedNumbers || pdfCedNumbers !== candidateCedNumbers) {
-                    return false;
-                }
-            }
-
-            // Vérification nom de déchet (fuzzy matching)
-            if (rule.nom_dechet) {
-                const pdfWaste = normalizedPdf.waste_name || '';
-                const candidateWaste = (candidate.infos_json.formAPI.createFormInput.wasteDetails.name || '').toLowerCase().trim();
-                const similarity = computeSimilarity(pdfWaste, candidateWaste);
-                if (!pdfWaste || !candidateWaste || similarity < rule.nom_dechet_tresh) {
-                    return false;
-                }
-            }
-
-            // Vérification date
-            if (rule.date) {
-                const takenOverAt = candidate.infos_json?.formAPI?.createFormInput?.takenOverAt || '';
-                const candidateDate = takenOverAt || candidate.created_at;
-                if (!normalizedPdf.date || !isDateInRange(candidateDate, normalizedPdf.date, rule.date_tresh)) {
-                    return false;
-                }
-            }
-
-            return true;
-        };
-
-        // Parcourir les règles dans l'ordre : to_link -> to_check_by_user -> create
-        for (const rule of params.to_link) {
-            const matchingCandidates = candidates.filter(candidate => matchesRule(candidate, rule));
-            if (matchingCandidates.length >= 1) {
-                return {
-                    result: 'to_link',
-                    id: matchingCandidates[0].id,
-                    pluto: 'link'
-                };
-            }
-        }
-
-        for (const rule of params.to_check_by_user) {
-            const matchingCandidates = candidates.filter(candidate => matchesRule(candidate, rule));
-            if (matchingCandidates.length >= 1) {
-                return {
-                    result: 'to_check_by_user',
-                    id: matchingCandidates[0].id,
-                    pluto: matchingCandidates.length === 1 ? 'link' : 'create'
-                };
-            }
-        }
-
-        for (const rule of params.create) {
-            const matchingCandidates = candidates.filter(candidate => matchesRule(candidate, rule));
-            if (matchingCandidates.length >= 1) {
-                return {
-                    result: 'create',
-                    pluto: 'create'
-                };
-            }
-        }
-
-        // Si aucune règle ne correspond, retourner create par défaut
         return {
-            result: 'create',
-            pluto: 'create'
+            result: result.action === 'to_create' ? 'create' : result.action,
+            id: result.id_candidat,
+            pluto: result.action === 'to_link' ? 'link' : 'create'
         };
 
     } catch (error) {
@@ -727,5 +663,364 @@ export const AutoLinkWithParams = async (
             result: 'create',
             pluto: 'create'
         };
+    }
+};
+
+export interface AutoLinkThisDocOptions {
+    entrepriseId: number;
+    pdfId: string;
+    userId?: string;
+}
+
+export interface AutoLinkThisDocOutcomeItem {
+    index_dechet: number;
+    result: ProposeActionResult;
+    performed: 'linked' | 'created' | 'to_check_by_user' | 'skipped';
+    bsd_id?: string;
+}
+
+export interface AutoLinkThisDocOutcome {
+    results: AutoLinkThisDocOutcomeItem[];
+}
+
+const upsertStatusFlag = async (
+    entrepriseId: number,
+    pdfId: string,
+    updater: (prev: Array<Record<string, unknown>>) => Array<Record<string, unknown>>
+): Promise<void> => {
+    const { data: currentPdf, error: fetchErr } = await supabase
+        .from('pdf_infos')
+        .select('bsd_linked')
+        .eq('entreprise_id', entrepriseId)
+        .eq('id', pdfId)
+        .maybeSingle();
+
+    if (fetchErr) {
+        throw fetchErr;
+    }
+
+    const prevArray: Array<Record<string, unknown>> = Array.isArray(currentPdf?.bsd_linked)
+        ? (currentPdf!.bsd_linked as Array<Record<string, unknown>>)
+        : [];
+
+    const nextArray = updater(prevArray);
+
+    const { error: updateErr } = await supabase
+        .from('pdf_infos')
+        .update({ bsd_linked: nextArray })
+        .eq('entreprise_id', entrepriseId)
+        .eq('id', pdfId);
+
+    if (updateErr) {
+        throw updateErr;
+    }
+};
+
+const ensureStatusOnLinkedItem = (
+    array: Array<Record<string, unknown>>,
+    indexDechet: number,
+    status: 'linked' | 'created' | 'check_by_user',
+    bsdId?: string
+): Array<Record<string, unknown>> => {
+    const next = [...array];
+    const matchIdx = next.findIndex(item => {
+        const idx = (item.index_dechet as number | undefined);
+        const id = (item.bsd_id as string | undefined);
+        if (bsdId) {
+            return idx === indexDechet && id === bsdId;
+        }
+        return idx === indexDechet;
+    });
+
+    if (matchIdx >= 0) {
+        const updated = { ...next[matchIdx] } as Record<string, unknown>;
+        updated.status = status;
+        if (bsdId) updated.bsd_id = bsdId;
+        next[matchIdx] = updated;
+        return next;
+    }
+
+    const base: Record<string, unknown> = { index_dechet: indexDechet, status };
+    if (bsdId) base.bsd_id = bsdId;
+    next.push(base);
+    return next;
+};
+
+export const AutoLinkOrCreateThisDoc = async (
+    pdf_infos: Record<string, unknown>,
+    bsds: BSDCandidate[],
+    params_mapping: ParamsMapping,
+    auto_link_params: AutoLinkParams,
+    options: AutoLinkThisDocOptions
+): Promise<AutoLinkThisDocOutcome> => {
+    const outcome: AutoLinkThisDocOutcome = { results: [] };
+
+    // Récupérer les indices déjà traités (bsd_linked) pour éviter les doublons
+    const { data: currentPdfRow, error: currentPdfErr } = await supabase
+        .from('pdf_infos')
+        .select('bsd_linked, document_type')
+        .eq('entreprise_id', options.entrepriseId)
+        .eq('id', options.pdfId)
+        .maybeSingle();
+    if (currentPdfErr) {
+        throw currentPdfErr;
+    }
+    const alreadyProcessed = new Set<number>(
+        Array.isArray(currentPdfRow?.bsd_linked)
+            ? (currentPdfRow!.bsd_linked as Array<{ index_dechet?: number }>)
+                .map(it => it.index_dechet)
+                .filter((v): v is number => typeof v === 'number')
+            : []
+    );
+
+    // Nombre de déchets dans le document
+    const dechets = Array.isArray((pdf_infos as { dechet?: unknown[] }).dechet)
+        ? ((pdf_infos as { dechet: unknown[] }).dechet)
+        : [];
+
+    for (let index = 0; index < dechets.length; index++) {
+        const result = ProposeActionAuto(
+            pdf_infos,
+            bsds,
+            params_mapping,
+            auto_link_params,
+            index
+        );
+
+        // Si déjà traité, enregistrer comme skipped avec éventuel bsd_id existant
+        if (alreadyProcessed.has(index)) {
+            let existingBsdId: string | undefined;
+            const existing = Array.isArray(currentPdfRow?.bsd_linked)
+                ? (currentPdfRow!.bsd_linked as Array<{ index_dechet?: number; bsd_id?: string }>).
+                    find(it => it.index_dechet === index)
+                : undefined;
+            if (existing && typeof existing.bsd_id === 'string') {
+                existingBsdId = existing.bsd_id;
+            }
+            outcome.results.push({ index_dechet: index, result, performed: 'skipped', bsd_id: existingBsdId });
+            continue;
+        }
+
+        if (result.action === 'to_link' && result.id_candidat) {
+            await link_in_bdd(options.entrepriseId, result.id_candidat, options.pdfId, index);
+            await upsertStatusFlag(options.entrepriseId, options.pdfId, prev =>
+                ensureStatusOnLinkedItem(prev, index, 'linked', result.id_candidat)
+            );
+            outcome.results.push({ index_dechet: index, result, performed: 'linked', bsd_id: result.id_candidat });
+        } else if (result.action === 'to_create') {
+            const createRes = await create_in_bdd(options.entrepriseId, options.pdfId, index, { user_id: options.userId });
+            const createdId = (createRes as { bsd_id?: string }).bsd_id;
+            await upsertStatusFlag(options.entrepriseId, options.pdfId, prev =>
+                ensureStatusOnLinkedItem(prev, index, 'created', createdId)
+            );
+            outcome.results.push({ index_dechet: index, result, performed: 'created', bsd_id: createdId });
+        } else if (result.action === 'to_check_by_user') {
+            await upsertStatusFlag(options.entrepriseId, options.pdfId, prev =>
+                ensureStatusOnLinkedItem(prev, index, 'check_by_user')
+            );
+            outcome.results.push({ index_dechet: index, result, performed: 'to_check_by_user' });
+        } else {
+            outcome.results.push({ index_dechet: index, result, performed: 'skipped' });
+        }
+    }
+
+
+    return outcome;
+};
+
+// ===================== Facture helpers & persistence =====================
+
+export interface FactureLineBodyItem {
+    unite: string;
+    quantite: number;
+    montant_ht: number;
+    prix_unitaire: number;
+    type_operation: string;
+}
+
+export interface FactureLineHeader {
+    filiere: string;
+    site_nom: string;
+    bon_pesee: string;
+    site_siret: string;
+    code_dechet: string;
+    date_depart: string;
+    num_dossier: string;
+    type_dechet: string;
+    bon_intention: string;
+    site_description: string;
+    site_num_affaire: string;
+    dechet_description: string;
+}
+
+export interface FactureDepart {
+    line_body: FactureLineBodyItem[];
+    line_header: FactureLineHeader;
+}
+
+export interface FactureJson {
+    footer: {
+        total_ht: number;
+    };
+    header: {
+        num_facture: string;
+        date_facture: string;
+        prestataire_nom: string;
+        prestataire_siret: string;
+        prestataire_num_client: string;
+        prestataire_description: string;
+    };
+    departs: FactureDepart[];
+}
+
+// Map a value to its canonical from params mapping (keeps casing of canonical keys)
+const mapValueByParams = (value: string, mapping?: Record<string, string[]>): string => {
+    if (!value) return '';
+    if (!mapping) return value;
+    const trimmed = value.trim();
+    
+    for (const [canonical, variants] of Object.entries(mapping)) {
+        if (Array.isArray(variants) && variants.some(v => (v || '').trim() === trimmed)) {
+            return canonical;
+        }
+    }
+    return value;
+};
+
+export const buildFactureFromNormalized = (
+    normalized: Record<string, string>, 
+    pdf_infos: Record<string, unknown>, 
+    dechetIndex: number,
+    params_mapping: ParamsMapping
+): FactureJson => {
+    const date = normalized.date || '';
+    const site = normalized.site || '';
+    const ced = normalized.ced || '';
+    const waste = normalized.waste_name || '';
+    const prestataire = normalized.prestataire || '';
+    const num_bon = normalized.num_bon || '';
+
+    // Extraire les données de facture depuis pdf_infos.infos_raw.dechet[dechetIndex].facture
+    const dechets = Array.isArray(pdf_infos.dechet) ? pdf_infos.dechet : [];
+    const dechet = dechets[dechetIndex] as Record<string, unknown> | undefined;
+    const factureData = dechet?.facture as Record<string, unknown> | undefined;
+    const factureLignes = Array.isArray(factureData?.ligne) ? factureData.ligne : [];
+
+    // Extraire num_facture depuis pdf_infos.infos_raw
+    const num_facture = (pdf_infos.num_facture as string) || '';
+
+    // Trouver les SIRET via les mappings
+    const siteSiret = findSiretFromMapping(site, params_mapping.params_mapping_site || {});
+    const prestataireSiret = findSiretFromMapping(prestataire, params_mapping.params_mapping_presta || {});
+
+    // Construire les line_body depuis les données de facture (avec mapping unite/operation)
+    const line_body: FactureLineBodyItem[] = factureLignes.map((ligne: Record<string, unknown>) => {
+        const uniteRaw = ((ligne.unite as string) || '').trim();
+        const operationRaw = ((ligne.type_operation as string) || '').trim();
+        
+        return {
+            unite: mapValueByParams(uniteRaw, params_mapping.params_mapping_unite),
+            quantite: parseLocaleNumber((ligne.quantite as string) || '0'),
+            montant_ht: parseLocaleNumber((ligne.montant_ht as string) || '0'),
+            prix_unitaire: parseLocaleNumber((ligne.prix_unitaire as string) || '0'),
+            type_operation: mapValueByParams(operationRaw, params_mapping.params_mapping_operation)
+        };
+    });
+
+    // Calculer le total HT
+    const total_ht = line_body.reduce((sum, ligne) => sum + ligne.montant_ht, 0);
+
+    const depart: FactureDepart = {
+        line_body,
+        line_header: {
+            filiere: '',
+            site_nom: site,
+            bon_pesee: num_bon,
+            site_siret: siteSiret,
+            code_dechet: formatCedForDisplay(ced),
+            date_depart: date,
+            num_dossier: '',
+            type_dechet: waste,
+            bon_intention: '',
+            site_description: site,
+            site_num_affaire: '',
+            dechet_description: mapValueByParams(
+                (((pdf_infos as { dechet?: Array<{ contenant?: string }> }).dechet?.[dechetIndex]?.contenant as string) || '').trim(),
+                params_mapping.params_mapping_contenant
+            )
+        }
+    };
+
+    return {
+        footer: {
+            total_ht
+        },
+        header: {
+            num_facture,
+            date_facture: date,
+            prestataire_nom: prestataire,
+            prestataire_siret: prestataireSiret,
+            prestataire_num_client: '',
+            prestataire_description: ''
+        },
+        departs: [depart]
+    };
+};
+
+// Helper pour trouver le SIRET depuis les mappings
+export const findSiretFromMapping = (name: string, mapping: Record<string, string[]>): string => {
+    if (!name) return '';
+    const input = name.toLowerCase().trim();
+    
+    for (const [mappedName, originalNames] of Object.entries(mapping)) {
+        const mappedParts = (mappedName || '').split('|');
+        const canonicalName = (mappedParts[0] || '').toLowerCase().trim();
+        const siret = mappedParts.length > 1 ? mappedParts[1] : '';
+        const originals = Array.isArray(originalNames) ? originalNames : [];
+        const hasExactOriginal = originals.some(o => (o || '').toLowerCase().trim() === input);
+        const matchesCanonical = canonicalName === input;
+        if (hasExactOriginal || matchesCanonical) {
+            return siret;
+        }
+    }
+    return '';
+};
+
+export const push_in_facture_bdd = async (
+    entrepriseId: number,
+    pdfId: string,
+    indexDechet: number,
+    factureJson: FactureJson,
+    userId?: string
+): Promise<void> => {
+    // Vérifier l'existence d'une ligne pour ce pdf/index
+    const { data: existing, error: existingErr } = await supabase
+        .from('facture')
+        .select('id')
+        .eq('pdf_infos_id', pdfId)
+        .eq('index_dechet_pdf', indexDechet)
+        .maybeSingle();
+
+    if (existingErr) {
+        throw existingErr;
+    }
+    if (existing) {
+        return; // déjà présent
+    }
+
+    const insertPayload: Record<string, unknown> = {
+        entreprise_id: entrepriseId,
+        user_id: userId,
+        pdf_infos_id: pdfId,
+        index_dechet_pdf: indexDechet,
+        infos_json: factureJson
+    };
+    if (userId) insertPayload.user_id = userId;
+
+    const { error: insertErr } = await supabase
+        .from('facture')
+        .insert(insertPayload);
+    if (insertErr) {
+        throw insertErr;
     }
 };

@@ -3,19 +3,35 @@
 import { useState } from 'react';
 import LinkMeta from './LinkMeta';
 
+interface LinkedItem {
+	index_dechet: number;
+	bsd_id?: string;
+	status?: 'linked' | 'created' | 'check_by_user';
+}
+
 interface LinkMetaButtonProps {
 	pdfId: string;
 	label?: string;
 	className?: string;
+	bsd_linked?: LinkedItem[];
 }
 
-export default function LinkMetaButton({ pdfId, label = "LinkMeta", className }: LinkMetaButtonProps) {
+export default function LinkMetaButton({ pdfId, bsd_linked }: LinkMetaButtonProps) {
 	const [open, setOpen] = useState(false);
+
+	const hasToCheck = Array.isArray(bsd_linked)
+		? bsd_linked.some(item => item?.status === 'check_by_user')
+		: false;
 
 	return (
 		<>
-			<button onClick={() => setOpen(true)} className={className || "px-3 py-1 rounded bg-blue-600 text-white text-sm"}>
-				{label}
+			<button onClick={() => setOpen(true)} className="px-3 py-1 rounded-lg bg-blue-600 text-white text-sm">
+				<span className="relative inline-flex items-center">
+					Lier le document
+					{hasToCheck && (
+						<span className="absolute -top-2 -right-4 inline-block w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
+					)}
+				</span>
 			</button>
 			{open && (
 				<div className="fixed inset-0 z-50">

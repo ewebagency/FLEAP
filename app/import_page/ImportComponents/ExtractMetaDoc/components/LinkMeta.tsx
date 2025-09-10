@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSession } from '@/app/component/SessionProvider';
 import { PdfInfo } from '../interface/pdf_interface';
 import { getPdfInfoById, getBSDCandidates } from '../utils/bdd';
-import { LinkOrCreate, LINK_RULES_DEFAULT, BSDCandidate, AutoLinkWithParams, AutoLinkParams, AutoLinkResult } from '../utils/link';
+import { LINK_RULES_DEFAULT, BSDCandidate, ProposeActionAuto, ProposeActionResult, AutoLinkOrCreateThisDoc } from '../utils/link';
+import { DEFAULT_AUTO_LINK_PARAMS } from '../utils/default_auto_link_params';
 import { create_in_bdd, create_in_bdd_preview, link_in_bdd, translateByMapping } from '../utils/link_or_create_bdd';
 import { useParamsMapping } from '../utils/extract';
 
@@ -12,76 +13,7 @@ interface LinkMetaProps {
 	pdfId: string;
 }
 
-type LinkAutoResult = {
-	action: 'to_link' | 'to_create' | 'to_check_by_user';
-	id_link?: string;
-	error?: string;
-};
 
-// Paramètres par défaut pour la nouvelle logique
-const DEFAULT_AUTO_LINK_PARAMS: AutoLinkParams = {
-	to_link: [
-		{
-			num_bsd: true,
-			num_bon: false,
-			site: true,
-			presta: true,
-			ced: false,
-			nom_dechet_tresh: 0,
-			nom_dechet: false,
-			date: true,
-			date_tresh: 10
-		},
-		{
-			num_bsd: false,
-			num_bon: true,
-			site: true,
-			presta: true,
-			ced: false,
-			nom_dechet_tresh: 0,
-			nom_dechet: false,
-			date: true,
-			date_tresh: 10
-		}
-	],
-	to_check_by_user: [
-		{
-			num_bsd: false,
-			num_bon: false,
-			site: true,
-			presta: true,
-			ced: true,
-			nom_dechet_tresh: 0,
-			nom_dechet: false,
-			date: true,
-			date_tresh: 2
-		},
-		{
-			num_bsd: false,
-			num_bon: false,
-			site: true,
-			presta: true,
-			ced: false,
-			nom_dechet_tresh: 80,
-			nom_dechet: true,
-			date: true,
-			date_tresh: 3
-		}
-	],
-	create: [
-		{
-			num_bsd: false,
-			num_bon: false,
-			site: true,
-			presta: true,
-			ced: false,
-			nom_dechet_tresh: 0,
-			nom_dechet: false,
-			date: true,
-			date_tresh: 10
-		}
-	]
-};
 
 type DechetItem = {
 	ced?: string;
@@ -142,7 +74,7 @@ const isDateInRange = (date1: string, date2: string, ecartDays: number): boolean
 	const diffTime = Math.abs(d1Normalized.getTime() - d2Normalized.getTime());
 	const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 	
-	console.log(`Date1: "${date1}" → ${d1Normalized.toISOString()}, Date2: "${date2}" → ${d2Normalized.toISOString()}, Diff: ${diffDays} jours, Max: ${ecartDays} jours`);
+	//console.log(`Date1: "${date1}" → ${d1Normalized.toISOString()}, Date2: "${date2}" → ${d2Normalized.toISOString()}, Diff: ${diffDays} jours, Max: ${ecartDays} jours`);
 	
 	return diffDays <= ecartDays;
 };
@@ -157,8 +89,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	const [loadingPdf, setLoadingPdf] = useState(false);
 	const [errors, setErrors] = useState<string | null>(null);
 
-	const [autoResults, setAutoResults] = useState<Record<number, LinkAutoResult | undefined>>({});
-	const [newAutoResults, setNewAutoResults] = useState<Record<number, AutoLinkResult | undefined>>({});
+	const [proposeActionResults, setProposeActionResults] = useState<Record<number, ProposeActionResult | undefined>>({});
 	const [candidatesByIndex, setCandidatesByIndex] = useState<Record<number, BSDCandidate[]>>({});
 	const [allCandidates, setAllCandidates] = useState<BSDCandidate[] | null>(null);
 	const [rawCandidatesByIndex, setRawCandidatesByIndex] = useState<Record<number, BSDCandidate[]>>({});
@@ -167,10 +98,20 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	const [busyIndex, setBusyIndex] = useState<number | null>(null);
 	const [actionMsg, setActionMsg] = useState<string | null>(null);
 	const [openIndex, setOpenIndex] = useState<number | null>(null);
+	const [showRules, setShowRules] = useState<boolean>(false);
+	const [busyAll, setBusyAll] = useState(false);
+	const [autoAllResults, setAutoAllResults] = useState<Record<number, ProposeActionResult | undefined>>({});
+	
+	// Dictionnaire des explications pour chaque action
+	const actionExplanations = {
+		to_link: "→ BSD trouvé ! Cliquez sur 'Lier' pour associer automatiquement.",
+		to_check_by_user: "→ Plusieurs candidats trouvés. Vérifiez et choisissez manuellement.",
+		to_create: "→ Aucun BSD correspondant. Créez un nouveau BSD avec 'Créer'."
+	};
 	const [previewModal, setPreviewModal] = useState<{ open: boolean; index: number; data: Record<string, unknown> | null }>({ open: false, index: -1, data: null });
 	
 	// State local pour le statut des déchets liés/créés (même structure que bsd_linked en BDD)
-	const [bsdLinked, setBsdLinked] = useState<Array<{ bsd_id: number; index_dechet: number; status: 'linked' | 'created' }>>([]);
+	const [bsdLinked, setBsdLinked] = useState<Array<{ bsd_id: number; index_dechet: number; status: 'linked' | 'created' | 'check_by_user' }>>([]);
 
 	useEffect(() => {
 		const fetchPdf = async () => {
@@ -262,30 +203,90 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		return { site, presta };
 	}, [mappings, rawSite, rawPresta]);
 
-	const runLinkAuto = async (index: number) => {
-		if (!pdfInfo || entrepriseIdNum == null) return;
-		setBusyIndex(index);
-		setActionMsg(null);
-		try {
-			const res = await LinkOrCreate(pdfInfo as PdfInfo, entrepriseIdNum, index, undefined, LINK_RULES_DEFAULT);
-			setAutoResults(prev => ({ ...prev, [index]: res }));
-		} catch (e) {
-			setAutoResults(prev => ({ ...prev, [index]: { action: 'to_check_by_user', error: e instanceof Error ? e.message : 'Erreur' } }));
-		} finally {
-			setBusyIndex(null);
-		}
-	};
 
-	const runNewLinkAuto = async (index: number) => {
-		if (!pdfInfo || entrepriseIdNum == null) return;
+	const runProposeActionAuto = async (index: number) => {
+		if (!pdfInfo || entrepriseIdNum == null || !allCandidates || !mappings) return;
 		setBusyIndex(index);
 		setActionMsg(null);
 		try {
-			const res = await AutoLinkWithParams(pdfInfo as PdfInfo, entrepriseIdNum, index, DEFAULT_AUTO_LINK_PARAMS);
-			setNewAutoResults(prev => ({ ...prev, [index]: res }));
+			const result = ProposeActionAuto(
+				pdfInfo.infos_raw || {},
+				allCandidates,
+				mappings,
+				DEFAULT_AUTO_LINK_PARAMS,
+				index
+			);
+			setProposeActionResults(prev => ({ ...prev, [index]: result }));
+			
+			// Toujours calculer le nombre de candidats et appliquer les filtres
+			let filteredCandidates = allCandidates;
+			const usedRule = result.matched_rule;
+			const ruleInfo = result.rule_info || 'Règle par défaut';
+			
+			if (usedRule) {
+				// Configurer les filtres selon la règle
+				const filters = {
+					site: usedRule.site,
+					presta: usedRule.presta,
+					numBon: usedRule.num_bon,
+					numBsd: usedRule.num_bsd,
+					ced: usedRule.ced,
+					wasteName: usedRule.nom_dechet,
+					date: usedRule.date
+				};
+				
+				// Mettre à jour les states
+				setFiltersByIndex(prev => ({ ...prev, [index]: filters }));
+				setDaysByIndex(prev => ({ ...prev, [index]: usedRule.date_tresh }));
+				setRawCandidatesByIndex(prev => ({ ...prev, [index]: allCandidates }));
+				
+				// Appliquer les filtres avec les nouveaux paramètres
+				const d = dechets[index] as DechetItem;
+				filteredCandidates = allCandidates.filter(c => {
+					const siteLc = (translated.site.name || '').toLowerCase().trim();
+					const prestaLc = (translated.presta.name || '').toLowerCase().trim();
+					const numBonLc = (d?.num_bon || '').toLowerCase().trim();
+					const numBsdLc = (d?.num_bsd || '').toLowerCase().trim();
+					const cedNumbers = (d?.ced || '').replace(/[^\d]/g, '').trim();
+					const wasteNameLc = (d?.nom || '').toLowerCase().trim();
+					const pdfDate = d?.date || '';
+					const nDays = usedRule.date_tresh;
+					
+					const siteName = (c.infos_json?.formAPI?.createFormInput?.emitter?.company?.name || '').toLowerCase().trim();
+					const recip = (c.infos_json?.formAPI?.createFormInput?.recipient?.company?.name || '').toLowerCase().trim();
+					const transp = (c.infos_json?.formAPI?.createFormInput?.transporter?.company?.name || '').toLowerCase().trim();
+					const candNumBon = (c.other_infos?.numeroBon || '').toLowerCase().trim();
+					const candNumBsd = (c.readable_id_track_dechets || '').toLowerCase().trim();
+					const candCed = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '').replace(/[^\d]/g, '').trim();
+					const candWaste = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '').toLowerCase().trim();
+					const takenOverAt = (c.infos_json?.formAPI?.createFormInput?.takenOverAt || '') as string;
+					const candDate = takenOverAt || c.created_at;
+					
+					const bySite = !filters.site || (siteLc && siteLc === siteName);
+					const byPresta = !filters.presta || (prestaLc && (prestaLc === recip || prestaLc === transp));
+					const byNumBon = !filters.numBon || (numBonLc && numBonLc === candNumBon);
+					const byNumBsd = !filters.numBsd || (numBsdLc && numBsdLc === candNumBsd);
+					const byCed = !filters.ced || (cedNumbers && cedNumbers === candCed);
+					
+					const wasteSimilarity = computeSimilarity(wasteNameLc, candWaste);
+					const byWaste = !filters.wasteName || (wasteNameLc && wasteSimilarity >= LINK_RULES_DEFAULT.wasteNameThresholdStrict);
+					
+					const byDate = !filters.date || (pdfDate && isDateInRange(candDate, pdfDate, nDays));
+					
+					return bySite && byPresta && byNumBon && byNumBsd && byCed && byWaste && byDate;
+				});
+				
+				// Afficher l'info de la règle utilisée
+				setActionMsg(`Filtres configurés avec ${ruleInfo}`);
+			}
+			
+			setCandidatesByIndex(prev => ({ ...prev, [index]: filteredCandidates }));
+			
+			// Ouvrir automatiquement la section des candidats
+			setOpenIndex(index);
 		} catch (error) {
-			console.error('Erreur dans runNewLinkAuto:', error);
-			setNewAutoResults(prev => ({ ...prev, [index]: { result: 'create', pluto: 'create' } }));
+			console.error('Erreur dans runProposeActionAuto:', error);
+			setProposeActionResults(prev => ({ ...prev, [index]: { action: 'to_create' } }));
 		} finally {
 			setBusyIndex(null);
 		}
@@ -535,6 +536,46 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		}
 	};
 
+	const runAutoForAll = async () => {
+		if (!pdfInfo || entrepriseIdNum == null || !allCandidates || !mappings) return;
+		setBusyAll(true);
+		setActionMsg(null);
+		try {
+			const outcome = await AutoLinkOrCreateThisDoc(
+				pdfInfo.infos_raw || {},
+				allCandidates,
+				mappings,
+				DEFAULT_AUTO_LINK_PARAMS,
+				{ entrepriseId: entrepriseIdNum, pdfId, userId: user_id || undefined }
+			);
+			// Store results per index
+			const next: Record<number, ProposeActionResult> = {};
+			for (const item of outcome.results) {
+				next[item.index_dechet] = item.result;
+			}
+			setAutoAllResults(next);
+			// Refresh pdfInfo and local bsdLinked state
+			const { data, error } = await getPdfInfoById(pdfId, entrepriseIdNum);
+			if (!error && data) {
+				setPdfInfo(data as PdfInfo);
+				const pdfData = data as PdfInfo;
+				if (pdfData.bsd_linked && Array.isArray(pdfData.bsd_linked)) {
+					const nextStatus = pdfData.bsd_linked.map(item => ({
+						bsd_id: item.bsd_id,
+						index_dechet: item.index_dechet,
+						status: (item.status as 'linked' | 'created') || 'linked'
+					}));
+					setBsdLinked(nextStatus);
+				}
+			}
+			setActionMsg('Auto-link terminé');
+		} catch (e) {
+			setActionMsg(e instanceof Error ? e.message : 'Erreur lors de l\'auto-link');
+		} finally {
+			setBusyAll(false);
+		}
+	};
+
 	if (!entrepriseIdNum) return <div className="p-4 text-sm text-gray-600">Aucune entreprise dans la session.</div>;
 	if (loadingPdf) return <div className="p-4">Chargement...</div>;
 	if (errors) return <div className="p-4 text-red-600">{errors}</div>;
@@ -544,7 +585,10 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		<>
 			<div className="space-y-4">
 				<div className="rounded border p-3 bg-gray-50">
+					<div className="flex items-center justify-between">
 					<div className="text-sm text-gray-700">{typeDoc.toUpperCase()} : {pdfInfo.name_pdf}</div>
+						<button onClick={runAutoForAll} disabled={busyAll} className="px-3 py-1 text-sm rounded bg-indigo-600 text-white disabled:opacity-50">Auto-linker tout</button>
+					</div>
 				</div>
 
 				{dechets.map((d, idx) => {
@@ -553,8 +597,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 					const date = d?.date || '';
 					const num_bon = d?.num_bon || '';
 					const num_bsd = d?.num_bsd || '';
-					const result = autoResults[idx];
-					const newResult = newAutoResults[idx];
+					const proposeResult = proposeActionResults[idx];
 					const cands = candidatesByIndex[idx] || [];
 					const dechetStatus = getDechetStatus(idx);
 					return (
@@ -567,10 +610,10 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 											<span className={`px-2 py-1 rounded text-xs font-medium ${
 												dechetStatus.status === 'linked' 
 													? 'bg-green-100 text-green-800' 
-													: 'bg-blue-100 text-blue-800'
-											}`}>
-												{dechetStatus.status === 'linked' ? '🔗 Lié' : '✨ Créé'} (BSD #{dechetStatus.bsd_id})
-											</span>
+												: dechetStatus.status === 'created'
+													? 'bg-blue-100 text-blue-800'
+													: 'bg-yellow-100 text-yellow-800'
+											}`}>{dechetStatus.status === 'linked' ? '🔗 Lié' : dechetStatus.status === 'created' ? '✨ Créé' : '👀 À vérifier'}{dechetStatus.bsd_id ? ` (BSD #${dechetStatus.bsd_id})` : ''}</span>
 										)}
 									</div>
 									<div className="text-sm space-x-2">
@@ -585,29 +628,58 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 									</div>
 								</div>
 								<div className="flex gap-2">
-									<button onClick={() => runLinkAuto(idx)} disabled={busyIndex === idx || !!dechetStatus} className="px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-50">Link auto (ancien)</button>
-									<button onClick={() => runNewLinkAuto(idx)} disabled={busyIndex === idx || !!dechetStatus} className="px-3 py-1 text-sm rounded bg-purple-600 text-white disabled:opacity-50">Link auto (nouveau)</button>
-									<button onClick={() => doCreate(idx)} disabled={busyIndex === idx || !!dechetStatus} className="px-3 py-1 text-sm rounded bg-green-600 text-white disabled:opacity-50">Créer</button>
+									<button onClick={() => runProposeActionAuto(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-3 py-1 text-sm rounded bg-orange-600 text-white disabled:opacity-50">Propose Action</button>
+									<button onClick={() => doCreate(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-3 py-1 text-sm rounded bg-green-600 text-white disabled:opacity-50">Créer</button>
 								</div>
 							</div>
-
-							{result && (
-								<div className="mt-0.5 text-sm font-bold flex justify-end mr-2">
-									<div><span className="font-medium">Ancien: {result.action}</span>{result.id_link ? ` → ${result.id_link}` : ''}{result.error ? ` • ${result.error}` : ''}</div>
-									{result.action === 'to_link' && result.id_link && (
-										<div className="mt-2">
-											<button onClick={() => doLink(idx, result.id_link!)} disabled={busyIndex === idx || !!dechetStatus} className="px-3 py-1 text-sm rounded bg-indigo-600 text-white disabled:opacity-50">Lier au BSD suggéré</button>
-										</div>
+							{autoAllResults[idx] && (
+								<div className="mt-2">
+									<span className={`inline-block px-2 py-1 rounded text-xs font-medium ${autoAllResults[idx]?.action === 'to_link' ? 'bg-green-100 text-green-800' : autoAllResults[idx]?.action === 'to_create' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
+										Auto: {autoAllResults[idx]?.action}
+									</span>
+									{autoAllResults[idx]?.nb_candidats !== undefined && (
+										<span className="ml-2 text-xs text-gray-600">({autoAllResults[idx]?.nb_candidats} candidats)</span>
 									)}
 								</div>
 							)}
 
-							{newResult && (
-								<div className="mt-0.5 text-sm font-bold flex justify-end mr-2">
-									<div><span className="font-medium text-purple-600">Nouveau: {newResult.result}</span>{newResult.id ? ` → ${newResult.id}` : ''}{newResult.pluto ? ` (${newResult.pluto})` : ''}</div>
-									{newResult.result === 'to_link' && newResult.id && (
-										<div className="mt-2">
-											<button onClick={() => doLink(idx, newResult.id!)} disabled={busyIndex === idx || !!dechetStatus} className="px-3 py-1 text-sm rounded bg-purple-600 text-white disabled:opacity-50">Lier au BSD suggéré (nouveau)</button>
+
+							{proposeResult && (
+								<div className="mt-2 p-3 bg-orange-50 rounded border">
+									<div className="flex items-center justify-between mb-2">
+										<div className="text-sm font-medium text-orange-600">
+											Propose: {proposeResult.action}
+											{proposeResult.id_candidat ? ` → ${proposeResult.id_candidat}` : ''}
+											<span className="ml-2 text-gray-600">
+												({proposeResult.nb_candidats !== undefined ? proposeResult.nb_candidats : cands.length} candidat{(proposeResult.nb_candidats !== undefined ? proposeResult.nb_candidats : cands.length) !== 1 ? 's' : ''})
+											</span>
+											<span className="ml-2 text-xs text-gray-500">
+												{actionExplanations[proposeResult.action as keyof typeof actionExplanations]}
+											</span>
+										</div>
+										<div className="flex gap-2">
+											<button 
+												onClick={() => setShowRules(!showRules)} 
+												className="px-2 py-1 text-xs rounded bg-gray-200 hover:bg-gray-300"
+											>
+												{showRules ? 'Masquer' : 'Afficher'} règles
+											</button>
+										</div>
+									</div>
+									
+									{proposeResult.action === 'to_link' && proposeResult.id_candidat && (
+										<div className="mb-2">
+											<button onClick={() => doLink(idx, proposeResult.id_candidat!)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-3 py-1 text-sm rounded bg-orange-600 text-white disabled:opacity-50">Lier au BSD suggéré</button>
+										</div>
+									)}
+									
+									{proposeResult.action === 'to_check_by_user' && proposeResult.nb_candidats && (
+										<div className="mb-2">
+											<span className="text-xs text-gray-600">
+												{proposeResult.nb_candidats === 1 
+													? '1 candidat trouvé - vérification recommandée' 
+													: `${proposeResult.nb_candidats} candidats trouvés - choix multiple`}
+											</span>
 										</div>
 									)}
 								</div>
@@ -620,6 +692,68 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 									)}
 									{allCandidates && (
 									<>
+									{/* Affichage des règles de configuration (conditionnel) */}
+									{showRules && (
+										<div className="mb-4 p-3 bg-blue-50 rounded border">
+											<div className="text-sm font-semibold mb-2">Règles de configuration :</div>
+											<div className="text-xs space-y-1">
+												<div><strong>to_link :</strong></div>
+												{DEFAULT_AUTO_LINK_PARAMS.to_link.map((rule, i) => {
+													const isActive = proposeResult?.action === 'to_link' && proposeResult?.matched_rule === rule;
+													const enabled: string[] = [];
+													if (rule.site) enabled.push('site ✓');
+													if (rule.presta) enabled.push('presta ✓');
+													if (rule.num_bon) enabled.push('num_bon ✓');
+													if (rule.num_bsd) enabled.push('num_bsd ✓');
+													if (rule.ced) enabled.push('ced ✓');
+													if (rule.nom_dechet) enabled.push('nom_dechet ✓');
+													if (rule.date) enabled.push(`date ±${rule.date_tresh}j ✓`);
+													return (
+														<div key={i} className={`ml-2 text-gray-600 ${isActive ? 'bg-yellow-100 border border-yellow-400 rounded px-1 font-semibold' : ''}`}>
+															#{i + 1}: {enabled.join(', ')}
+															{isActive && <span className="ml-2 text-yellow-800">← utilisée</span>}
+													</div>
+													);
+												})}
+												<div><strong>to_check_by_user :</strong></div>
+												{DEFAULT_AUTO_LINK_PARAMS.to_check_by_user.map((rule, i) => {
+													const isActive = proposeResult?.action === 'to_check_by_user' && proposeResult?.matched_rule === rule;
+													const enabled: string[] = [];
+													if (rule.site) enabled.push('site ✓');
+													if (rule.presta) enabled.push('presta ✓');
+													if (rule.num_bon) enabled.push('num_bon ✓');
+													if (rule.num_bsd) enabled.push('num_bsd ✓');
+													if (rule.ced) enabled.push('ced ✓');
+													if (rule.nom_dechet) enabled.push('nom_dechet ✓');
+													if (rule.date) enabled.push(`date ±${rule.date_tresh}j ✓`);
+													return (
+														<div key={i} className={`ml-2 text-gray-600 ${isActive ? 'bg-yellow-100 border border-yellow-400 rounded px-1 font-semibold' : ''}`}>
+															#{i + 1}: {enabled.join(', ')}
+															{isActive && <span className="ml-2 text-yellow-800">← utilisée</span>}
+													</div>
+													);
+												})}
+												<div><strong>create :</strong></div>
+												{DEFAULT_AUTO_LINK_PARAMS.create.map((rule, i) => {
+													const isActive = proposeResult?.action === 'to_create' && proposeResult?.matched_rule === rule;
+													const enabled: string[] = [];
+													if (rule.site) enabled.push('site ✓');
+													if (rule.presta) enabled.push('presta ✓');
+													if (rule.num_bon) enabled.push('num_bon ✓');
+													if (rule.num_bsd) enabled.push('num_bsd ✓');
+													if (rule.ced) enabled.push('ced ✓');
+													if (rule.nom_dechet) enabled.push('nom_dechet ✓');
+													if (rule.date) enabled.push(`date ±${rule.date_tresh}j ✓`);
+													return (
+														<div key={i} className={`ml-2 text-gray-600 ${isActive ? 'bg-yellow-100 border border-yellow-400 rounded px-1 font-semibold' : ''}`}>
+															#{i + 1}: {enabled.join(', ')}
+															{isActive && <span className="ml-2 text-yellow-800">← utilisée</span>}
+													</div>
+													);
+												})}
+											</div>
+										</div>
+									)}
 									<div className="flex flex-wrap items-center gap-4 mb-3 text-sm">
 									<div className="text-sm font-semibold">Candidats {allCandidates ? `(${cands.length})` : '(chargement...)'}</div>
 										<label className="inline-flex items-center gap-2">

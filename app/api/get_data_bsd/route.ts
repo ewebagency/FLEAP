@@ -119,6 +119,7 @@ interface SupabaseFlatResponse {
     fillRate: string;
     doe: boolean;
     flux: string;
+    numeroBon: string;
     sent_to_rep: boolean;
     on_track_dechets: boolean;
     created_on_fleap: string;
@@ -127,8 +128,8 @@ interface SupabaseFlatResponse {
     pdf_ids: string[];
 }
 
-async function getCachedData(entreprise_id: string, user_id: string): Promise<CacheData | null> {
-    const cacheKey = `bsds:${user_id}:${entreprise_id}`;
+async function getCachedData(entreprise_id: string, user_id: string, site: string | null): Promise<CacheData | null> {
+    const cacheKey = `bsds:${user_id}:${entreprise_id}:${site || 'ALL'}`;
     try {
         const cachedData = await redis.get<CacheData>(cacheKey);
         if (!cachedData) {
@@ -151,8 +152,8 @@ async function getCachedData(entreprise_id: string, user_id: string): Promise<Ca
     }
 }
 
-async function setCachedData(entreprise_id: string, user_id: string, data: FastDataSupa[], fullDataLoaded: boolean, totalCount?: number): Promise<void> {
-    const cacheKey = `bsds:${user_id}:${entreprise_id}`;
+async function setCachedData(entreprise_id: string, user_id: string, site: string | null, data: FastDataSupa[], fullDataLoaded: boolean, totalCount?: number): Promise<void> {
+    const cacheKey = `bsds:${user_id}:${entreprise_id}:${site || 'ALL'}`;
     try {
         const cacheData: CacheData = {
         data,
@@ -178,13 +179,17 @@ export async function GET(request: Request) {
   const fastLoad = searchParams.get('fastLoad') === 'true';
   const lastDate = searchParams.get('lastDate');
   const lastId = searchParams.get('lastId');
+  const site = searchParams.get('site');
 
   if (!entreprise_id || !user_id) {
     return NextResponse.json({ error: 'entreprise_id and user_id are required' }, { status: 400 });
   }
 
+  // Validate optional site parameter (SIRET format: 14 digits). If not valid, ignore.
+  const siteFilter = site && /^\d+$/.test(site) ? site : null;
+
   try {
-    const cachedData = await getCachedData(entreprise_id, user_id);
+    const cachedData = await getCachedData(entreprise_id, user_id, siteFilter);
     
     if (cachedData && !lastDate) {
       if (fastLoad && !cachedData.fullDataLoaded) {
@@ -224,6 +229,7 @@ export async function GET(request: Request) {
         other_infos->>doe,
         other_infos->>flux,
         other_infos->rep->>sent_to_rep,
+        other_infos->>numeroBon,
         on_track_dechets,
         created_on_fleap,
         facture_treated,
@@ -234,6 +240,10 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(200);
+
+    if (siteFilter) {
+      query = query.filter('infos_json->formAPI->createFormInput->emitter->company->>siret', 'eq', siteFilter);
+    }
 
     if (lastDate && lastId) {
       // Pagination composite : (created_at < lastDate) OR (created_at = lastDate AND id < lastId)
@@ -299,7 +309,8 @@ export async function GET(request: Request) {
         fillRate: item.fillRate,
         doe: item.doe,
         flux: item.flux,
-        rep: item.sent_to_rep ? { sent_to_rep: item.sent_to_rep } : undefined
+        rep: item.sent_to_rep ? { sent_to_rep: item.sent_to_rep } : undefined,
+        numeroBon: item.numeroBon
       },
       on_track_dechets: item.on_track_dechets,
       created_on_fleap: item.created_on_fleap,
@@ -311,12 +322,16 @@ export async function GET(request: Request) {
 
     // Si c'est le premier chargement, mettre en cache
     if (!lastDate) {
-      const { count } = await supabase
-      .from('bsd')
-      .select('*', { count: 'exact', head: true })
-      .eq('entreprise_id', entreprise_id);
+      let countBase = supabase
+        .from('bsd')
+        .select('*', { count: 'exact', head: true })
+        .eq('entreprise_id', entreprise_id);
+      if (siteFilter) {
+        countBase = countBase.filter('infos_json->formAPI->createFormInput->emitter->company->>siret', 'eq', siteFilter);
+      }
+      const { count } = await countBase;
 
-      await setCachedData(entreprise_id, user_id, formattedData, false, count || 0);
+      await setCachedData(entreprise_id, user_id, siteFilter, formattedData, false, count || 0);
     }
 
     // Vérifier s'il y a plus de données à charger
@@ -324,6 +339,10 @@ export async function GET(request: Request) {
       .from('bsd')
       .select('*', { count: 'exact', head: true })
       .eq('entreprise_id', entreprise_id);
+
+    if (siteFilter) {
+      countQuery = countQuery.filter('infos_json->formAPI->createFormInput->emitter->company->>siret', 'eq', siteFilter);
+    }
 
     if (lastDate && lastId) {
       countQuery = countQuery.or(`created_at.lt.${lastDate},and(created_at.eq.${lastDate},id.lt.${lastId})`);
