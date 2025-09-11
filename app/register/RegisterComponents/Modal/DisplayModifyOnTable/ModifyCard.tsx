@@ -617,13 +617,13 @@ const ModifyCard = () => {
                         <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-4 ml-2 md:ml-6">
                             <div className="space-y-1">
                                 <LabelInput 
-                                    label="ID TrackDéchets"
+                                    label="N° BSD"
                                     value={readableId}
                                     onChange={(_, value) => setReadableId(value)}
                                     path="readable_id_track_dechets"
                                 />
                                 <LabelInput 
-                                    label="Numéro bon"
+                                    label="N° Bon"
                                     value={otherInfos.numeroBon || ""}
                                     onChange={(_, value) => {
                                         setOtherInfos((prev: OtherInfos): OtherInfos => ({
@@ -634,7 +634,7 @@ const ModifyCard = () => {
                                     path="numeroBon"
                                 />
                                 <LabelInput 
-                                    label="Numéro facture"
+                                    label="N° Facture"
                                     value={otherInfos.numeroFacture || ""}
                                     onChange={(_, value) => {
                                         setOtherInfos((prev: OtherInfos): OtherInfos => ({
