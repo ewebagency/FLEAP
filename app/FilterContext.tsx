@@ -48,6 +48,7 @@ export interface FilterContextType {
   points_collecte: PointCollecte[];
   prestataires: Prestataire[];
   segmentDates: SegmentDates;
+  serverDateSearch: boolean;
   filieres_ou_prestataires: FiliereOuPrestataireInterface;
 
   setFilieres: (filieres: Filiere[]) => void;
@@ -57,6 +58,7 @@ export interface FilterContextType {
   setPointsCollecte: (points_collecte: PointCollecte[]) => void;
   setPrestataires: (prestataires: Prestataire[]) => void;
   setSegmentDates: (dates: SegmentDates) => void;
+  setServerDateSearch: (useServer: boolean) => void;
   setFilieresOuPrestataires: (filieres_ou_prestataires: FiliereOuPrestataireInterface) => void;
   setSiteFilterMode: (mode: 'all' | 'per_site') => void;
   setSelectedSiteId: (siteId: string | null) => void;
@@ -91,6 +93,7 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   const [points_collecte, setPointsCollecte] = useState<PointCollecte[]>([]);
   const [prestataires, setPrestataires] = useState<Prestataire[]>([]);
   const [segmentDates, setSegmentDates] = useState<SegmentDates>({ debut: null, fin: null });
+  const [serverDateSearch, setServerDateSearch] = useState<boolean>(false);
   const [filieres_ou_prestataires, setFilieresOuPrestataires] = useState<FiliereOuPrestataireInterface>({ nom: 'filiere' });
   const [isInitialized, setIsInitialized] = useState(false);
   const session = useSession();
@@ -255,6 +258,7 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
     points_collecte,
     prestataires,
     segmentDates,
+    serverDateSearch,
     filieres_ou_prestataires,
     setFilieres: (filieres: Filiere[]) => {
       // Déterminer quel setter utiliser selon le mode actuel
@@ -270,6 +274,7 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
     setPointsCollecte,
     setPrestataires,
     setSegmentDates,
+    setServerDateSearch,
     setFilieresOuPrestataires,
     setSiteFilterMode: handleSetSiteFilterMode,
     setSelectedSiteId,

@@ -7,9 +7,10 @@ prompt_bon = """
     Détecte :
         La date, le nom du déchet, le poids net du déchets (en tonne, fait la conversion si besoin)
         Si possible : le code ced, le code de traitement (D1, R5..), le nombre de tour
-        Le numéro de bon.
+        Le numéro de bon (si il y a 'ticket' c'est en le numero en dessous)
         Le nom du prestataire qui collecte le déchet (celui qui a édité le bon, souvent en haut à gauche)
         Le nom du site, le lieu d'origine du déchet.
+        (L'adresse du site si tu le trouves)
 
     Utilise tous les stratèges de détection possible.
     N'invente pas d'informations, laisse "" si tu ne sais pas.
@@ -25,6 +26,7 @@ prompt_bon = """
         "num_bon": "num_bon",
         "nom_prestataire": "nom_prestataire",
         "nom_site": "nom_site",
+        "adresse_site": "adresse_site",
     }
 """
 

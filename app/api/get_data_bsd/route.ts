@@ -120,6 +120,7 @@ interface SupabaseFlatResponse {
     doe: boolean;
     flux: string;
     numeroBon: string;
+    checked?: string | boolean | null;
     sent_to_rep: boolean;
     on_track_dechets: boolean;
     created_on_fleap: string;
@@ -180,6 +181,8 @@ export async function GET(request: Request) {
   const lastDate = searchParams.get('lastDate');
   const lastId = searchParams.get('lastId');
   const site = searchParams.get('site');
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
 
   if (!entreprise_id || !user_id) {
     return NextResponse.json({ error: 'entreprise_id and user_id are required' }, { status: 400 });
@@ -191,7 +194,7 @@ export async function GET(request: Request) {
   try {
     const cachedData = await getCachedData(entreprise_id, user_id, siteFilter);
     
-    if (cachedData && !lastDate) {
+    if (cachedData && !lastDate && !startDate && !endDate) {
       if (fastLoad && !cachedData.fullDataLoaded) {
         return NextResponse.json({ 
           data: cachedData.data.slice(0, 50), 
@@ -230,6 +233,7 @@ export async function GET(request: Request) {
         other_infos->>flux,
         other_infos->rep->>sent_to_rep,
         other_infos->>numeroBon,
+        other_infos->>checked,
         on_track_dechets,
         created_on_fleap,
         facture_treated,
@@ -243,6 +247,13 @@ export async function GET(request: Request) {
 
     if (siteFilter) {
       query = query.filter('infos_json->formAPI->createFormInput->emitter->company->>siret', 'eq', siteFilter);
+    }
+
+    if (startDate) {
+      query = query.gte('created_at', startDate);
+    }
+    if (endDate) {
+      query = query.lte('created_at', endDate);
     }
 
     if (lastDate && lastId) {
@@ -310,7 +321,12 @@ export async function GET(request: Request) {
         doe: item.doe,
         flux: item.flux,
         rep: item.sent_to_rep ? { sent_to_rep: item.sent_to_rep } : undefined,
-        numeroBon: item.numeroBon
+        numeroBon: item.numeroBon,
+        checked: typeof item.checked === 'boolean' 
+          ? item.checked 
+          : (typeof item.checked === 'string' 
+              ? (item.checked.toLowerCase() === 'true' ? true : (item.checked.toLowerCase() === 'false' ? false : undefined))
+              : undefined)
       },
       on_track_dechets: item.on_track_dechets,
       created_on_fleap: item.created_on_fleap,
@@ -321,7 +337,7 @@ export async function GET(request: Request) {
 
 
     // Si c'est le premier chargement, mettre en cache
-    if (!lastDate) {
+    if (!lastDate && !startDate && !endDate) {
       let countBase = supabase
         .from('bsd')
         .select('*', { count: 'exact', head: true })
@@ -342,6 +358,13 @@ export async function GET(request: Request) {
 
     if (siteFilter) {
       countQuery = countQuery.filter('infos_json->formAPI->createFormInput->emitter->company->>siret', 'eq', siteFilter);
+    }
+
+    if (startDate) {
+      countQuery = countQuery.gte('created_at', startDate);
+    }
+    if (endDate) {
+      countQuery = countQuery.lte('created_at', endDate);
     }
 
     if (lastDate && lastId) {
@@ -370,7 +393,7 @@ export async function GET(request: Request) {
         data: formattedData,
         hasMore: hasMoreData,
         totalCount: remainingCount || 0,
-        isPartialData: !cachedData || !cachedData.fullDataLoaded
+        isPartialData: startDate || endDate ? false : (!cachedData || !cachedData.fullDataLoaded)
     };
     //console.log('API Response:', response);
     

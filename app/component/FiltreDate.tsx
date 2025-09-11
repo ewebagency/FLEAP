@@ -16,7 +16,7 @@ interface DateSegment {
 
 const FiltreDate = () => {
     const [isOpen, setIsOpen] = useState(false);
-    const { segmentDates, setSegmentDates } = useFilterContext();
+    const { setSegmentDates, setServerDateSearch } = useFilterContext();
     const {entreprise_id} = useSession();
     const containerRef = useRef<HTMLDivElement>(null);
     const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
@@ -155,6 +155,7 @@ const FiltreDate = () => {
             // Si pas de dates sauvegardées, charger depuis l'API
             getDatesFromEntreprise();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [entreprise_id]);
 
     const handleSegmentSelect = (segment: DateSegment) => {
@@ -269,11 +270,22 @@ const FiltreDate = () => {
                                     <button
                                         onClick={() => {
                                             getDatesFromEntreprise();
+                                            setServerDateSearch(false);
                                             setIsOpen(false);
                                         }}
                                         className="w-full p-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700"
                                     >
                                         {isRegisterPage ? "Tout voir" : "Aujourd'hui"}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            // Déclencher une recherche côté serveur avec les dates courantes
+                                            setServerDateSearch(true);
+                                            setIsOpen(false);
+                                        }}
+                                        className="w-full p-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                                    >
+                                        Rechercher
                                     </button>
                                 </div>
                             </div>

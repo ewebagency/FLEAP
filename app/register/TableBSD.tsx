@@ -3,8 +3,8 @@ import { supabase } from "../database/supabaseClient";
 import { useSession } from "../component/SessionProvider";
 import { useModalContextNew } from "./RegisterComponents/Modal/ContextModal";
 import toast from "react-hot-toast";
-import { Filiere, PointCollecte, Site, useFilterContext } from "../FilterContext";
-import { BSDD_TrackDechets, Company, FormInput, OtherInfos } from "./interface/BSD_Interface";
+import { useFilterContext } from "../FilterContext";
+import { Company, FormInput, OtherInfos } from "./interface/BSD_Interface";
 import Swal from 'sweetalert2';
 import SendDraftModal from "./RegisterComponents/Modal/SendDraftModal";
 import { getMappingTableFiliere, getFiliere } from "./RegisterComponents/Modal/FormulaireFull/utils_new";
@@ -13,13 +13,13 @@ import { RecurrenceEntry } from "./RegisterComponents/Modal/Recurrence/Recurrenc
 import BoxIcon from "../component/BoxIconWrapper";
 import { FactureJSON } from "../import_page/FactureImport/ButtonImportFacture";
 import { useFiltresPerso } from "../component/FiltresPerso/FiltresPersoProvider";
-import NewFormulaireDemande from "./DemandeCollecteNew/NewFormulaireDemande";
+// import NewFormulaireDemande from "./DemandeCollecteNew/NewFormulaireDemande";
 import { filterBSDs } from "./FiltreFunctionnal";
 import { CommonBSD } from "./FiltreFunctionnal";
 import ValidateCollecte from "./DemandeCollecteNew/ValidateCollecte";
 import { handleCancelCollecte } from "./DemandeCollecteNew/DemandeFonctions";
 import { useBSDs } from './BSDsProvider';
-import { handleDeleteLinkBon_PDF } from './RegisterComponents/Modal/DisplayModifyOnTable/deleteLinkBon_PDF';
+// import { handleDeleteLinkBon_PDF } from './RegisterComponents/Modal/DisplayModifyOnTable/deleteLinkBon_PDF';
 import { handleDeleteLinkMetaDoc } from '@/app/import_page/ImportComponents/ExtractMetaDoc/utils/link_or_create_bdd';
 
 
@@ -92,7 +92,7 @@ const getWasteIcon = (filiere: string): { name: string, type?: 'solid' | 'regula
         }
     }
 
-    return { name: 'question-mark' }; // Icône par défaut
+    return { name: 'trash-alt' }; // Icône par défaut question-mark
 };
 
 const getSommeBSD = (facture_infos: FactureJSON) => {
@@ -155,7 +155,7 @@ const TableBSD = () => {
     //const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
     //A faire passer sur useModalContextNew
     const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType, filterPendingBSDs, setFilterPendingBSDs } = useModalContextNew();
-    const { sites, filieres, points_collecte, segmentDates, siteFilterMode, selectedSiteId, filieres_ou_prestataires } = useFilterContext();
+    const { sites, filieres, points_collecte, segmentDates, siteFilterMode, selectedSiteId, filieres_ou_prestataires, serverDateSearch } = useFilterContext();
     const { allBSDs, setAllBSDs, allFilteredBSDs, setAllFilteredBSDs, displayedBSDs, setDisplayedBSDs } = useBSDs();
 
     const [webhooksInitialized, setWebhooksInitialized] = useState(false);
@@ -312,7 +312,7 @@ const TableBSD = () => {
                 setLoadingBSDs(true);
             }
             
-            const shouldFastLoad = isLoadingInitialData && !isLoadingFullData;
+            const shouldFastLoad = (isLoadingInitialData && !isLoadingFullData) && !serverDateSearch;
             const forceReload = prevModalReload.current !== modalReload;
             
             if (forceReload) {
@@ -320,7 +320,10 @@ const TableBSD = () => {
             }
             
             const siteParam = siteFilterMode === 'per_site' && selectedSiteId ? `&site=${encodeURIComponent(selectedSiteId)}` : '';
-            const url = `/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}${shouldFastLoad ? '&fastLoad=true' : ''}${loadMore && lastLoadedDate && lastLoadedId ? `&lastDate=${encodeURIComponent(lastLoadedDate)}&lastId=${encodeURIComponent(lastLoadedId)}` : ''}${siteParam}`;
+            const dateParam = (serverDateSearch && segmentDates?.debut && segmentDates?.fin) 
+                ? `&startDate=${encodeURIComponent(segmentDates.debut.toISOString())}&endDate=${encodeURIComponent(segmentDates.fin.toISOString())}`
+                : '';
+            const url = `/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}${shouldFastLoad ? '&fastLoad=true' : ''}${loadMore && lastLoadedDate && lastLoadedId ? `&lastDate=${encodeURIComponent(lastLoadedDate)}&lastId=${encodeURIComponent(lastLoadedId)}` : ''}${siteParam}${dateParam}`;
             //console.log('Fetching BSDs from:', url);
             const response = await fetch(url);
             const result = await response.json();
@@ -356,6 +359,12 @@ const TableBSD = () => {
                 
                 return;
             }
+
+            // Si recherche côté serveur, on désactive le mode partiel et on ne lance pas le chargement complet
+            if (serverDateSearch) {
+                setIsPartialData(false);
+                setIsLoadingInitialData(false);
+            }
             
             if (loadMore) {
                 const newData = [...allBSDs, ...result.data];
@@ -385,6 +394,21 @@ const TableBSD = () => {
             setIsLoadingMore(false);
         }
     };
+
+    // Déclencher un fetch quand on demande une recherche côté serveur ou quand on revient au mode client
+    useEffect(() => {
+        if (!entreprise_id || !user_id) return;
+        
+        // Reset pagination
+        setLastLoadedDate(null);
+        setLastLoadedId(null);
+        setIsLoadingInitialData(false);
+        
+        fetchBSDs(false).finally(() => {
+            // Laisser le flag actif jusqu'à ce que l'utilisateur change à nouveau
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [serverDateSearch, segmentDates?.debut, segmentDates?.fin, siteFilterMode, selectedSiteId]);
 
     const applyFilters = () => {
         //console.log("=== Début applyFilters ===");
@@ -920,6 +944,52 @@ const TableBSD = () => {
         );
     };
 
+    const handleToggleChecked = async (bsd: BSD) => {
+        try {
+            // Récupérer other_infos depuis la BDD pour ne pas écraser des champs non présents en local
+            const { data: currentRow, error: fetchError } = await supabase
+                .from('bsd')
+                .select('other_infos')
+                .eq('id', bsd.id)
+                .eq('entreprise_id', entreprise_id)
+                .single();
+
+            if (fetchError) {
+                console.error('Erreur récupération other_infos:', fetchError);
+                toast.error("Erreur lors de la récupération des infos");
+                return;
+            }
+
+            const dbOtherInfos = (currentRow?.other_infos || {}) as OtherInfos;
+            const existsInDb = typeof (dbOtherInfos as Partial<OtherInfos>).checked !== 'undefined';
+            const nextChecked = existsInDb ? !Boolean(dbOtherInfos.checked) : true;
+            const updatedOtherInfos: OtherInfos = { ...dbOtherInfos, checked: nextChecked };
+
+            const { error } = await supabase
+                .from('bsd')
+                .update({ other_infos: updatedOtherInfos })
+                .eq('id', bsd.id)
+                .eq('entreprise_id', entreprise_id);
+
+            if (error) {
+                console.error('Erreur mise à jour checked:', error);
+                toast.error("Erreur lors de la mise à jour");
+                return;
+            }
+
+            // Update local states (merge)
+            setAllBSDs(prev => prev.map(prevBsd => prevBsd.id === bsd.id ? { ...prevBsd, other_infos: updatedOtherInfos } : prevBsd));
+            setAllFilteredBSDs(prev => prev.map(prevBsd => prevBsd.id === bsd.id ? { ...prevBsd, other_infos: updatedOtherInfos } : prevBsd));
+            setDisplayedBSDs(prev => prev.map(prevBsd => prevBsd.id === bsd.id ? { ...prevBsd, other_infos: updatedOtherInfos } : prevBsd));
+
+            await invalidateCache();
+
+        } catch (e) {
+            console.error('Exception mise à jour checked:', e);
+            toast.error("Erreur inattendue");
+        }
+    };
+
     const handleDeleteRecurrence = async (bsdId: string) => {
         try {
             const { data: recurrences, error: recurrenceError } = await supabase
@@ -1112,13 +1182,17 @@ const TableBSD = () => {
                                     </div>
                                     <div className="h-full flex items-center mt-2">
                                         <div className="flex items-center justify-start gap-4">
-                                            <div className="text-2xl h-full mt-4">
+                                            <div 
+                                                className={`mt-3 inline-flex items-center justify-center w-10 h-10 rounded-full transition-colors ${bsd.other_infos?.checked ? 'border-2 border-black bg-gray-100' : 'bg-white'}`}
+                                                onClick={(e) => { e.stopPropagation(); handleToggleChecked(bsd); }}
+                                                title={bsd.other_infos?.checked ? 'Vérifié' : 'Marquer comme vérifié'}
+                                            >
                                                 {(() => {
                                                     const icon = getWasteIcon(getFiliere(
                                                         bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
                                                         mappingTable
                                                     ));
-                                                    return <BoxIcon type={icon.type} name={icon.name} color="#000000" size="30px" />;
+                                                    return <BoxIcon type={icon.type} name={icon.name} color={bsd.other_infos?.checked ? '#374151' : '#111827'} size="22px" />;
                                                 })()}
                                             </div>
                                             <div className="space-y-0.5">

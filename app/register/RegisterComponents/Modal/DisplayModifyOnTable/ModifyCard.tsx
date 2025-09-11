@@ -567,9 +567,27 @@ const ModifyCard = () => {
                 setModalType("");
 
                 setTimeout(async () => {
-                    setAllBSDs(prev => prev.map(bsd => bsd.id === modalId ? {...bsd, infos_json: dataToSendJSON.infos_json, created_at: dataToSendJSON.created_at} as unknown as BSD : bsd));
-                    setAllFilteredBSDs(prev => prev.map(bsd => bsd.id === modalId ? {...bsd, infos_json: dataToSendJSON.infos_json, created_at: dataToSendJSON.created_at} as unknown as BSD : bsd));
-                    setDisplayedBSDs(prev => prev.map(bsd => bsd.id === modalId ? {...bsd, infos_json: dataToSendJSON.infos_json, created_at: dataToSendJSON.created_at} as unknown as BSD : bsd));
+                    setAllBSDs(prev => prev.map(bsd => bsd.id === modalId ? {
+                        ...bsd,
+                        infos_json: dataToSendJSON.infos_json,
+                        created_at: dataToSendJSON.created_at,
+                        other_infos: dataToSendJSON.other_infos,
+                        readable_id_track_dechets: dataToSendJSON.readable_id_track_dechets
+                    } as unknown as BSD : bsd));
+                    setAllFilteredBSDs(prev => prev.map(bsd => bsd.id === modalId ? {
+                        ...bsd,
+                        infos_json: dataToSendJSON.infos_json,
+                        created_at: dataToSendJSON.created_at,
+                        other_infos: dataToSendJSON.other_infos,
+                        readable_id_track_dechets: dataToSendJSON.readable_id_track_dechets
+                    } as unknown as BSD : bsd));
+                    setDisplayedBSDs(prev => prev.map(bsd => bsd.id === modalId ? {
+                        ...bsd,
+                        infos_json: dataToSendJSON.infos_json,
+                        created_at: dataToSendJSON.created_at,
+                        other_infos: dataToSendJSON.other_infos,
+                        readable_id_track_dechets: dataToSendJSON.readable_id_track_dechets
+                    } as unknown as BSD : bsd));
                     await invalidateCache();
                 }, 100);
 
@@ -596,7 +614,7 @@ const ModifyCard = () => {
                 <div className="border-b pb-2 flex justify-between items-start">
                     <div className="pr-8">
                         <h2 className="text-lg md:text-xl font-bold text-gray-800">Bordereau de Suivi des Déchets</h2>
-                        <div className="mt-2 grid grid-cols-2 gap-4 ml-2 md:ml-6">
+                        <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-4 ml-2 md:ml-6">
                             <div className="space-y-1">
                                 <LabelInput 
                                     label="ID TrackDéchets"
@@ -604,10 +622,30 @@ const ModifyCard = () => {
                                     onChange={(_, value) => setReadableId(value)}
                                     path="readable_id_track_dechets"
                                 />
-                                <div className="flex items-center text-sm">
-                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Numéro bon: </span>
-                                    <span className="text-gray-600">{otherInfos.numeroBon || ""}</span>
-                                </div>
+                                <LabelInput 
+                                    label="Numéro bon"
+                                    value={otherInfos.numeroBon || ""}
+                                    onChange={(_, value) => {
+                                        setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                            ...prev,
+                                            numeroBon: value
+                                        }));
+                                    }}
+                                    path="numeroBon"
+                                />
+                                <LabelInput 
+                                    label="Numéro facture"
+                                    value={otherInfos.numeroFacture || ""}
+                                    onChange={(_, value) => {
+                                        setOtherInfos((prev: OtherInfos): OtherInfos => ({
+                                            ...prev,
+                                            numeroFacture: value
+                                        }));
+                                    }}
+                                    path="numeroFacture"
+                                />
+                            </div>
+                            <div className="space-y-1">
                                 <div className="flex items-center text-sm">
                                     <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Nom du déchet: </span>
                                     <span className="text-gray-600">{localData.wasteDetails.name || ""}</span>

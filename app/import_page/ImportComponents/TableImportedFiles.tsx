@@ -13,8 +13,8 @@ import LinkBon from './ExtractBon/LinkBon';
 import useSWR from 'swr';
 //import BoutonExtractDoc from './ExtractMetaDoc/components/BoutonExtractDoc';
 //import BoutonSplitDoc from './ExtractMetaDoc/components/BoutonSplitDoc';
-//import ExtractDoc from './ExtractMetaDoc/components/ExtractDoc';
-//import LinkMetaButton from './ExtractMetaDoc/components/LinkMetaButton';
+import ExtractDoc from './ExtractMetaDoc/components/ExtractDoc';
+import LinkMetaButton from './ExtractMetaDoc/components/LinkMetaButton';
 import {handleDeleteMetaDocFromPdf, TablePdfInfo} from './ExtractMetaDoc/utils/delete_bsd_from_pdf';
 
 export interface PdfInfo {
@@ -588,7 +588,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             pdf_path={pdf.name_pdf_in_bucket} 
                                         /> ---> ancien extract facture
                                     */} 
-                                    {/*cofounders_permission(user_id) &&
+                                    {cofounders_permission(user_id) &&
                                         <div className="flex gap-1">
                                             <div className="relative">
                                                 <ExtractDoc //pour ouvrir le modal d'extraction
@@ -607,7 +607,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                                 />
                                             </div>
                                         </div>
-                                    */}   
+                                    }   
                                     {cofounders_permission(user_id) && pdf.document_type === 'facture' && 
                                         <ButtonExtractFacture
                                             pdf_id={pdf.id} 

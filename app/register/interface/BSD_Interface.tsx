@@ -1035,6 +1035,7 @@ export interface OtherInfos {
     numeroBon?: string;
     numeroFacture?: string;
     autreNumeroID?: string;
+    checked?: boolean;
     travauxAmiante?: {
         nom: string;
         siret: string;

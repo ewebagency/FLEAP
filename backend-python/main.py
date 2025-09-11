@@ -12,7 +12,7 @@ from utils.utils_gemini import extract_gemini
 from utils.utils_parse import parse_pdf, parse_pdf_file
 from prompts import prompt_bsd, prompt_bon
 
-"""
+
 import json
 import psutil
 import os
@@ -30,10 +30,10 @@ from new.new_structure import structure
 from new.new_recognize_type import recognize_type_one_page
 from new.new_alerte import alerte_function
 import time
-"""
 
 
-"""
+
+
 def get_memory_usage():
     #Retourne l'utilisation mémoire actuelle en MB
     process = psutil.Process(os.getpid())
@@ -48,13 +48,13 @@ def print_memory_usage(stage=""):
     #Affiche l'utilisation mémoire avec un label
     memory = get_memory_usage()
     #print(f"🔄 MÉMOIRE {stage}: RSS={memory['rss_mb']:.1f}MB, VMS={memory['vms_mb']:.1f}MB, {memory['percent']:.1f}%")
-"""
+
 
 load_dotenv()
 
 app = FastAPI()
 
-"""
+
 @app.on_event("startup")
 async def startup_event():
     #Initialise les ressources au démarrage du serveur
@@ -69,7 +69,7 @@ async def shutdown_event():
     print("Arrêt du serveur Fleap...")
     cleanup_model()
     print("Serveur Fleap arrêté")
-"""
+
 
 
 # Définition du modèle de données pour la requête
@@ -184,7 +184,7 @@ async def extract_facture_with_gemini(request: MindeeDataRequest):
 
 
 
-"""
+
 #=============================================BSD=============================================
 
 @app.post("/extract-bsd-with-paddle-ocr")
@@ -405,6 +405,7 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
 
         prompt = get_specific_prompt(type_lu, liste_nom_a_eviter_list, parse_or_ocr) #prompt, json_interface
         
+        #print("="*60,"Prompt : ", prompt, "\n"*2, raw_text, "\n"*2, "="*60)
         gemini_response = await extract_gemini(raw_text, prompt) #gemini_data = json
         
         # Check if Gemini returned an error
@@ -455,4 +456,3 @@ async def detect_type(files: list[UploadFile]):
         results.append(recognize_type_one_page(raw_text))
     return results
 
-"""
