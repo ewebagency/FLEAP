@@ -647,11 +647,11 @@ const ModifyCard = () => {
                             </div>
                             <div className="space-y-1">
                                 <div className="flex items-center text-sm">
-                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Nom du déchet: </span>
+                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Nom Déchet: </span>
                                     <span className="text-gray-600">{localData.wasteDetails.name || ""}</span>
                                 </div>
                                 <div className="flex items-center text-sm">
-                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Code déchet: </span>
+                                    <span className="font-medium text-gray-700 w-[120px] text-right mr-2">Code CED: </span>
                                     <input 
                                         type="text"
                                         value={localData.wasteDetails.code}

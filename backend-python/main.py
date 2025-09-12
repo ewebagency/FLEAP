@@ -370,7 +370,10 @@ async def ocr_density(file: UploadFile):
 @app.post("/meta-ocr")
 async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: str = Form("{}"), type: str = Form("inconnu"), liste_nom_a_eviter: str = Form("[]"), voir: bool = Form(False)):
     
+    # Nettoyage préventif
+    gc.collect()
     start = time.time()
+    memory_before = get_memory_usage()["rss_mb"]
     # Parser les paramètres JSON
     try:
         pdfInfos_dict = json.loads(pdfInfos) if pdfInfos else {"site_siret_plus": [], "provider": None}
@@ -430,19 +433,29 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
         return {"error": f"Failed to process document: {str(e)}"}
     
     dt = time.time() - start
+    memory_after = get_memory_usage()["rss_mb"]
+    memory_delta = memory_after - memory_before
     print("\n\n------------Result Meta OCR")
     print("\nMéthode utilisée : ", parse_or_ocr)
     print("Type détecté : ", type_lu)
     print("Temps : ", dt//60, "min", dt%60, "s")
+    print(f"Mémoire: avant={memory_before:.1f}MB, après={memory_after:.1f}MB, delta={memory_delta:.1f}MB")
     print("Confidence : ", confidence)
     print("Alerte : ", alerte)
     print("Response : ", structured_response)
     print("\n"*2)
-    return {
+    response_payload = {
         "structured_response": structured_response,
         "confidence": confidence,  
         "alerte" : alerte
     }
+    try:
+        return response_payload
+    finally:
+        # Nettoyage mémoire post-traitement
+        gc.collect()
+        memory_after_gc = get_memory_usage()["rss_mb"]
+        print(f"Mémoire après GC: {memory_after_gc:.1f}MB (libéré ~{max(0.0, memory_after - memory_after_gc):.1f}MB)")
 
 #=============================================META OCR - Nouvelle structure Fin=============================================
 

@@ -59,6 +59,31 @@ facture = {
         "montant_total_ht": "montant_total_ht"
     }
 
+def clean_ced_code(ced_code: str) -> str:
+    """
+    Nettoie un code CED :
+    - Si le code contient exactement 6 chiffres, le formate en 00 00 00
+    - Sinon, retourne le code brut nettoyé (sans espaces, points, etc.)
+    
+    Args:
+        ced_code: Code CED brut (peut contenir espaces, points, etc.)
+    
+    Returns:
+        str: Code CED nettoyé
+    """
+    if not ced_code:
+        return ""
+    
+    # Nettoyer le code : enlever espaces, points, tirets, etc.
+    cleaned = ''.join(c for c in str(ced_code) if c.isdigit())
+    
+    # Si on a exactement 6 chiffres, formater en 00 00 00
+    if len(cleaned) == 6:
+        return f"{cleaned[0:2]} {cleaned[2:4]} {cleaned[4:6]}"
+    
+    # Sinon, retourner le code nettoyé
+    return cleaned
+
 def structure(type_doc: str, gemini_data: dict) :
     """
     Transforme les données JSON de Gemini en respectant la structure des interfaces TypeScript
@@ -86,35 +111,49 @@ def structure_bon(gemini_data: dict):
     
     # Extraire les données de base
     dechets = []
-    if isinstance(gemini_data.get("nom_dechet"), list):
-        # Cas où il y a plusieurs déchets
+    dechet_list = gemini_data.get("dechet")
+    if isinstance(dechet_list, list) and len(dechet_list) > 0:
+        # Nouveau format: tableau d'objets dechet
+        for d in dechet_list:
+            if not isinstance(d, dict):
+                continue
+            dechets.append({
+                "date": gemini_data.get("date", ""),
+                "nom": d.get("nom_dechet", ""),
+                "tonnage": d.get("poids_net", ""),
+                "ced": clean_ced_code(d.get("code_ced", "")),
+                "d_r": d.get("code_traitement", ""),
+                "tour": d.get("nombre_de_tour", ""),
+                "num_bon": gemini_data.get("num_bon", "")
+            })
+    elif isinstance(gemini_data.get("nom_dechet"), list):
+        # Ancien format: champs parallèles sous forme de listes
         for i in range(len(gemini_data.get("nom_dechet", []))):
-            dechet = {
+            dechets.append({
                 "date": gemini_data.get("date", ""),
                 "nom": gemini_data.get("nom_dechet", [""])[i] if i < len(gemini_data.get("nom_dechet", [])) else "",
                 "tonnage": gemini_data.get("poids_net", [""])[i] if i < len(gemini_data.get("poids_net", [])) else "",
-                "ced": gemini_data.get("code_ced", [""])[i] if i < len(gemini_data.get("code_ced", [])) else "",
+                "ced": clean_ced_code(gemini_data.get("code_ced", [""])[i] if i < len(gemini_data.get("code_ced", [])) else ""),
                 "d_r": gemini_data.get("code_traitement", [""])[i] if i < len(gemini_data.get("code_traitement", [])) else "",
                 "tour": gemini_data.get("nombre_de_tour", [""])[i] if i < len(gemini_data.get("nombre_de_tour", [])) else "",
-                "num_bon": gemini_data.get("num_bon", [""])[i] if i < len(gemini_data.get("num_bon", [])) else ""
-            }
-            dechets.append(dechet)
+                "num_bon": gemini_data.get("num_bon", "")
+            })
     else:
-        # Cas où il y a un seul déchet
-        dechet = {
+        # Ancien format: valeurs scalaires simples
+        dechets.append({
             "date": gemini_data.get("date", ""),
             "nom": gemini_data.get("nom_dechet", ""),
             "tonnage": gemini_data.get("poids_net", ""),
-            "ced": gemini_data.get("code_ced", ""),
+            "ced": clean_ced_code(gemini_data.get("code_ced", "")),
             "d_r": gemini_data.get("code_traitement", ""),
             "tour": gemini_data.get("nombre_de_tour", ""),
             "num_bon": gemini_data.get("num_bon", "")
-        }
-        dechets.append(dechet)
+        })
     
     return {
         "type_doc": "bon",
         "site_raw": gemini_data.get("nom_site", ""),
+        "adresse_site": gemini_data.get("adresse_site", ""),
         "presta_raw": gemini_data.get("nom_prestataire", ""),
         "dechet": dechets
     }
@@ -131,7 +170,7 @@ def structure_bsd(gemini_data: dict) :
                 "date": gemini_data.get("date", ""),
                 "nom": gemini_data.get("nom_dechet", [""])[i] if i < len(gemini_data.get("nom_dechet", [])) else "",
                 "tonnage": gemini_data.get("quantite_relle_tonne", [""])[i] if i < len(gemini_data.get("quantite_relle_tonne", [])) else "",
-                "ced": gemini_data.get("code_ced", [""])[i] if i < len(gemini_data.get("code_ced", [])) else "",
+                "ced": clean_ced_code(gemini_data.get("code_ced", [""])[i] if i < len(gemini_data.get("code_ced", [])) else ""),
                 "d_r": gemini_data.get("code_traitement", [""])[i] if i < len(gemini_data.get("code_traitement", [])) else "",
                 "num_bsd": gemini_data.get("num_bsd", [""])[i] if i < len(gemini_data.get("num_bsd", [])) else "",
                 "contenant": gemini_data.get("nom_contenant", [""])[i] if i < len(gemini_data.get("nom_contenant", [])) else "",
@@ -144,7 +183,7 @@ def structure_bsd(gemini_data: dict) :
             "date": gemini_data.get("date", ""),
             "nom": gemini_data.get("nom_dechet", ""),
             "tonnage": gemini_data.get("quantite_relle_tonne", ""),
-            "ced": gemini_data.get("code_ced", ""),
+            "ced": clean_ced_code(gemini_data.get("code_ced", "")),
             "d_r": gemini_data.get("code_traitement", ""),
             "num_bsd": gemini_data.get("num_bsd", ""),
             "contenant": gemini_data.get("nom_contenant", ""),
@@ -187,6 +226,42 @@ def structure_facture(gemini_data: dict) :
     # Extraire les données de collecte (peut être une liste ou un dictionnaire)
     collecte_data = gemini_data.get("collecte", [])
     
+    def compute_tonnage_from_prestations(prestations: list):
+        """
+        Si une seule prestation et l'unité indique des tonnes (T, Tonne, To),
+        renvoyer la quantité comme tonnage (en chaîne). Sinon, renvoyer "".
+        """
+        def got_tonnage(presta: dict):
+            unite = str(presta.get("unite", "")).strip().lower()
+            if unite in {"t", "tonne", "to"}:
+                return True
+            return False
+        
+        try:
+            somme_tonnage = 0
+            prestations_avec_tonnage = 0
+            
+            for presta in prestations:
+                if got_tonnage(presta):
+                    qte = presta.get("quantite", 0)
+                    try:
+                        # Convertir la virgule en point pour le format français
+                        qte_str = str(qte).replace(',', '.')
+                        qte_float = float(qte_str)
+                        somme_tonnage += qte_float
+                        prestations_avec_tonnage += 1
+                    except (ValueError, TypeError):
+                        continue
+            
+            # Retourner la somme si on a trouvé au moins une prestation avec tonnage
+            if prestations_avec_tonnage > 0:
+                return str(somme_tonnage)
+            else:
+                return ""
+                
+        except Exception:
+            return ""
+
     # Créer les déchets
     dechets = []
     
@@ -217,8 +292,8 @@ def structure_facture(gemini_data: dict) :
             dechet = {
                 "date": collecte.get("date", ""),
                 "nom": collecte.get("nom_dechet", ""),
-                "tonnage": "",
-                "ced": collecte.get("ced", ""),
+                "tonnage": compute_tonnage_from_prestations(prestations),
+                "ced": clean_ced_code(collecte.get("ced", "")),
                 "d_r": "",
                 "num_bon": collecte.get("num_bon", ""),
                 "num_bsd": collecte.get("num_bsd", ""),
@@ -255,8 +330,8 @@ def structure_facture(gemini_data: dict) :
         dechet = {
             "date": collecte_data.get("date", ""),
             "nom": collecte_data.get("nom_dechet", ""),
-            "tonnage": "",
-            "ced": collecte_data.get("ced", ""),
+            "tonnage": compute_tonnage_from_prestations(prestations),
+            "ced": clean_ced_code(collecte_data.get("ced", "")),
             "d_r": "",
             "num_bon": collecte_data.get("num_bon", ""),
             "num_bsd": collecte_data.get("num_bsd", ""),

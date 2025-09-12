@@ -8,8 +8,8 @@ import { useImport } from './ImportContext';
 import { toast } from 'react-hot-toast';
 import { cofounders_user_id } from '@/app/component/SideBar';
 import CofounderStatusFilter from './CofounderStatusFilter';
-import ExtractBonProcessor from './JobProcessor/ExtractBonProcessor';
-//import LoopStarterButton from './ExtractMetaDoc/components/LoopStarterButton';
+//import ExtractBonProcessor from './JobProcessor/ExtractBonProcessor';
+import LoopStarterButton from './ExtractMetaDoc/components/LoopStarterButton';
 
 
 const TableImportedFilesFunctional: React.FC = () => {
@@ -176,7 +176,7 @@ const TableImportedFilesFunctional: React.FC = () => {
                     {cofounders_user_id(user_id) &&  
                         <div className="flex items-center justify-between">
                             {/*<ExtractBonProcessor />*/}
-                            {/*<LoopStarterButton/>*/}
+                            <LoopStarterButton/>
                         </div>                  
                         
                     }            

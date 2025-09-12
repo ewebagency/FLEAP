@@ -103,11 +103,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	const [autoAllResults, setAutoAllResults] = useState<Record<number, ProposeActionResult | undefined>>({});
 	
 	// Dictionnaire des explications pour chaque action
-	const actionExplanations = {
-		to_link: "→ BSD trouvé ! Cliquez sur 'Lier' pour associer automatiquement.",
-		to_check_by_user: "→ Plusieurs candidats trouvés. Vérifiez et choisissez manuellement.",
-		to_create: "→ Aucun BSD correspondant. Créez un nouveau BSD avec 'Créer'."
-	};
+	// (removed unused actionExplanations to satisfy linter)
 	const [previewModal, setPreviewModal] = useState<{ open: boolean; index: number; data: Record<string, unknown> | null }>({ open: false, index: -1, data: null });
 	
 	// State local pour le statut des déchets liés/créés (même structure que bsd_linked en BDD)
@@ -148,6 +144,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		const fetchAllCandidates = async () => {
 			if (!entrepriseIdNum || !pdfInfo) return;
 			try {
+				const ecart = 31; //1 mois avant et 1 mois après
 				// derive min/max dates across dechets
 				const dates = dechets
 					.map(d => (d?.date ? new Date(d.date) : null))
@@ -156,9 +153,9 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 				const minDate = dates.length ? new Date(Math.min(...dates.map(d => d.getTime()))) : today;
 				const maxDate = dates.length ? new Date(Math.max(...dates.map(d => d.getTime()))) : today;
 				const start = new Date(minDate);
-				start.setDate(start.getDate() - 100);
+				start.setDate(start.getDate() - ecart);
 				const end = new Date(maxDate);
-				end.setDate(end.getDate() + 100);
+				end.setDate(end.getDate() + ecart);
 
 				const { data, error } = await getBSDCandidates(
 					entrepriseIdNum,
@@ -203,6 +200,10 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		return { site, presta };
 	}, [mappings, rawSite, rawPresta]);
 
+	// Indicateurs: si une traduction via mapping a abouti (siret non vide)
+	const siteTranslatedOk = useMemo(() => !!(translated.site?.siret && translated.site.siret.trim() !== ''), [translated]);
+	const prestaTranslatedOk = useMemo(() => !!(translated.presta?.siret && translated.presta.siret.trim() !== ''), [translated]);
+
 
 	const runProposeActionAuto = async (index: number) => {
 		if (!pdfInfo || entrepriseIdNum == null || !allCandidates || !mappings) return;
@@ -242,9 +243,15 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 				
 				// Appliquer les filtres avec les nouveaux paramètres
 				const d = dechets[index] as DechetItem;
+				
+				// Calculer les traductions pour ce déchet spécifique (utiliser les valeurs globales du PDF)
+				const siteTranslated = translateByMapping(rawSite, mappings?.params_mapping_site || {});
+				const prestaTranslated = translateByMapping(rawPresta, mappings?.params_mapping_presta || {});
+				const translatedForThisDechet = { site: siteTranslated, presta: prestaTranslated };
+				
 				filteredCandidates = allCandidates.filter(c => {
-					const siteLc = (translated.site.name || '').toLowerCase().trim();
-					const prestaLc = (translated.presta.name || '').toLowerCase().trim();
+					const siteLc = (translatedForThisDechet.site.name || '').toLowerCase().trim();
+					const prestaLc = (translatedForThisDechet.presta.name || '').toLowerCase().trim();
 					const numBonLc = (d?.num_bon || '').toLowerCase().trim();
 					const numBsdLc = (d?.num_bsd || '').toLowerCase().trim();
 					const cedNumbers = (d?.ced || '').replace(/[^\d]/g, '').trim();
@@ -336,8 +343,14 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 
 	const applyFilters = (index: number, rawList: BSDCandidate[], d: DechetItem): BSDCandidate[] => {
 		const active = filtersByIndex[index] || { site: true, presta: true, numBon: true, numBsd: true, ced: true, wasteName: true, date: true };
-		const siteLc = (translated.site.name || '').toLowerCase().trim();
-		const prestaLc = (translated.presta.name || '').toLowerCase().trim();
+		
+		// Calculer les traductions pour ce déchet spécifique (utiliser les valeurs globales du PDF)
+		const siteTranslated = translateByMapping(rawSite, mappings?.params_mapping_site || {});
+		const prestaTranslated = translateByMapping(rawPresta, mappings?.params_mapping_presta || {});
+		const translatedForThisDechet = { site: siteTranslated, presta: prestaTranslated };
+		
+		const siteLc = (translatedForThisDechet.site.name || '').toLowerCase().trim();
+		const prestaLc = (translatedForThisDechet.presta.name || '').toLowerCase().trim();
 		const numBonLc = (d?.num_bon || '').toLowerCase().trim();
 		const numBsdLc = (d?.num_bsd || '').toLowerCase().trim();
 		const cedNumbers = (d?.ced || '').replace(/[^\d]/g, '').trim();
@@ -387,9 +400,15 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		const rawList = rawCandidatesByIndex[index] || [];
 		const newFilters = { ...current, [key]: newValue };
 		const currentDays = daysByIndex[index] ?? LINK_RULES_DEFAULT.looseDays;
+		
+		// Calculer les traductions pour ce déchet spécifique (utiliser les valeurs globales du PDF)
+		const siteTranslated = translateByMapping(rawSite, mappings?.params_mapping_site || {});
+		const prestaTranslated = translateByMapping(rawPresta, mappings?.params_mapping_presta || {});
+		const translatedForThisDechet = { site: siteTranslated, presta: prestaTranslated };
+		
 		const filtered = rawList.filter(c => {
-			const siteLc = (translated.site.name || '').toLowerCase().trim();
-			const prestaLc = (translated.presta.name || '').toLowerCase().trim();
+			const siteLc = (translatedForThisDechet.site.name || '').toLowerCase().trim();
+			const prestaLc = (translatedForThisDechet.presta.name || '').toLowerCase().trim();
 			const numBonLc = (d?.num_bon || '').toLowerCase().trim();
 			const numBsdLc = (d?.num_bsd || '').toLowerCase().trim();
 			const cedNumbers = (d?.ced || '').replace(/[^\d]/g, '').trim();
@@ -435,9 +454,15 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		// Appliquer le filtre avec la nouvelle valeur
 		const rawList = rawCandidatesByIndex[index] || [];
 		const currentFilters = filtersByIndex[index] || { site: true, presta: true, numBon: true, numBsd: true, ced: true, wasteName: true, date: true };
+		
+		// Calculer les traductions pour ce déchet spécifique (utiliser les valeurs globales du PDF)
+		const siteTranslated = translateByMapping(rawSite, mappings?.params_mapping_site || {});
+		const prestaTranslated = translateByMapping(rawPresta, mappings?.params_mapping_presta || {});
+		const translatedForThisDechet = { site: siteTranslated, presta: prestaTranslated };
+		
 		const filtered = rawList.filter(c => {
-			const siteLc = (translated.site.name || '').toLowerCase().trim();
-			const prestaLc = (translated.presta.name || '').toLowerCase().trim();
+			const siteLc = (translatedForThisDechet.site.name || '').toLowerCase().trim();
+			const prestaLc = (translatedForThisDechet.presta.name || '').toLowerCase().trim();
 			const numBonLc = (d?.num_bon || '').toLowerCase().trim();
 			const numBsdLc = (d?.num_bsd || '').toLowerCase().trim();
 			const cedNumbers = (d?.ced || '').replace(/[^\d]/g, '').trim();
@@ -584,16 +609,38 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	return (
 		<>
 			<div className="space-y-4">
-				<div className="rounded border p-3 bg-gray-50">
+				<div className="bg-white rounded-lg border shadow-sm p-3">
 					<div className="flex items-center justify-between">
-					<div className="text-sm text-gray-700">{typeDoc.toUpperCase()} : {pdfInfo.name_pdf}</div>
-						<button onClick={runAutoForAll} disabled={busyAll} className="px-3 py-1 text-sm rounded bg-indigo-600 text-white disabled:opacity-50">Auto-linker tout</button>
+						<div className="flex flex-col">
+							<span className="text-xs font-semibold text-purple-600">Association aux BSD</span>
+							<span className="text-[11px] text-gray-600">{typeDoc.toUpperCase()} · {pdfInfo.name_pdf}</span>
+						</div>
+						<button onClick={runAutoForAll} disabled={busyAll} className="px-3 py-1 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+							Auto-linker tout
+						</button>
 					</div>
 				</div>
 
+				{/* Tableau des déchets */}
+				<div className="bg-white border rounded-lg overflow-hidden">
+					{/* Header sticky */}
+					<div className="sticky top-0 z-10 grid grid-cols-[36px_52px_1.3fr_1.1fr_1.1fr_1fr_90px_100px_1fr_1fr_140px] items-center gap-2 px-3 py-2 text-[11px] font-semibold text-gray-600 bg-gray-50 border-b">
+						<div></div>
+						<div>#</div>
+						<div>Nom déchet</div>
+						<div>Transporteur</div>
+						<div>Destinataire</div>
+						<div>Site</div>
+						<div>CED</div>
+						<div>Date</div>
+						<div>N° Bon</div>
+						<div>N° BSD</div>
+						<div>Actions</div>
+					</div>
+ 
 				{dechets.map((d, idx) => {
-					const ced = d?.ced || '';
 					const nom = d?.nom || '';
+					const ced = d?.ced || '';
 					const date = d?.date || '';
 					const num_bon = d?.num_bon || '';
 					const num_bsd = d?.num_bsd || '';
@@ -601,100 +648,42 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 					const cands = candidatesByIndex[idx] || [];
 					const dechetStatus = getDechetStatus(idx);
 					return (
-						<div key={idx} className="rounded border p-4 bg-gray-200">
-							<div className="flex items-center justify-between">
-								<div onClick={() => openForIndex(idx)} className="cursor-pointer select-none">
-									<div className="flex items-center gap-2">
-										<div className="font-semibold">Déchet N°{idx + 1}</div>
-										{dechetStatus && (
-											<span className={`px-2 py-1 rounded text-xs font-medium ${
-												dechetStatus.status === 'linked' 
-													? 'bg-green-100 text-green-800' 
-												: dechetStatus.status === 'created'
-													? 'bg-blue-100 text-blue-800'
-													: 'bg-yellow-100 text-yellow-800'
-											}`}>{dechetStatus.status === 'linked' ? '🔗 Lié' : dechetStatus.status === 'created' ? '✨ Créé' : '👀 À vérifier'}{dechetStatus.bsd_id ? ` (BSD #${dechetStatus.bsd_id})` : ''}</span>
-										)}
-									</div>
-									<div className="text-sm space-x-2">
-										<span className="px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs">{new Date(date).toLocaleDateString('fr-FR')}</span>
-										<span className="px-2 py-1 rounded bg-gray-100 text-gray-800 text-xs">{translated.site.name}</span>
-										<span className="px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs">{translated.presta.name}</span>
-										<span className="px-2 py-1 rounded bg-green-100 text-green-800 text-xs">{ced}</span>
-										<span className="px-2 py-1 rounded bg-indigo-100 text-indigo-800 text-xs">{nom}</span>
-										<span className="px-2 py-1 rounded bg-purple-100 text-purple-800 text-xs">{d?.tonnage || 'N/A'}</span>
-										<span className="px-2 py-1 rounded bg-orange-100 text-orange-800 text-xs">Bon: {num_bon}</span>
-										<span className="px-2 py-1 rounded bg-red-100 text-red-800 text-xs">BSD: {num_bsd || 'N/A'}</span>
-									</div>
-								</div>
-								<div className="flex gap-2">
-									<button onClick={() => runProposeActionAuto(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-3 py-1 text-sm rounded bg-orange-600 text-white disabled:opacity-50">Propose Action</button>
-									<button onClick={() => doCreate(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-3 py-1 text-sm rounded bg-green-600 text-white disabled:opacity-50">Créer</button>
+						<div key={idx} className="border-b">
+							{/* Row principale en grille */}
+							<div className={`grid grid-cols-[36px_52px_1.3fr_1.1fr_1.1fr_1fr_90px_100px_1fr_1fr_140px] items-center gap-2 px-3 py-2 hover:bg-blue-200 ${openIndex === idx ? 'bg-blue-100 ring-1 ring-blue-300' : 'bg-white'}`}>
+								<button onClick={() => openForIndex(idx)} className="text-gray-500 hover:text-gray-700 text-xs px-1 py-0.5 rounded hover:bg-gray-100" aria-label="toggle">
+									{openIndex === idx ? '▾' : '▸'}
+								</button>
+								<div className="text-xs font-semibold text-gray-700">{idx + 1}</div>
+								<div className="truncate text-[12px] text-gray-800">{nom}</div>
+								<div className="truncate text-[12px] text-gray-700">{/* Transporteur (inconnu côté PDF) */}</div>
+								<div className={`truncate text-[12px] ${prestaTranslatedOk ? 'bg-amber-50 text-amber-800 px-1 py-0.5 rounded' : 'text-gray-700'}`}>{translated.presta.name}</div>
+								<div className={`truncate text-[12px] ${siteTranslatedOk ? 'bg-amber-50 text-amber-800 px-1 py-0.5 rounded' : 'text-gray-700'}`}>{translated.site.name}</div>
+								<div className="text-[12px] text-gray-800">{ced}</div>
+								<div className="text-[12px] text-gray-800">{date ? new Date(date).toLocaleDateString('fr-FR') : ''}</div>
+								<div className="text-[12px] text-gray-800">{num_bon}</div>
+								<div className="text-[12px] text-gray-800 truncate">{num_bsd || ''}</div>
+								<div className="flex items-center gap-2">
+									{dechetStatus && (
+										<span className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${dechetStatus.status === 'linked' ? 'bg-green-50 text-green-700 border border-green-200' : dechetStatus.status === 'created' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-yellow-50 text-yellow-700 border border-yellow-200'}`}>{dechetStatus.status === 'linked' ? '🔗 Lié' : dechetStatus.status === 'created' ? '✨ Créé' : '👀 À vérifier'}</span>
+									)}
+									<button onClick={() => runProposeActionAuto(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-2.5 py-1 text-[11px] rounded-md bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">Proposer</button>
+									<button onClick={() => doCreate(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-2.5 py-1 text-[11px] rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">Créer</button>
 								</div>
 							</div>
-							{autoAllResults[idx] && (
-								<div className="mt-2">
-									<span className={`inline-block px-2 py-1 rounded text-xs font-medium ${autoAllResults[idx]?.action === 'to_link' ? 'bg-green-100 text-green-800' : autoAllResults[idx]?.action === 'to_create' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
-										Auto: {autoAllResults[idx]?.action}
-									</span>
-									{autoAllResults[idx]?.nb_candidats !== undefined && (
-										<span className="ml-2 text-xs text-gray-600">({autoAllResults[idx]?.nb_candidats} candidats)</span>
-									)}
-								</div>
-							)}
 
-
-							{proposeResult && (
-								<div className="mt-2 p-3 bg-orange-50 rounded border">
-									<div className="flex items-center justify-between mb-2">
-										<div className="text-sm font-medium text-orange-600">
-											Propose: {proposeResult.action}
-											{proposeResult.id_candidat ? ` → ${proposeResult.id_candidat}` : ''}
-											<span className="ml-2 text-gray-600">
-												({proposeResult.nb_candidats !== undefined ? proposeResult.nb_candidats : cands.length} candidat{(proposeResult.nb_candidats !== undefined ? proposeResult.nb_candidats : cands.length) !== 1 ? 's' : ''})
-											</span>
-											<span className="ml-2 text-xs text-gray-500">
-												{actionExplanations[proposeResult.action as keyof typeof actionExplanations]}
-											</span>
-										</div>
-										<div className="flex gap-2">
-											<button 
-												onClick={() => setShowRules(!showRules)} 
-												className="px-2 py-1 text-xs rounded bg-gray-200 hover:bg-gray-300"
-											>
-												{showRules ? 'Masquer' : 'Afficher'} règles
-											</button>
-										</div>
-									</div>
-									
-									{proposeResult.action === 'to_link' && proposeResult.id_candidat && (
-										<div className="mb-2">
-											<button onClick={() => doLink(idx, proposeResult.id_candidat!)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-3 py-1 text-sm rounded bg-orange-600 text-white disabled:opacity-50">Lier au BSD suggéré</button>
-										</div>
-									)}
-									
-									{proposeResult.action === 'to_check_by_user' && proposeResult.nb_candidats && (
-										<div className="mb-2">
-											<span className="text-xs text-gray-600">
-												{proposeResult.nb_candidats === 1 
-													? '1 candidat trouvé - vérification recommandée' 
-													: `${proposeResult.nb_candidats} candidats trouvés - choix multiple`}
-											</span>
-										</div>
-									)}
-								</div>
-							)}
+							{/* moved proposition UI into filters bar below */}
 
 							{openIndex === idx && (
 								<div className="mt-0">
 									{!allCandidates && (
-										<div className="text-sm text-gray-600">Préchargement des candidats...</div>
+										<div className="text-sm text-gray-600 px-3 py-2">Préchargement des candidats...</div>
 									)}
 									{allCandidates && (
 									<>
 									{/* Affichage des règles de configuration (conditionnel) */}
 									{showRules && (
-										<div className="mb-4 p-3 bg-blue-50 rounded border">
+										<div className="mx-3 mb-3 p-3 bg-blue-50 rounded border">
 											<div className="text-sm font-semibold mb-2">Règles de configuration :</div>
 											<div className="text-xs space-y-1">
 												<div><strong>to_link :</strong></div>
@@ -712,7 +701,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 														<div key={i} className={`ml-2 text-gray-600 ${isActive ? 'bg-yellow-100 border border-yellow-400 rounded px-1 font-semibold' : ''}`}>
 															#{i + 1}: {enabled.join(', ')}
 															{isActive && <span className="ml-2 text-yellow-800">← utilisée</span>}
-													</div>
+														</div>
 													);
 												})}
 												<div><strong>to_check_by_user :</strong></div>
@@ -730,7 +719,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 														<div key={i} className={`ml-2 text-gray-600 ${isActive ? 'bg-yellow-100 border border-yellow-400 rounded px-1 font-semibold' : ''}`}>
 															#{i + 1}: {enabled.join(', ')}
 															{isActive && <span className="ml-2 text-yellow-800">← utilisée</span>}
-													</div>
+														</div>
 													);
 												})}
 												<div><strong>create :</strong></div>
@@ -748,80 +737,104 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 														<div key={i} className={`ml-2 text-gray-600 ${isActive ? 'bg-yellow-100 border border-yellow-400 rounded px-1 font-semibold' : ''}`}>
 															#{i + 1}: {enabled.join(', ')}
 															{isActive && <span className="ml-2 text-yellow-800">← utilisée</span>}
-													</div>
+														</div>
 													);
 												})}
 											</div>
 										</div>
 									)}
-									<div className="flex flex-wrap items-center gap-4 mb-3 text-sm">
-									<div className="text-sm font-semibold">Candidats {allCandidates ? `(${cands.length})` : '(chargement...)'}</div>
-										<label className="inline-flex items-center gap-2">
-											<input type="checkbox" checked={(filtersByIndex[idx]?.site) ?? true} onChange={() => toggleFilter(idx, 'site')} />
-											<span>Site</span>
-										</label>
-										<label className="inline-flex items-center gap-2">
-											<input type="checkbox" checked={(filtersByIndex[idx]?.presta) ?? true} onChange={() => toggleFilter(idx, 'presta')} />
-											<span>Prestataire</span>
-										</label>
-										<label className="inline-flex items-center gap-2">
-											<input type="checkbox" checked={(filtersByIndex[idx]?.numBon) ?? true} onChange={() => toggleFilter(idx, 'numBon')} />
-											<span>N°Bon</span>
-										</label>
-										<label className="inline-flex items-center gap-2">
-											<input type="checkbox" checked={(filtersByIndex[idx]?.numBsd) ?? true} onChange={() => toggleFilter(idx, 'numBsd')} />
-											<span>N°BSD</span>
-										</label>										
-										<label className="inline-flex items-center gap-2">
-											<input type="checkbox" checked={(filtersByIndex[idx]?.ced) ?? true} onChange={() => toggleFilter(idx, 'ced')} />
-											<span>CED</span>
-										</label>
-										<label className="inline-flex items-center gap-2">
-											<input type="checkbox" checked={(filtersByIndex[idx]?.wasteName) ?? true} onChange={() => toggleFilter(idx, 'wasteName')} />
-											<span>Nom de déchet</span>
-										</label>
-										<label className="inline-flex items-center gap-2">
-											<input type="checkbox" checked={(filtersByIndex[idx]?.date) ?? true} onChange={() => toggleFilter(idx, 'date')} />
-											<span>Date ±</span>
-										</label>
-										<input type="number" className="w-20 px-2 py-1 border rounded" value={daysByIndex[idx] ?? LINK_RULES_DEFAULT.looseDays} onChange={e => onDaysChange(idx, Number(e.target.value))} />
-									</div>
-									<div className="space-y-2">
-										{cands.map(c => (
-											<div key={c.id} className="rounded border p-2 text-sm flex items-center justify-between bg-white">
-																							<div>
-												<div className="font-medium mb-2">{c.readable_id_track_dechets || 'Sans numéro'} <span className="text-gray-500 text-xs">(ID: {c.id})</span></div>
-												<div className="text-sm space-x-2">
-													<span className="px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs">{new Date(c.infos_json?.formAPI?.createFormInput?.takenOverAt || c.created_at).toLocaleDateString('fr-FR')}</span>
-													<span className="px-2 py-1 rounded bg-gray-100 text-gray-800 text-xs">{c.infos_json.formAPI.createFormInput.emitter.company?.name || ''}</span>
-													<span className="px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs">{c.infos_json.formAPI.createFormInput.recipient.company?.name || ''}</span>
-													<span className="px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs">{c.infos_json.formAPI.createFormInput.transporter.company?.name || ''}</span>
-													<span className="px-2 py-1 rounded bg-green-100 text-green-800 text-xs">{c.infos_json.formAPI.createFormInput.wasteDetails.code}</span>
-													<span className="px-2 py-1 rounded bg-indigo-100 text-indigo-800 text-xs">{c.infos_json.formAPI.createFormInput.wasteDetails.name}</span>
-													<span className="px-2 py-1 rounded bg-orange-100 text-orange-800 text-xs">{c.other_infos?.numeroBon || ''}</span>
+										<div className="px-3 py-2">
+											{/* Filtres + Proposition alignés */}
+											<div className="flex items-start justify-between gap-4 text-[12px]">
+												<div className="flex flex-wrap items-center gap-3">
+													<div className="font-semibold">Candidats {`(${cands.length})`} </div>
+													<label className="inline-flex items-center gap-1"><input type="checkbox" checked={(filtersByIndex[idx]?.site) ?? true} onChange={() => toggleFilter(idx, 'site')} /><span>Site</span></label>
+													<label className="inline-flex items-center gap-1"><input type="checkbox" checked={(filtersByIndex[idx]?.presta) ?? true} onChange={() => toggleFilter(idx, 'presta')} /><span>Prestataire</span></label>
+													<label className="inline-flex items-center gap-1"><input type="checkbox" checked={(filtersByIndex[idx]?.numBon) ?? true} onChange={() => toggleFilter(idx, 'numBon')} /><span>N°Bon</span></label>
+													<label className="inline-flex items-center gap-1"><input type="checkbox" checked={(filtersByIndex[idx]?.numBsd) ?? true} onChange={() => toggleFilter(idx, 'numBsd')} /><span>N°BSD</span></label>
+													<label className="inline-flex items-center gap-1"><input type="checkbox" checked={(filtersByIndex[idx]?.ced) ?? true} onChange={() => toggleFilter(idx, 'ced')} /><span>CED</span></label>
+													<label className="inline-flex items-center gap-1"><input type="checkbox" checked={(filtersByIndex[idx]?.wasteName) ?? true} onChange={() => toggleFilter(idx, 'wasteName')} /><span>Nom de déchet</span></label>
+													<label className="inline-flex items-center gap-1"><input type="checkbox" checked={(filtersByIndex[idx]?.date) ?? true} onChange={() => toggleFilter(idx, 'date')} /><span>Date ±</span></label>
+													<input type="number" className="w-20 px-2 py-1 border rounded" value={daysByIndex[idx] ?? LINK_RULES_DEFAULT.looseDays} onChange={e => onDaysChange(idx, Number(e.target.value))} />
+												</div>
+												<div className="flex items-center gap-2">
+													{autoAllResults[idx] && (
+														<span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-medium ${autoAllResults[idx]?.action === 'to_link' ? 'bg-green-50 text-green-700 border border-green-200' : autoAllResults[idx]?.action === 'to_create' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-yellow-50 text-yellow-700 border border-yellow-200'}`}>
+															Auto: {autoAllResults[idx]?.action}{autoAllResults[idx]?.nb_candidats !== undefined ? ` (${autoAllResults[idx]?.nb_candidats})` : ''}
+														</span>
+													)}
+													{proposeResult && (
+														<>
+															<span className="text-[12px] font-semibold text-orange-700">Proposition: {proposeResult.action} ({proposeResult.nb_candidats !== undefined ? proposeResult.nb_candidats : cands.length})</span>
+															{proposeResult.action === 'to_link' && proposeResult.id_candidat && (
+																<button onClick={() => doLink(idx, proposeResult.id_candidat!)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-3 py-1 text-xs rounded-md bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">Lier</button>
+															)}
+															{proposeResult.action === 'to_create' && (
+																<button onClick={() => doCreate(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-3 py-1 text-xs rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">Créer</button>
+															)}
+															<button onClick={() => setShowRules(!showRules)} className="px-2 py-1 text-[11px] rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700">{showRules ? 'Masquer' : 'Afficher'} règles</button>
+														</>
+													)}
 												</div>
 											</div>
-												<div className="flex gap-2">
-													<button onClick={() => doLink(idx, c.id)} disabled={busyIndex === idx} className="px-3 py-1 rounded bg-indigo-600 text-white disabled:opacity-50">Lier</button>
+										</div>
+										
+										{/* Tableau des candidats */}
+										{cands.length > 0 && (
+											<div className="px-3 py-2">
+												<div className="bg-gray-200 rounded-md border border-gray-300">
+													{/* Header du tableau candidats */}
+													<div className="grid grid-cols-[36px_52px_1.3fr_1.1fr_1.1fr_1fr_90px_100px_1fr_1fr_140px] items-center gap-2 px-3 py-1.5 text-[11px] font-semibold text-black bg-gray-300 rounded-t-md border-b border-gray-400">
+														<div></div>
+														<div>#</div>
+														<div>Nom déchet</div>
+														<div>Transporteur</div>
+														<div>Destinataire</div>
+														<div>Site</div>
+														<div>CED</div>
+														<div>Date</div>
+														<div>N° Bon</div>
+														<div>N° BSD</div>
+														<div>Actions</div>
+													</div>
+													
+													{/* Rows des candidats */}
+													{cands.map((c) => (
+														<div key={c.id} className="grid grid-cols-[36px_52px_1.3fr_1.1fr_1.1fr_1fr_90px_100px_1fr_1fr_140px] items-center gap-2 px-3 py-1.5 text-[12px] bg-gray-200 border-b border-gray-300 last:rounded-b-md hover:bg-gray-300">
+															<div></div>
+															<div className="text-black font-mono">{c.id}</div>
+															<div className="truncate text-black font-mono">{c.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || ''}</div>
+															<div className="truncate text-black font-mono">{c.infos_json?.formAPI?.createFormInput?.transporter?.company?.name || ''}</div>
+															<div className="truncate text-black font-mono">{c.infos_json?.formAPI?.createFormInput?.recipient?.company?.name || ''}</div>
+															<div className="truncate text-black font-mono">{c.infos_json?.formAPI?.createFormInput?.emitter?.company?.name || ''}</div>
+															<div className="text-black font-mono">{c.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || ''}</div>
+															<div className="text-black font-mono">{new Date(c.infos_json?.formAPI?.createFormInput?.takenOverAt || c.created_at).toLocaleDateString('fr-FR')}</div>
+															<div className="text-black font-mono">{c.other_infos?.numeroBon || ''}</div>
+															<div className="text-black font-mono">{c.readable_id_track_dechets || ''}</div>
+															<div className="flex items-center justify-end gap-1">
+																<button onClick={() => doLink(idx, c.id)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-2 py-1 text-[11px] rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">Lier</button>
+															</div>
+														</div>
+													))}
 												</div>
 											</div>
-										))}
-									</div>
+										)}
 									</>
 									)}
 								</div>
 							)}
 
-							{actionMsg && <div className="mt-3 text-xs text-gray-700">{actionMsg}</div>}
+							{actionMsg && <div className="px-3 pb-3 text-[12px] text-gray-700">{actionMsg}</div>}
 						</div>
 					);
 				})}
+				</div>
 			</div>
 			{previewModal.open && (
 				<div className="fixed inset-0 z-50">
 					<div className="absolute inset-0 bg-black/40" onClick={() => setPreviewModal({ open: false, index: -1, data: null })} />
 					<div className="absolute inset-0 flex items-center justify-center p-4">
-						<div className="w-full max-w-4xl max-h-[85vh] overflow-auto rounded bg-white shadow-lg">
+						<div className="w-[95vw] max-w-[95vw] h-[95vh] max-h-[95vh] overflow-auto rounded bg-white shadow-lg">
 							<div className="flex items-center justify-between border-b p-3">
 								<div className="font-semibold">Prévisualisation BSD à créer</div>
 								<button onClick={() => setPreviewModal({ open: false, index: -1, data: null })} className="px-2 py-1 text-sm rounded bg-gray-200">Fermer</button>

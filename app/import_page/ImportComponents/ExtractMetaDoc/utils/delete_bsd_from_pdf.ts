@@ -22,7 +22,7 @@ export const handleDeleteMetaDocFromPdf = async (pdf: {
     document_type?: string;
     infos_raw?: Record<string, unknown>;
     bsd_linked?: Array<{ index_dechet: number; bsd_id?: string; status?: 'linked' | 'created' | 'check_by_user' }>;
-}, entrepriseId: string) => {
+}, entrepriseId: string, user_id: string) => {
     if (!entrepriseId || !pdf.bsd_linked || !Array.isArray(pdf.bsd_linked)) {
         console.warn('[handleDeleteMetaDocFromPdf] PDF invalide ou pas de bsd_linked');
         return;
@@ -131,7 +131,7 @@ export const handleDeleteMetaDocFromPdf = async (pdf: {
         // Ne pas supprimer la ligne pdf_infos ici: cela sera géré par onDelete au niveau supérieur
 
         // Invalider le cache
-        await invalidateCache(entrepriseId, null);
+        await invalidateCache(entrepriseId, user_id);
 
     } catch (error) {
         throw error; // Re-throw pour que TableImportedFiles.tsx puisse gérer l'erreur

@@ -139,37 +139,37 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValues, onCh
                 <button
                     type="button"
                     onClick={() => setIsOpen(!isOpen)}
-                    className="w-full p-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-left flex items-center justify-between"
+                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white text-left flex items-center justify-between hover:border-gray-300 transition-colors"
                 >
                     <span className="truncate">{getDisplayText()}</span>
                     <BoxIcon name="bx-chevron-down" size="16" className="text-gray-400" />
                 </button>
                 
                 {isOpen && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
-                        <div className="p-2 border-b border-gray-200">
+                    <div className="absolute z-50 w-full mt-0.5 bg-white border border-gray-200 rounded-md shadow-sm max-h-60 overflow-hidden">
+                        <div className="p-1.5 border-b border-gray-100">
                             <input
                                 type="text"
                                 placeholder="Rechercher..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full p-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 hover:border-gray-300 transition-colors"
                                 onClick={(e) => e.stopPropagation()}
                             />
                         </div>
                         
-                        <div className="p-2 border-b border-gray-200 flex gap-1">
+                        <div className="p-1.5 border-b border-gray-100 flex gap-1">
                             <button
                                 type="button"
                                 onClick={handleSelectAll}
-                                className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                                className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-sm hover:bg-blue-100 transition-colors"
                             >
                                 Tout sélectionner
                             </button>
                             <button
                                 type="button"
                                 onClick={handleClearAll}
-                                className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                                className="text-xs px-2 py-0.5 bg-gray-50 text-gray-600 rounded-sm hover:bg-gray-100 transition-colors"
                             >
                                 Tout effacer
                             </button>
@@ -189,16 +189,16 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValues, onCh
                                     return (
                                         <label
                                             key={value}
-                                            className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                                            className="flex items-center px-2 py-1.5 hover:bg-gray-50 cursor-pointer transition-colors"
                                         >
                                             <input
                                                 type="checkbox"
                                                 checked={isSelected}
                                                 onChange={() => handleToggleOption(value)}
-                                                className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                className="w-3 h-3 text-blue-500 border-gray-200 rounded-sm focus:ring-0.5 focus:ring-blue-300"
                                                 onClick={(e) => e.stopPropagation()}
                                             />
-                                            <span className="ml-2 text-xs text-gray-700 truncate">
+                                            <span className="ml-2 text-xs text-gray-600 truncate">
                                                 {name}
                                             </span>
                                         </label>
@@ -695,61 +695,33 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     }
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto">
-                <div className="p-4">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-bold text-gray-800">
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-sm w-full max-w-6xl max-h-[90vh] overflow-y-auto border border-gray-100">
+                <div className="p-3">
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-xl font-semibold text-gray-700">
                             Traitement des documents PDF
                         </h2>
                         {onClose && (
                             <button
                                 onClick={onClose}
-                                className="text-gray-500 hover:text-gray-700 p-2"
+                                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-sm hover:bg-gray-50 transition-colors"
                             >
-                                <BoxIcon name="x" size="24" />
+                                <BoxIcon name="x" size="20" />
                             </button>
                         )}
                     </div>
 
                     {/* Filtres multiselect en une ligne */}
-                    <div className="mb-4">
-                        <div className="grid grid-cols-5 gap-2">
-                            {/* Filtre alerte.stop */}
-                            <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                    Alerte Stop
-                                </label>
-                                <select
-                                    value={filters.alerteStop === null ? '' : filters.alerteStop.toString()}
-                                    onChange={(e) => setFilters(prev => ({
-                                        ...prev,
-                                        alerteStop: e.target.value === '' ? null : e.target.value === 'true'
-                                    }))}
-                                    className="w-full p-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                >
-                                    <option value="">Tous</option>
-                                    <option value="true">Avec alerte</option>
-                                    <option value="false">Sans alerte</option>
-                                </select>
-                            </div>
-
-                            {/* Filtre providers multiselect */}
+                    <div className="mb-3">
+                        <div className="grid grid-cols-5 gap-1.5">
+                            {/* Filtre statuses multiselect */}
                             <MultiSelect
-                                options={filterOptions.providers}
-                                selectedValues={filters.providers}
-                                onChange={(values) => setFilters(prev => ({ ...prev, providers: values }))}
-                                placeholder="Tous les providers"
-                                label="Providers"
-                            />
-
-                            {/* Filtre sites multiselect */}
-                            <MultiSelect
-                                options={filterOptions.sites}
-                                selectedValues={filters.siteSirets}
-                                onChange={(values) => setFilters(prev => ({ ...prev, siteSirets: values }))}
-                                placeholder="Tous les sites"
-                                label="Sites"
+                                options={filterOptions.statuses}
+                                selectedValues={filters.statuses}
+                                onChange={(values) => setFilters(prev => ({ ...prev, statuses: values }))}
+                                placeholder="Tous les statuts"
+                                label="Statuts"
                             />
 
                             {/* Filtre document_types multiselect */}
@@ -761,37 +733,65 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                 label="Types"
                             />
 
-                            {/* Filtre statuses multiselect */}
+                            {/* Filtre sites multiselect */}
                             <MultiSelect
-                                options={filterOptions.statuses}
-                                selectedValues={filters.statuses}
-                                onChange={(values) => setFilters(prev => ({ ...prev, statuses: values }))}
-                                placeholder="Tous les statuts"
-                                label="Statuts"
+                                options={filterOptions.sites}
+                                selectedValues={filters.siteSirets}
+                                onChange={(values) => setFilters(prev => ({ ...prev, siteSirets: values }))}
+                                placeholder="Tous les sites"
+                                label="Sites"
                             />
+
+                            {/* Filtre providers multiselect */}
+                            <MultiSelect
+                                options={filterOptions.providers}
+                                selectedValues={filters.providers}
+                                onChange={(values) => setFilters(prev => ({ ...prev, providers: values }))}
+                                placeholder="Tous les providers"
+                                label="Providers"
+                            />
+
+                            {/* Filtre alerte.stop */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    Alerte Stop
+                                </label>
+                                <select
+                                    value={filters.alerteStop === null ? '' : filters.alerteStop.toString()}
+                                    onChange={(e) => setFilters(prev => ({
+                                        ...prev,
+                                        alerteStop: e.target.value === '' ? null : e.target.value === 'true'
+                                    }))}
+                                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 hover:border-gray-300 transition-colors"
+                                >
+                                    <option value="">Tous</option>
+                                    <option value="true">Avec alerte</option>
+                                    <option value="false">Sans alerte</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Liste des PDFs */}
-                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                    {/* Tableau des PDFs */}
+                    <div className="bg-white border border-gray-100 rounded-md overflow-hidden">
+                        <div className="bg-gray-50 px-3 py-2 border-b border-gray-100">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-3">
                                     <input
                                         type="checkbox"
                                         checked={selectedPdfIds.length === filteredPdfs.length && filteredPdfs.length > 0}
                                         onChange={handleSelectAll}
-                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                        className="h-3.5 w-3.5 text-blue-500 focus:ring-0.5 focus:ring-blue-300 border-gray-200 rounded-sm"
                                     />
-                                    <span className="font-medium text-gray-700">Sélectionner tous</span>
+                                    <span className="font-medium text-gray-600 text-sm">Sélectionner tous</span>
                                 </div>
-                                <span className="text-sm text-gray-500">
+                                <span className="text-xs text-gray-400">
                                     {filteredPdfs.length} document{filteredPdfs.length > 1 ? 's' : ''}
                                 </span>
                             </div>
                         </div>
 
-                        <div className="max-h-[200px] overflow-y-auto">
+                        <div className="max-h-[300px] overflow-y-auto">
                             {filteredPdfs.length === 0 ? (
                                 <div className="p-8 text-center text-gray-500">
                                     <BoxIcon name="bx-file" size="48" className="mx-auto mb-4 text-gray-300" />
@@ -799,102 +799,148 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     <p className="text-sm">Aucun PDF ne correspond aux critères de filtrage sélectionnés</p>
                                 </div>
                             ) : (
-                                filteredPdfs.map((pdf) => (
-                                    <div
-                                        key={pdf.id}
-                                        className="flex items-center space-x-3 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedPdfIds.includes(pdf.id)}
-                                            onChange={() => handleSelectPdf(pdf.id)}
-                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mb-1"
-                                        />
-                                        
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center space-x-2 mb-1">
-                                                <span className="font-medium text-gray-900 truncate text-sm">
-                                                    {pdf.name_pdf || 'Document sans nom'}
-                                                </span>
-                                                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                                                    {filterOptions.documentTypes.find(t => t.value === pdf.document_type)?.label || pdf.document_type || 'Inconnu'}
-                                                </span>
-                                                <span className={`text-xs px-2 py-1 rounded ${
-                                                    pdf.status === 'processed' || pdf.status === 'extracted' ? 'bg-green-100 text-green-800' :
-                                                    pdf.status === 'error' ? 'bg-red-100 text-red-800' :
-                                                    pdf.status === 'splitted' || pdf.status === 'splitted_extracted' ? 'bg-blue-100 text-blue-800' :
-                                                    'bg-yellow-100 text-yellow-800'
-                                                }`}>
-                                                    {filterOptions.statuses.find(s => s.value === pdf.status)?.label || pdf.status}
-                                                </span>
-
-                                                <span className="flex items-center space-x-4 text-sm text-gray-500">
-                                                    <span>{new Date(pdf.created_at).toLocaleDateString()}</span>
-                                                    {pdf.alerte && typeof pdf.alerte === 'object' && 'stop' in pdf.alerte && pdf.alerte.stop === true && (
-                                                        <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
-                                                            ⚠️ Alerte stop
-                                                        </span>
-                                                    )}
-                                                </span>                                                
-                                            </div>
-                                            
-
-                                            
-                                            {pdf.site_siret_plus && pdf.site_siret_plus.length > 0 && (
-                                                <div className="flex items-center space-x-2 mt-1 hidden">
-                                                    <span className="text-xs text-gray-400">📍 Sites:</span>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {pdf.site_siret_plus.map((siret, index) => (
-                                                            <span
-                                                                key={index}
-                                                                className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded"
-                                                                title={getSiteName(siret)}
-                                                            >
-                                                                {getSiteName(siret)}
-                                                            </span>
-                                                        ))}
+                                <table className="w-full">
+                                    <thead className="bg-gray-50 border-b border-gray-100">
+                                        <tr>
+                                            <th className="px-3 py-2 text-left">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedPdfIds.length === filteredPdfs.length && filteredPdfs.length > 0}
+                                                    onChange={handleSelectAll}
+                                                    className="h-3.5 w-3.5 text-blue-500 focus:ring-0.5 focus:ring-blue-300 border-gray-200 rounded-sm"
+                                                />
+                                            </th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Nom du document</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Statut</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Type</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Site</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Provider</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Date</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Alerte</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredPdfs.map((pdf) => (
+                                            <tr
+                                                key={pdf.id}
+                                                className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                                            >
+                                                <td className="px-3 py-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedPdfIds.includes(pdf.id)}
+                                                        onChange={() => handleSelectPdf(pdf.id)}
+                                                        className="h-3.5 w-3.5 text-blue-500 focus:ring-0.5 focus:ring-blue-300 border-gray-200 rounded-sm"
+                                                    />
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    <div className="font-medium text-gray-900 text-sm truncate max-w-xs" title={pdf.name_pdf || 'Document sans nom'}>
+                                                        {pdf.name_pdf || 'Document sans nom'}
                                                     </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    <span className={`text-xs px-1.5 py-0.5 rounded-sm ${
+                                                        pdf.status === 'processed' || pdf.status === 'extracted' ? 'bg-green-50 text-green-600' :
+                                                        pdf.status === 'error' ? 'bg-red-50 text-red-600' :
+                                                        pdf.status === 'splitted' || pdf.status === 'splitted_extracted' ? 'bg-blue-50 text-blue-600' :
+                                                        'bg-yellow-50 text-yellow-600'
+                                                    }`}>
+                                                        {filterOptions.statuses.find(s => s.value === pdf.status)?.label || pdf.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm">
+                                                        {filterOptions.documentTypes.find(t => t.value === pdf.document_type)?.label || pdf.document_type || 'Inconnu'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    {pdf.site_siret_plus && pdf.site_siret_plus.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {pdf.site_siret_plus.slice(0, 2).map((siret, index) => (
+                                                                <span
+                                                                    key={index}
+                                                                    className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-sm"
+                                                                    title={getSiteName(siret)}
+                                                                >
+                                                                    {getSiteName(siret).length > 15 ? getSiteName(siret).substring(0, 15) + '...' : getSiteName(siret)}
+                                                                </span>
+                                                            ))}
+                                                            {pdf.site_siret_plus.length > 2 && (
+                                                                <span className="text-xs text-gray-400">
+                                                                    +{pdf.site_siret_plus.length - 2}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    {pdf.provider && typeof pdf.provider === 'object' ? (
+                                                        <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm">
+                                                            {Object.values(pdf.provider).join(' ').length > 20 
+                                                                ? Object.values(pdf.provider).join(' ').substring(0, 20) + '...' 
+                                                                : Object.values(pdf.provider).join(' ')
+                                                            }
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    <span className="text-xs text-gray-500">
+                                                        {new Date(pdf.created_at).toLocaleDateString()}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    {pdf.alerte && typeof pdf.alerte === 'object' && 'stop' in pdf.alerte && pdf.alerte.stop === true ? (
+                                                        <span className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded-sm">
+                                                            ⚠️ Stop
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400">-</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             )}
                         </div>
                     </div>                    
 
                     {/* Résumé et statistiques en grid-2 */}
-                    <div className="grid grid-cols-2 gap-4 mb-4 mt-4">
+                    <div className="grid grid-cols-2 gap-3 mb-3 mt-3">
                         {/* Résumé des paramètres */}
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                            <h3 className="text-sm font-medium text-gray-700 mb-2">Paramètres actifs :</h3>
-                            <div className="text-xs text-gray-600 space-y-1">
-                                <div>• Alerte: {filters.alerteStop === null ? 'Tous' : filters.alerteStop ? 'Avec' : 'Sans'}</div>
-                                <div>• Providers: {filters.providers.length > 0 ? filters.providers.join(', ') : 'Tous'}</div>
-                                <div>• Sites: {filters.siteSirets.length > 0 ? filters.siteSirets.map(siret => getSiteName(siret)).join(', ') : 'Tous'}</div>
-                                <div>• Types: {filters.documentTypes.length > 0 ? filters.documentTypes.map(type => filterOptions.documentTypes.find(t => t.value === type)?.label || type).join(', ') : 'Tous'}</div>
+                        <div className="p-2.5 bg-gray-50 rounded-md">
+                            <h3 className="text-xs font-medium text-gray-600 mb-1.5">Paramètres actifs :</h3>
+                            <div className="text-xs text-gray-500 space-y-0.5">
                                 <div>• Statuts: {filters.statuses.length > 0 ? filters.statuses.map(status => filterOptions.statuses.find(s => s.value === status)?.label || status).join(', ') : 'Tous'}</div>
+                                <div>• Types: {filters.documentTypes.length > 0 ? filters.documentTypes.map(type => filterOptions.documentTypes.find(t => t.value === type)?.label || type).join(', ') : 'Tous'}</div>
+                                <div>• Sites: {filters.siteSirets.length > 0 ? filters.siteSirets.map(siret => getSiteName(siret)).join(', ') : 'Tous'}</div>
+                                <div>• Providers: {filters.providers.length > 0 ? filters.providers.join(', ') : 'Tous'}</div>
+                                <div>• Alerte: {filters.alerteStop === null ? 'Tous' : filters.alerteStop ? 'Avec' : 'Sans'}</div>
                             </div>
                         </div>
 
                         {/* Statistiques et boutons d'action */}
-                        <div className="p-3 bg-blue-50 rounded-lg">
+                        <div className="p-2.5 bg-blue-50 rounded-md">
                             <div className="flex items-center justify-between h-full">
-                                <div className="flex items-center space-x-4">
+                                <div className="flex items-center space-x-3">
                                     <div className="text-center">
-                                        <div className="text-lg font-bold text-blue-600">{filteredPdfs.length}</div>
-                                        <div className="text-xs text-blue-600">PDFs filtrés</div>
+                                        <div className="text-base font-semibold text-blue-500">{filteredPdfs.length}</div>
+                                        <div className="text-xs text-blue-500">PDFs filtrés</div>
                                     </div>
                                     <div className="text-center">
-                                        <div className="text-lg font-bold text-green-600">{selectedPdfIds.length}</div>
-                                        <div className="text-xs text-green-600">Sélectionnés</div>
+                                        <div className="text-base font-semibold text-green-500">{selectedPdfIds.length}</div>
+                                        <div className="text-xs text-green-500">Sélectionnés</div>
                                     </div>
                                 </div>
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center space-x-1.5">
                                 <button
                                         onClick={handleProcessPdfs}
                                         disabled={processing || processingAlertes || selectedPdfIds.length === 0}
-                                        className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
+                                        className="px-3 py-1.5 bg-blue-500 text-white rounded-sm text-xs hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
                                     >
                                         {processing ? (
                                             <>
@@ -911,7 +957,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     <button
                                         onClick={handleCheckAlertes}
                                         disabled={processingAlertes || selectedPdfIds.length === 0}
-                                        className="px-3 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
+                                        className="px-2.5 py-1.5 bg-orange-500 text-white rounded-sm text-xs hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
                                         title="Mettre à jour les notifications après changement dans les cluster parameters"
                                     >
                                         {processingAlertes ? (
@@ -929,7 +975,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     <button
                                         onClick={handleAutoLinkSelected}
                                         disabled={processingAutoLink || processing || processingAlertes || selectedPdfIds.length === 0}
-                                        className="px-3 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
+                                        className="px-2.5 py-1.5 bg-indigo-500 text-white rounded-sm text-xs hover:bg-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
                                         title="Auto-linker les documents sélectionnés"
                                     >
                                         {processingAutoLink ? (
@@ -953,61 +999,61 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
                     {/* Section Review des résultats */}
                     {showReview && processingResults.length > 0 && (
-                        <div className="mt-8 p-6 bg-white rounded-lg shadow-lg border border-gray-200">
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-xl font-bold text-gray-800">
+                        <div className="mt-4 p-4 bg-white rounded-md shadow-sm border border-gray-100">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-semibold text-gray-700">
                                     📊 Résultats du traitement
                                 </h3>
                                 <button
                                     onClick={() => setShowReview(false)}
-                                    className="text-gray-500 hover:text-gray-700 p-2"
+                                    className="text-gray-400 hover:text-gray-600 p-1.5 rounded-sm hover:bg-gray-50 transition-colors"
                                 >
-                                    <BoxIcon name="bx-x" size="20" />
+                                    <BoxIcon name="bx-x" size="18" />
                                 </button>
                             </div>
 
                             {/* Résumé statistiques */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                <div className="bg-blue-50 p-4 rounded-lg text-center">
-                                    <div className="text-2xl font-bold text-blue-600">{processingResults.length}</div>
-                                    <div className="text-sm text-blue-600">Total traité</div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                                <div className="bg-blue-50 p-3 rounded-md text-center">
+                                    <div className="text-lg font-semibold text-blue-500">{processingResults.length}</div>
+                                    <div className="text-xs text-blue-500">Total traité</div>
                                 </div>
-                                <div className="bg-green-50 p-4 rounded-lg text-center">
-                                    <div className="text-2xl font-bold text-green-600">{processingResults.filter(r => r.success).length}</div>
-                                    <div className="text-sm text-green-600">Succès</div>
+                                <div className="bg-green-50 p-3 rounded-md text-center">
+                                    <div className="text-lg font-semibold text-green-500">{processingResults.filter(r => r.success).length}</div>
+                                    <div className="text-xs text-green-500">Succès</div>
                                 </div>
-                                <div className="bg-red-50 p-4 rounded-lg text-center">
-                                    <div className="text-2xl font-bold text-red-600">{processingResults.filter(r => !r.success).length}</div>
-                                    <div className="text-sm text-red-600">Échecs</div>
+                                <div className="bg-red-50 p-3 rounded-md text-center">
+                                    <div className="text-lg font-semibold text-red-500">{processingResults.filter(r => !r.success).length}</div>
+                                    <div className="text-xs text-red-500">Échecs</div>
                                 </div>
-                                <div className="bg-purple-50 p-4 rounded-lg text-center">
-                                    <div className="text-2xl font-bold text-purple-600">{processingResults.filter(r => r.wasSplit).length}</div>
-                                    <div className="text-sm text-purple-600">Divisés</div>
+                                <div className="bg-purple-50 p-3 rounded-md text-center">
+                                    <div className="text-lg font-semibold text-purple-500">{processingResults.filter(r => r.wasSplit).length}</div>
+                                    <div className="text-xs text-purple-500">Divisés</div>
                                 </div>
                             </div>
 
                             {/* Détails des traitements */}
-                            <div className="space-y-3">
-                                <h4 className="font-medium text-gray-700">Détails par document :</h4>
-                                <div className="max-h-96 overflow-y-auto space-y-2">
+                            <div className="space-y-2">
+                                <h4 className="font-medium text-gray-600 text-sm">Détails par document :</h4>
+                                <div className="max-h-80 overflow-y-auto space-y-1.5">
                                     {processingResults.map((result, index) => (
                                         <div
                                             key={index}
-                                            className={`p-4 rounded-lg border ${
+                                            className={`p-3 rounded-md border ${
                                                 result.success
-                                                    ? 'bg-green-50 border-green-200'
-                                                    : 'bg-red-50 border-red-200'
+                                                    ? 'bg-green-50 border-green-100'
+                                                    : 'bg-red-50 border-red-100'
                                             }`}
                                         >
                                             <div className="flex justify-between items-start">
                                                 <div className="flex-1">
-                                                    <div className="font-medium text-sm mb-2">{result.originalPdfName}</div>
+                                                    <div className="font-medium text-xs mb-1.5">{result.originalPdfName}</div>
                                                     {result.error && (
-                                                        <div className="text-xs text-red-600 mb-2">{result.error}</div>
+                                                        <div className="text-xs text-red-500 mb-1.5">{result.error}</div>
                                                     )}
                                                     {/* Liste des déchets auto-linkés */}
                                                     {Array.isArray(result.autoLinkDetails) && result.autoLinkDetails.length > 0 ? (
-                                                        <ul className="space-y-1">
+                                                        <ul className="space-y-0.5">
                                                             {result.autoLinkDetails.map((item, i) => {
                                                                 const label = item.performed === 'linked' ? 'Lié au BSD'
                                                                     : item.performed === 'created' ? 'BSD créé'
@@ -1017,41 +1063,41 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                                     : item.performed === 'created' ? '✨'
                                                                     : item.performed === 'to_check_by_user' ? '👀'
                                                                     : '⏭️';
-                                                                const badgeClass = item.performed === 'linked' ? 'bg-green-100 text-green-800'
-                                                                    : item.performed === 'created' ? 'bg-blue-100 text-blue-800'
-                                                                    : item.performed === 'to_check_by_user' ? 'bg-yellow-100 text-yellow-800'
-                                                                    : 'bg-gray-100 text-gray-800';
+                                                                const badgeClass = item.performed === 'linked' ? 'bg-green-50 text-green-600'
+                                                                    : item.performed === 'created' ? 'bg-blue-50 text-blue-600'
+                                                                    : item.performed === 'to_check_by_user' ? 'bg-yellow-50 text-yellow-600'
+                                                                    : 'bg-gray-50 text-gray-600';
                                                                 return (
-                                                                    <li key={i} className="flex items-center justify-between text-sm">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span className="text-gray-500">Déchet #{item.index + 1}</span>
-                                                                            <span className={`px-2 py-0.5 rounded text-xs ${badgeClass}`}>
+                                                                    <li key={i} className="flex items-center justify-between text-xs">
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <span className="text-gray-400">Déchet #{item.index + 1}</span>
+                                                                            <span className={`px-1.5 py-0.5 rounded-sm text-xs ${badgeClass}`}>
                                                                                 {icon} {label}
                                                                             </span>
                                                                         </div>
                                                                         {item.bsd_id && (
-                                                                            <span className="text-xs text-gray-500">BSD: {item.bsd_id}</span>
+                                                                            <span className="text-xs text-gray-400">BSD: {item.bsd_id}</span>
                                                                         )}
                                                                     </li>
                                                                 );
                                                             })}
                                                         </ul>
                                                     ) : (
-                                                        <div className="text-sm text-gray-600">{result.message}</div>
+                                                        <div className="text-xs text-gray-500">{result.message}</div>
                                                     )}
                                                 </div>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-1.5">
                                                     {result.success && (
-                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                        <span className={`px-1.5 py-0.5 rounded-sm text-xs font-medium ${
                                                             result.wasSplit
-                                                                ? 'bg-purple-100 text-purple-800'
-                                                                : 'bg-green-100 text-green-800'
+                                                                ? 'bg-purple-50 text-purple-600'
+                                                                : 'bg-green-50 text-green-600'
                                                         }`}>
                                                             {result.wasSplit ? 'Divisé' : 'Succès'}
                                                         </span>
                                                     )}
                                                     {!result.success && (
-                                                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                        <span className="px-1.5 py-0.5 rounded-sm text-xs font-medium bg-red-50 text-red-600">
                                                             Échec
                                                         </span>
                                                     )}

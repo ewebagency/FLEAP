@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSession } from "@/app/component/SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
 import PdfDisplayer from '@/app/interface_admin_2/InterfaceAdmin2/PdfDisplayer';
@@ -71,11 +71,6 @@ interface DechetFactureInterface extends DechetBsdInterface {
     facture: FactureInterface;
 }
 
-interface DocBonInterface extends DocMetaInterface {
-    type_doc: "bon";
-    dechet: DechetBonInterface[];
-}
-
 interface DocBsdInterface extends DocMetaInterface {
     type_doc: "bsd";
     num_bsd?: string; // Ajouté pour correspondre à Python
@@ -106,32 +101,63 @@ interface DocInterface {
 }
 
 interface ExtractDocProps {
-    pdf_id: number;
+    pdf_id: string | number;
     pdf_path: string;
     pdf_status?: string;
 }
 
-const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
+const ExtractDoc = ({ pdf_id, pdf_path }: ExtractDocProps) => {
     const [isOpen, setIsOpen] = useState(false);
-    const { entreprise_id, user_id } = useSession();
+    const { entreprise_id } = useSession();
     const [existingData, setExistingData] = useState<DocInterface | null>(null);
     const [documentType, setDocumentType] = useState<"bon" | "bsd" | "facture" | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [confidenceData, setConfidenceData] = useState<{brute?: number, spec?: number, handwritten?: [number, boolean]} | null>(null);
     const [alerteData, setAlerteData] = useState<{stop?: boolean, message?: string} | null>(null);
 
+    // Clés de persistance
+    const formStorageKey = `extractDoc:form:${String(pdf_id)}`;
+    const pdfUrlStorageKey = `extractDoc:pdfUrl:${pdf_path}`;
 
+    // Sauvegarde automatique du formulaire
+    useEffect(() => {
+        if (!isOpen) return;
+        if (!existingData) return;
+        try {
+            localStorage.setItem(formStorageKey, JSON.stringify(existingData));
+        } catch {
+            // ignore storage errors
+        }
+    }, [existingData, formStorageKey, isOpen]);
+
+    // Restaurer le formulaire depuis localStorage à l'ouverture
+    useEffect(() => {
+        if (!isOpen) return;
+        try {
+            const raw = localStorage.getItem(formStorageKey);
+            if (raw) {
+                const parsed = JSON.parse(raw) as DocInterface;
+                // Contrôles basiques
+                if (parsed && parsed.type_doc && Array.isArray(parsed.dechet)) {
+                    setExistingData(parsed);
+                    setDocumentType(parsed.type_doc);
+                }
+            }
+        } catch {
+            // ignore
+        }
+    }, [isOpen, formStorageKey]);
 
     const loadExistingData = async () => {
         try {
             const { data, error } = await supabase
                 .from('pdf_infos')
                 .select('*')
-                .eq('id', pdf_id.toString())
+                .eq('id', String(pdf_id))
                 .single();
 
             if (error) {
-                if (error.code !== 'PGRST116') {
+                if ((error as { code?: string }).code !== 'PGRST116') {
                     console.error('Error loading existing data:', error);
                 }
                 return;
@@ -162,7 +188,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                 .update({
                     infos_raw: formData
                 })
-                .eq('id', pdf_id.toString())
+                .eq('id', String(pdf_id))
                 .eq('entreprise_id', entreprise_id);
 
             if (error) {
@@ -170,6 +196,12 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                 toast.error('Erreur lors de la sauvegarde');
                 return;
             }
+
+            // Mettre à jour l'état local et persister
+            setExistingData(formData);
+            try {
+                localStorage.setItem(formStorageKey, JSON.stringify(formData));
+            } catch {}
 
             toast.success('Données sauvegardées avec succès');
             setIsOpen(false);
@@ -184,28 +216,38 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
     const OpenExtractModalButton = () => {
         return (
             <button 
-                className="bg-yellow-600 text-xs text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
+                className="bg-yellow-600 text-sm text-white px-4 py-1 w-[75px] rounded-lg hover:bg-yellow-700 transition-colors"
                 onClick={() => {
                     setIsOpen(true);
                     loadExistingData();
                 }}>
-                Extraire le doc
+                Extraire
             </button>
         );
     };
 
-    const DisplayDocPDF = ({ pdf_id, pdf_path }: { pdf_id: number, pdf_path: string }) => {
+    const DisplayDocPDF = ({ pdf_path }: { pdf_path: string }) => {
         const [pdfUrl, setPdfUrl] = useState<string | null>(null);
         const [loading, setLoading] = useState(true);
         const [error, setError] = useState<string | null>(null);
         const [urlCache, setUrlCache] = useState<Record<string, string>>({});
 
-        const getPdfUrl = async () => {
-            // Vérifier le cache d'abord
-            if (urlCache[pdf_path]) {
-                setPdfUrl(urlCache[pdf_path]);
+        const getPdfUrl = useCallback(async () => {
+            // Vérifier sessionStorage en premier (persistance inter-fenêtres)
+            const cachedInSession = sessionStorage.getItem(pdfUrlStorageKey);
+            if (cachedInSession) {
+                setPdfUrl(cachedInSession);
                 setLoading(false);
-                return urlCache[pdf_path];
+                return cachedInSession;
+            }
+
+            // Vérifier le cache d'état local ensuite
+            if (urlCache[pdf_path]) {
+                const cached = urlCache[pdf_path];
+                setPdfUrl(cached);
+                setLoading(false);
+                try { sessionStorage.setItem(pdfUrlStorageKey, cached); } catch {}
+                return cached;
             }
             
             // Éviter les appels multiples si on a déjà une URL
@@ -224,6 +266,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                     setPdfUrl(signedUrl);
                     // Mettre en cache l'URL
                     setUrlCache(prev => ({ ...prev, [pdf_path]: signedUrl }));
+                    try { sessionStorage.setItem(pdfUrlStorageKey, signedUrl); } catch {}
                     return signedUrl;
                 }
                 throw new Error('URL du PDF non trouvée');
@@ -234,7 +277,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
             } finally {
                 setLoading(false);
             }
-        };
+        }, [pdf_path, pdfUrl, urlCache]);
         
         useEffect(() => {
             // Reset les états quand le pdf_path change
@@ -243,19 +286,29 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
             setLoading(true);
             
             if (pdf_path) {
-                getPdfUrl();
+                // Essayer de restaurer depuis sessionStorage immédiatement
+                const existing = sessionStorage.getItem(pdfUrlStorageKey);
+                if (existing) {
+                    setPdfUrl(existing);
+                    setLoading(false);
+                } else {
+                    void getPdfUrl();
+                }
             }
-        }, [pdf_path]);
+        }, [pdf_path, getPdfUrl]);
 
         // Précharger l'URL quand le modal s'ouvre
         useEffect(() => {
-            if (isOpen && pdf_path && !pdfUrl && !urlCache[pdf_path]) {
-                getPdfUrl();
-            } else if (isOpen && pdf_path && urlCache[pdf_path]) {
-                setPdfUrl(urlCache[pdf_path]);
-                setLoading(false);
+            if (isOpen && pdf_path && !pdfUrl) {
+                const existing = sessionStorage.getItem(pdfUrlStorageKey);
+                if (existing) {
+                    setPdfUrl(existing);
+                    setLoading(false);
+                } else {
+                    void getPdfUrl();
+                }
             }
-        }, [isOpen, pdf_path]);
+        }, [pdf_path, pdfUrl, getPdfUrl]);
 
         return (
             <div className="w-full h-full">
@@ -271,7 +324,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                         <div className="text-center">
                             <p className="text-red-600 mb-2">{error}</p>
                             <button 
-                                onClick={getPdfUrl}
+                                onClick={() => { void getPdfUrl(); }}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                             >
                                 Réessayer
@@ -287,6 +340,27 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                 )}
             </div>
         );
+    };
+
+    const isDocInterface = (value: unknown): value is DocInterface => {
+        if (!value || typeof value !== 'object') return false;
+        const v = value as Record<string, unknown>;
+        return typeof v.type_doc === 'string' && Array.isArray(v.dechet) && typeof v.site_raw === 'string' && typeof v.presta_raw === 'string';
+    };
+
+    const applyExtractionToForm = (response: MetaOcrResponse) => {
+        const structured = (response as { structured_response?: unknown }).structured_response;
+        if (isDocInterface(structured)) {
+            setExistingData(structured);
+            setDocumentType(structured.type_doc);
+            try {
+                localStorage.setItem(formStorageKey, JSON.stringify(structured));
+            } catch {}
+        }
+        const conf = (response as { confidence?: { brute?: number, spec?: number, handwritten?: [number, boolean] } }).confidence;
+        if (conf) setConfidenceData(conf);
+        const al = (response as { alerte?: { stop?: boolean, message?: string } }).alerte;
+        if (al) setAlerteData(al);
     };
 
     const FormulaireExtractDoc = ({ onSave }: { onSave: (formData: DocInterface) => Promise<void> }) => {
@@ -321,11 +395,12 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
             }
         });
 
+        // Synchroniser formData avec existingData (extraction ou chargement)
         useEffect(() => {
             if (existingData) {
                 setFormData(existingData);
             }
-        }, [existingData]);
+        }, []);
 
         const handleInputChange = (field: string, value: unknown) => {
             setFormData(prev => ({
@@ -355,16 +430,16 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
 
             // Ajouter les champs spécifiques selon le type
             if (documentType === "bon") {
-                newDechet.num_bon = '';
+                (newDechet as { num_bon: string }).num_bon = '';
             } else if (documentType === "bsd") {
-                newDechet.num_bon = '';
-                newDechet.contenant = '';
-                newDechet.volume_m3 = '';
+                (newDechet as { num_bon: string }).num_bon = '';
+                (newDechet as { contenant: string }).contenant = '';
+                (newDechet as { volume_m3: string }).volume_m3 = '';
             } else if (documentType === "facture") {
-                newDechet.num_bon = '';
-                newDechet.contenant = '';
-                newDechet.volume_m3 = '';
-                newDechet.facture = {
+                (newDechet as { num_bon: string }).num_bon = '';
+                (newDechet as { contenant: string }).contenant = '';
+                (newDechet as { volume_m3: string }).volume_m3 = '';
+                (newDechet as { facture: FactureInterface }).facture = {
                     ligne: [],
                     declassement: ''
                 };
@@ -905,13 +980,14 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                     <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
                         <div className="flex gap-2">
                             <BoutonExtractDoc 
-                                pdfId={pdf_id.toString()}
-                                onExtractSuccess={(pdfId, data) => {
-                                    console.log('Extraction réussie:', data);
-                                    // Ici on pourrait mettre à jour le formulaire avec les données extraites
+                                pdfId={String(pdf_id)}
+                                onExtractSuccess={(pdfId: string, data: MetaOcrResponse) => {
+                                    applyExtractionToForm(data);
+                                    toast.success('Extraction réussie');
                                 }}
-                                onExtractError={(pdfId, error) => {
+                                onExtractError={(pdfId: string, error: unknown) => {
                                     console.error('Erreur extraction:', error);
+                                    toast.error('Erreur extraction');
                                 }}
                             />
                             <BoutonSplitDoc 
@@ -973,7 +1049,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_status }: ExtractDocProps) => {
                     {/* Contenu principal */}
                     <div className="flex h-full p-4 gap-4 pt-16">
                         <div className="w-1/2 h-full">
-                            <DisplayDocPDF pdf_id={pdf_id} pdf_path={pdf_path}/>
+                            <DisplayDocPDF pdf_path={pdf_path}/>
                         </div>
                         <div className="w-1/2 h-full">
                             <FormulaireExtractDoc onSave={handleSave}/>

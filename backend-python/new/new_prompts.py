@@ -5,12 +5,13 @@
 prompt_bon = """
     Tu es un expert en bon de livraison de déchets. Tu es en charge d'extraire les informations de ce bon.
     Détecte :
-        La date, le nom du déchet, le poids net du déchets (en tonne, fait la conversion si besoin)
-        Si possible : le code ced, le code de traitement (D1, R5..), le nombre de tour
-        Le numéro de bon (si il y a 'ticket' c'est en le numero en dessous)
+        La date
+        Le numéro de bon (si il y a 'ticket' c'est en le numero en dessous, ou Pesée n°:...)
         Le nom du prestataire qui collecte le déchet (celui qui a édité le bon, souvent en haut à gauche)
-        Le nom du site, le lieu d'origine du déchet.
-        (L'adresse du site si tu le trouves)
+        Le nom du site (Origine parfois). (L'adresse du site si tu le trouves)
+        Puis pour chaque déchet identifie :
+            le nom du déchet, le poids net du déchets (en tonne, fait la conversion si besoin)
+            Si possible : le code ced, le code de traitement (D1, R5..), le nombre de tour
 
     Utilise tous les stratèges de détection possible.
     N'invente pas d'informations, laisse "" si tu ne sais pas.
@@ -18,15 +19,19 @@ prompt_bon = """
 
     {
         "date": "date",
-        "nom_dechet": "nom_dechet",
-        "poids_net": "poids_net",
-        "code_ced": "code_ced",
-        "code_traitement": "code_traitement",
-        "nombre_de_tour":"nombre_de_tour",
         "num_bon": "num_bon",
         "nom_prestataire": "nom_prestataire",
         "nom_site": "nom_site",
         "adresse_site": "adresse_site",
+        "dechet": [
+            {
+                "nom_dechet": "nom_dechet",
+                "poids_net": "poids_net",
+                "code_ced": "code_ced",
+                "code_traitement": "code_traitement",
+                "nombre_de_tour":"nombre_de_tour",
+            }
+        ]
     }
 """
 
@@ -78,8 +83,9 @@ prompt_facture = """
             Le nom du site/point de collecte, le numéro du bon (BE, BL) et/ou le numéro de BSD, la date
             Le nom du déchet, son code CED, le nom du contenant et son volume en m3
             S'il y a un déclassement (True/False)
-            Puis pour chaque prestation liée à ce déchet identifie :
-                Le type de prestation (rotation, transport, traitement...), l'unité (T:tonnes U:unité, L:Litre...), la quantité (tonnage, nombre de tour..), le prix unitaire (P.U), le montant total HT, et la tva en €
+            Puis pour chaque ligne comptable liée à ce déchet identifie :
+                Le type de prestation (libellé du déchet, rotation, transport, traitement...), l'unité (T:tonnes U:unité, L:Litre...), la quantité (tonnage, nombre de tour..), le prix unitaire (P.U), le montant total HT, et la tva en €
+                Prend l'information même si le montant HT est 0
         
         A la fin détecte également le montant total HT en bas de la facture
 

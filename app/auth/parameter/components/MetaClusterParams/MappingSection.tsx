@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import Select from 'react-select';
-import { MultiValue } from 'react-select';
 import { MappingTypeConfig, MetaValue, RawValue, Mapping } from './mappingConfig';
+import ExtractDoc from '@/app/import_page/ImportComponents/ExtractMetaDoc/components/ExtractDoc';
 
 // Fonction utilitaire pour déterminer le flag selon le type de document
 const getDocumentFlag = (typeDoc: string) => {
@@ -257,15 +257,24 @@ export default function MappingSection({
                                                 );
                                             })()}
                                         </div>
-                                        <button
-                                            onClick={() => onOpenPdf(item)}
-                                            className="text-blue-500 hover:text-blue-700 text-xs"
-                                            title="Ouvrir le PDF"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                            </svg>
-                                        </button>
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => onOpenPdf(item)}
+                                                className="text-blue-500 hover:text-blue-700 text-xs"
+                                                title="Ouvrir le PDF"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                </svg>
+                                            </button>
+                                            {item.pdf_path && (
+                                                <ExtractDoc
+                                                    pdf_id={item.pdfId}
+                                                    pdf_path={item.pdf_path}
+                                                    pdf_status={item.pdf_status}
+                                                />
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -353,3 +362,4 @@ export default function MappingSection({
         </div>
     );
 }
+

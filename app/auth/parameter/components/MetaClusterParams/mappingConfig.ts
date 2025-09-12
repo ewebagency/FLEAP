@@ -90,6 +90,8 @@ export interface RawValue {
     typeDoc: string;
     pdfId: string;
     pdf_id: string;
+    pdf_path?: string; // name_pdf_in_bucket pour ExtractDoc
+    pdf_status?: string; // status pour ExtractDoc
 }
 
 export interface Mapping {

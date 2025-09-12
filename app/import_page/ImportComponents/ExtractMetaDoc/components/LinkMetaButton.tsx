@@ -25,9 +25,9 @@ export default function LinkMetaButton({ pdfId, bsd_linked }: LinkMetaButtonProp
 
 	return (
 		<>
-			<button onClick={() => setOpen(true)} className="px-3 py-1 rounded-lg bg-blue-600 text-white text-sm">
+			<button onClick={() => setOpen(true)} className="px-3 py-1 w-[75px] rounded-lg bg-blue-600 text-white text-sm">
 				<span className="relative inline-flex items-center">
-					Lier le document
+					Lier
 					{hasToCheck && (
 						<span className="absolute -top-2 -right-4 inline-block w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
 					)}
@@ -37,7 +37,7 @@ export default function LinkMetaButton({ pdfId, bsd_linked }: LinkMetaButtonProp
 				<div className="fixed inset-0 z-50">
 					<div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
 					<div className="absolute inset-0 flex items-center justify-center p-4">
-						<div className="w-full max-w-5xl max-h-[85vh] overflow-auto rounded bg-white shadow-lg">
+						<div className="w-full h-[95%] overflow-auto rounded bg-white shadow-lg">
 							<div className="flex items-center justify-between border-b p-3">
 								<div className="font-semibold">Linker les déchets du PDF</div>
 								<button onClick={() => setOpen(false)} className="px-2 py-1 text-sm rounded bg-gray-200">Fermer</button>

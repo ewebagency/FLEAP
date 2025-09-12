@@ -5,7 +5,7 @@ import { splitPdfByPages } from '../utils/split';
 import { getPdfInfoById } from '../utils/bdd';
 
 interface BoutonSplitDocProps {
-    pdfId: number;
+    pdfId: string | number;
     entrepriseId: number;
     onSplitComplete?: (newPdfIds: string[]) => void;
     className?: string;
@@ -26,7 +26,7 @@ export default function BoutonSplitDoc({
 
         try {
             // Récupérer les informations du PDF
-            const { data: pdfInfo, error: pdfError } = await getPdfInfoById(pdfId.toString(), entrepriseId);
+            const { data: pdfInfo, error: pdfError } = await getPdfInfoById(String(pdfId), entrepriseId);
             
             if (pdfError || !pdfInfo) {
                 setMessage('Erreur: Impossible de récupérer les informations du PDF');

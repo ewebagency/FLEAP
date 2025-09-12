@@ -3,14 +3,6 @@ import useSWR from 'swr';
 import { supabase } from '@/app/database/supabaseClient';
 import { MAPPING_CONFIGS, MappingTypeConfig, MetaValue, RawValue, Mapping } from './mappingConfig';
 
-// Fetcher pour SWR
-const fetcher = async (url: string) => {
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error('Erreur lors de la récupération des données');
-    }
-    return response.json();
-};
 
 // Fetcher pour Supabase
 const supabaseFetcher = async (key: string) => {
@@ -39,7 +31,7 @@ const supabaseFetcher = async (key: string) => {
         while (hasMore) {
             const { data, error } = await supabase
                 .from('pdf_infos')
-                .select(`id, infos_raw`)
+                .select(`id, infos_raw, name_pdf_in_bucket, status`)
                 .eq('entreprise_id', entreprise_id)
                 .range(from, from + limit - 1);
 
@@ -121,7 +113,9 @@ const supabaseFetcher = async (key: string) => {
                             nom: rawValue,
                             typeDoc: typeDoc || 'inconnu',
                             pdfId: item.id,
-                            pdf_id: item.id
+                            pdf_id: item.id,
+                            pdf_path: item.name_pdf_in_bucket,
+                            pdf_status: item.status
                         }));
                     })
                     .flat() // Aplatir le tableau de tableaux
@@ -130,7 +124,9 @@ const supabaseFetcher = async (key: string) => {
                         nom: item.nom.trim(),
                         typeDoc: item.typeDoc,
                         pdfId: item.pdfId,
-                        pdf_id: item.pdf_id
+                        pdf_id: item.pdf_id,
+                        pdf_path: item.pdf_path,
+                        pdf_status: item.pdf_status
                     }));
 
                 allRawValues.push(...rawValues);
@@ -175,7 +171,9 @@ const supabaseFetcher = async (key: string) => {
                 nom,
                 typeDoc: dominantType,
                 pdfId: firstValue.pdfId,
-                pdf_id: firstValue.pdf_id
+                pdf_id: firstValue.pdf_id,
+                pdf_path: firstValue.pdf_path,
+                pdf_status: firstValue.pdf_status
             };
         });
 
