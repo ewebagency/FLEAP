@@ -94,7 +94,7 @@ function ResetPasswordContent() {
       setMessage('Mot de passe mis à jour avec succès ! Redirection en cours...');
       // Redirige vers /login après un court délai
       setTimeout(() => {
-        router.push('/login');
+        router.push('/auth/signin');
       }, 1200);
     } catch (_e) {
       setMessageType('error');
