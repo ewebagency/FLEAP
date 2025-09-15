@@ -7,6 +7,24 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
+    // Si l'URL contient un hash Supabase (#access_token=...&refresh_token=...&type=recovery)
+    // on redirige vers /reset_password avec ces paramètres en query
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#')) {
+      const params = new URLSearchParams(hash.slice(1));
+      const access_token = params.get('access_token');
+      const refresh_token = params.get('refresh_token');
+      const type = params.get('type');
+      if (access_token || refresh_token || type) {
+        const qs = new URLSearchParams();
+        if (access_token) qs.set('access_token', access_token);
+        if (refresh_token) qs.set('refresh_token', refresh_token);
+        if (type) qs.set('type', type);
+        router.replace(`/reset_password?${qs.toString()}`);
+        return;
+      }
+    }
+
     router.replace('/auth/signin'); // Redirection vers la nouvelle page
   }, []);
   return (

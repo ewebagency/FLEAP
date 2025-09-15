@@ -1,5 +1,6 @@
 from doctr.io import DocumentFile
 from doctr.models import ocr_predictor
+import torch
 import tempfile
 import os
 import time
@@ -31,6 +32,13 @@ def initialize_model():
             _model = ocr_predictor('db_mobilenet_v3_large', 'crnn_mobilenet_v3_small', pretrained=True, detect_orientation=True)
         else:
             _model = ocr_predictor('db_resnet50', 'crnn_vgg16_bn', pretrained=True, detect_orientation=True)
+        # Inference-only configuration
+        try:
+            _model.eval()
+            for param in _model.parameters():
+                param.requires_grad = False
+        except Exception:
+            pass
         _model_initialized = True
         print("Modèle OCR DocTR initialisé avec succès")
     return _model
@@ -116,19 +124,41 @@ async def ocr_this_pdf_with_doctr(file: UploadFile):
         model = get_model()
         
         # Traitement OCR
-        if USE_PDF_DIRECT:
-            result_model = model(doc)
-        else:
-            result_model = model(numpy_images)
+        with torch.no_grad():
+            if USE_PDF_DIRECT:
+                result_model = model(doc)
+            else:
+                result_model = model(numpy_images)
         
         # Export des résultats
         result = result_model.export()
         
         # Nettoyage mémoire
         if USE_PDF_DIRECT:
-            del doc, result_model
+            try:
+                del doc
+            except Exception:
+                pass
         else:
-            del pages, resized_pages, numpy_images, result_model
+            try:
+                del pages, resized_pages, numpy_images
+            except Exception:
+                pass
+        try:
+            del result_model
+        except Exception:
+            pass
+        # Libérer le buffer du contenu lu
+        try:
+            del contents
+        except Exception:
+            pass
+        # Vider éventuellement le cache GPU si présent
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
         gc.collect()
         
     finally:
@@ -139,5 +169,6 @@ async def ocr_this_pdf_with_doctr(file: UploadFile):
         except PermissionError:
             pass
 
-    return {"text": group_lines(result), "raw_result": result}
+    text_grouped = group_lines(result)
+    return {"text": text_grouped, "raw_result": result}
 

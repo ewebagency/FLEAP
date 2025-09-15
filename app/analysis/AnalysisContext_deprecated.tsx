@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+/*import { createContext, useContext } from "react";
 
 interface MaterialType {
     valueChain: string;
@@ -42,4 +42,4 @@ export const useAnalysisContext = () => {
         throw new Error("useAnalysisContext must be used within an AnalysisProvider");
     }
     return context;
-};
+};*/

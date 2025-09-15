@@ -382,8 +382,8 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
     except json.JSONDecodeError as e:
         return {"error": f"Invalid JSON format: {str(e)}"}
     
-    ############### Détection du type à l'avance ###############
-    raw_text_first, _, _ = await get_raw_text_from_pdf(file, 'inconnu')
+    ############### Extraction initiale + Détection du type ###############
+    raw_text_first, potential_json_from_ocr_first, parse_or_ocr_first = await get_raw_text_from_pdf(file, 'inconnu')
     type_lu = recognize_type_one_page(raw_text_first)["type"]
     
     if type == "inconnu":
@@ -397,26 +397,22 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
             alerte_type = False
     #########################################################
 
-
-    # Reset file position to ensure it can be read properly
-    await file.seek(0)
-    
+    # Deuxième extraction dépendant du type détecté (conservée), mais avec nettoyage renforcé
     try:
-        raw_text, potential_json_from_ocr, parse_or_ocr = await get_raw_text_from_pdf(file, type_lu) #ATTENTION TYPE LU OU NON LU ???
+        # Réinitialiser le fichier pour une nouvelle lecture propre
+        await file.seek(0)
+        raw_text, potential_json_from_ocr, parse_or_ocr = await get_raw_text_from_pdf(file, type_lu)
+
         if voir:
             print( "="*(43),"Données brutes : ", "\n", raw_text, "\n"*4)
 
-        prompt = get_specific_prompt(type_lu, liste_nom_a_eviter_list, parse_or_ocr) #prompt, json_interface
+        prompt = get_specific_prompt(type_lu, liste_nom_a_eviter_list, parse_or_ocr)
+        gemini_response = await extract_gemini(raw_text, prompt)
         
-        #print("="*60,"Prompt : ", prompt, "\n"*2, raw_text, "\n"*2, "="*60)
-        gemini_response = await extract_gemini(raw_text, prompt) #gemini_data = json
-        
-        # Check if Gemini returned an error
         if "error" in gemini_response:
             return {"error": gemini_response["error"]}
         
         gemini_data = json.loads(gemini_response.get("extracted_data", "{}"))
-        
         structured_response = structure(type_lu, gemini_data)
         
         if parse_or_ocr == "ocr":
@@ -425,7 +421,6 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
         else:
             confidence =  { "brute": 100, "spec": 100, "handwritten": [0, False] }
         
-        #print("\n"*4, "RECOGNIZE TYPE \n", "-"*50, recognize_type_one_page(raw_text), "-"*50, "\n"*4)
         alerte = alerte_function(alerte_type, confidence, structured_response, pdfInfos_dict, clusterParams_dict)
 
     except Exception as e:
@@ -452,10 +447,51 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
     try:
         return response_payload
     finally:
+        # Fermer explicitement le fichier uploadé (au plus tôt)
+        try:
+            await file.close()
+        except Exception:
+            pass
+        # Mesure mémoire avant GC
+        memory_before_gc = get_memory_usage()["rss_mb"]
+        # Libérer les grosses variables locales (assignation à None)
+        try:
+            raw_text_first = None
+        except Exception:
+            pass
+        try:
+            potential_json_from_ocr_first = None; parse_or_ocr_first = None
+        except Exception:
+            pass
+        try:
+            raw_text = None; potential_json_from_ocr = None; parse_or_ocr = None
+        except Exception:
+            pass
+        try:
+            gemini_response = None; gemini_data = None; structured_response = None
+        except Exception:
+            pass
+        try:
+            confidence = None; alerte = None; response_payload = None; prompt = None
+        except Exception:
+            pass
+        try:
+            pdfInfos_dict = None; clusterParams_dict = None; liste_nom_a_eviter_list = None
+        except Exception:
+            pass
+        try:
+            type_lu = None; alerte_type = None
+        except Exception:
+            pass
+        try:
+            start = None; dt = None; memory_before = None; memory_after = None; memory_delta = None
+        except Exception:
+            pass
         # Nettoyage mémoire post-traitement
         gc.collect()
         memory_after_gc = get_memory_usage()["rss_mb"]
-        print(f"Mémoire après GC: {memory_after_gc:.1f}MB (libéré ~{max(0.0, memory_after - memory_after_gc):.1f}MB)")
+        freed_gc = max(0.0, memory_before_gc - memory_after_gc)
+        print(f"Mémoire après GC: {memory_after_gc:.1f}MB (libéré ~{freed_gc:.1f}MB)")
 
 #=============================================META OCR - Nouvelle structure Fin=============================================
 

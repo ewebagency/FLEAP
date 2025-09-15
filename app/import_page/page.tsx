@@ -10,9 +10,8 @@ import DownloadFactureForMe from "./FactureImport/DownloadFactureForMe";
 import DownloadFactureLines from "./FactureImport/DownloadFactureLines";
 import { cofounders_user_id } from "../component/SideBar";
 import { useSession } from "@/app/component/SessionProvider";
-import TransferReadableIdButton from "./transferReadableId";
 import ButtonImportExcels from "./ImportExcels/ButtonImportExcels";
-import { ExtractBonProcessor } from "./ImportComponents/JobProcessor";
+import ButtonImportMetaExcel from "./ImportExcels/ImportMetaExcel/ButtonImportMetaExcel";
 import { Toaster } from "react-hot-toast";
 
 const ImportPage = () => {
@@ -33,6 +32,7 @@ const ImportPage = () => {
                     <DownloadFactureForMe/>
                     <DownloadFactureLines/>
                     <ButtonImportExcels/>
+                    <ButtonImportMetaExcel/>
                 </div>
                 }
                 
