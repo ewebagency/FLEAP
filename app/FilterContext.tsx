@@ -195,16 +195,7 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
         setFilieresNom(JSON.parse(savedFilieresNom));
       }
 
-      const savedSites = localStorage.getItem(`sites-${session.entreprise_id}`);
-      if (savedSites) {
-        const savedSiteStates = JSON.parse(savedSites);
-        setSites(prevSites => 
-          prevSites.map(site => ({
-            ...site,
-            checked: savedSiteStates[site.orgId]?.checked ?? false
-          }))
-        );
-      }
+      // Ne pas forcer les états des sites depuis localStorage au démarrage
 
       const savedPointsCollecte = localStorage.getItem(`points_collecte-${session.entreprise_id}`);
       if (savedPointsCollecte) {

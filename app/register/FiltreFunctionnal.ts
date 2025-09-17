@@ -148,6 +148,10 @@ export const filterBSDs = (
     if (!skipSiteFilter) {
         const checkedSites = sites.filter(site => site.checked).map(site => site.orgId);
         //console.log("Sites cochés:", checkedSites);
+        if (checkedSites.length === 0) {
+            // Si aucun site n'est coché, considérer que tous les sites sont sélectionnés par défaut
+            return filtered;
+        }
         if (checkedSites.length >= 0) {
             filtered = filtered.filter(bsd => {
                 const emitterSiret = bsd.infos_json.formAPI.createFormInput.emitter?.company?.siret;

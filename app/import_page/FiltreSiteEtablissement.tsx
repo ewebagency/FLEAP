@@ -1,13 +1,14 @@
 'use client'
+/* eslint-disable react-hooks/exhaustive-deps */
 
 import { useEffect, useState, useRef } from 'react';
-import { useFilterContext, FilterContextType, Site as ContextSite } from '../FilterContext';
+import { useFilterContext, Site as ContextSite } from '../FilterContext';
 import { useModalContextNew } from '../register/RegisterComponents/Modal/ContextModal';
 import { useSession } from '../component/SessionProvider';
 import { supabase } from '../database/supabaseClient';
 import Cookies from 'js-cookie';
 import BoxIcon from '@/app/component/BoxIconWrapper';
-import { RowBSD } from '../register/interface/BSD_Interface';
+// import { RowBSD } from '../register/interface/BSD_Interface';
 import useSWR from 'swr';
 
 interface AdditionalSite {
@@ -87,13 +88,14 @@ const fetcherSites = async (entreprise_id: string) => {
 
 const FiltreSiteEtablissement = () => {
     const [etablissementsWithStatus, setEtablissementsWithStatus] = useState<Etablissement[]>([]);
-    const [error, setError] = useState<string | null>(null);
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const { sites, setSites, toggleSite, siteFilterMode, setSiteFilterMode, selectedSiteId, setSelectedSiteId } = useFilterContext();
     const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState<string>('');
 
+    // Intentionally omitting some deps to avoid resetting checks on every small state change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -107,14 +109,14 @@ const FiltreSiteEtablissement = () => {
         };
     }, []);
 
-    const {modalReload, setFilterPendingBSDs} = useModalContextNew();
+    const { setFilterPendingBSDs } = useModalContextNew();
     const {entreprise_id, user_id} = useSession();
     const [additionnalSites, setAdditionnalSites] = useState<AdditionalSite[]>([]);
     const [isLoadingTrack, setIsLoadingTrack] = useState(false);
-    const [siteGroups, setSiteGroups] = useState<SiteGroup[]>([]);
+    const [, setSiteGroups] = useState<SiteGroup[]>([]);
     const [mappingSite, setMappingSite] = useState<Record<string, string[]>>({});
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
-    const [isFullDataLoaded, setIsFullDataLoaded] = useState(false);
+    const [isFullDataLoaded] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [userSiteAccess, setUserSiteAccess] = useState<string[]>([]);
     const limiteBeforeSearch = 10;
@@ -202,7 +204,7 @@ const FiltreSiteEtablissement = () => {
                 const data = await response.json();
                 //console.log('Webhooks reçus:', data.data?.length || 0);
                 setEtablissementsWithStatus(data.data || []);
-            } catch (err) {
+            } catch {
                 //console.error('Erreur webhook:', err);
             } finally {
                 setIsLoadingTrack(false);
@@ -284,30 +286,12 @@ const FiltreSiteEtablissement = () => {
             );
         }
 
-        const getSavedState = (orgId: string) => {
-            if (window.innerWidth <= 768) {
-                return false;
-            }
-            
-            // Si l'utilisateur a des accès aux sites définis dans Supabase, on les utilise
-            if (userSiteAccess.length > 0) {
-                // Le site "Autres" est toujours accessible
-                if (orgId === '----') {
-                    return savedSiteStates[orgId]?.checked ?? true;
-                }
-                // Pour les autres sites, on vérifie s'ils sont dans la liste des accès
-                const isIncluded = userSiteAccess.includes(orgId);
-                return isIncluded;
-            }
-            
-            // Sinon, on utilise les données du localStorage
-            return savedSiteStates[orgId]?.checked ?? true;
-        };
+        // plus d'état sauvegardé utilisé pour le checked par défaut en mode 'all'
 
         const sites_from_db: ContextSite[] = additionnalSites.map(site => {
             const isChecked = siteFilterMode === 'per_site' 
                 ? (selectedSiteId ? selectedSiteId === site.siret : false)
-                : getSavedState(site.siret);
+                : true;
             return {
                 orgId: site.siret,
                 name: site.name,
@@ -325,7 +309,7 @@ const FiltreSiteEtablissement = () => {
             orgId: '----',
             name: 'Autres',
             givenName: '',
-            checked: siteFilterMode === 'per_site' ? false : getSavedState('----'),
+            checked: siteFilterMode === 'per_site' ? false : true,
             activated: true,
             isTrackDechets: false,
             isInDb: false
@@ -335,7 +319,7 @@ const FiltreSiteEtablissement = () => {
             const vrai_sites: ContextSite[] = etablissementsWithStatus.map((etablissement: Etablissement) => {
                 const isChecked = siteFilterMode === 'per_site'
                     ? (selectedSiteId ? selectedSiteId === etablissement.orgId : false)
-                    : getSavedState(etablissement.orgId);
+                    : true;
                 return {
                     orgId: etablissement.orgId,
                     name: etablissement.name,
@@ -354,7 +338,7 @@ const FiltreSiteEtablissement = () => {
                         ...trackSite,
                         name: dbSite.name,
                         isInDb: true,
-                        checked: savedSiteStates[trackSite.orgId]?.checked ?? trackSite.checked
+                        checked: trackSite.checked
                     };
                 }
                 return trackSite;
@@ -362,17 +346,14 @@ const FiltreSiteEtablissement = () => {
 
             const trackDechetsSirets = new Set(vrai_sites.map(site => site.orgId));
             const uniqueDbSites = sites_from_db.filter(site => !trackDechetsSirets.has(site.orgId))
-                .map(site => {
-                    const isChecked = savedSiteStates[site.orgId]?.checked ?? site.checked;
-                    return {
-                        ...site,
-                        checked: isChecked
-                    };
-                });
+                .map(site => ({
+                    ...site,
+                    checked: site.checked
+                }));
 
             const sitesAutre = {
                 ...sites_autre,
-                checked: siteFilterMode === 'per_site' ? false : (savedSiteStates['----']?.checked ?? sites_autre.checked)
+                checked: siteFilterMode === 'per_site' ? false : sites_autre.checked
             };
 
             let allSites = [...mergedSites, ...uniqueDbSites, sitesAutre];
@@ -393,7 +374,7 @@ const FiltreSiteEtablissement = () => {
                 });
             }
 
-            if (window.innerWidth <= 768) {
+            if (window.innerWidth <= 768 && siteFilterMode === 'per_site') {
                 const firstValidSite = allSites.find(site => site.orgId !== '----' && site.activated);
                 if (firstValidSite) {
                     allSites = allSites.map(site => ({
@@ -418,7 +399,7 @@ const FiltreSiteEtablissement = () => {
 
                 const sitesWithGroups = allSites.map(site => ({
                     ...site,
-                    group: Object.entries(mappingSite).find(([_, sirets]) => sirets.includes(site.orgId))?.[0]
+                    group: Object.entries(mappingSite).find(([, sirets]) => sirets.includes(site.orgId))?.[0]
                 }));
 
                 // Si l'utilisateur a des accès aux sites définis dans Supabase, on s'assure que les groupes sont correctement cochés
@@ -441,17 +422,14 @@ const FiltreSiteEtablissement = () => {
             }
         } else {
             
-            let sitesWithSavedStates = [...sites_from_db, sites_autre].map(site => {
-                const isChecked = siteFilterMode === 'per_site' 
+            let sitesWithSavedStates = [...sites_from_db, sites_autre].map(site => ({
+                ...site,
+                checked: siteFilterMode === 'per_site' 
                     ? (selectedSiteId ? selectedSiteId === site.orgId : false)
-                    : getSavedState(site.orgId);
-                return {
-                    ...site,
-                    checked: isChecked
-                };
-            });
+                    : true
+            }));
 
-            if (window.innerWidth <= 768) {
+            if (window.innerWidth <= 768 && siteFilterMode === 'per_site') {
                 const firstValidSite = sitesWithSavedStates.find(site => site.orgId !== '----' && site.activated);
                 if (firstValidSite) {
                     sitesWithSavedStates = sitesWithSavedStates.map(site => ({
@@ -510,7 +488,7 @@ const FiltreSiteEtablissement = () => {
                     
                     setMappingSite(data.mapping_site);
                 }
-            } catch (error) {
+            } catch {
                 //console.error('[Effect 4] Erreur mapping_site:', error);
             }
         };
@@ -642,6 +620,21 @@ const FiltreSiteEtablissement = () => {
 
             const isExpanded = expandedGroups[groupName];
 
+            // Calcul de l'état tri-state du groupe
+            let groupState: 'all' | 'none' | 'some' = 'none';
+            if (siteFilterMode === 'per_site') {
+                groupState = selectedSiteId && groupSirets.includes(selectedSiteId) ? 'all' : 'none';
+            } else {
+                const checkedCount = sitesInGroup.filter(s => s.checked).length;
+                if (checkedCount === 0) {
+                    groupState = 'none';
+                } else if (checkedCount === sitesInGroup.length) {
+                    groupState = 'all';
+                } else {
+                    groupState = 'some';
+                }
+            }
+
             return (
                 <div key={groupName} className="mb-4">
                     {/* En-tête du groupe avec flèche d'expansion */}
@@ -657,10 +650,15 @@ const FiltreSiteEtablissement = () => {
                         </div>
                         <input
                             type="checkbox"
-                            checked={isGroupChecked(groupName)}
+                            checked={groupState === 'all'}
                             onChange={(e) => handleGroupToggle(groupName, e)}
                             className="form-checkbox h-4 w-4 text-blue-600"
                             onClick={(e) => e.stopPropagation()}
+                            ref={(el) => {
+                                if (el) {
+                                    el.indeterminate = groupState === 'some';
+                                }
+                            }}
                         />
                     </div>
                     {/* Sites du groupe (conditionnellement affichés) */}
@@ -701,15 +699,6 @@ const FiltreSiteEtablissement = () => {
                             if (!site.checked) {
                                 handleSiteToggle(site.orgId);
                             }
-                        }
-                    } else if (window.innerWidth <= 768) {
-                        sites.forEach(s => {
-                            if (s.orgId !== site.orgId && s.checked) {
-                                handleSiteToggle(s.orgId);
-                            }
-                        });
-                        if (!site.checked) {
-                            handleSiteToggle(site.orgId);
                         }
                     } else {
                         handleSiteToggle(site.orgId);
