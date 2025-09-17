@@ -1,8 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MetaExcelData, ExcelRow, ColumnPattern } from './ButtonImportMetaExcel';
 import { formatPattern, getPatternSummary, excelNumberToDate } from './extract_meta_excel';
+import DeriveColumns, { DerivedColumnDef, evaluateFormulaTokens, evaluateConditionTokens } from './DeriveColumns';
+import * as XLSX from 'xlsx';
+import { buildStoredParams, fetchParamsFormats, saveParamsFormat, StoredParamsFormat, adaptStoredToCurrent } from './params_format';
+import { useSession } from '@/app/component/SessionProvider';
+import PreviewImport from '../../ImportComponents/PreviewImport';
+import { RowBSDPreview } from '../ButtonImportExcels';
+import standard_with_classic from '../FormatsExcels/classic';
+import { ExcelData } from '../FormatsExcels/ecobtp';
+import { sendDataToBdd } from '../send_data_to_bdd';
 
 interface MetaExcelProps {
   data: MetaExcelData;
@@ -11,6 +20,7 @@ interface MetaExcelProps {
 }
 
 const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
+  const session = useSession();
   const [selectedPatternIndex, setSelectedPatternIndex] = useState(0);
   const [showAllPatterns, setShowAllPatterns] = useState(false);
   const [mergedPatterns, setMergedPatterns] = useState<number[][]>(data.mergedPatterns || []);
@@ -22,6 +32,7 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
   const [showDiscriminantColumns, setShowDiscriminantColumns] = useState(false);
   const [showColumnStructure, setShowColumnStructure] = useState(true);
   const [showStep2, setShowStep2] = useState(false);
+  const [derivedDefs, setDerivedDefs] = useState<DerivedColumnDef[]>([]);
   const [columnMappings, setColumnMappings] = useState<{[key: string]: string}>({});
   const [clickedColumn, setClickedColumn] = useState<string | null>(null);
   const [displayingMergedPattern, setDisplayingMergedPattern] = useState<{
@@ -30,6 +41,21 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
     count: number;
     indices: number[];
   } | null>(null);
+  const [mappingSearch, setMappingSearch] = useState<string>('');
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const [showHiddenColumnsPanel, setShowHiddenColumnsPanel] = useState<boolean>(false);
+  const [hideMode, setHideMode] = useState<boolean>(false);
+  const [selectedMappingIndex, setSelectedMappingIndex] = useState<number>(-1);
+  const [savedParams, setSavedParams] = useState<StoredParamsFormat[]>([]);
+  const [showSaveParamsModal, setShowSaveParamsModal] = useState<boolean>(false);
+  const [saveParamsName, setSaveParamsName] = useState<string>('');
+  const [saveMode, setSaveMode] = useState<'new' | 'overwrite'>('new');
+  const [overwriteIdx, setOverwriteIdx] = useState<number>(-1);
+  const [showApplyParamsModal, setShowApplyParamsModal] = useState<boolean>(false);
+  const [selectedParamsIdx, setSelectedParamsIdx] = useState<number>(-1);
+  const [showFinalPreview, setShowFinalPreview] = useState<boolean>(false);
+  const [finalPreviewData, setFinalPreviewData] = useState<RowBSDPreview[]>([]);
+  const [isProcessingImport, setIsProcessingImport] = useState<boolean>(false);
 
   // Fonction pour sélectionner un pattern individuel
   const selectPattern = (index: number) => {
@@ -172,8 +198,6 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
     }
   };
 
-  if (!isOpen) return null;
-
   // Recalculer les patterns avec les colonnes exclues
   const recalculatedPatterns = recalculatePatternsWithExcludedColumns();
   
@@ -191,31 +215,6 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
   const currentPattern = recalculatedPatterns[adjustedSelectedIndex];
   const summary = getPatternSummary(visiblePatterns);
 
-  // Fonction pour mapper automatiquement les colonnes
-  const autoMapColumns = () => {
-    const patternToUse = displayingMergedPattern?.pattern || currentPattern.pattern;
-    const columns = Object.keys(patternToUse);
-    const mappings: {[key: string]: string} = {};
-    
-    columns.forEach(columnName => {
-      let bestMatch = '';
-      let bestScore = 0;
-      
-      Object.entries(columnMappingDictionary).forEach(([fieldName, patterns]) => {
-        const score = fuzzyMatch(columnName, patterns);
-        if (score > bestScore && score > 0.3) { // Seuil minimum de 30%
-          bestScore = score;
-          bestMatch = fieldName;
-        }
-      });
-      
-      if (bestMatch) {
-        mappings[columnName] = bestMatch;
-      }
-    });
-    
-    setColumnMappings(mappings);
-  };
 
   // Trouver les patterns qui peuvent être fusionnés automatiquement
   const autoMergeableGroups = groupIdenticalPatterns(recalculatedPatterns);
@@ -245,31 +244,174 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
 
   const cleanupCandidateCount = getCleanupCandidateCount();
 
+  useEffect(() => {
+    const load = async () => {
+      if (!session?.entreprise_id) return;
+      try {
+        const arr = await fetchParamsFormats(session.entreprise_id);
+        setSavedParams(arr);
+      } catch (e) {
+        console.error('load params_format_this error', e);
+      }
+    };
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.entreprise_id, isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSaveCurrentParams = async () => {
+    if (!session?.entreprise_id) return;
+    let finalName = saveParamsName && saveParamsName.trim() ? saveParamsName.trim() : (data.fileName || 'format');
+    if (saveMode === 'overwrite' && overwriteIdx >= 0 && overwriteIdx < savedParams.length) {
+      finalName = savedParams[overwriteIdx].name;
+    }
+    const headerRow = headerPatternIndex !== null ? getHeaderRow(headerPatternIndex) : null;
+    // Capturer le choix d'export courant: pattern sélectionné ou groupe fusionné affiché
+    let selectedExport: { mode: 'single' | 'merged'; patternKeys: string[] } | undefined = undefined;
+    if (displayingMergedPattern) {
+      // merged: utiliser les indices de group, convertir en patternKey via JSON.stringify du pattern original
+      const keys = displayingMergedPattern.indices.map((i) => JSON.stringify(data.patterns[i].pattern));
+      selectedExport = { mode: 'merged', patternKeys: keys };
+    } else {
+      // single: pattern actuellement affiché (après filtrage), basé sur adjustedSelectedIndex -> retrouver l'index original
+      const patternKey = JSON.stringify(currentPattern.pattern);
+      selectedExport = { mode: 'single', patternKeys: [patternKey] };
+    }
+    const stored = buildStoredParams(
+      finalName
+      ,
+      displayingMergedPattern?.pattern || currentPattern.pattern,
+      headerRow,
+      {
+        excludedColumns,
+        hiddenColumns,
+        columnMappings,
+        derivedDefs,
+        selectedExport,
+      }
+    );
+    try {
+      await saveParamsFormat(session.entreprise_id, stored);
+      const arr = await fetchParamsFormats(session.entreprise_id);
+      setSavedParams(arr);
+      setShowSaveParamsModal(false);
+      setSaveParamsName('');
+      setSaveMode('new');
+      setOverwriteIdx(-1);
+    } catch (e) {
+      console.error('save params_format_this error', e);
+    }
+  };
+
+  const handleApplySelectedParams = () => {
+    if (selectedParamsIdx < 0 || selectedParamsIdx >= savedParams.length) return;
+    const chosen = savedParams[selectedParamsIdx];
+    const headerRow = headerPatternIndex !== null ? getHeaderRow(headerPatternIndex) : null;
+    const pattern = displayingMergedPattern?.pattern || currentPattern.pattern;
+    try {
+      const adapted = adaptStoredToCurrent(chosen, pattern, headerRow);
+      setExcludedColumns(adapted.excludedColumns || []);
+      setHiddenColumns(adapted.hiddenColumns || []);
+      setColumnMappings(adapted.columnMappings || ({} as { [key: string]: string }));
+      // Adapted.derivedDefs is typed via helper; ensure array cast
+      const d = adapted.derivedDefs as DerivedColumnDef[];
+      setDerivedDefs(Array.isArray(d) ? d : []);
+      setShowApplyParamsModal(false);
+      setSelectedParamsIdx(-1);
+
+      // Appliquer le choix d'export (pattern/groupe) après mise à jour d'état
+      const selectedExport = chosen.actions?.selectedExport;
+      if (selectedExport) {
+        setTimeout(() => {
+          if (selectedExport.mode === 'merged') {
+            // Retrouver indices par patternKey contre data.patterns
+            const indices = selectedExport.patternKeys
+              .map((k) => data.patterns.findIndex((p) => JSON.stringify(p.pattern) === k))
+              .filter((i) => i >= 0) as number[];
+            if (indices.length > 0) {
+              // Construire mergedPatternData
+              const allRows: ExcelRow[] = [];
+              const allColumns = new Set<string>();
+              indices.forEach((idx) => {
+                const p = data.patterns[idx];
+                allRows.push(...p.rows);
+                Object.keys(p.pattern).forEach((c) => allColumns.add(c));
+              });
+              const mergedPattern: ColumnPattern = {};
+              Array.from(allColumns).forEach((col) => {
+                type ColumnType = ColumnPattern[string];
+                const firstType = indices
+                  .map((i) => data.patterns[i].pattern[col] as ColumnType | undefined)
+                  .find((t) => t !== undefined);
+                mergedPattern[col] = firstType ?? 'text';
+              });
+              setDisplayingMergedPattern({
+                pattern: mergedPattern,
+                rows: allRows,
+                count: allRows.length,
+                indices,
+              });
+            }
+          } else {
+            // single: matcher par clé sur les patterns recalculés (avec exclusions)
+            const recalc = recalculatePatternsWithExcludedColumns();
+            const key = selectedExport.patternKeys[0];
+            const idx = recalc.findIndex((p) => JSON.stringify(p.pattern) === key);
+            if (idx >= 0) {
+              setDisplayingMergedPattern(null);
+              setSelectedPatternIndex(idx);
+            }
+          }
+        }, 0);
+      }
+    } catch (e) {
+      console.error('apply params error', e);
+    }
+  };
+
   // Dictionnaire de mapping des colonnes
-  const columnMappingDictionary = { 
-    numBon: ['numéro bon', 'n° bon', 'bon', 'référence bon', 'bon de collecte', 'bon de pesée'],
-    numFacture: ['numéro facture', 'n° facture', 'facture', 'réf facture'],
-    NumBSD: ['numéro BSD', 'n° bsd', 'bordereau', 'référence bsd', 'BSDD', 'BSDA', 'Bordereau Suivi Déchet'],
-    date: ['date', 'date opération', 'date collecte', 'date facturation', 'date bon', 'date bsd'],
-    nomSite: ['chantier', 'lieu de collecte', 'site', 'nom du site', 'adresse chantier', 'site de production', 'chantier collecte'],
-    adresseSite: ['adresse', 'adresse site', 'adresse chantier', 'lieu', 'localisation', 'emplacement'],
-    nomPointCollecte: ['point de collecte', 'lieu de dépôt', 'zone collecte', 'point d’apport', 'lieu de regroupement'],
-    nomDechet: ['description', 'type de déchet', 'désignation déchet', 'nature déchet', 'code déchet', 'intitulé déchet'],
-    codeCED: ['code CED', 'code déchet', 'code européen déchet', 'code DND', 'code déchets dangereux'],
-    nomTransporteur: ['transporteur', 'nom transporteur', 'entreprise transport', 'prestataire transport', 'collecteur'],
-    nomDestinataire: ['destinataire', 'installation de traitement', 'centre de valorisation', 'site de traitement', 'usine', 'exutoire'],
-    codeDR: ['code DR', 'département réception', 'code département', 'DR', 'région réception'],
-    tonnage: ['poids', 'masse', 'tonnage', 'quantité en tonnes', 'poids total', 'kg', 't'],
-    volume: ['volume', 'm³', 'quantité en volume', 'contenance', 'capacité'],
-    nomContenant: ['contenant', 'type contenant', 'conditionnement', 'emballage', 'type de récipient'],
-    typePrestation: ['prestation', 'service', 'type service', 'nature prestation', 'mode de traitement', 'type opération'],
-    prixUnitaire: ['prix unitaire', 'tarif unitaire', 'PU', 'coût par unité'],
-    MontantHT: ['montant HT', 'total HT', 'montant hors taxe', 'sous-total', 'valeur HT'],
-    unite: ['unité', 'unité de mesure', 'u', 'kg', 'tonne', 'litre', 'm³'],
-    quantiteFacture: ['quantité facturée', 'qté facturée', 'nombre', 'volume facturé', 'poids facturé']
+  const columnMappingDictionary: Record<string, string> = { 
+    numBon: "numeroBon",
+    numFacture: "numeroFacture",
+    NumBSD: "numeroBsd",
+    date: "dateCollecteTransporteur",
+    nomSite: "nomSiteEmetteur",
+    siretSite : "siretEmetteur",
+    nomPointCollecte: "nomPointCollecte",
+    adresseCollecte: "adresseCollecte",
+    nomDechet: "descDechet",
+    codeCED: "codeCed",
+    nomTransporteur: "nomTransporteur",
+    nomDestinataire: "nomInstallationDestination",
+    codeDR: "codeTraitementPrevuInstallationDestination",
+    tonnage: "quantiteEstimeeReelleTransporteur", //"quantiteCollecteTransporteur",
+    volume: "volumeUnitaire",
+    nomContenant: "descContenant",
+    
+    //---- Attention on prend pas dans l'import excel après je crois
+    typePrestation: "typePrestation",
+    prixUnitaire: "prixUnitaire",
+    MontantHT: "MontantHT",
+    unite: "unite",
+    quantiteFacture: "quantiteFacture",
+    //----
+
+    estTrie : "tri",
+    siretTransporteur: "siretTransporteur",
+    recepisseTransporteur: "recepisseTransporteur",
+    siretDestinataire: "siretInstallationDestination",
+    adresseDestinataire: "adresseInstallationDestination",
+    valo1_dest: "valo1_dest",
+    tonnage1_dest: "tonnage1_dest",
+    valo2_dest: "valo2_dest",
+    tonnage2_dest: "tonnage2_dest",
+    valo3_dest: "valo3_dest",
+    tonnage3_dest: "tonnage3_dest",
   };
 
   // Fonction de matching flou simple
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const fuzzyMatch = (text: string, patterns: string[]): number => {
     const normalizedText = text.toLowerCase().trim();
     let bestScore = 0;
@@ -301,26 +443,32 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
   };
 
 
-  // Fonction pour obtenir les suggestions de mapping pour une colonne
-  const getMappingSuggestions = (columnName: string) => {
-    const suggestions: {fieldName: string, score: number}[] = [];
-    
-    Object.entries(columnMappingDictionary).forEach(([fieldName, patterns]) => {
-      const score = fuzzyMatch(columnName, patterns);
-      if (score >= 0.9) { // Seuil élevé de 90% pour les suggestions
-        suggestions.push({fieldName, score});
-      }
-    });
-    
-    return suggestions.sort((a, b) => b.score - a.score);
-  };
 
   // Fonction pour assigner un mapping à une colonne
+  const getCurrentColumnForField = (fieldName: string): string | null => {
+    for (const [col, field] of Object.entries(columnMappings)) {
+      if (field === fieldName) return col;
+    }
+    return null;
+  };
+
   const assignMapping = (columnName: string, fieldName: string) => {
-    setColumnMappings({
-      ...columnMappings,
-      [columnName]: fieldName
-    });
+    const previousColumn = getCurrentColumnForField(fieldName);
+    const newMappings = { ...columnMappings } as { [key: string]: string };
+    
+    // Supprimer le mapping précédent si ce champ était déjà mappé ailleurs
+    if (previousColumn && previousColumn !== columnName) {
+      delete newMappings[previousColumn];
+    }
+    
+    // Supprimer le mapping actuel de cette colonne si elle était mappée
+    if (newMappings[columnName]) {
+      delete newMappings[columnName];
+    }
+    
+    // Assigner le nouveau mapping
+    newMappings[columnName] = fieldName;
+    setColumnMappings(newMappings);
   };
 
   // Fonction pour obtenir le nom d'affichage d'une colonne
@@ -329,6 +477,7 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
   };
 
   // Fonction pour vérifier si un champ est déjà utilisé
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const isFieldUsed = (fieldName: string) => {
     return Object.values(columnMappings).includes(fieldName);
   };
@@ -344,6 +493,41 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
       setClickedColumn(null);
     } else {
       setClickedColumn(columnName);
+      setMappingSearch('');
+      setSelectedMappingIndex(-1);
+      // Focaliser automatiquement la barre de recherche après un court délai
+      setTimeout(() => {
+        const searchInput = document.querySelector('.mapping-search-input') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+        }
+      }, 100);
+    }
+  };
+
+  // Fonction pour gérer les touches du clavier dans le dropdown de mapping
+  const handleMappingKeyDown = (e: React.KeyboardEvent, filteredFields: string[]) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedMappingIndex(prev => 
+        prev < filteredFields.length - 1 ? prev + 1 : 0
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedMappingIndex(prev => 
+        prev > 0 ? prev - 1 : filteredFields.length - 1
+      );
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedMappingIndex >= 0 && selectedMappingIndex < filteredFields.length) {
+        const fieldName = filteredFields[selectedMappingIndex];
+        assignMapping(clickedColumn!, fieldName);
+        setClickedColumn(null);
+        setSelectedMappingIndex(-1);
+      }
+    } else if (e.key === 'Escape') {
+      setClickedColumn(null);
+      setSelectedMappingIndex(-1);
     }
   };
 
@@ -457,7 +641,9 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
   };
 
   const renderDataTable = (rows: ExcelRow[], pattern: ColumnPattern, isMerged: boolean = false, mergedPatternIndices?: number[]) => {
-    const columns = Object.keys(pattern);
+    const baseColumns = Object.keys(pattern).filter((c) => !hiddenColumns.includes(c));
+    const derivedColumnNames = derivedDefs.map((d) => d.name).filter((n) => !hiddenColumns.includes(n));
+    const columns = [...baseColumns, ...derivedColumnNames];
     const headerRow = headerPatternIndex !== null ? getHeaderRow(headerPatternIndex) : null;
     
     return (
@@ -478,19 +664,20 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
                   // Nom d'affichage final (mappé ou original)
                   const finalDisplayName = getColumnDisplayName(displayName);
                   const isMapped = columnMappings[displayName];
-                  const suggestions = showStep2 ? getMappingSuggestions(displayName) : [];
                   
                   return (
                     <th
                       key={columnName}
-                      className="px-2 py-1 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b min-w-[120px] relative"
+                      className={`px-2 py-1 text-left text-xs font-semibold uppercase tracking-wider border-b min-w-[120px] relative ${
+                        isMapped ? 'bg-green-800 text-white' : 'text-gray-700'
+                      }`}
                     >
                       <div 
                         className="flex items-center gap-1 cursor-pointer"
-                        onClick={() => showStep2 && toggleMappingDropdown(displayName)}
+                        onClick={(e) => { if (showStep2) { e.stopPropagation(); toggleMappingDropdown(displayName); } }}
                         title={showStep2 ? "Clic pour voir les suggestions de mapping" : `Colonne: ${columnName}`}
                       >
-                        <span className="text-sm">{getTypeIcon(pattern[columnName])}</span>
+                        <span className="text-sm">{pattern[columnName] ? getTypeIcon(pattern[columnName]) : '🧮'}</span>
                         <span className="truncate font-medium">
                           {finalDisplayName}
                         </span>
@@ -502,57 +689,104 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
                         )}
                         {showStep2 && (
                           <span className="text-xs text-indigo-600" title="Mode mapping actif - Clic pour suggestions">
-                            {suggestions.length > 0 ? '🎯' : '⚪'}
+                            ⚪
                           </span>
                         )}
                       </div>
-                      
-                      {/* Suggestions de mapping - affichées seulement pour la colonne cliquée */}
-                      {showStep2 && clickedColumn === displayName && suggestions.length > 0 && (
-                        <div className="absolute top-full left-0 z-20 mt-1 bg-white border border-gray-300 rounded shadow-lg min-w-[200px]">
-                          <div className="p-2 text-xs text-gray-600 border-b">
-                            Suggestions pour &quot;{displayName}&quot; (≥90%):
-                          </div>
-                          {suggestions.map((suggestion) => (
-                            <button
-                              key={suggestion.fieldName}
-                              onClick={() => {
-                                assignMapping(displayName, suggestion.fieldName);
-                                setClickedColumn(null); // Fermer le dropdown après sélection
-                              }}
-                              disabled={isFieldUsed(suggestion.fieldName) && columnMappings[displayName] !== suggestion.fieldName}
-                              className={`w-full text-left px-2 py-1 text-xs hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed ${
-                                isFieldUsed(suggestion.fieldName) && columnMappings[displayName] !== suggestion.fieldName
-                                  ? 'text-gray-400'
-                                  : 'text-gray-700'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span>{suggestion.fieldName}</span>
-                                <span className="text-xs text-gray-500">
-                                  {Math.round(suggestion.score * 100)}%
-                                </span>
-                              </div>
-                              {isFieldUsed(suggestion.fieldName) && columnMappings[displayName] !== suggestion.fieldName && (
-                                <div className="text-xs text-red-500">Déjà utilisé</div>
-                              )}
-                            </button>
-                          ))}
-                          <div className="border-t p-1">
-                            <button
-                              onClick={() => {
-                                const newMappings = {...columnMappings};
-                                delete newMappings[displayName];
-                                setColumnMappings(newMappings);
-                                setClickedColumn(null); // Fermer le dropdown après suppression
-                              }}
-                              className="w-full text-left px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                            >
-                              🗑️ Supprimer le mapping
-                            </button>
-                          </div>
-                        </div>
+
+                      {/* Masquer cette colonne - visible seulement en mode masquer */}
+                      {hideMode && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!hiddenColumns.includes(columnName)) {
+                              setHiddenColumns([...hiddenColumns, columnName]);
+                            }
+                          }}
+                          className="absolute top-1 right-1 text-[10px] px-1 py-0.5 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                          title="Masquer cette colonne"
+                        >
+                          Masquer
+                        </button>
                       )}
+                      
+                      {/* Menu de mapping - affiché seulement pour la colonne cliquée */}
+                      {showStep2 && clickedColumn === displayName && (() => {
+                        const filteredFields = Object.keys(columnMappingDictionary)
+                          .filter((fieldName) => fieldName.toLowerCase().includes(mappingSearch.toLowerCase()));
+                        
+                        return (
+                          <div 
+                            className="absolute top-full left-0 z-20 mt-1 bg-white border border-gray-300 rounded shadow-lg min-w-[260px]" 
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="p-2 border-b">
+                              <input
+                                type="text"
+                                value={mappingSearch}
+                                onChange={(e) => {
+                                  setMappingSearch(e.target.value);
+                                  setSelectedMappingIndex(-1);
+                                }}
+                                onKeyDown={(e) => handleMappingKeyDown(e, filteredFields)}
+                                placeholder="Rechercher un champ... (↑↓ pour naviguer, Entrée pour sélectionner)"
+                                className="mapping-search-input w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
+                            </div>
+                            <div className="px-2 text-xs text-gray-600">Toutes les colonnes</div>
+                            <div className="max-h-48 overflow-auto">
+                              {filteredFields.map((fieldName, index) => {
+                                const prevCol = Object.entries(columnMappings).find(([, f]) => f === fieldName)?.[0];
+                                const isSame = columnMappings[displayName] === fieldName;
+                                const isSelected = index === selectedMappingIndex;
+                                
+                                return (
+                                  <button
+                                    key={fieldName}
+                                    onClick={() => {
+                                      assignMapping(displayName, fieldName);
+                                      setClickedColumn(null);
+                                    }}
+                                    disabled={isSame}
+                                    className={`w-full text-left px-2 py-1 text-xs transition-colors ${
+                                      isSelected 
+                                        ? 'bg-indigo-100 text-indigo-800' 
+                                        : isSame 
+                                          ? 'text-gray-400 cursor-not-allowed' 
+                                          : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span>{fieldName}</span>
+                                      {prevCol && prevCol !== displayName && (
+                                        <span className="ml-2 text-[10px] text-orange-600">réaffectera depuis «{prevCol}»</span>
+                                      )}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                              {filteredFields.length === 0 && (
+                                <div className="px-2 py-1 text-xs text-gray-500 italic">
+                                  Aucun champ trouvé
+                                </div>
+                              )}
+                            </div>
+                            <div className="border-t p-1">
+                              <button
+                                onClick={() => {
+                                  const newMappings = {...columnMappings};
+                                  delete newMappings[displayName];
+                                  setColumnMappings(newMappings);
+                                  setClickedColumn(null);
+                                }}
+                                className="w-full text-left px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                              >
+                                🗑️ Supprimer le mapping
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </th>
                   );
                 })}
@@ -585,13 +819,78 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
                     <td className="px-2 py-1 text-xs text-gray-600 border-r sticky left-0 bg-white font-medium">
                       {index + 1}
                     </td>
-                    {columns.map((columnName) => (
+                    {columns.map((columnName) => {
+                      const derived = derivedDefs.find((d) => d.name === columnName);
+                      let value: unknown = row[columnName];
+                      let type: string = pattern[columnName] || 'number';
+                      if (derived) {
+                        if (derived.kind === 'formula') {
+                          // Utiliser le même mapping que dans l'étape 3
+                          const headerRow = headerPatternIndex !== null ? getHeaderRow(headerPatternIndex) : null;
+                          const reverseMapping: {[mappedName: string]: string} = {};
+                          Object.keys(pattern).forEach((originalName) => {
+                            // Utiliser le nom de la colonne du header si disponible, sinon le nom original
+                            const displayName = headerRow && headerRow[originalName] 
+                              ? String(headerRow[originalName]) 
+                              : originalName;
+                            
+                            // Nom d'affichage final (mappé ou original)
+                            const mappedName = getColumnDisplayName(displayName);
+                            reverseMapping[mappedName] = originalName;
+                          });
+                          value = evaluateFormulaTokens(derived.tokens, row, reverseMapping);
+                          type = 'number';
+                        } else if (derived.kind === 'condition') {
+                          // Utiliser le même mapping que dans l'étape 3
+                          const headerRow = headerPatternIndex !== null ? getHeaderRow(headerPatternIndex) : null;
+                          const reverseMapping: {[mappedName: string]: string} = {};
+                          Object.keys(pattern).forEach((originalName) => {
+                            const displayName = headerRow && headerRow[originalName] 
+                              ? String(headerRow[originalName]) 
+                              : originalName;
+                            const mappedName = getColumnDisplayName(displayName);
+                            reverseMapping[mappedName] = originalName;
+                          });
+                          const conditionResult = evaluateConditionTokens(derived.conditions, row, reverseMapping);
+                          if (conditionResult) {
+                            if (derived.trueIsIdentity) {
+                              const identityKeyMapped = derived.identityColumn || columnName;
+                              const identityOriginal = reverseMapping[identityKeyMapped] || identityKeyMapped;
+                              value = row[identityOriginal];
+                            } else {
+                              value = derived.trueValue;
+                            }
+                          } else {
+                            value = derived.falseValue;
+                          }
+                          type = 'text';
+                        } else {
+                          // Pour les mappings, résoudre la colonne source via le même reverseMapping que formules/conditions
+                          const headerRow = headerPatternIndex !== null ? getHeaderRow(headerPatternIndex) : null;
+                          const reverseMapping: {[mappedName: string]: string} = {};
+                          Object.keys(pattern).forEach((originalName) => {
+                            const displayName = headerRow && headerRow[originalName]
+                              ? String(headerRow[originalName])
+                              : originalName;
+                            const mappedName = getColumnDisplayName(displayName);
+                            reverseMapping[mappedName] = originalName;
+                            reverseMapping[displayName] = originalName;
+                            reverseMapping[originalName] = originalName;
+                          });
+                          const originalSourceColumn = reverseMapping[derived.sourceColumn] || derived.sourceColumn;
+                          const key = row[originalSourceColumn];
+                          value = key != null ? (derived.map[String(key)] ?? '') : '';
+                          type = 'text';
+                        }
+                      }
+                      return (
                       <td key={columnName} className="px-2 py-1 text-xs max-w-[150px]">
                         <div className="truncate">
-                          {renderCell(row[columnName], pattern[columnName])}
+                            {renderCell(value, type)}
                         </div>
                       </td>
-                    ))}
+                      );
+                    })}
                   </tr>
                 );
               })}
@@ -600,6 +899,325 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
         </div>
       </div>
     );
+  };
+
+  const exportCurrentAsExcel = () => {
+    // Determine data context
+    const pattern = displayingMergedPattern?.pattern || currentPattern.pattern;
+    const rows = displayingMergedPattern?.rows || currentPattern.rows;
+    const baseColumns = Object.keys(pattern).filter((c) => !hiddenColumns.includes(c));
+    const derivedColumnNames = derivedDefs.map(d => d.name).filter(n => !hiddenColumns.includes(n));
+    const allColumns = [...baseColumns, ...derivedColumnNames];
+    const headerRow = headerPatternIndex !== null ? getHeaderRow(headerPatternIndex) : null;
+
+    // Build reverse mapping (mapped header name -> original)
+    const reverseMapping: {[mappedName: string]: string} = {};
+    Object.keys(pattern).forEach((originalName) => {
+      const displayName = headerRow && headerRow[originalName] ? String(headerRow[originalName]) : originalName;
+      const mappedName = getColumnDisplayName(displayName);
+      reverseMapping[mappedName] = originalName;
+      // also include displayName direct
+      reverseMapping[displayName] = originalName;
+    });
+
+    // Build final dataset
+    const dateKeys = new Set<string>(['dateCollecteTransporteur', 'takenOverAt', 'created_at']);
+    const isRealistic = (d: Date) => {
+      const today = new Date();
+      const min = new Date(today);
+      min.setFullYear(today.getFullYear() - 8);
+      const max = new Date(today);
+      max.setMonth(today.getMonth() + 4);
+      return d >= min && d <= max;
+    };
+    const toIsoDateIfNeeded = (key: string, val: unknown): unknown => {
+      if (!dateKeys.has(key) || val == null) return val;
+      // Handle FR-like date strings (DD/MM/YYYY or DD-MM-YYYY)
+      if (typeof val === 'string') {
+        const m = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if (m) {
+          const day = Number(m[1]);
+          const month = Number(m[2]);
+          const year = Number(m[3]);
+          const d = new Date(year, month - 1, day);
+          console.log('[MetaExcel][date-normalize][FR]', { key, input: val, day, month, year, out: isNaN(d.getTime()) ? null : d.toISOString() });
+          if (!isNaN(d.getTime()) && isRealistic(d)) return d; // return Date object
+          return val;
+        }
+      }
+      if (typeof val === 'number') {
+        const d = excelNumberToDate(val);
+        console.log('[MetaExcel][date-normalize][excel-number]', { key, input: val, out: d ? d.toISOString() : null });
+        return d && isRealistic(d) ? d : val; // return Date object
+      }
+      if (typeof val === 'string' && /^\d{4,6}$/.test(val)) {
+        const n = Number(val);
+        const d = excelNumberToDate(n);
+        console.log('[MetaExcel][date-normalize][excel-number-string]', { key, input: val, out: d ? d.toISOString() : null });
+        return d && isRealistic(d) ? d : val;
+      }
+      if (val instanceof Date) {
+        console.log('[MetaExcel][date-normalize][Date]', { key, input: val.toISOString() });
+        if (isNaN(val.getTime()) || !isRealistic(val)) return val;
+        return val; // keep Date
+      }
+      // try parse strings
+      const dt = new Date(String(val));
+      console.log('[MetaExcel][date-normalize][fallback-parse]', { key, input: val, out: isNaN(dt.getTime()) ? null : dt.toISOString() });
+      return isNaN(dt.getTime()) || !isRealistic(dt) ? val : dt; // return Date
+    };
+    const exportRows = rows.map((row) => {
+      const out: Record<string, unknown> = {};
+      allColumns.forEach((colName) => {
+        let value: unknown;
+        let mappedFieldName: string | undefined; // user mapped field key (e.g., nomDechet)
+
+        if (derivedDefs.find(d => d.name === colName)) {
+          const def = derivedDefs.find(d => d.name === colName)!;
+          if (def.kind === 'formula') {
+            value = evaluateFormulaTokens(def.tokens, row, reverseMapping);
+            mappedFieldName = undefined;
+          } else if (def.kind === 'condition') {
+            const cond = evaluateConditionTokens(def.conditions, row, reverseMapping);
+            value = cond ? (def.trueIsIdentity ? row[reverseMapping[def.identityColumn || colName] || (def.identityColumn || colName)] : def.trueValue) : def.falseValue;
+            mappedFieldName = undefined;
+          } else {
+            // mapping type derived: map source raw to selected meta values
+            const originalSourceColumn = Object.entries(columnMappings).find(([, mapped]) => mapped === def.sourceColumn)?.[0] || def.sourceColumn;
+            const key = row[originalSourceColumn];
+            value = key != null ? (def.map[String(key)] ?? '') : '';
+            mappedFieldName = def.name; // treat derived mapping name as field name
+            // Si la source est une colonne de type date et que le nom dérivé n'a pas de mapping, forcer 'date'
+            const isDateSource = pattern[originalSourceColumn] === 'date';
+            if (!(mappedFieldName && mappedFieldName in columnMappingDictionary) && isDateSource) {
+              mappedFieldName = 'date';
+            }
+          }
+        } else {
+          // base column
+          const displayName = headerRow && headerRow[colName] ? String(headerRow[colName]) : colName;
+          const finalDisplayName = getColumnDisplayName(displayName);
+          const original = reverseMapping[finalDisplayName] || reverseMapping[displayName] || colName;
+          value = row[original];
+          mappedFieldName = columnMappings[displayName];
+          // Heuristique: si non mappé et type date, mapper par défaut sur 'date'
+          if (!mappedFieldName && pattern[colName] === 'date') {
+            console.log('[MetaExcel][auto-map-base-date]', { column: colName, displayName, finalDisplayName });
+            mappedFieldName = 'date';
+          }
+        }
+
+        // Compute final column key using dictionary if a mapped field exists
+        let finalKey: string;
+        const displayName = headerRow && headerRow[colName] ? String(headerRow[colName]) : colName;
+        const userMappedField = mappedFieldName || columnMappings[displayName];
+        if (userMappedField && userMappedField in columnMappingDictionary) {
+          finalKey = columnMappingDictionary[userMappedField as string];
+        } else {
+          // fallback to mapped display name
+          finalKey = getColumnDisplayName(displayName);
+        }
+
+        const normalized = toIsoDateIfNeeded(finalKey, value);
+        if (finalKey === 'dateCollecteTransporteur') {
+          console.log('[MetaExcel][preview][date-field]', {
+            finalKey,
+            sourceColumn: colName,
+            mappedFieldName: userMappedField || mappedFieldName,
+            rawValue: value,
+            normalized
+          });
+        }
+        out[finalKey] = normalized;
+      });
+      return out;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Export');
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const fileBase = data?.fileName?.split('.').slice(0, -1).join('.') || 'export';
+    a.download = `${fileBase}_meta_export.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const buildExportRowsForClassic = () => {
+    const pattern = displayingMergedPattern?.pattern || currentPattern.pattern;
+    const rows = displayingMergedPattern?.rows || currentPattern.rows;
+    const baseColumns = Object.keys(pattern).filter((c) => !hiddenColumns.includes(c));
+    const derivedColumnNames = derivedDefs.map(d => d.name).filter(n => !hiddenColumns.includes(n));
+    const allColumns = [...baseColumns, ...derivedColumnNames];
+    const headerRow = headerPatternIndex !== null ? getHeaderRow(headerPatternIndex) : null;
+
+    const reverseMapping: {[mappedName: string]: string} = {};
+    Object.keys(pattern).forEach((originalName) => {
+      const displayName = headerRow && headerRow[originalName] ? String(headerRow[originalName]) : originalName;
+      const mappedName = getColumnDisplayName(displayName);
+      reverseMapping[mappedName] = originalName;
+      reverseMapping[displayName] = originalName;
+    });
+
+    const dateKeys = new Set<string>(['dateCollecteTransporteur', 'takenOverAt', 'created_at']);
+    const isRealistic = (d: Date) => {
+      const today = new Date();
+      const min = new Date(today);
+      min.setFullYear(today.getFullYear() - 8);
+      const max = new Date(today);
+      max.setMonth(today.getMonth() + 4);
+      return d >= min && d <= max;
+    };
+    // IMPORTANT: emit Excel serial numbers for dates to avoid timezone shifts in classic.ts
+    const dateToExcelSerial = (d: Date): number => {
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const epoch = Date.UTC(1900, 0, 1);
+      const dayUtc = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+      const diffDays = Math.round((dayUtc - epoch) / msPerDay);
+      // Excel 1900 leap bug (+1) and observed preview offset (+1) => +2 total already accounted by +2 above.
+      // We add +1 extra to fix consistent -1 day display in preview.
+      return diffDays + 3;
+    };
+
+    const toPreviewDateValue = (key: string, val: unknown): unknown => {
+      if (!dateKeys.has(key) || val == null) return val;
+      if (typeof val === 'string') {
+        const m = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if (m) {
+          const day = Number(m[1]);
+          const month = Number(m[2]);
+          const year = Number(m[3]);
+          const d = new Date(year, month - 1, day);
+          if (!isNaN(d.getTime()) && isRealistic(d)) return dateToExcelSerial(d);
+          return val;
+        }
+      }
+      if (typeof val === 'number') {
+        const d = excelNumberToDate(val);
+        return d && isRealistic(d) ? (typeof val === 'number' ? (val + 1) : val) : val;
+      }
+      if (typeof val === 'string' && /^\d{4,6}$/.test(val)) {
+        const n = Number(val);
+        const d = excelNumberToDate(n);
+        return d && isRealistic(d) ? (n + 1) : val;
+      }
+      if (val instanceof Date) {
+        if (isNaN(val.getTime()) || !isRealistic(val)) return val;
+        return dateToExcelSerial(val);
+      }
+      const dt = new Date(String(val));
+      return isNaN(dt.getTime()) || !isRealistic(dt) ? val : dateToExcelSerial(dt);
+    };
+
+    const exportRows = rows.map((row) => {
+      const out: Record<string, unknown> = {};
+      allColumns.forEach((colName) => {
+        let value: unknown;
+        let mappedFieldName: string | undefined;
+        if (derivedDefs.find(d => d.name === colName)) {
+          const def = derivedDefs.find(d => d.name === colName)!;
+          if (def.kind === 'formula') {
+            value = evaluateFormulaTokens(def.tokens, row, reverseMapping);
+            mappedFieldName = undefined;
+          } else if (def.kind === 'condition') {
+            const cond = evaluateConditionTokens(def.conditions, row, reverseMapping);
+            value = cond ? (def.trueIsIdentity ? row[reverseMapping[def.identityColumn || colName] || (def.identityColumn || colName)] : def.trueValue) : def.falseValue;
+            mappedFieldName = undefined;
+          } else {
+            const originalSourceColumn = Object.entries(columnMappings).find(([, mapped]) => mapped === def.sourceColumn)?.[0] || def.sourceColumn;
+            const key = row[originalSourceColumn];
+            value = key != null ? (def.map[String(key)] ?? '') : '';
+            mappedFieldName = def.name;
+          }
+        } else {
+          const displayName = headerRow && headerRow[colName] ? String(headerRow[colName]) : colName;
+          const finalDisplayName = getColumnDisplayName(displayName);
+          const original = reverseMapping[finalDisplayName] || reverseMapping[displayName] || colName;
+          value = row[original];
+          mappedFieldName = columnMappings[displayName];
+          if (!mappedFieldName && pattern[colName] === 'date') {
+            mappedFieldName = 'date';
+          }
+        }
+
+        let finalKey: string;
+        const displayName = headerRow && headerRow[colName] ? String(headerRow[colName]) : colName;
+        const userMappedField = mappedFieldName || columnMappings[displayName];
+        if (userMappedField && userMappedField in columnMappingDictionary) {
+          finalKey = columnMappingDictionary[userMappedField as string];
+        } else {
+          finalKey = getColumnDisplayName(displayName);
+        }
+
+        const normalized = toPreviewDateValue(finalKey, value);
+        if (finalKey === 'dateCollecteTransporteur') {
+          console.log('[MetaExcel][preview][date-field]', {
+            finalKey,
+            sourceColumn: colName,
+            displayName,
+            mappedFieldName: userMappedField || mappedFieldName,
+            rawValue: value,
+            normalized
+          });
+        }
+        out[finalKey] = normalized;
+      });
+      return out;
+    });
+
+    return exportRows;
+  };
+
+  const handleOpenFinalPreview = async () => {
+    if (!session?.entreprise_id || !session?.user_id) return;
+    const exportRows = buildExportRowsForClassic();
+    const sheetName = data.sheetName || 'Sheet1';
+    const excelData: ExcelData = {
+      nom_fichier: data.fileName,
+      presta: {
+        id: 0,
+        type: 'transporteur',
+        nom: '',
+      },
+      site: {
+        id: 0,
+        nom: '',
+        siret: '',
+        adresseSiege: '',
+        pointsCollecte: [{ nom: '', adresse: '' }],
+      },
+      excel_data: { [sheetName]: exportRows },
+      sheets: [sheetName],
+      nombre_sheets: 1,
+      nombre_lignes_total: exportRows.length,
+      nombre_lignes_par_sheet: { [sheetName]: exportRows.length },
+      date_import: new Date().toISOString(),
+    } as ExcelData;
+
+    try {
+      const preview = await standard_with_classic(excelData, session.user_id, session.entreprise_id);
+      setFinalPreviewData(preview);
+      setShowFinalPreview(true);
+    } catch (e) {
+      console.error('Erreur génération preview import:', e);
+    }
+  };
+
+  const handleConfirmFinalImport = async () => {
+    if (!session?.entreprise_id) return;
+    setIsProcessingImport(true);
+    try {
+      await sendDataToBdd(finalPreviewData as RowBSDPreview[], session.entreprise_id);
+      setShowFinalPreview(false);
+    } catch (e) {
+      console.error('Erreur lors de l\u0027import final:', e);
+    } finally {
+      setIsProcessingImport(false);
+    }
   };
 
   return (
@@ -630,7 +1248,54 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
             <h3 className="text-sm font-medium text-gray-800">
               Patterns détectés ({data.patterns.length})
             </h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative">
+              <button
+                onClick={() => setHideMode(!hideMode)}
+                className={`px-2 py-1 text-sm rounded border ${hideMode ? 'bg-red-100 text-red-800 border-red-200' : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'}`}
+                title="Activer le mode masquage des colonnes"
+              >
+                {hideMode ? 'Masquer colonnes: ON' : 'Masquer colonnes'}
+              </button>
+              {hiddenColumns.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setShowHiddenColumnsPanel(!showHiddenColumnsPanel)}
+                    className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded border border-blue-200 hover:bg-blue-200"
+                    title="Voir les colonnes masquées"
+                  >
+                    Colonnes masquées ({hiddenColumns.length})
+                  </button>
+                  {showHiddenColumnsPanel && (
+                    <div className="absolute right-0 top-full mt-1 w-64 max-h-64 overflow-auto bg-white border border-gray-200 rounded shadow-lg z-20 p-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-gray-700">Colonnes masquées</span>
+                        <button
+                          onClick={() => { setHiddenColumns([]); setShowHiddenColumnsPanel(false); }}
+                          className="text-[11px] px-1 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100"
+                        >
+                          Tout restaurer
+                        </button>
+                      </div>
+                      <div className="space-y-1">
+                        {hiddenColumns.map((col) => (
+                          <div key={col} className="flex items-center justify-between text-xs">
+                            <span className="truncate pr-2" title={col}>{col}</span>
+                            <button
+                              onClick={() => {
+                                setHiddenColumns(hiddenColumns.filter((c) => c !== col));
+                                if (hiddenColumns.length === 1) setShowHiddenColumnsPanel(false);
+                              }}
+                              className="px-1 py-0.5 bg-white text-blue-700 border border-blue-300 rounded hover:bg-blue-50"
+                            >
+                              Restaurer
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <button
                 onClick={() => setShowAllPatterns(!showAllPatterns)}
                 className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
@@ -658,15 +1323,20 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
                 {showColumnStructure ? 'Masquer' : 'Voir'} structure
               </button>
               <button
-                onClick={() => {
-                  setShowStep2(!showStep2);
-                  if (!showStep2) {
-                    autoMapColumns();
-                  }
-                }}
+                onClick={() => setShowStep2(!showStep2)}
                 className="px-3 py-1 text-sm bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200"
               >
                 {showStep2 ? 'Retour étape 1' : 'Étape 2 - Mapping'}
+              </button>
+              <button
+                onClick={() => {
+                  // Toggle d'affichage de l'étape 3 via un léger scroll jusqu'au composant
+                  const el = document.getElementById('derive-columns-panel');
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+                className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+              >
+                Étape 3 - Colonnes dérivées
               </button>
               {cleanupCandidateCount > 0 && (
                 <button
@@ -958,6 +1628,27 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
                     Pattern le plus récurrent
                   </span>
                 )}
+                <button
+                  onClick={exportCurrentAsExcel}
+                  className="text-sm bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                  title="Exporter en Excel avec noms finaux"
+                >
+                  Exporter Excel
+                </button>
+                <button
+                  onClick={() => setShowApplyParamsModal(true)}
+                  className="text-sm bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
+                  title="Appliquer un modèle de paramètres sauvegardé"
+                >
+                  Appliquer params
+                </button>
+                <button
+                  onClick={() => setShowSaveParamsModal(true)}
+                  className="text-sm bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700"
+                  title="Enregistrer les paramètres actuels"
+                >
+                  Enregistrer params
+                </button>
                 {displayingMergedPattern && (
                   <button
                     onClick={() => {
@@ -984,6 +1675,80 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
             ) :
             renderDataTable(currentPattern.rows, currentPattern.pattern)
           }
+        </div>
+
+        {/* Étape 3: Colonnes dérivées */}
+        <div id="derive-columns-panel" className="mt-3">
+          {(() => {
+            const baseColumns = Object.keys(displayingMergedPattern ? displayingMergedPattern.pattern : currentPattern.pattern)
+              .filter((c) => !hiddenColumns.includes(c));
+            
+            // Créer les noms de colonnes mappés pour les formules
+            const headerRow = headerPatternIndex !== null ? getHeaderRow(headerPatternIndex) : null;
+            const mappedColumns = baseColumns.map(columnName => {
+              // Utiliser le nom de la colonne du header si disponible, sinon le nom original
+              const displayName = headerRow && headerRow[columnName] 
+                ? String(headerRow[columnName]) 
+                : columnName;
+              
+              // Nom d'affichage final (mappé ou original)
+              return getColumnDisplayName(displayName);
+            });
+            
+            // Créer le mapping inverse (nom mappé -> nom original)
+            const reverseMapping: {[mappedName: string]: string} = {};
+            baseColumns.forEach((originalName) => {
+              // Inclure le nom d'en-tête si présent
+              const headerRow = headerPatternIndex !== null ? getHeaderRow(headerPatternIndex) : null;
+              const headerName = headerRow && headerRow[originalName]
+                ? String(headerRow[originalName])
+                : originalName;
+
+              // 1) Nom d'en-tête → original
+              reverseMapping[headerName] = originalName;
+              // 2) Nom mappé (à partir du nom d'en-tête) → original
+              const mappedFromHeader = getColumnDisplayName(headerName);
+              reverseMapping[mappedFromHeader] = originalName;
+              // 3) Nom original lui-même → original
+              reverseMapping[originalName] = originalName;
+              // 4) Nom mappé depuis le nom original (fallback) → original
+              const mappedFromOriginal = getColumnDisplayName(originalName);
+              reverseMapping[mappedFromOriginal] = originalName;
+            });
+
+            // Clés standards encore non utilisées (suggestion pour nommer la nouvelle colonne)
+            const allFieldKeys = Object.keys(columnMappingDictionary);
+            const usedFieldKeys = new Set<string>([
+              ...Object.values(columnMappings),
+              ...derivedDefs.map(d => d.name),
+            ].filter(Boolean) as string[]);
+            const unusedFieldKeys = allFieldKeys.filter(k => !usedFieldKeys.has(k));
+
+            return (
+              <DeriveColumns
+                rows={displayingMergedPattern ? displayingMergedPattern.rows : currentPattern.rows}
+                availableColumns={mappedColumns}
+                value={derivedDefs.filter(d => !hiddenColumns.includes(d.name))}
+                onChange={(newDefs) => {
+                  // Filtrer les colonnes dérivées masquées
+                  const filteredDefs = newDefs.filter(d => !hiddenColumns.includes(d.name));
+                  setDerivedDefs(filteredDefs);
+                }}
+                columnMapping={reverseMapping}
+                unusedFieldKeys={unusedFieldKeys}
+              />
+            );
+          })()}
+        </div>
+        {/* Bouton final: Confirmer l’import */}
+        <div className="mt-3 flex justify-end">
+          <button
+            onClick={handleOpenFinalPreview}
+            className="px-3 py-1 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700"
+            title="Construire les lignes standardisées et prévisualiser l’import"
+          >
+            Confirmer l’import
+          </button>
         </div>
         </div>
 
@@ -1021,6 +1786,115 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
         </div>
         </div>
       </div>
+      {/* Modal: Save Params */}
+      {showSaveParamsModal && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowSaveParamsModal(false)}></div>
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-md rounded shadow-md border">
+            <div className="p-3 border-b flex items-center justify-between">
+              <div className="text-sm font-medium">Enregistrer les paramètres</div>
+              <button onClick={() => setShowSaveParamsModal(false)} className="text-gray-500 text-sm">✕</button>
+            </div>
+            <div className="p-3 text-sm space-y-3">
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Choisir une action</div>
+                <div className="flex items-center gap-4">
+                  <label className="inline-flex items-center gap-2">
+                    <input type="radio" checked={saveMode==='new'} onChange={() => { setSaveMode('new'); setOverwriteIdx(-1); }} />
+                    <span>Nouveau</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input type="radio" checked={saveMode==='overwrite'} onChange={() => setSaveMode('overwrite')} />
+                    <span>Remplacer</span>
+                  </label>
+                </div>
+              </div>
+              {saveMode === 'new' ? (
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Nom du modèle</label>
+                  <input
+                    value={saveParamsName}
+                    onChange={(e) => setSaveParamsName(e.target.value)}
+                    placeholder="ex: Format Collecteur X"
+                    className="w-full px-2 py-1 text-sm border rounded"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">Sélectionner un modèle à remplacer</div>
+                  <div className="max-h-44 overflow-auto border rounded">
+                    {savedParams.length === 0 && (
+                      <div className="p-2 text-xs text-gray-500">Aucun modèle existant</div>
+                    )}
+                    {savedParams.map((p, idx) => (
+                      <label key={idx} className="flex items-center gap-2 px-2 py-1 border-b cursor-pointer">
+                        <input
+                          type="radio"
+                          name="overwriteParams"
+                          checked={overwriteIdx === idx}
+                          onChange={() => { setOverwriteIdx(idx); setSaveParamsName(p.name); }}
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate">{p.name}</div>
+                          <div className="text-[11px] text-gray-500">{new Date(p.createdAt).toLocaleString()}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-3 border-t flex justify-end gap-2">
+              <button onClick={() => setShowSaveParamsModal(false)} className="px-3 py-1 text-sm border rounded bg-white hover:bg-gray-50">Annuler</button>
+              <button onClick={handleSaveCurrentParams} disabled={saveMode==='new' && !saveParamsName.trim()} className="px-3 py-1 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed">{saveMode==='new' ? 'Enregistrer' : 'Remplacer'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal: Apply Params */}
+      {showApplyParamsModal && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowApplyParamsModal(false)}></div>
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-md rounded shadow-md border">
+            <div className="p-3 border-b flex items-center justify-between">
+              <div className="text-sm font-medium">Appliquer des paramètres</div>
+              <button onClick={() => setShowApplyParamsModal(false)} className="text-gray-500 text-sm">✕</button>
+            </div>
+            <div className="p-3 text-sm max-h-72 overflow-auto">
+              {savedParams.length === 0 && (
+                <div className="text-xs text-gray-500">Aucun modèle enregistré.</div>
+              )}
+              {savedParams.map((p, idx) => (
+                <label key={idx} className="flex items-center gap-2 px-2 py-1 border-b cursor-pointer">
+                  <input
+                    type="radio"
+                    name="applyParams"
+                    checked={selectedParamsIdx === idx}
+                    onChange={() => setSelectedParamsIdx(idx)}
+                  />
+                  <div className="min-w-0">
+                    <div className="truncate">{p.name}</div>
+                    <div className="text-[11px] text-gray-500">{new Date(p.createdAt).toLocaleString()}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="p-3 border-t flex justify-end gap-2">
+              <button onClick={() => setShowApplyParamsModal(false)} className="px-3 py-1 text-sm border rounded bg-white hover:bg-gray-50">Annuler</button>
+              <button onClick={handleApplySelectedParams} disabled={selectedParamsIdx < 0} className="px-3 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed">Appliquer</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal de prévisualisation finale */}
+      <PreviewImport
+        dataReadyToSend={finalPreviewData}
+        entreprise_id={session?.entreprise_id || ''}
+        isOpen={showFinalPreview}
+        onClose={() => setShowFinalPreview(false)}
+        onConfirm={handleConfirmFinalImport}
+        isLoading={isProcessingImport}
+      />
     </div>
   );
 };

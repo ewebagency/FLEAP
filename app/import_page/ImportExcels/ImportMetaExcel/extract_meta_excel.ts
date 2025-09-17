@@ -250,8 +250,38 @@ export function extractMetaExcel(
     throw new Error('Aucune donnée trouvée dans le fichier Excel');
   }
 
+  // Raccourci: si plus de 400 lignes consécutives sont strictement identiques, on considère qu'on a atteint la fin utile
+  const normalizeRowForKey = (row: ExcelRow): string => {
+    // Clé stable: tri des clés puis stringify des valeurs en string
+    const entries = Object.entries(row)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => [k, String(v ?? '')]);
+    return JSON.stringify(entries);
+  };
+
+  let limitedEnd = excelData.length;
+  {
+    let lastKey = '';
+    let streak = 0;
+    for (let i = 0; i < excelData.length; i++) {
+      const key = normalizeRowForKey(excelData[i]);
+      if (key && key === lastKey) {
+        streak++;
+        if (streak >= 400) {
+          limitedEnd = i - (streak - 1); // coupe juste avant la longue répétition
+          break;
+        }
+      } else {
+        lastKey = key;
+        streak = 1;
+      }
+    }
+  }
+
+  const effectiveData = excelData.slice(0, limitedEnd);
+
   // Filtrer les lignes avec trop de cellules vides (probablement des en-têtes ou lignes vides)
-  const filteredData = excelData.filter(row => {
+  const filteredData = effectiveData.filter(row => {
     const emptyPercentage = getEmptyCellsPercentage(row);
     // Garder seulement les lignes avec moins de 80% de cellules vides
     return emptyPercentage < 80;
@@ -261,7 +291,6 @@ export function extractMetaExcel(
     throw new Error('Aucune ligne valide trouvée (toutes les lignes sont majoritairement vides)');
   }
 
-  console.log(`Filtrage: ${excelData.length} lignes → ${filteredData.length} lignes valides`);
 
   // Créer un pattern pour chaque ligne filtrée
   const rowPatterns: { pattern: ColumnPattern; row: ExcelRow; patternKey: string }[] = [];
