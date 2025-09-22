@@ -368,7 +368,7 @@ async def ocr_density(file: UploadFile):
 
 #Related to import_page/ImportComponents/ExtractMeta/MetaDataInterface.ts
 @app.post("/meta-ocr")
-async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: str = Form("{}"), type: str = Form("inconnu"), liste_nom_a_eviter: str = Form("[]"), voir: bool = Form(False)):
+async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: str = Form("{}"), doc_type: str = Form("inconnu"), liste_nom_a_eviter: str = Form("[]"), voir: bool = Form(False)):
     
     # Nettoyage préventif
     gc.collect()
@@ -386,12 +386,12 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
     raw_text_first, potential_json_from_ocr_first, parse_or_ocr_first = await get_raw_text_from_pdf(file, 'inconnu')
     type_lu = recognize_type_one_page(raw_text_first)["type"]
     
-    if type == "inconnu":
-        #type = detect_type(file)
-        type = "bsd"
+    if doc_type == "inconnu":
+        #doc_type = detect_type(file)
+        doc_type = "bsd"
         alerte_type = False
     else:
-        if type_lu != type:
+        if type_lu != doc_type:
             alerte_type = True
         else:
             alerte_type = False

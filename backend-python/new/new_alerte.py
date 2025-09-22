@@ -1,9 +1,16 @@
 def find(word, mapping):
+    # Vérification de sécurité pour éviter les erreurs NoneType
+    if mapping is None:
+        return None
+    if not isinstance(mapping, dict):
+        return None
+    
     l_meta_nom = mapping.keys()
     for meta_nom in l_meta_nom:
-        for w in mapping[meta_nom]:
-            if word==w: #on pourrait faire correspondance flou là
-                return meta_nom
+        if isinstance(mapping[meta_nom], list):
+            for w in mapping[meta_nom]:
+                if word==w: #on pourrait faire correspondance flou là
+                    return meta_nom
     return None
     
 
@@ -12,6 +19,16 @@ def alerte_function(alerte_type: bool, confidence: dict, structured_response, pd
     TRESH_SPEC = 80
     TRESH_BRUTE_HANDWRITTEN = 70
     TRESH_SPEC_HANDWRITTEN = 70
+
+    # Vérifications de sécurité pour éviter les erreurs NoneType
+    if pdfInfos is None:
+        pdfInfos = {}
+    if clusterParams is None:
+        clusterParams = {}
+    if structured_response is None:
+        structured_response = {}
+    if confidence is None:
+        confidence = {"brute": 0, "spec": 0, "handwritten": [0, False]}
 
     # Accéder aux valeurs du dictionnaire pdfInfos
     site_user = pdfInfos.get('site_siret_plus', [])
@@ -38,13 +55,16 @@ def alerte_function(alerte_type: bool, confidence: dict, structured_response, pd
         stop = True
         message.append("Le type de document n'est pas reconnu comme ce qui a été annoncé par l'utilisateur.")
 
-    if confidence["brute"]<TRESH_BRUTE:
+    if confidence.get("brute", 0) < TRESH_BRUTE:
         stop = True
         message.append("Le document n'est pas suffisament lisible.")
-    if confidence["spec"]<TRESH_SPEC:
+    if confidence.get("spec", 0) < TRESH_SPEC:
         stop = True
         message.append("Le document n'est pas suffisament compréhensible.")
-    if confidence["handwritten"][1]:
+    
+    # Vérification sécurisée pour handwritten
+    handwritten_data = confidence.get("handwritten", [0, False])
+    if isinstance(handwritten_data, list) and len(handwritten_data) > 1 and handwritten_data[1]:
         stop = True
         message.append("Le document contient trop de texte écrit à la main.")
 

@@ -150,8 +150,8 @@ prompts = {
 }
 
 
-def get_specific_prompt(type, liste_nom_a_eviter, parse_or_ocr):
-    specific_main_prompt = prompts[type]
+def get_specific_prompt(doc_type, liste_nom_a_eviter, parse_or_ocr):
+    specific_main_prompt = prompts[doc_type]
     specific_main_prompt += prompt_ne_pas_mettre(liste_nom_a_eviter)
     specific_main_prompt += prompt_parse_ocr(parse_or_ocr)
 
