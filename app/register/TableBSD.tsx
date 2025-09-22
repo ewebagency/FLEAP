@@ -1447,11 +1447,14 @@ const TableBSD = () => {
 
                                         {/* Menu trois points */}
                                         <div className="relative">
-                                            {bsd.other_infos?.numeroBon && (
+                                            {(bsd.other_infos?.numeroBon || bsd.other_infos?.numeroFacture) && (
                                                 <div className="text-gray-600 text-[10px] absolute -top-4 right-2 whitespace-nowrap">
-                                                    {bsd.other_infos.numeroBon}
+                                                    {bsd.other_infos?.numeroBon && bsd.other_infos?.numeroFacture 
+                                                        ? `${bsd.other_infos.numeroBon} - ${bsd.other_infos.numeroFacture}`
+                                                        : bsd.other_infos?.numeroBon || bsd.other_infos?.numeroFacture
+                                                    }
                                                 </div>
-                                            )}                                           
+                                            )}                                                                                    
                                             <button 
                                                 className="px-1 py-1 text-gray-600 rounded-md hover:bg-gray-100 mt-0.5 h-8"
                                                 onClick={(e) => {

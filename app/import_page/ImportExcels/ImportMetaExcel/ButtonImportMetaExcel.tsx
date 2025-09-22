@@ -2,11 +2,14 @@
 
 import React, { useState, useRef } from 'react';
 import { useSession } from '@/app/component/SessionProvider';
+import { supabase } from '@/app/database/supabaseClient';
 import * as XLSX from 'xlsx';
 import toast from 'react-hot-toast';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 import { extractMetaExcel } from './extract_meta_excel';
 import MetaExcel from './MetaExcel';
+import { useImport } from '@/app/import_page/ImportComponents/ImportContext';
+import { PdfInfo } from '@/app/import_page/ImportComponents/TableImportedFiles';
 
 export interface ExcelRow {
   [key: string]: string | number | boolean | null;
@@ -32,7 +35,8 @@ export interface MetaExcelData {
 }
 
 const ButtonImportMetaExcel = () => {
-  const { } = useSession();
+  const { entreprise_id, user_id } = useSession();
+  const { updatePdfInfos } = useImport();
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -77,6 +81,38 @@ const ButtonImportMetaExcel = () => {
       setMetaData(analysis);
       setShowPreview(true);
       setShowModal(false);
+      
+      // Créer une ligne dans la table pdf_infos
+      if (entreprise_id && user_id) {
+        try {
+          const { data: pdfData, error: pdfError } = await supabase
+            .from('pdf_infos')
+            .insert({
+              user_id: user_id,
+              pdf_path: '',
+              name_pdf: fileName,
+              name_pdf_in_bucket: '',
+              status: 'read',
+              site_siret: null,
+              document_type: 'excel',
+              entreprise_id: entreprise_id,
+              site_siret_plus: null,
+            })
+            .select()
+            .single();
+
+          if (pdfError) {
+            console.error('Erreur lors de la création de la ligne pdf_infos:', pdfError);
+            toast.error('Erreur lors de l\'enregistrement des informations du fichier');
+          } else if (pdfData && updatePdfInfos) {
+            // Mettre à jour les données locales avec le nouveau PDF
+            updatePdfInfos(pdfData as PdfInfo);
+          }
+        } catch (error) {
+          console.error('Erreur lors de la création de la ligne pdf_infos:', error);
+          toast.error('Erreur lors de l\'enregistrement des informations du fichier');
+        }
+      }
       
       toast.success(`Analyse terminée : ${analysis.patterns.length} patterns détectés`);
     } catch (error) {

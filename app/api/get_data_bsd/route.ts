@@ -120,6 +120,7 @@ interface SupabaseFlatResponse {
     doe: boolean;
     flux: string;
     numeroBon: string;
+    numeroFacture: string;
     checked?: string | boolean | null;
     sent_to_rep: boolean;
     on_track_dechets: boolean;
@@ -233,6 +234,7 @@ export async function GET(request: Request) {
         other_infos->>flux,
         other_infos->rep->>sent_to_rep,
         other_infos->>numeroBon,
+        other_infos->>numeroFacture,
         other_infos->>checked,
         on_track_dechets,
         created_on_fleap,
@@ -322,6 +324,7 @@ export async function GET(request: Request) {
         flux: item.flux,
         rep: item.sent_to_rep ? { sent_to_rep: item.sent_to_rep } : undefined,
         numeroBon: item.numeroBon,
+        numeroFacture: item.numeroFacture,
         checked: typeof item.checked === 'boolean' 
           ? item.checked 
           : (typeof item.checked === 'string' 

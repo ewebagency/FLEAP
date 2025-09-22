@@ -6,6 +6,7 @@ import TauxValorisation from './TauxValorisation';
 import ButtonReportAMO from '../../ReportAMO/ButtonReportAMO';
 //import { cofounders_user_id } from '../../SideBar';
 import { useSession } from '../../SessionProvider';
+import ReportBuilderButton from '../../newRapportAMO/ReportBuilderButton';
 
 const COMPARISONS = [
     {
@@ -160,7 +161,10 @@ const EnvBordereau = () => {
                 </div>
                 {/*<TauxRecyclage />*/}
                 <TauxValorisation />
-                <ButtonReportAMO/>
+                {/*<ButtonReportAMO/>*/}
+                
+                <ReportBuilderButton/>
+                {/* = Le nouveau rapport pdf modulaire*/}
             </div>
         </div>
     );
