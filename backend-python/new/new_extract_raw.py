@@ -21,7 +21,7 @@ async def get_raw_text_from_pdf(file, doc_type):
             
     except Exception:
         # Fallback to OCR or Mindee
-        if doc_type == "facture" :
+        if (doc_type == "facture" and False) : # -> False en attendant la Migration Mindee V1 vers V2 (+ RAG)
             raw_text, json_mindee = await send_to_mindee(file)
             parse_or_ocr = "mindee"
             # Ensure raw_text is not None
@@ -29,8 +29,10 @@ async def get_raw_text_from_pdf(file, doc_type):
                 raw_text = ""
             return raw_text, json_mindee, parse_or_ocr
         else:
+            #print("OCR ici")
             await file.seek(0)
             raw_text, json_ocr = await ocr_this(file)
+            #print("raw_text", raw_text)
             parse_or_ocr = "ocr"
             # Ensure raw_text is not None
             if raw_text is None:
