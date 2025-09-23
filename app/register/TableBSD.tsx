@@ -1222,12 +1222,12 @@ const TableBSD = () => {
                                                         <div className="text-sm mt-0">
                                                             {bsd.infos_json.formAPI.createFormInput.quantityReceived 
                                                             ? 
-                                                                `${parseFloat(String(bsd.infos_json.formAPI.createFormInput.quantityReceived)).toFixed(2)} T` 
+                                                                `${parseFloat(String(bsd.infos_json.formAPI.createFormInput.quantityReceived)).toFixed(3)} T` 
                                                             :
                                                                 bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity !== null && 
                                                                 bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity !== undefined 
                                                                     ? 
-                                                                        `${parseFloat(String(bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity)).toFixed(2)} T` 
+                                                                        `${parseFloat(String(bsd.infos_json.formAPI.createFormInput.wasteDetails.quantity)).toFixed(3)} T` 
                                                                     : 
                                                                         "-"}
                                                         </div>

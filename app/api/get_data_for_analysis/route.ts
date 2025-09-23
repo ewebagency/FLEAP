@@ -27,6 +27,7 @@ interface FlatBsdRow {
     statusTrackDechets?: string | null;
     onTrackDechets?: boolean | null;
     createdOnFleap?: boolean | null;
+    valoParts?: Array<{ code_valo?: string; tonnage?: string | number }> | null;
 }
 
 interface Denominators {
@@ -230,6 +231,11 @@ export async function GET(request: Request) {
                 statusTrackDechets: (row as unknown as Record<string, unknown>)["status_track_dechets"] as string | undefined ?? row.status_track_dechets ?? null,
                 onTrackDechets: (row as unknown as Record<string, unknown>)["on_track_dechets"] as boolean | undefined ?? row.on_track_dechets ?? null,
                 createdOnFleap: (row as unknown as Record<string, unknown>)["created_on_fleap"] as boolean | undefined ?? row.created_on_fleap ?? null,
+                valoParts: (
+                    (row as unknown as Record<string, unknown>)["infos_json->formAPI->createFormInput->recipient"] as { valoParts?: Array<{ code_valo?: string; tonnage?: string | number }> } | undefined
+                )?.valoParts || (
+                    (row as unknown as { recipient?: { valoParts?: Array<{ code_valo?: string; tonnage?: string | number }> } })
+                )?.recipient?.valoParts || null,
             };
 
             // Count names per siret for majority title computation
@@ -265,7 +271,7 @@ export async function GET(request: Request) {
             return bestName || '';
         };
 
-        // Group rows by denominators
+        // Group rows by denominators (after splitting by valoParts when present)
         const groupMap: Record<string, { tonnage: number; count: number; sample: FlatBsdRow; filiere: string; mois_annee: string; contenant: string; code_dr: string; valorisation: string; tri: string; rep: string; sumFill: number; numFill: number; source: string }> = {};
         const uniqueFiliereSet = new Set<string>();
         const uniqueMoisSet = new Set<string>();
@@ -283,8 +289,8 @@ export async function GET(request: Request) {
             const mois = r.takenOverAt ? toYearMonth(r.takenOverAt) : toYearMonth(r.created_at);
             const filiere = getFiliereFromMappings(r.wasteName, r.wasteCode, mappingCed, mappingNom);
             const contenant = r.containerDescription ? r.containerDescription : '';
-            const codeDr = r.processingOperation ? r.processingOperation : '';
-            const valorisationCatKey = classifyTreatmentCode(codeDr || '')
+            const baseCodeDr = r.processingOperation ? r.processingOperation : '';
+            const baseValoCat = classifyTreatmentCode(baseCodeDr || '')
                 .replace('energetique','Valorisation énergétique')
                 .replace('matiere','Valorisation matière')
                 .replace('reemploi','Réemploi')
@@ -325,46 +331,72 @@ export async function GET(request: Request) {
                 return 'Autre';
             })();
 
-            const key = [r.emitterSiret || '', r.transporterSiret || '', r.recipientSiret || '', filiere, mois, contenant, codeDr, valorisationCatKey, triLabel, repLabel, sourceLabel].join('|');
+            // Split by valoParts when present; otherwise use base row
+            const parts = (Array.isArray(r.valoParts) && r.valoParts.length > 0)
+                ? r.valoParts
+                : [null];
 
-            if (!groupMap[key]) {
-                groupMap[key] = {
-                    tonnage: 0,
-                    count: 0,
-                    sample: r,
-                    filiere,
-                    mois_annee: mois,
-                    contenant,
-                    code_dr: codeDr,
-                    valorisation: valorisationCatKey,
-                    tri: triLabel,
-                    rep: repLabel,
-                    sumFill: 0,
-                    numFill: 0,
-                    source: sourceLabel,
-                };
-            }
+            // Total tonnage for proportional counts when splitting
+            const baseQty = parseTonnage(r.quantityReceived);
+            const totalPartsTonnage = parts[0] === null ? baseQty : parts.reduce((sum, p) => sum + parseTonnage(p?.tonnage ?? 0), 0);
 
-            groupMap[key].tonnage += parseTonnage(r.quantityReceived);
-            groupMap[key].count += 1;
-            if (r.fillRate !== undefined && r.fillRate !== null) {
-                const parsed = typeof r.fillRate === 'number' ? r.fillRate : Number(String(r.fillRate).replace('%','').replace(',', '.'));
-                if (Number.isFinite(parsed)) {
-                    // Normalize to 0-100
-                    const val = parsed <= 1 ? parsed * 100 : parsed;
-                    groupMap[key].sumFill += Math.max(0, Math.min(100, val));
-                    groupMap[key].numFill += 1;
+            for (const p of parts) {
+                const partTonnage = p === null ? baseQty : parseTonnage(p?.tonnage ?? 0);
+                if (partTonnage <= 0) continue;
+
+                const codeDr = p?.code_valo ? String(p.code_valo).replace(/\s+/g, '') : baseCodeDr;
+                const valorisationCatKey = classifyTreatmentCode(codeDr || '')
+                    .replace('energetique','Valorisation énergétique')
+                    .replace('matiere','Valorisation matière')
+                    .replace('reemploi','Réemploi')
+                    .replace('reutilisation','Réutilisation')
+                    .replace('elimination','Élimination')
+                    .replace('autre','Autre');
+
+                const key = [r.emitterSiret || '', r.transporterSiret || '', r.recipientSiret || '', filiere, mois, contenant, codeDr, valorisationCatKey, triLabel, repLabel, sourceLabel].join('|');
+
+                if (!groupMap[key]) {
+                    groupMap[key] = {
+                        tonnage: 0,
+                        count: 0,
+                        sample: r,
+                        filiere,
+                        mois_annee: mois,
+                        contenant,
+                        code_dr: codeDr,
+                        valorisation: valorisationCatKey,
+                        tri: triLabel,
+                        rep: repLabel,
+                        sumFill: 0,
+                        numFill: 0,
+                        source: sourceLabel,
+                    };
+                }
+
+                // Aggregate tonnage
+                groupMap[key].tonnage += partTonnage;
+                // Proportional line count: split 1 line by tonnage share
+                const share = (totalPartsTonnage > 0) ? (partTonnage / totalPartsTonnage) : 1;
+                groupMap[key].count += share;
+
+                // Weighted fill rate by part share
+                if (r.fillRate !== undefined && r.fillRate !== null) {
+                    const parsed = typeof r.fillRate === 'number' ? r.fillRate : Number(String(r.fillRate).replace('%','').replace(',', '.'));
+                    if (Number.isFinite(parsed)) {
+                        const val = parsed <= 1 ? parsed * 100 : parsed;
+                        groupMap[key].sumFill += Math.max(0, Math.min(100, val)) * share;
+                        groupMap[key].numFill += share;
+                    }
                 }
             }
-
             uniqueFiliereSet.add(filiere);
             if (mois) uniqueMoisSet.add(mois);
             if (contenant) uniqueContenantSet.add(contenant);
-            if (codeDr) uniqueCodeDrSet.add(codeDr);
+            if (baseCodeDr) uniqueCodeDrSet.add(baseCodeDr);
             if (r.emitterSiret) uniqueSiteSet.add(r.emitterSiret);
             if (r.recipientSiret) uniqueExutoireSet.add(r.recipientSiret);
             if (r.transporterSiret) uniqueTransportSet.add(r.transporterSiret);
-            uniqueValorisationSet.add(valorisationCatKey);
+            uniqueValorisationSet.add(baseValoCat);
             uniqueTriSet.add(triLabel);
             uniqueRepSet.add(repLabel);
             uniqueSourceSet.add(sourceLabel);
@@ -380,7 +412,7 @@ export async function GET(request: Request) {
                 transport: pickMajorName(transportNameCounts, siretTransport) || siretTransport,
                 filiere: g.filiere,
                 tonnage: Number(g.tonnage.toFixed(3)),
-                nbr_ligne: g.count,
+                nbr_ligne: Number(g.count.toFixed(3)),
                 mois_annee: g.mois_annee,
                 contenant: g.contenant,
                 code_dr: g.code_dr,

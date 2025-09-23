@@ -74,7 +74,7 @@ export function ReportConfigManager({ currentState, onLoadConfig, compact = fals
   };
 
   const handleLoadConfig = (config: SavedReportConfig) => {
-    onLoadConfig(config.config);
+    onLoadConfig({ ...config.config, reportTitle: config.name });
     setShowLoadDialog(false);
   };
 
@@ -117,8 +117,8 @@ export function ReportConfigManager({ currentState, onLoadConfig, compact = fals
                 key={config.id}
                 onClick={() => {
                   console.log('Loading config:', config);
-                  // La config est déjà un objet, pas besoin de JSON.parse
-                  onLoadConfig(config.config);
+                  // Charger la config en forçant le titre au nom du paramètre
+                  onLoadConfig({ ...config.config, reportTitle: config.name });
                 }}
                 className="w-full text-left p-2 border rounded-lg hover:bg-gray-50 transition-colors flex justify-between"
               >

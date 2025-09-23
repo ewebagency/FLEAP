@@ -11,17 +11,19 @@ import { GraphConfigurator } from './components/GraphConfigurator';
 import { ChartRenderer } from './components/ChartRenderer';
 import { PDFPreview } from './components/PDFPreview';
 import { ReportConfigManager } from './components/ReportConfigManager';
+import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 
 export default function ReportBuilderButton() {
   const { entreprise_id } = useSession();
-  const { sites } = useFilterContext();
+  const { sites, segmentDates } = useFilterContext();
+  const { filterType } = useAnalysis();
   const [step, setStep] = useState<'closed' | 'config' | 'sites' | 'builder'>('closed');
 
   const initialState: ReportBuilderState = useMemo(() => ({
     selectedSites: [],
     exportOptions: { includeTitle: true, includeKPIs: true, includeTable: true, includeCharts: true, includeLinePdfs: false },
     charts: [],
-    reportTitle: 'Rapport AMO',
+    reportTitle: 'Paramètres perso',
   }), []);
 
   const [state, setState] = useState<ReportBuilderState>(initialState);
@@ -48,6 +50,97 @@ export default function ReportBuilderButton() {
       keepPreviousData: true,
     }
   );
+
+  // Client-side filtering of analysis data using FilterContext and Tous/importés
+  const filteredAnalysisData: AnalysisResponse | undefined = useMemo(() => {
+    if (!data) return undefined;
+
+    const rows = data.data || [];
+
+    // Note: ne pas filtrer les sites ici; la sélection de sites se fait dans le builder
+
+    // Date range boundaries
+    const startTime = segmentDates?.debut ? new Date(segmentDates.debut).setHours(0,0,0,0) : null;
+    const endTime = segmentDates?.fin ? new Date(segmentDates.fin).setHours(23,59,59,999) : null;
+
+    const inDateRange = (mois_annee: string) => {
+      if (!startTime && !endTime) return true;
+      // Expect formats like '2024-01' or '01/2024'
+      let d: Date | null = null;
+      if (/^\d{4}-\d{2}$/.test(mois_annee)) {
+        d = new Date(mois_annee + '-01T00:00:00');
+      } else if (/^\d{2}\/\d{4}$/.test(mois_annee)) {
+        const [mm, yyyy] = mois_annee.split('/');
+        d = new Date(`${yyyy}-${mm}-01T00:00:00`);
+      }
+      if (!d) return true;
+      const t = d.getTime();
+      if (startTime && t < startTime) return false;
+      if (endTime && t > endTime) return false;
+      return true;
+    };
+
+    const isImported = (source?: string) => {
+      // Align with AnalysisProvider semantics:
+      // - imported: pdf/excel imports (and often registres imported), exclude TD and demandes
+      // Server groups provide a 'source' label: 'Importés' | 'PDF' | 'TrackDéchets' | 'Demande de collecte FLEAP' | 'Autre'
+      if (!source) return true;
+      return source === 'Importés' || source === 'PDF' || source === 'Autre';
+    };
+
+    const filteredRows = rows.filter(r => {
+      if (!inDateRange(r.mois_annee)) return false;
+      if (filterType === 'imported' && !isImported(r.source)) return false;
+      return true;
+    });
+
+    // Recompute denominators from filtered rows
+    const uniqStrings = (arr: Array<string | undefined | null>) => Array.from(new Set((arr.filter(Boolean) as string[])));
+    const denom = {
+      unique_site: (data.denominateur?.unique_site || []).filter(u => filteredRows.some(r => r.site === ((u.name && u.name.length > 0) ? u.name : u.siret))),
+      unique_exutoire: (data.denominateur?.unique_exutoire || []).filter(u => filteredRows.some(r => r.exutoire === ((u.name && u.name.length > 0) ? u.name : u.siret))),
+      unique_transport: (data.denominateur?.unique_transport || []).filter(u => filteredRows.some(r => r.transport === ((u.name && u.name.length > 0) ? u.name : u.siret))),
+      unique_filiere: uniqStrings(filteredRows.map(r => r.filiere)),
+      unique_mois_annee: uniqStrings(filteredRows.map(r => r.mois_annee)),
+      unique_contenant: uniqStrings(filteredRows.map(r => r.contenant)),
+      unique_code_dr: uniqStrings(filteredRows.map(r => r.code_dr)),
+      unique_valorisation: uniqStrings(filteredRows.map(r => r.valorisation)),
+      unique_tri: uniqStrings(filteredRows.map(r => r.tri)),
+      unique_rep: uniqStrings(filteredRows.map(r => r.rep)),
+      unique_source: uniqStrings(filteredRows.map(r => r.source)),
+    };
+
+    return { denominateur: denom, data: filteredRows } as AnalysisResponse;
+  }, [data, segmentDates, filterType]);
+
+  // Apply site selection from the builder to analysis data (graphs + PDF)
+  const finalAnalysisData: AnalysisResponse | undefined = useMemo(() => {
+    if (!filteredAnalysisData) return undefined;
+    const rows = filteredAnalysisData.data || [];
+
+    if (!state.selectedSites || state.selectedSites.length === 0) return filteredAnalysisData;
+
+    const allowed = new Set(state.selectedSites);
+    const rowsBySites = rows.filter(r => allowed.has(r.site));
+
+    // Recompute denominators on the site-filtered rows
+    const uniqStrings = (arr: Array<string | undefined | null>) => Array.from(new Set((arr.filter(Boolean) as string[])));
+    const denom = {
+      unique_site: (filteredAnalysisData.denominateur?.unique_site || []).filter(u => rowsBySites.some(r => r.site === ((u.name && u.name.length > 0) ? u.name : u.siret))),
+      unique_exutoire: (filteredAnalysisData.denominateur?.unique_exutoire || []).filter(u => rowsBySites.some(r => r.exutoire === ((u.name && u.name.length > 0) ? u.name : u.siret))),
+      unique_transport: (filteredAnalysisData.denominateur?.unique_transport || []).filter(u => rowsBySites.some(r => r.transport === ((u.name && u.name.length > 0) ? u.name : u.siret))),
+      unique_filiere: uniqStrings(rowsBySites.map(r => r.filiere)),
+      unique_mois_annee: uniqStrings(rowsBySites.map(r => r.mois_annee)),
+      unique_contenant: uniqStrings(rowsBySites.map(r => r.contenant)),
+      unique_code_dr: uniqStrings(rowsBySites.map(r => r.code_dr)),
+      unique_valorisation: uniqStrings(rowsBySites.map(r => r.valorisation)),
+      unique_tri: uniqStrings(rowsBySites.map(r => r.tri)),
+      unique_rep: uniqStrings(rowsBySites.map(r => r.rep)),
+      unique_source: uniqStrings(rowsBySites.map(r => r.source)),
+    };
+
+    return { denominateur: denom, data: rowsBySites } as AnalysisResponse;
+  }, [filteredAnalysisData, state.selectedSites]);
 
   const onOpen = useCallback(async () => {
     if (!entreprise_id) return;
@@ -113,23 +206,23 @@ export default function ReportBuilderButton() {
   }, [sites]);
 
   const labelForSite = useCallback((siteName: string) => {
-    const denom = data?.denominateur?.unique_site || [];
+    const denom = finalAnalysisData?.denominateur?.unique_site || [];
     const found = denom.find(d => (d.name && d.name.length > 0 ? d.name : d.siret) === siteName);
     if (!found) return siteName;
     const displayName = found.name && found.name.length > 0 ? found.name : found.siret;
     const siret = found.siret;
     return `${displayName} (${siret})`;
-  }, [data?.denominateur?.unique_site]);
+  }, [finalAnalysisData?.denominateur?.unique_site]);
 
   const extraIndexForSearch = useCallback((siteName: string) => {
-    const denom = data?.denominateur?.unique_site || [];
+    const denom = finalAnalysisData?.denominateur?.unique_site || [];
     const found = denom.find(d => (d.name && d.name.length > 0 ? d.name : d.siret) === siteName);
     if (!found) return [];
     const siret = found.siret || '';
     // Index both raw and spaced formats
     const spaced = siret.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
     return [found.name || '', siret, spaced].filter(Boolean);
-  }, [data?.denominateur?.unique_site]);
+  }, [finalAnalysisData?.denominateur?.unique_site]);
 
   const generateId = () => `chart_${Date.now().toString(36)}_${Math.round(Math.random()*1e9).toString(36)}`;
 
@@ -289,7 +382,7 @@ export default function ReportBuilderButton() {
                       />
 
                       <GraphConfigurator
-                        denominators={data?.denominateur}
+                        denominators={filteredAnalysisData?.denominateur}
                         charts={state.charts}
                         onAddChart={addChart}
                         onUpdateChart={updateChart}
@@ -301,14 +394,14 @@ export default function ReportBuilderButton() {
                       {state.exportOptions.includeCharts && state.charts.length > 0 && (
                         <div className="space-y-6">
                           {state.charts.map(chart => (
-                            <ChartRenderer key={chart.id} config={chart} data={data} />
+                          <ChartRenderer key={chart.id} config={chart} data={finalAnalysisData} />
                           ))}
                         </div>
                       )}
 
                       <PDFPreview
                         title={state.reportTitle}
-                        data={data}
+                        data={finalAnalysisData}
                         state={state}
                       />
                     </div>
@@ -340,7 +433,7 @@ export default function ReportBuilderButton() {
                     
                     <PDFPreview
                       title={state.reportTitle}
-                      data={data}
+                      data={finalAnalysisData}
                       state={state}
                     />
                   </div>
@@ -356,7 +449,7 @@ export default function ReportBuilderButton() {
         <div style={{ display: 'none' }}>
           <PDFPreview
             title={state.reportTitle}
-            data={data}
+            data={finalAnalysisData}
             state={state}
             onExportComplete={() => setShouldGeneratePdf(false)}
           />

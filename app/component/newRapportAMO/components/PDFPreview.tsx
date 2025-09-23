@@ -23,7 +23,7 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
   const [chartImages, setChartImages] = useState<Record<string, string>>({});
   const [isExporting, setIsExporting] = useState(false);
   const [pendingExport, setPendingExport] = useState(false);
-  const { bsds, mappingTable, filieres_ou_prestataires } = useAnalysis();
+  const { bsds, mappingTable, filieres_ou_prestataires, filterType } = useAnalysis();
   const { segmentDates } = useFilterContext();
   const { entreprise_name } = useSession();
 
@@ -51,6 +51,13 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
     }
   }
 
+  // Extra fields that may be present for import/origin detection
+  type ImportableBsd = BsdItem & {
+    created_on_fleap?: boolean;
+    status_track_dechets?: string;
+    source?: string;
+  };
+
   const selectedSirets: string[] = useMemo(() => {
     const sites = state.selectedSites;
     const denom = data?.denominateur?.unique_site || [];
@@ -65,11 +72,9 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
     const params = new URLSearchParams();
     params.set('entreprise_id', entreprise_id);
     params.set('user_id', user_id);
-    if (segmentDates?.debut) params.set('startDate', new Date(segmentDates.debut).toISOString());
-    if (segmentDates?.fin) params.set('endDate', new Date(segmentDates.fin).toISOString());
-    if (selectedSirets.length === 1) params.set('site', selectedSirets[0]);
+    // No server-side filters; everything filtered client-side
     return ['/api/get_data_bsd', params.toString()] as const;
-  }, [entreprise_id, user_id, segmentDates, selectedSirets]);
+  }, [entreprise_id, user_id]);
 
   const { data: bsdResp } = useSWR(bsdKey, ([base, qs]) => fetch(`${base}?${qs}`, { cache: 'no-store' }).then(r => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -78,15 +83,55 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
 
   const tableRows: BsdItem[] = useMemo(() => {
     const rows = bsdResp?.data || [];
-    if (selectedSirets.length <= 1 && state.selectedSites.length === 0) return rows;
-    // Client-side filter for multi-site by emitter company name or siret
-    const selectedSet = new Set(state.selectedSites);
-    const siretSet = new Set(selectedSirets);
-    return rows.filter(b => selectedSet.size === 0
-      || selectedSet.has(b.infos_json.formAPI.createFormInput.emitter.company.name)
-      || siretSet.has(b.infos_json.formAPI.createFormInput.emitter.company.siret)
-    );
-  }, [bsdResp, state.selectedSites, selectedSirets]);
+
+    // Dates boundaries from FilterContext
+    const startMs = segmentDates?.debut ? new Date(segmentDates.debut).setHours(0,0,0,0) : null;
+    const endMs = segmentDates?.fin ? new Date(segmentDates.fin).setHours(23,59,59,999) : null;
+
+    const inRange = (b: BsdItem) => {
+      const ci = b.infos_json.formAPI.createFormInput;
+      const raw = ci.takenOverAt || b.created_at;
+      if (!raw) return true;
+      const t = new Date(raw).getTime();
+      if (Number.isNaN(t)) return true;
+      if (startMs && t < startMs) return false;
+      if (endMs && t > endMs) return false;
+      return true;
+    };
+
+    const siteFiltered = (() => {
+      if (selectedSirets.length <= 1 && state.selectedSites.length === 0) return rows;
+      const selectedSet = new Set(state.selectedSites);
+      const siretSet = new Set(selectedSirets);
+      return rows.filter(b => selectedSet.size === 0
+        || selectedSet.has(b.infos_json.formAPI.createFormInput.emitter.company.name)
+        || siretSet.has(b.infos_json.formAPI.createFormInput.emitter.company.siret)
+      );
+    })();
+
+    // Imported filter: keep rows recognized as imported (best-effort)
+    const isImported = (b: ImportableBsd) => {
+      if (typeof b.created_on_fleap === 'boolean') return b.created_on_fleap === false;
+      if (typeof b.status_track_dechets === 'string') return b.status_track_dechets === 'IMPORTED';
+      if (typeof b.source === 'string') return b.source.toLowerCase() !== 'demande';
+      return true; // if unknown, don't exclude
+    };
+
+    return siteFiltered.filter(b => inRange(b)).filter(b => filterType === 'imported' ? isImported(b) : true);
+  }, [bsdResp, state.selectedSites, selectedSirets, segmentDates, filterType]);
+
+  const hasMultipleSites = useMemo(() => {
+    try {
+      const names = new Set<string>();
+      tableRows.forEach(b => {
+        const n = b.infos_json.formAPI.createFormInput.emitter.company.name || '';
+        if (n) names.add(n);
+      });
+      return names.size > 1;
+    } catch {
+      return false;
+    }
+  }, [tableRows]);
 
   // Fetch raw PDF buffers and render them as images for reliable printing
   const [attachedPdfs, setAttachedPdfs] = useState<Array<{ id: string; data: ArrayBuffer }>>([]);
@@ -301,10 +346,36 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
     }
   }, [state.exportOptions.includeLinePdfs, attachedPdfs, attachmentsRequested]);
 
+  // Filter bsds by selected sites and date range for KPI and consistency with charts/table
+  const filteredBsdsForKpi = useMemo(() => {
+    try {
+      const rows = bsds || [];
+      const startMs = segmentDates?.debut ? new Date(segmentDates.debut).setHours(0,0,0,0) : null;
+      const endMs = segmentDates?.fin ? new Date(segmentDates.fin).setHours(23,59,59,999) : null;
+      const siretSet = new Set(selectedSirets);
+
+      return rows.filter(b => {
+        // dates
+        const raw = b.infos_json?.formAPI?.createFormInput?.takenOverAt || b.created_at;
+        const t = raw ? new Date(raw).getTime() : NaN;
+        if (startMs && !(t >= startMs)) return false;
+        if (endMs && !(t <= endMs)) return false;
+        // sites (if any selected)
+        if (siretSet.size > 0) {
+          const siret = b.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret || '';
+          if (!siretSet.has(siret)) return false;
+        }
+        return true;
+      });
+    } catch {
+      return bsds || [];
+    }
+  }, [bsds, segmentDates, selectedSirets]);
+
   const kpis = useMemo(() => {
     try {
-      const tri = calculateTauxTri(bsds, mappingTable, filieres_ou_prestataires);
-      const valo = calculateTauxValorisation(bsds, segmentDates);
+      const tri = calculateTauxTri(filteredBsdsForKpi, mappingTable, filieres_ou_prestataires);
+      const valo = calculateTauxValorisation(filteredBsdsForKpi, segmentDates);
       return {
         triSite: Number(tri.tauxTriSurSite.toFixed(1)),
         triGlobal: Number(tri.tauxTri.toFixed(1)),
@@ -317,7 +388,7 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
     } catch {
       return null;
     }
-  }, [bsds, mappingTable, filieres_ou_prestataires, segmentDates]);
+  }, [filteredBsdsForKpi, mappingTable, filieres_ou_prestataires, segmentDates]);
 
   // Invalidate captured images when chart definitions change
   const chartsString = JSON.stringify(state.charts);
@@ -568,6 +639,7 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
                 <tr>
                   <th>BSD</th>
                   <th>Date</th>
+                  {hasMultipleSites ? (<th>Site</th>) : null}
                   <th>Déchet</th>
                   <th className="col-ced">CED</th>
                   <th className="num">Tonnage</th>
@@ -599,6 +671,7 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
                     <tr key={i}>
                       <td>{docId}{docType ? ` (${docType})` : ''}</td>
                       <td>{dateStr}</td>
+                      {hasMultipleSites ? (<td>{ci.emitter.company.name}</td>) : null}
                       <td>{ci.wasteDetails.name}</td>
                       <td>{ci.wasteDetails.code}</td>
                       <td className="num">{qty.toFixed(2)}</td>

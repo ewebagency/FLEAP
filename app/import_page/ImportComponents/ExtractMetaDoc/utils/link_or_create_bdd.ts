@@ -328,6 +328,7 @@ export const create_in_bdd = async (
     }
 
     const dechet = infos.dechet[indexDechet] as DechetItem;
+    const tonnage = parseFloat(String(dechet.tonnage?.replace(',', '.'))) || 0;
     const rawSite: string = infos.site_raw || '';
     const rawPresta: string = infos.presta_raw || '';
 
@@ -373,7 +374,7 @@ export const create_in_bdd = async (
                 emitter: { company: { name: siteTranslated.name, siret: siteTranslated.siret } },
                 recipient: { company: { name: prestaRole === 'destinataire' || !prestaRole ? prestaTranslated.name : '', siret: prestaRole === 'destinataire' || !prestaRole ? prestaTranslated.siret : '' }, processingOperation: processingOperationDR, cap: pdf_type === 'bsd' ? capVal : '' },
                 transporter: { company: { name: prestaRole === 'transporteur' ? prestaTranslated.name : '', siret: prestaRole === 'transporteur' ? prestaTranslated.siret : '', address: transporterAddress, phone: transporterPhone, mail: transporterMail }, isExemptedOfReceipt: false, receipt: pdf_type === 'bsd' ? receiptVal : '', customInfo: transporterCustomInfo },
-                wasteDetails: { code: wasteCode, name: wasteName, quantity: dechet.tonnage || 0.0, quantityType: 'REAL', consistence: 'SOLIDE', 
+                wasteDetails: { code: wasteCode, name: wasteName, quantity: tonnage, quantityType: 'REAL', consistence: 'SOLIDE', 
                     isSubjectToADR: false, onuCode: capVal, packagingInfos: [{ type: 'AUTRE', quantity: 1, other: dechet.contenant || '' }], pop: false, isDangerous: wasteCode.includes('*') },
                 takenOverAt: takenOverAt
             }
