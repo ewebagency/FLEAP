@@ -144,6 +144,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
     const [pdfUrls, setPdfUrls] = useState<Record<number, string>>({});
     const [numberPage, setNumberPage] = useState(1);
     const { sites: filteredSites } = useFilterContext();
+    const number_increment = 50;
     
     // État pour la modale de confirmation
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -460,7 +461,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                 <tbody>
                     {[...filteredPdfInfos]
                         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                        .slice(0, 20*numberPage)
+                        .slice(0, number_increment*numberPage)
                         .map((pdf, index) => (
                         <tr 
                             key={pdf.id} 
@@ -685,7 +686,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                         className="px-3 py-2 text-sm text-gray-700 bg-[var(--green-medium)] hover:bg-[var(--green-dark)] rounded-md border border-gray-300 text-white"
                         onClick={() => setNumberPage(numberPage + 1)}
                     >
-                        Charger plus ({Math.max(filteredPdfInfos.length - 20*numberPage, 0)})
+                        Charger plus ({Math.max(filteredPdfInfos.length - number_increment*numberPage, 0)})
                     </button>
                 ) : (
                     <div className="text-xs">Les {filteredPdfInfos.length} fichiers ont été chargés</div>

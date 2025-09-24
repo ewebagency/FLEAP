@@ -11,12 +11,12 @@ import { GraphConfigurator } from './components/GraphConfigurator';
 import { ChartRenderer } from './components/ChartRenderer';
 import { PDFPreview } from './components/PDFPreview';
 import { ReportConfigManager } from './components/ReportConfigManager';
-import { useAnalysis } from '@/app/analysis/AnalysisProvider';
+// Removed dependency on AnalysisProvider; all data comes from API + FilterContext
 
 export default function ReportBuilderButton() {
   const { entreprise_id } = useSession();
   const { sites, segmentDates } = useFilterContext();
-  const { filterType } = useAnalysis();
+  // filterType comes from aggregated data semantics; no context usage here
   const [step, setStep] = useState<'closed' | 'config' | 'sites' | 'builder'>('closed');
 
   const initialState: ReportBuilderState = useMemo(() => ({
@@ -24,21 +24,38 @@ export default function ReportBuilderButton() {
     exportOptions: { includeTitle: true, includeKPIs: true, includeTable: true, includeCharts: true, includeLinePdfs: false },
     charts: [],
     reportTitle: 'Paramètres perso',
+    filterType: 'imported',
   }), []);
 
   const [state, setState] = useState<ReportBuilderState>(initialState);
   const clearedSitesOnEnterRef = useRef(false);
 
   const hourBucket = useMemo(() => Math.floor(Date.now() / (60 * 60 * 1000)), []);
-  const key = useMemo(() => {
-    if (!entreprise_id || step === 'closed') return null;
-    const type: TypeParam = 'bsd';
-    const url = `/api/get_data_for_analysis?entreprise_id=${encodeURIComponent(entreprise_id)}&type=${type}`;
-    return ['analysis-bsd', entreprise_id, hourBucket, url] as const;
-  }, [entreprise_id, step, hourBucket]);
+  // Loading orchestration phases
+  const [phase, setPhase] = useState<'idle' | 'analysis' | 'bsd' | 'attachments' | 'done'>('idle');
 
-  const { data, error, isLoading, mutate } = useSWR(
-    key,
+  // Only enable analysis fetch when needed and after user starts
+  const shouldLoadAnalysis = useMemo(() => {
+    if (step === 'closed') return false;
+    if (!state.exportOptions.includeCharts) return false;
+    return phase === 'analysis' || phase === 'bsd' || phase === 'attachments' || phase === 'done';
+  }, [step, state.exportOptions.includeCharts, phase]);
+
+  // Recompute SWR key based on gating
+  const gatedKey = useMemo(() => {
+    if (!entreprise_id || step === 'closed') return null;
+    if (!shouldLoadAnalysis) return null;
+    const type: TypeParam = 'bsd';
+    const params = new URLSearchParams();
+    params.set('entreprise_id', entreprise_id);
+    params.set('type', type);
+    if (state.filterType) params.set('filterType', state.filterType);
+    const url = `/api/get_data_for_analysis?${params.toString()}`;
+    return ['analysis-bsd', entreprise_id, hourBucket, url] as const;
+  }, [entreprise_id, step, hourBucket, shouldLoadAnalysis, state.filterType]);
+
+  const { data: gatedData, error: gatedError, isLoading: gatedIsLoading, mutate: gatedMutate } = useSWR(
+    gatedKey,
     ([, , , url]) => fetch(url, { cache: 'no-store' }).then<AnalysisResponse>(r => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
@@ -51,11 +68,16 @@ export default function ReportBuilderButton() {
     }
   );
 
-  // Client-side filtering of analysis data using FilterContext and Tous/importés
-  const filteredAnalysisData: AnalysisResponse | undefined = useMemo(() => {
-    if (!data) return undefined;
+  // Use the gated data instead of always-on SWR
+  const analysisData = gatedData;
+  // const analysisLoading = gatedIsLoading;
+  // const analysisError = gatedError;
 
-    const rows = data.data || [];
+  // Client-side filtering of analysis data using FilterContext dates only
+  const filteredAnalysisData: AnalysisResponse | undefined = useMemo(() => {
+    if (!analysisData) return undefined;
+
+    const rows = analysisData.data || [];
 
     // Note: ne pas filtrer les sites ici; la sélection de sites se fait dans le builder
 
@@ -80,26 +102,17 @@ export default function ReportBuilderButton() {
       return true;
     };
 
-    const isImported = (source?: string) => {
-      // Align with AnalysisProvider semantics:
-      // - imported: pdf/excel imports (and often registres imported), exclude TD and demandes
-      // Server groups provide a 'source' label: 'Importés' | 'PDF' | 'TrackDéchets' | 'Demande de collecte FLEAP' | 'Autre'
-      if (!source) return true;
-      return source === 'Importés' || source === 'PDF' || source === 'Autre';
-    };
-
     const filteredRows = rows.filter(r => {
       if (!inDateRange(r.mois_annee)) return false;
-      if (filterType === 'imported' && !isImported(r.source)) return false;
       return true;
     });
 
     // Recompute denominators from filtered rows
     const uniqStrings = (arr: Array<string | undefined | null>) => Array.from(new Set((arr.filter(Boolean) as string[])));
     const denom = {
-      unique_site: (data.denominateur?.unique_site || []).filter(u => filteredRows.some(r => r.site === ((u.name && u.name.length > 0) ? u.name : u.siret))),
-      unique_exutoire: (data.denominateur?.unique_exutoire || []).filter(u => filteredRows.some(r => r.exutoire === ((u.name && u.name.length > 0) ? u.name : u.siret))),
-      unique_transport: (data.denominateur?.unique_transport || []).filter(u => filteredRows.some(r => r.transport === ((u.name && u.name.length > 0) ? u.name : u.siret))),
+      unique_site: (analysisData.denominateur?.unique_site || []).filter(u => filteredRows.some(r => r.site === ((u.name && u.name.length > 0) ? u.name : u.siret))),
+      unique_exutoire: (analysisData.denominateur?.unique_exutoire || []).filter(u => filteredRows.some(r => r.exutoire === ((u.name && u.name.length > 0) ? u.name : u.siret))),
+      unique_transport: (analysisData.denominateur?.unique_transport || []).filter(u => filteredRows.some(r => r.transport === ((u.name && u.name.length > 0) ? u.name : u.siret))),
       unique_filiere: uniqStrings(filteredRows.map(r => r.filiere)),
       unique_mois_annee: uniqStrings(filteredRows.map(r => r.mois_annee)),
       unique_contenant: uniqStrings(filteredRows.map(r => r.contenant)),
@@ -111,7 +124,7 @@ export default function ReportBuilderButton() {
     };
 
     return { denominateur: denom, data: filteredRows } as AnalysisResponse;
-  }, [data, segmentDates, filterType]);
+  }, [analysisData, segmentDates]);
 
   // Apply site selection from the builder to analysis data (graphs + PDF)
   const finalAnalysisData: AnalysisResponse | undefined = useMemo(() => {
@@ -145,10 +158,7 @@ export default function ReportBuilderButton() {
   const onOpen = useCallback(async () => {
     if (!entreprise_id) return;
     setStep('config');
-    if (!data && !isLoading && !error && key) {
-      await mutate();
-    }
-  }, [entreprise_id, data, isLoading, error, mutate, key]);
+  }, [entreprise_id]);
 
   const onClose = useCallback(() => {
     setStep('closed');
@@ -161,7 +171,7 @@ export default function ReportBuilderButton() {
   }, [step, initialState]);
 
   useEffect(() => {
-    if (step === 'builder' && data && state.charts.length === 0) {
+    if (step === 'builder' && analysisData && state.charts.length === 0) {
       const first: ChartConfig = {
         id: generateId(),
         title: '',
@@ -174,7 +184,29 @@ export default function ReportBuilderButton() {
       };
       setState(s => ({ ...s, charts: [first] }));
     }
-  }, [step, data, state.selectedSites, state.charts.length]);
+  }, [step, analysisData, state.selectedSites, state.charts.length]);
+
+  // Start button: orchestrate phases
+  const onStartLoading = useCallback(async () => {
+    if (!entreprise_id) return;
+    // Decide first phase depending on charts
+    if (state.exportOptions.includeCharts) {
+      setPhase('analysis');
+      if (!gatedData && !gatedIsLoading && !gatedError && gatedKey) {
+        await gatedMutate();
+      }
+    } else {
+      setPhase('bsd');
+    }
+    setShowConfigParams(false);
+  }, [entreprise_id, state.exportOptions.includeCharts, gatedData, gatedIsLoading, gatedError, gatedKey, gatedMutate]);
+
+  // Advance to BSD when analysis is ready
+  useEffect(() => {
+    if (phase === 'analysis' && filteredAnalysisData) {
+      setPhase('bsd');
+    }
+  }, [phase, filteredAnalysisData]);
 
   // Ensure no sites are preselected when opening the builder for the first time
   useEffect(() => {
@@ -272,10 +304,10 @@ export default function ReportBuilderButton() {
     <div className="flex flex-col gap-3">
       <button
         onClick={onOpen}
-        disabled={!entreprise_id || isLoading}
+        disabled={!entreprise_id}
         className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-60"
       >
-        {isLoading ? 'Chargement...' : 'Générer un rapport'}
+        Générer un rapport
       </button>
 
       {/* Step 1: Choix de la configuration */}
@@ -364,6 +396,15 @@ export default function ReportBuilderButton() {
                           <span className="text-gray-400">Tous les sites</span>
                         )}
                       </div>
+                      <div className="mt-3">
+                        <button
+                          onClick={onStartLoading}
+                          disabled={!entreprise_id || phase !== 'idle'}
+                          className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-60"
+                        >
+                          {phase === 'idle' ? 'Lancer le chargement' : 'Chargement en cours…'}
+                        </button>
+                      </div>
                     </div>
                     <div className="col-span-12 lg:col-span-6">
                       <ExportOptions
@@ -403,6 +444,16 @@ export default function ReportBuilderButton() {
                         title={state.reportTitle}
                         data={finalAnalysisData}
                         state={state}
+                        // Start BSD loading when phase reaches 'bsd'
+                        startLoadingBsd={phase === 'bsd' || phase === 'attachments' || phase === 'done'}
+                        autoStartAttachments={true}
+                        onBsdFullyLoaded={() => {
+                          if (state.exportOptions.includeLinePdfs) {
+                            setPhase('attachments');
+                          } else {
+                            setPhase('done');
+                          }
+                        }}
                       />
                     </div>
                   </div>
@@ -422,6 +473,15 @@ export default function ReportBuilderButton() {
                       extraIndexForSearch={extraIndexForSearch}
                     />
                   </div>
+                  <div className="flex justify-center">
+                    <button
+                      onClick={onStartLoading}
+                      disabled={!entreprise_id || phase !== 'idle'}
+                      className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-60"
+                    >
+                      {phase === 'idle' ? 'Lancer le chargement' : 'Chargement en cours…'}
+                    </button>
+                  </div>
                   
                   {/* Message et bouton d'export */}
                   <div className="flex flex-col items-center justify-center space-y-4">
@@ -435,6 +495,15 @@ export default function ReportBuilderButton() {
                       title={state.reportTitle}
                       data={finalAnalysisData}
                       state={state}
+                      startLoadingBsd={phase === 'bsd' || phase === 'attachments' || phase === 'done'}
+                      autoStartAttachments={true}
+                      onBsdFullyLoaded={() => {
+                        if (state.exportOptions.includeLinePdfs) {
+                          setPhase('attachments');
+                        } else {
+                          setPhase('done');
+                        }
+                      }}
                     />
                   </div>
                 </div>
@@ -452,6 +521,7 @@ export default function ReportBuilderButton() {
             data={finalAnalysisData}
             state={state}
             onExportComplete={() => setShouldGeneratePdf(false)}
+            startLoadingBsd={phase === 'bsd' || phase === 'attachments' || phase === 'done'}
           />
         </div>
       )}

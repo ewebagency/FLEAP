@@ -3,7 +3,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/app/database/supabaseClient'; // Import Supabase client
 import { useSession } from '../../component/SessionProvider';
 import TableImportedFiles, { PdfInfo } from './TableImportedFiles';
-import { SessionMore } from '../../component/SessionProvider';
 import { useImport } from './ImportContext';
 import { toast } from 'react-hot-toast';
 import { cofounders_user_id } from '@/app/component/SideBar';
@@ -32,14 +31,28 @@ const TableImportedFilesFunctional: React.FC = () => {
         setError(null);
         
         try {
-            const { data, error } = await supabase
-                .from('pdf_infos')
-                .select('*')
-                .eq('entreprise_id', entreprise_id);
+            const pageSize = 1000;
+            let offset = 0;
+            const allRows: PdfInfo[] = [];
+            
+            while (true) {
+                const { data, error } = await supabase
+                    .from('pdf_infos')
+                    .select('*')
+                    .eq('entreprise_id', entreprise_id)
+                    .order('id', { ascending: true })
+                    .range(offset, offset + pageSize - 1);
 
-            if (error) throw error;
+                if (error) throw error;
 
-            setPdfInfos(data || []);
+                const batch = (data || []) as PdfInfo[];
+                allRows.push(...batch);
+
+                if (batch.length < pageSize) break; // no more rows
+                offset += pageSize;
+            }
+
+            setPdfInfos(allRows);
         } catch (error) {
             console.error("Erreur lors de la récupération des informations PDF:", error);
             setError("Erreur lors du chargement des fichiers");

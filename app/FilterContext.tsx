@@ -94,7 +94,7 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   const [prestataires, setPrestataires] = useState<Prestataire[]>([]);
   const [segmentDates, setSegmentDates] = useState<SegmentDates>({ debut: null, fin: null });
   const [serverDateSearch, setServerDateSearch] = useState<boolean>(false);
-  const [filieres_ou_prestataires, setFilieresOuPrestataires] = useState<FiliereOuPrestataireInterface>({ nom: 'filiere' });
+  const [filieres_ou_prestataires, setFilieresOuPrestataires] = useState<FiliereOuPrestataireInterface>({ nom: 'filiere_nom' });
   const [isInitialized, setIsInitialized] = useState(false);
   const session = useSession();
 

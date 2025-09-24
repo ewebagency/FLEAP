@@ -75,11 +75,14 @@ export interface ExportOptionsState {
   includeLinePdfs?: boolean;
 }
 
+import type { FilterType } from '@/app/analysis/filterType';
+
 export interface ReportBuilderState {
   selectedSites: string[]; // site names or siret depending on data
   exportOptions: ExportOptionsState;
   charts: ChartConfig[];
   reportTitle: string;
+  filterType?: FilterType;
 }
 
 export interface SavedReportConfig {

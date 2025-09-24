@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { applyFilterType, type FilterType } from '@/app/analysis/filterType';
 import { supabase } from '@/app/database/supabaseClient';
 import { classifyTreatmentCode } from '@/app/component/Analyse/Environnementale/codeTraitement';
 
@@ -27,7 +28,7 @@ interface FlatBsdRow {
     statusTrackDechets?: string | null;
     onTrackDechets?: boolean | null;
     createdOnFleap?: boolean | null;
-    valoParts?: Array<{ code_valo?: string; tonnage?: string | number }> | null;
+    recipientValoParts?: Array<{ code_valo?: string; tonnage?: number }>| null;
 }
 
 interface Denominators {
@@ -104,6 +105,7 @@ export async function GET(request: Request) {
     const entreprise_id = searchParams.get('entreprise_id');
     const sitesParam = searchParams.get('sites'); // Paramètre pour plusieurs sites (séparés par des virgules)
     const type = (searchParams.get('type') as TypeParam | null) || 'bsd';
+    const filterTypeParam = (searchParams.get('filterType') as FilterType | null) || 'imported';
 
     if (!entreprise_id) {
         return NextResponse.json({ error: 'entreprise_id is required' }, { status: 400 });
@@ -231,11 +233,7 @@ export async function GET(request: Request) {
                 statusTrackDechets: (row as unknown as Record<string, unknown>)["status_track_dechets"] as string | undefined ?? row.status_track_dechets ?? null,
                 onTrackDechets: (row as unknown as Record<string, unknown>)["on_track_dechets"] as boolean | undefined ?? row.on_track_dechets ?? null,
                 createdOnFleap: (row as unknown as Record<string, unknown>)["created_on_fleap"] as boolean | undefined ?? row.created_on_fleap ?? null,
-                valoParts: (
-                    (row as unknown as Record<string, unknown>)["infos_json->formAPI->createFormInput->recipient"] as { valoParts?: Array<{ code_valo?: string; tonnage?: string | number }> } | undefined
-                )?.valoParts || (
-                    (row as unknown as { recipient?: { valoParts?: Array<{ code_valo?: string; tonnage?: string | number }> } })
-                )?.recipient?.valoParts || null,
+                recipientValoParts: ((row as unknown as Record<string, unknown>)["infos_json->formAPI->createFormInput->recipient"] as { [k: string]: unknown } | undefined)?.["valoParts"] as Array<{ code_valo?: string; tonnage?: number }> | undefined || null,
             };
 
             // Count names per siret for majority title computation
@@ -271,7 +269,22 @@ export async function GET(request: Request) {
             return bestName || '';
         };
 
-        // Group rows by denominators (after splitting by valoParts when present)
+        // Apply high-level filter type using shared helper
+        const rowsImported = applyFilterType(rows, filterTypeParam, {
+            getStatus: (it) => it.statusTrackDechets || undefined,
+            getCreatedOnFleap: (it) => typeof it.createdOnFleap === 'boolean' ? it.createdOnFleap : undefined,
+        });
+
+        // Debug: log filtering summary
+        try {
+            const total = rows.length;
+            const kept = rowsImported.length;
+            const createdOnFleapTrue = rows.filter(r => r.createdOnFleap === true).length;
+            const createdOnFleapNull = rows.filter(r => r.createdOnFleap == null).length;
+            console.log('[get_data_for_analysis] rows total', total, 'kept(imported created_on_fleap=false)', kept, { createdOnFleapTrue, createdOnFleapNull });
+        } catch {}
+
+        // Group rows by denominators
         const groupMap: Record<string, { tonnage: number; count: number; sample: FlatBsdRow; filiere: string; mois_annee: string; contenant: string; code_dr: string; valorisation: string; tri: string; rep: string; sumFill: number; numFill: number; source: string }> = {};
         const uniqueFiliereSet = new Set<string>();
         const uniqueMoisSet = new Set<string>();
@@ -285,12 +298,12 @@ export async function GET(request: Request) {
         const uniqueRepSet = new Set<string>();
         const uniqueSourceSet = new Set<string>();
 
-        for (const r of rows) {
+        for (const r of rowsImported) {
             const mois = r.takenOverAt ? toYearMonth(r.takenOverAt) : toYearMonth(r.created_at);
             const filiere = getFiliereFromMappings(r.wasteName, r.wasteCode, mappingCed, mappingNom);
             const contenant = r.containerDescription ? r.containerDescription : '';
             const baseCodeDr = r.processingOperation ? r.processingOperation : '';
-            const baseValoCat = classifyTreatmentCode(baseCodeDr || '')
+            const valorisationCatKeyFromCode = (code: string) => classifyTreatmentCode(code || '')
                 .replace('energetique','Valorisation énergétique')
                 .replace('matiere','Valorisation matière')
                 .replace('reemploi','Réemploi')
@@ -331,29 +344,19 @@ export async function GET(request: Request) {
                 return 'Autre';
             })();
 
-            // Split by valoParts when present; otherwise use base row
-            const parts = (Array.isArray(r.valoParts) && r.valoParts.length > 0)
-                ? r.valoParts
-                : [null];
+            // Prepare exploded parts if valoParts exist; otherwise fallback to single base part
+            const parts = (Array.isArray(r.recipientValoParts) && r.recipientValoParts.length > 0)
+                ? r.recipientValoParts.filter(p => (p?.tonnage || 0) > 0)
+                : [{ code_valo: baseCodeDr, tonnage: parseTonnage(r.quantityReceived) }];
 
-            // Total tonnage for proportional counts when splitting
-            const baseQty = parseTonnage(r.quantityReceived);
-            const totalPartsTonnage = parts[0] === null ? baseQty : parts.reduce((sum, p) => sum + parseTonnage(p?.tonnage ?? 0), 0);
+            const totalPartsTonnage = parts.reduce((acc, p) => acc + (p.tonnage || 0), 0);
+            // Avoid zero division; if total is 0 but we have parts, fallback to equal split
+            const equalShare = parts.length > 0 ? 1 / parts.length : 1;
 
             for (const p of parts) {
-                const partTonnage = p === null ? baseQty : parseTonnage(p?.tonnage ?? 0);
-                if (partTonnage <= 0) continue;
-
-                const codeDr = p?.code_valo ? String(p.code_valo).replace(/\s+/g, '') : baseCodeDr;
-                const valorisationCatKey = classifyTreatmentCode(codeDr || '')
-                    .replace('energetique','Valorisation énergétique')
-                    .replace('matiere','Valorisation matière')
-                    .replace('reemploi','Réemploi')
-                    .replace('reutilisation','Réutilisation')
-                    .replace('elimination','Élimination')
-                    .replace('autre','Autre');
-
-                const key = [r.emitterSiret || '', r.transporterSiret || '', r.recipientSiret || '', filiere, mois, contenant, codeDr, valorisationCatKey, triLabel, repLabel, sourceLabel].join('|');
+                const partCodeDr = (p.code_valo && String(p.code_valo).trim().length > 0) ? String(p.code_valo) : baseCodeDr;
+                const valorisationCatKey = valorisationCatKeyFromCode(partCodeDr || baseCodeDr);
+                const key = [r.emitterSiret || '', r.transporterSiret || '', r.recipientSiret || '', filiere, mois, contenant, partCodeDr, valorisationCatKey, triLabel, repLabel, sourceLabel].join('|');
 
                 if (!groupMap[key]) {
                     groupMap[key] = {
@@ -363,7 +366,7 @@ export async function GET(request: Request) {
                         filiere,
                         mois_annee: mois,
                         contenant,
-                        code_dr: codeDr,
+                        code_dr: partCodeDr,
                         valorisation: valorisationCatKey,
                         tri: triLabel,
                         rep: repLabel,
@@ -373,30 +376,40 @@ export async function GET(request: Request) {
                     };
                 }
 
-                // Aggregate tonnage
+                // Tonnage per part: use declared part tonnage when available, otherwise proportionally split base quantity
+                const baseQty = parseTonnage(r.quantityReceived);
+                const partTonnage = (p.tonnage && p.tonnage > 0)
+                    ? p.tonnage
+                    : (totalPartsTonnage > 0 ? (baseQty * ((p.tonnage || 0) / totalPartsTonnage)) : (baseQty * equalShare));
                 groupMap[key].tonnage += partTonnage;
-                // Proportional line count: split 1 line by tonnage share
-                const share = (totalPartsTonnage > 0) ? (partTonnage / totalPartsTonnage) : 1;
-                groupMap[key].count += share;
 
-                // Weighted fill rate by part share
+                // Count per part: proportionally distribute line weight so sum equals 1 per original row
+                const lineWeight = totalPartsTonnage > 0
+                    ? ((p.tonnage || 0) / totalPartsTonnage)
+                    : equalShare;
+                groupMap[key].count += lineWeight;
+
                 if (r.fillRate !== undefined && r.fillRate !== null) {
                     const parsed = typeof r.fillRate === 'number' ? r.fillRate : Number(String(r.fillRate).replace('%','').replace(',', '.'));
                     if (Number.isFinite(parsed)) {
                         const val = parsed <= 1 ? parsed * 100 : parsed;
-                        groupMap[key].sumFill += Math.max(0, Math.min(100, val)) * share;
-                        groupMap[key].numFill += share;
+                        // Distribute fill rate contribution proportionally to the line weight
+                        groupMap[key].sumFill += Math.max(0, Math.min(100, val)) * lineWeight;
+                        groupMap[key].numFill += lineWeight;
                     }
                 }
+
+                // Track unique values per part
+                if (partCodeDr) uniqueCodeDrSet.add(partCodeDr);
+                uniqueValorisationSet.add(valorisationCatKey);
             }
+
             uniqueFiliereSet.add(filiere);
             if (mois) uniqueMoisSet.add(mois);
             if (contenant) uniqueContenantSet.add(contenant);
-            if (baseCodeDr) uniqueCodeDrSet.add(baseCodeDr);
             if (r.emitterSiret) uniqueSiteSet.add(r.emitterSiret);
             if (r.recipientSiret) uniqueExutoireSet.add(r.recipientSiret);
             if (r.transporterSiret) uniqueTransportSet.add(r.transporterSiret);
-            uniqueValorisationSet.add(baseValoCat);
             uniqueTriSet.add(triLabel);
             uniqueRepSet.add(repLabel);
             uniqueSourceSet.add(sourceLabel);
@@ -412,6 +425,7 @@ export async function GET(request: Request) {
                 transport: pickMajorName(transportNameCounts, siretTransport) || siretTransport,
                 filiere: g.filiere,
                 tonnage: Number(g.tonnage.toFixed(3)),
+                // If counts were fractional due to valoParts split, keep one decimal to reflect distribution
                 nbr_ligne: Number(g.count.toFixed(3)),
                 mois_annee: g.mois_annee,
                 contenant: g.contenant,

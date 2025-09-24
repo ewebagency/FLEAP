@@ -7,10 +7,11 @@ import { FormInput, BSDD_TrackDechets, OtherInfos } from '../register/interface/
 import { useFiltresPerso } from '../component/FiltresPerso/FiltresPersoProvider';
 import { filterBSDs, CommonBSD } from '../register/FiltreFunctionnal';
 import useSWR from 'swr';
+import { applyFilterType, FilterType as SharedFilterType } from './filterType';
 // Utiliser l'interface commune
 export type BSD = CommonBSD;
 
-type FilterType = 'all' | 'imported' | 'registres';
+type FilterType = SharedFilterType;
 
 interface AnalysisContextType {
   bsds: BSD[];
@@ -105,7 +106,7 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
     const [mappingTable, setMappingTable] = useState<Array<{ ced?: string; nom?: string; filiere: string }>>([]);
     const [siretToName, setSiretToName] = useState<Record<string, string>>({});
     const [filtersInitialized, setFiltersInitialized] = useState(false);
-    const [filterType, setFilterType] = useState<FilterType>('all');
+    const [filterType, setFilterType] = useState<FilterType>('imported');
 
     const { filterFunctions } = useFiltresPerso();
 
@@ -318,22 +319,11 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
 
         let finalFiltered = filteredData;
         
-        // Appliquer le filtre selon le type sélectionné
-        switch (filterType) {
-            case 'imported':
-                // Importés (pdf/excel) : created_on_fleap == false
-                finalFiltered = filteredData.filter(bsd => bsd.created_on_fleap === false);
-                break;
-            case 'registres':
-                // Registres : status_track_dechets == 'IMPORTED'
-                finalFiltered = filteredData.filter(bsd => bsd.status_track_dechets === 'IMPORTED');
-                break;
-            case 'all':
-            default:
-                // Tous : pas de filtre supplémentaire
-                finalFiltered = filteredData;
-                break;
-        }
+        // Appliquer le filtre selon le type sélectionné via helper partagé
+        finalFiltered = applyFilterType<BSD>(filteredData, filterType, {
+            getStatus: (b: BSD) => b.status_track_dechets as unknown as string | undefined,
+            getCreatedOnFleap: (b: BSD) => b.created_on_fleap as unknown as boolean | undefined,
+        });
         
         setFilteredBSDs(finalFiltered);
 

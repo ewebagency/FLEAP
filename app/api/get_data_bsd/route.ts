@@ -271,7 +271,7 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
-    //console.log("probleme dans takenOverAt 6", data[0]);
+
 
     // Restructurer les données pour correspondre à l'interface FastDataSupa
     const formattedData = (data as unknown as SupabaseFlatResponse[]).map(item => ({
@@ -304,7 +304,9 @@ export async function GET(request: Request) {
                 orgId: item.recipient.company.orgId,
                 name: item.recipient.company.name
               },
-              processingOperation: item.recipient.processingOperation
+              processingOperation: item.recipient.processingOperation,
+              // Pass through valoParts if present so downstream KPIs can use them
+              valoParts: (item as unknown as { recipient?: { valoParts?: Array<{ code_valo?: string; tonnage?: number }> } })?.recipient?.valoParts
             },
             transporter: {
               company: {
@@ -337,6 +339,7 @@ export async function GET(request: Request) {
       id_track_dechets: item.id_track_dechets,
       pdf_ids: item.pdf_ids
     }));
+
 
 
     // Si c'est le premier chargement, mettre en cache

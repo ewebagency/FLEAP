@@ -3,60 +3,38 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnalysisResponse, ReportBuilderState } from "../types";
 import { ChartRenderer } from "./ChartRenderer";
-import { useAnalysis } from "@/app/analysis/AnalysisProvider";
-import { calculateTauxTri } from "@/app/component/Analyse/Operationelle/TauxTri";
-import { calculateTauxValorisation } from "@/app/component/Analyse/Environnementale/TauxValorisation";
 import { useSession } from "@/app/component/SessionProvider";
 import useSWR from 'swr';
+import useSWRInfinite from 'swr/infinite';
 import { useFilterContext } from "@/app/FilterContext";
-import { supabase } from "@/app/database/supabaseClient";
+import { performPdfExport } from "./pdfExportUtils";
+import { usePdfAttachments } from "./usePdfAttachments";
+import { useKpis } from "./useKpis";
+import { filterBsdRows, hasMultipleSites } from "./PDFPreviewUtils";
+import { applyFilterType } from "@/app/analysis/filterType";
+import type { BsdItem } from "./PDFPreviewTypes";
 
 interface Props {
   title: string;
   data: AnalysisResponse | undefined;
   state: ReportBuilderState;
   onExportComplete?: () => void;
+  // Orchestration flags for sequential loading
+  startLoadingBsd?: boolean;
+  autoStartAttachments?: boolean;
+  onBsdFullyLoaded?: () => void;
 }
 
-export function PDFPreview({ title, data, state, onExportComplete }: Props) {
+export function PDFPreview({ title, data, state, onExportComplete, startLoadingBsd = false, autoStartAttachments = false, onBsdFullyLoaded }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [chartImages, setChartImages] = useState<Record<string, string>>({});
   const [isExporting, setIsExporting] = useState(false);
   const [pendingExport, setPendingExport] = useState(false);
-  const { bsds, mappingTable, filieres_ou_prestataires, filterType } = useAnalysis();
   const { segmentDates } = useFilterContext();
-  const { entreprise_name } = useSession();
+  const { entreprise_name, entreprise_id, user_id } = useSession();
 
   // worker configured at module scope
 
-  // BSD lines for the detailed table fetched from /api/get_data_bsd
-  interface BsdCompany { orgId: string; siret: string; name: string }
-  interface BsdItem {
-    id: string;
-    readable_id_track_dechets: string;
-    created_at: string;
-    other_infos?: { numeroBon?: string };
-    facture_infos?: { numeroFacture?: string };
-    pdf_ids?: string[];
-    infos_json: {
-      formAPI: {
-        createFormInput: {
-          takenOverAt: string;
-          recipient: { processingOperation: string; company: BsdCompany };
-          emitter: { company: BsdCompany };
-          wasteDetails: { name: string; code: string; quantity: string };
-          quantityReceived?: string;
-        }
-      }
-    }
-  }
-
-  // Extra fields that may be present for import/origin detection
-  type ImportableBsd = BsdItem & {
-    created_on_fleap?: boolean;
-    status_track_dechets?: string;
-    source?: string;
-  };
 
   const selectedSirets: string[] = useMemo(() => {
     const sites = state.selectedSites;
@@ -66,329 +44,106 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
     return sites.map(s => map.get(s) || ( /^\d{9,}$/.test(s) ? s : '' )).filter(Boolean);
   }, [state.selectedSites, data]);
 
-  const { user_id, entreprise_id } = useSession();
-  const bsdKey = useMemo(() => {
+  // Paginated fetch of BSDs (server returns max 200 per call). Auto-fetch pages until no more.
+  const getBsdKey = useCallback((pageIndex: number, previousPageData: { data: BsdItem[]; hasMore?: boolean } | null) => {
     if (!entreprise_id || !user_id) return null;
+    if (!startLoadingBsd) return null; // gated by parent orchestrator
+    if (previousPageData && previousPageData.hasMore === false) return null;
     const params = new URLSearchParams();
     params.set('entreprise_id', entreprise_id);
     params.set('user_id', user_id);
-    // No server-side filters; everything filtered client-side
+    // Pass date range to bypass cache path and align server filtering with UI period
+    if (segmentDates?.debut) params.set('startDate', new Date(segmentDates.debut).toISOString());
+    if (segmentDates?.fin) params.set('endDate', new Date(segmentDates.fin).toISOString());
+    if (pageIndex > 0 && previousPageData && previousPageData.data && previousPageData.data.length > 0) {
+      const last = previousPageData.data[previousPageData.data.length - 1];
+      params.set('lastDate', last.created_at);
+      params.set('lastId', last.id);
+    }
     return ['/api/get_data_bsd', params.toString()] as const;
-  }, [entreprise_id, user_id]);
+  }, [entreprise_id, user_id, segmentDates, startLoadingBsd]);
 
-  const { data: bsdResp } = useSWR(bsdKey, ([base, qs]) => fetch(`${base}?${qs}`, { cache: 'no-store' }).then(r => {
+  const { data: bsdPages, setSize } = useSWRInfinite(
+    getBsdKey,
+    ([base, qs]: readonly [string, string]) => {
+      const url = `${base}?${qs}`;
+      try { console.log('[RapportAMO] Fetch BSD page', { url }); } catch {}
+      return fetch(url, { cache: 'no-store' }).then(r => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json() as Promise<{ data: BsdItem[] }>;
-  }), { revalidateOnFocus: false, keepPreviousData: true });
+      return r.json() as Promise<{ data: BsdItem[]; hasMore?: boolean; totalCount?: number }>; 
+      });
+    },
+    { revalidateOnFocus: false, revalidateIfStale: false, keepPreviousData: true }
+  );
+
+  // Auto-load all pages up to a sane cap
+  useEffect(() => {
+    if (!startLoadingBsd) return;
+    if (!bsdPages || bsdPages.length === 0) return;
+    const last = bsdPages[bsdPages.length - 1];
+    if (last && last.hasMore) {
+      if (bsdPages.length < 50) setSize((n: number) => n + 1);
+    }
+  }, [bsdPages, setSize, startLoadingBsd]);
+
+  // Debug pagination status
+  useEffect(() => {
+    try {
+      const pages = bsdPages?.length || 0;
+      const totals = (bsdPages || []).map((p: { data?: unknown[]; hasMore?: boolean }, i: number) => ({ idx: i, count: p?.data?.length || 0, hasMore: !!p?.hasMore }));
+      const totalRows = totals.reduce((a, b) => a + b.count, 0);
+      const lastHasMore = pages > 0 ? !!(bsdPages![pages - 1] as { hasMore?: boolean }).hasMore : false;
+      console.log('[RapportAMO] BSD pagination status', { pages, totalRows, lastHasMore, pageDetails: totals });
+    } catch {}
+  }, [bsdPages]);
+
+  // Mapping tables needed by calculateTauxTri
+  const mappingNomKey = useMemo(() => entreprise_id ? ['/api/get_mapping_nom_filiere', entreprise_id] as const : null, [entreprise_id]);
+  const { data: mappingNomResp } = useSWR(mappingNomKey, ([base, id]) => fetch(`${base}?entreprise_id=${encodeURIComponent(id)}`).then(r => r.json() as Promise<{ data: Array<{ nom?: string; filiere: string; trie?: boolean }> }>), { revalidateOnFocus: false });
 
   const tableRows: BsdItem[] = useMemo(() => {
-    const rows = bsdResp?.data || [];
+    const rows = (bsdPages || []).flatMap((p: { data: BsdItem[] } | undefined) => p?.data || []);
+    const dateRange = segmentDates ? {
+      debut: segmentDates.debut?.toISOString(),
+      fin: segmentDates.fin?.toISOString()
+    } : undefined;
+    return filterBsdRows(rows, state, selectedSirets, dateRange, state.filterType || 'imported');
+  }, [bsdPages, state, selectedSirets, segmentDates]);
 
-    // Dates boundaries from FilterContext
-    const startMs = segmentDates?.debut ? new Date(segmentDates.debut).setHours(0,0,0,0) : null;
-    const endMs = segmentDates?.fin ? new Date(segmentDates.fin).setHours(23,59,59,999) : null;
+  const hasMultipleSitesValue = useMemo(() => hasMultipleSites(tableRows), [tableRows]);
 
-    const inRange = (b: BsdItem) => {
-      const ci = b.infos_json.formAPI.createFormInput;
-      const raw = ci.takenOverAt || b.created_at;
-      if (!raw) return true;
-      const t = new Date(raw).getTime();
-      if (Number.isNaN(t)) return true;
-      if (startMs && t < startMs) return false;
-      if (endMs && t > endMs) return false;
-      return true;
-    };
-
-    const siteFiltered = (() => {
-      if (selectedSirets.length <= 1 && state.selectedSites.length === 0) return rows;
-      const selectedSet = new Set(state.selectedSites);
-      const siretSet = new Set(selectedSirets);
-      return rows.filter(b => selectedSet.size === 0
-        || selectedSet.has(b.infos_json.formAPI.createFormInput.emitter.company.name)
-        || siretSet.has(b.infos_json.formAPI.createFormInput.emitter.company.siret)
-      );
-    })();
-
-    // Imported filter: keep rows recognized as imported (best-effort)
-    const isImported = (b: ImportableBsd) => {
-      if (typeof b.created_on_fleap === 'boolean') return b.created_on_fleap === false;
-      if (typeof b.status_track_dechets === 'string') return b.status_track_dechets === 'IMPORTED';
-      if (typeof b.source === 'string') return b.source.toLowerCase() !== 'demande';
-      return true; // if unknown, don't exclude
-    };
-
-    return siteFiltered.filter(b => inRange(b)).filter(b => filterType === 'imported' ? isImported(b) : true);
-  }, [bsdResp, state.selectedSites, selectedSirets, segmentDates, filterType]);
-
-  const hasMultipleSites = useMemo(() => {
-    try {
-      const names = new Set<string>();
-      tableRows.forEach(b => {
-        const n = b.infos_json.formAPI.createFormInput.emitter.company.name || '';
-        if (n) names.add(n);
-      });
-      return names.size > 1;
-    } catch {
-      return false;
-    }
-  }, [tableRows]);
-
-  // Fetch raw PDF buffers and render them as images for reliable printing
-  const [attachedPdfs, setAttachedPdfs] = useState<Array<{ id: string; data: ArrayBuffer }>>([]);
-  const [renderedAttachments, setRenderedAttachments] = useState<Array<{ id: string; images: string[] }>>([]);
-  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
   const [attachmentsRequested, setAttachmentsRequested] = useState(false);
+  
+  // Use custom hook for PDF attachments
+  const {
+    renderedAttachments,
+    attachmentsLoading,
+    totalExpected,
+    readyCount,
+    allAttachmentsReady,
+    setAttachedPdfs,
+    setRenderedAttachments
+  } = usePdfAttachments(tableRows, state, attachmentsRequested);
 
-  // Expected vs rendered attachments tracking
-  const expectedPdfIds = useMemo(() => {
-    if (!state.exportOptions.includeLinePdfs) return new Set<string>();
-    const allIds = Array.from(new Set((tableRows.flatMap(r => r.pdf_ids || [])).filter(Boolean)));
-    return new Set(allIds);
-  }, [state.exportOptions.includeLinePdfs, tableRows]);
 
-  const { totalExpected, readyCount, allAttachmentsReady } = useMemo(() => {
-    const expected = expectedPdfIds;
-    const rendered = new Set(renderedAttachments.map(a => a.id));
-    let count = 0;
-    expected.forEach(id => { if (rendered.has(id)) count += 1; });
-    const total = expected.size;
-    const ready = !state.exportOptions.includeLinePdfs || total === 0 || (count === total && !attachmentsLoading);
-    return { totalExpected: total, readyCount: count, allAttachmentsReady: ready };
-  }, [expectedPdfIds, renderedAttachments, attachmentsLoading, state.exportOptions.includeLinePdfs]);
-
-  useEffect(() => {
-    const loadPdfUrls = async () => {
-      console.log('🔍 PDF load effect triggered:', { 
-        includeLinePdfs: state.exportOptions.includeLinePdfs, 
-        tableRowsCount: tableRows.length 
-      });
-      
-      if (!state.exportOptions.includeLinePdfs) { 
-        console.log('❌ PDF option disabled');
-        setAttachedPdfs([]); 
-        setRenderedAttachments([]); 
-        return; 
-      }
-      
-      const allIds = Array.from(new Set((tableRows.flatMap(r => r.pdf_ids || [])).filter(Boolean)));
-      console.log('📋 Found PDF IDs in table rows:', allIds);
-      
-      if (allIds.length === 0) { 
-        console.log('❌ No PDF IDs found in table rows');
-        setAttachedPdfs([]); 
-        setRenderedAttachments([]); 
-        return; 
-      }
-      
-      try {
-        setAttachmentsLoading(true);
-        console.log('🔍 Fetching PDF info from Supabase...');
-        const { data: infos, error } = await supabase
-          .from('pdf_infos')
-          .select('id, name_pdf_in_bucket')
-          .in('id', allIds);
-          
-        if (error) {
-          console.error('❌ Erreur récupération pdf_infos:', error);
-          setAttachedPdfs([]); 
-          setRenderedAttachments([]); 
-          return;
-        }
-        
-        console.log('📄 PDF infos found:', infos?.length || 0);
-        
-        const embeds: Array<{ id: string; data: ArrayBuffer }> = [];
-        for (const info of infos || []) {
-          const cast = info as { id: string; name_pdf_in_bucket?: string };
-          if (!cast || !cast.name_pdf_in_bucket) {
-            console.log('⚠️ Skipping PDF info without bucket name:', cast);
-            continue;
-          }
-          
-          console.log('📥 Downloading PDF from bucket:', cast.name_pdf_in_bucket);
-          // First try raw name
-          let fileData: Blob | null = null;
-          let dlErr: unknown = null;
-          try {
-            const res = await supabase.storage.from('pdfs_bucket').download(cast.name_pdf_in_bucket);
-            fileData = (res as unknown as { data?: Blob }).data || null;
-            dlErr = (res as unknown as { error?: unknown }).error;
-          } catch (e) {
-            dlErr = e;
-          }
-          // Fallback: try encoded path if raw fails
-          if (!fileData) {
-            try {
-              const res2 = await supabase.storage.from('pdfs_bucket').download(encodeURIComponent(cast.name_pdf_in_bucket));
-              fileData = (res2 as unknown as { data?: Blob }).data || null;
-              dlErr = (res2 as unknown as { error?: unknown }).error;
-            } catch (e2) {
-              dlErr = e2;
-            }
-          }
-          
-          if (!fileData) {
-            console.error('❌ Failed to download PDF (raw and encoded):', cast.name_pdf_in_bucket, dlErr);
-            continue;
-          }
-          
-          const buf = await fileData.arrayBuffer();
-          embeds.push({ id: cast.id, data: buf });
-          console.log('✅ PDF downloaded and buffered:', cast.id, 'size:', buf.byteLength);
-        }
-        
-        console.log('🎉 Total PDFs loaded:', embeds.length);
-        setAttachedPdfs(embeds);
-      } catch (e) {
-        console.error('❌ Erreur génération URLs PDF:', e);
-        setAttachedPdfs([]);
-        setRenderedAttachments([]);
-      } finally {
-        // keep true until render finishes; render effect will set false when done
-      }
-    };
-
-    if (attachmentsRequested) {
-      loadPdfUrls();
-    }
-  }, [state.exportOptions.includeLinePdfs, tableRows, attachmentsRequested]);
-
-  // Render attached PDFs into images for robust printing
-  useEffect(() => {
-    const run = async () => {
-      console.log('🔍 PDF render effect triggered:', { 
-        includeLinePdfs: state.exportOptions.includeLinePdfs, 
-        attachedPdfsCount: attachedPdfs.length 
-      });
-      
-      if (!state.exportOptions.includeLinePdfs || attachedPdfs.length === 0) {
-        console.log('❌ No PDFs to render or option disabled');
-        setRenderedAttachments([]);
-        setAttachmentsLoading(false);
-        return;
-      }
-      
-      setAttachmentsLoading(true);
-      console.log('📄 Starting PDF rendering for', attachedPdfs.length, 'PDFs');
-      
-      try {
-        // Dynamically import pdf.js in the client
-        console.log('📦 Importing pdf.js...');
-        // @ts-expect-error - pdfjs-dist types are not available but the module works
-        const pdfjsModule = await import('pdfjs-dist/build/pdf');
-        const pdfjsGlobal = pdfjsModule as unknown as {
-          GlobalWorkerOptions: { workerSrc: string };
-          getDocument: (params: { data: ArrayBuffer }) => { promise: Promise<PdfJsDocument> };
-        };
-        // Use the local worker that matches the installed version
-        pdfjsGlobal.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.mjs';
-        
-        // Fallback: disable worker if it fails
-        try {
-          await fetch('/pdfjs/pdf.worker.mjs');
-        } catch {
-          console.log('⚠️ Worker not accessible, using fallback');
-          pdfjsGlobal.GlobalWorkerOptions.workerSrc = '';
-        }
-        console.log('✅ PDF.js worker configured');
-
-        interface PdfJsViewport { width: number; height: number }
-        interface PdfJsRenderTask { promise: Promise<void> }
-        interface PdfJsPage {
-          getViewport: (params: { scale: number }) => PdfJsViewport;
-          render: (args: { canvasContext: CanvasRenderingContext2D; viewport: PdfJsViewport }) => PdfJsRenderTask;
-        }
-        interface PdfJsDocument { numPages: number; getPage: (n: number) => Promise<PdfJsPage> }
-        
-        const results: Array<{ id: string; images: string[] }> = [];
-        for (const p of attachedPdfs) {
-          try {
-            console.log('🔄 Processing PDF:', p.id);
-            const loadingTask = pdfjsGlobal.getDocument({ data: p.data });
-            const pdf = await loadingTask.promise;
-            console.log('📖 PDF loaded, pages:', pdf.numPages);
-            
-            const maxPages = Math.min(pdf.numPages, 50);
-            const images: string[] = [];
-            for (let i = 1; i <= maxPages; i++) {
-              console.log(`🖼️ Rendering page ${i}/${maxPages}`);
-              const page = await pdf.getPage(i);
-              const viewport = page.getViewport({ scale: 1.2 });
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d');
-              canvas.width = viewport.width;
-              canvas.height = viewport.height;
-              await page.render({ canvasContext: ctx!, viewport }).promise;
-              images.push(canvas.toDataURL('image/png'));
-            }
-            const item = { id: p.id, images };
-            results.push(item);
-            setRenderedAttachments(prev => [...prev, item]);
-            console.log('✅ PDF rendered:', p.id, 'pages:', images.length);
-          } catch (e) {
-            console.error('❌ Rendering PDF to images failed for', p.id, ':', e);
-          }
-        }
-        if (results.length > 0) {
-          setRenderedAttachments(results);
-          console.log('🎉 All PDFs rendered successfully:', results.length);
-        } else {
-          console.log('⚠️ No PDFs were successfully rendered');
-        }
-      } catch (e) {
-        console.error('❌ PDF.js import or setup failed:', e);
-      }
-      
-      setAttachmentsLoading(false);
-    };
-    if (attachmentsRequested) {
-      run();
-    }
-  }, [state.exportOptions.includeLinePdfs, attachedPdfs, attachmentsRequested]);
-
-  // Filter bsds by selected sites and date range for KPI and consistency with charts/table
+  // BSDs for KPI calculation: follow selected filterType (all/imported/registres)
   const filteredBsdsForKpi = useMemo(() => {
-    try {
-      const rows = bsds || [];
-      const startMs = segmentDates?.debut ? new Date(segmentDates.debut).setHours(0,0,0,0) : null;
-      const endMs = segmentDates?.fin ? new Date(segmentDates.fin).setHours(23,59,59,999) : null;
-      const siretSet = new Set(selectedSirets);
+    return applyFilterType(tableRows, state.filterType || 'imported', {
+      getStatus: (it: BsdItem) => it.status_track_dechets,
+      getCreatedOnFleap: (it: BsdItem) => it.created_on_fleap,
+    }) as BsdItem[];
+  }, [tableRows, state.filterType]);
 
-      return rows.filter(b => {
-        // dates
-        const raw = b.infos_json?.formAPI?.createFormInput?.takenOverAt || b.created_at;
-        const t = raw ? new Date(raw).getTime() : NaN;
-        if (startMs && !(t >= startMs)) return false;
-        if (endMs && !(t <= endMs)) return false;
-        // sites (if any selected)
-        if (siretSet.size > 0) {
-          const siret = b.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret || '';
-          if (!siretSet.has(siret)) return false;
-        }
-        return true;
-      });
-    } catch {
-      return bsds || [];
-    }
-  }, [bsds, segmentDates, selectedSirets]);
+  // Use custom hook for KPIs
+  const segmentDateStrings = useMemo(() => {
+    if (!segmentDates) return undefined;
+    return {
+      debut: segmentDates.debut ? segmentDates.debut.toISOString() : undefined,
+      fin: segmentDates.fin ? segmentDates.fin.toISOString() : undefined,
+    } as { debut?: string; fin?: string } | undefined;
+  }, [segmentDates]);
 
-  const kpis = useMemo(() => {
-    try {
-      const tri = calculateTauxTri(filteredBsdsForKpi, mappingTable, filieres_ou_prestataires);
-      const valo = calculateTauxValorisation(filteredBsdsForKpi, segmentDates);
-      return {
-        triSite: Number(tri.tauxTriSurSite.toFixed(1)),
-        triGlobal: Number(tri.tauxTri.toFixed(1)),
-        valoMatiere: Number(valo.materialValorizationRate.toFixed(1)),
-        valoEnergie: Number(valo.energeticValorizationRate.toFixed(1)),
-        valoGlobale: Number(valo.globalValorizationRate.toFixed(1)),
-        credibilite: Number(valo.credibilityScore.toFixed(1)),
-        tonnage: Number(valo.totalTonnage.toFixed(1)),
-      };
-    } catch {
-      return null;
-    }
-  }, [filteredBsdsForKpi, mappingTable, filieres_ou_prestataires, segmentDates]);
+  const kpis = useKpis(filteredBsdsForKpi, mappingNomResp || null, segmentDateStrings);
 
   // Invalidate captured images when chart definitions change
   const chartsString = JSON.stringify(state.charts);
@@ -401,79 +156,53 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
   const readyChartsCount = useMemo(() => expectedChartIds.filter(id => Boolean(chartImages[id])).length, [expectedChartIds, chartImages]);
   const allChartsReady = useMemo(() => !state.exportOptions.includeCharts || expectedChartIds.length === 0 || readyChartsCount === expectedChartIds.length, [state.exportOptions.includeCharts, expectedChartIds, readyChartsCount]);
 
+  const lastPageHasMore = useMemo(() => {
+    if (!bsdPages || bsdPages.length === 0) return true;
+    const last = bsdPages[bsdPages.length - 1] as { hasMore?: boolean };
+    return !!(last && last.hasMore);
+  }, [bsdPages]);
+
+  // Notify parent when BSDs fully loaded; optionally auto-start attachments
+  const notifiedRef = useRef(false);
+  useEffect(() => {
+    if (!startLoadingBsd) return;
+    if (!bsdPages || bsdPages.length === 0) return;
+    if (lastPageHasMore) return;
+    if (!notifiedRef.current) {
+      notifiedRef.current = true;
+      try { onBsdFullyLoaded?.(); } catch {}
+      if (autoStartAttachments && state.exportOptions.includeLinePdfs && state.selectedSites && state.selectedSites.length > 0) {
+        setAttachmentsRequested(true);
+        setAttachedPdfs([]);
+        setRenderedAttachments([]);
+      }
+    }
+  }, [startLoadingBsd, bsdPages, lastPageHasMore, onBsdFullyLoaded, autoStartAttachments, state.exportOptions.includeLinePdfs, state.selectedSites, setAttachedPdfs, setRenderedAttachments]);
+
   const onExport = useCallback(() => {
     // Trigger loading and defer the actual export until ready via effect
     if (!containerRef.current || isExporting) return;
+    if (!startLoadingBsd) return; // must start loading first
+    if (lastPageHasMore) return; // block until all BSD pages loaded
     if (!allChartsReady || !allAttachmentsReady) return;
     setPendingExport(true);
-  }, [containerRef, isExporting, allChartsReady, allAttachmentsReady]);
+  }, [containerRef, isExporting, startLoadingBsd, lastPageHasMore, allChartsReady, allAttachmentsReady]);
 
   const onPrepare = useCallback(() => {
     // Start loading attachments and allow chart capture to proceed
     if (!state.exportOptions.includeLinePdfs) return;
+    if (!state.selectedSites || state.selectedSites.length === 0) return;
     setAttachmentsRequested(true);
     // reset previous state for a fresh run
     setAttachedPdfs([]);
     setRenderedAttachments([]);
-  }, [state.exportOptions.includeLinePdfs]);
+  }, [state.exportOptions.includeLinePdfs, state.selectedSites, setAttachedPdfs, setRenderedAttachments]);
 
   const performExport = useCallback(async () => {
     if (!containerRef.current) return;
     setIsExporting(true);
     try {
-      // Ensure DOM is flushed
-      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-      await new Promise(r => setTimeout(r, 50));
-      const html = containerRef.current.innerHTML;
-      const newWin = window.open('', '_blank');
-      if (!newWin) return;
-      const styles = `
-      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; color: #111827; }
-      h1 { font-size: 24px; margin: 0 0 8px 0; }
-      .header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; margin-bottom: 10px; justify-content: space-between; }
-      .title { font-size: 28px; font-weight: 900; letter-spacing: 0.2px; }
-      .subtitle { font-size: 15px; color: #111827; font-weight: 800; }
-      .meta { font-size: 14px; color: #111827; font-weight: 700; margin-top: 4px; }
-      .sites ul { margin: 8px 0 0 0; padding-left: 18px; }
-      .sites li { font-size: 12px; color: #374151; }
-      .kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
-      .kpi { border: 1px solid #edf2f7; background: linear-gradient(180deg, #ffffff, #f9fafb); border-radius: 12px; padding: 12px; font-size: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
-      .kpi .label { color: #6b7280; font-size: 11px; margin-bottom: 2px; }
-      .kpi .value { font-size: 20px; font-weight: 800; color: #111827; }
-      .table-wrap { border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
-      table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
-      thead tr { background: #f8fafc; color: #374151; }
-      th, td { padding: 10px 12px; border-bottom: 1px solid #eef2f7; }
-      tbody tr:nth-child(2n) { background: #fcfcfd; }
-      th { font-weight: 600; text-align: left; }
-      td.num { width: 100px;  text-align: left; }
-      tbody tr:nth-child(2n) { background: #fafafa; }
-      .charts { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 12px 0; }
-      .chart { border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px; }
-      .chart-title { font-size: 13px; margin-bottom: 6px; font-weight: 600; }
-      .chart-img { width: 100%; height: auto; display: block; page-break-inside: avoid; }
-      .crosstab { width: 100%; border-collapse: collapse; font-size: 12px; }
-      .crosstab th, .crosstab td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; }
-      .crosstab thead tr { background: #f9fafb; }
-      .crosstab td.num { text-align: left; }
-      .col-ced { width: 140px; }
-      .attachments { margin-top: 16px; }
-      .attachment-item { page-break-before: always; margin-top: 12px; }
-      .attachment-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
-      .attachment-frame { width: 100%; height: 1000px; border: 1px solid #e5e7eb; }
-    `;
-      newWin.document.write(`<!doctype html><html><head><title>${title}</title><style>${styles}</style></head><body>${html}</body></html>`);
-      newWin.document.close();
-      // Ensure images are loaded in print window
-      const waitForImages = async () => {
-        const imgs = Array.from(newWin.document.images);
-        const pending = imgs.filter(img => !img.complete);
-        await Promise.all(pending.map(img => new Promise<void>(res => { img.onload = () => res(); img.onerror = () => res(); })));
-      };
-      await waitForImages();
-      newWin.focus();
-      newWin.print();
-      if (onExportComplete) onExportComplete();
+      await performPdfExport(containerRef, title, onExportComplete);
     } catch (error) {
       console.error('Erreur lors de l\'export PDF:', error);
     } finally {
@@ -526,12 +255,22 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
                   : 'bg-emerald-600 hover:bg-emerald-700'
               }`} 
               onClick={onExport}
-              disabled={isExporting || (state.exportOptions.includeLinePdfs && !allAttachmentsReady) || (state.exportOptions.includeCharts && !allChartsReady)}
+              disabled={
+                isExporting
+                || !startLoadingBsd
+                || lastPageHasMore
+                || (state.exportOptions.includeLinePdfs && !allAttachmentsReady)
+                || (state.exportOptions.includeCharts && !allChartsReady)
+              }
             >
               {isExporting && (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
               )}
-              {isExporting ? 'Export en cours…' : 'Exporter en PDF'}
+              {isExporting
+                ? 'Export en cours…'
+                : (!startLoadingBsd
+                  ? 'Démarrer le chargement'
+                  : (lastPageHasMore ? 'Chargement des données…' : 'Exporter en PDF'))}
             </button>
           )}
         </div>
@@ -639,7 +378,7 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
                 <tr>
                   <th>BSD</th>
                   <th>Date</th>
-                  {hasMultipleSites ? (<th>Site</th>) : null}
+                  {hasMultipleSitesValue && (<th>Site</th>)}
                   <th>Déchet</th>
                   <th className="col-ced">CED</th>
                   <th className="num">Tonnage</th>
@@ -671,7 +410,7 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
                     <tr key={i}>
                       <td>{docId}{docType ? ` (${docType})` : ''}</td>
                       <td>{dateStr}</td>
-                      {hasMultipleSites ? (<td>{ci.emitter.company.name}</td>) : null}
+                      {hasMultipleSitesValue && (<td>{ci.emitter.company.name}</td>)}
                       <td>{ci.wasteDetails.name}</td>
                       <td>{ci.wasteDetails.code}</td>
                       <td className="num">{qty.toFixed(2)}</td>
@@ -769,5 +508,4 @@ export function PDFPreview({ title, data, state, onExportComplete }: Props) {
     </div>
   );
 }
-
 

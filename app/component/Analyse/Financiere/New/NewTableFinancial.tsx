@@ -5,6 +5,7 @@ import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/
 import { useFilterContext } from '@/app/FilterContext';
 import { MAIN_OPERATIONS, EXPANDED_OPERATIONS } from '@/app/interface_admin_2/InterfaceAdmin2/constants/formConstants';
 import { formatNumber } from '@/app/utils/formatNumber';
+import { useAnalysis } from '@/app/analysis/AnalysisProvider';
 
 interface Props {
     factures: Facture[];
@@ -53,7 +54,9 @@ interface FiliereData {
 
 const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
+    const [mappingNomFiliere, setMappingNomFiliere] = useState<{ nom: string; filiere: string }[]>([]);
     const { filieres } = useFilterContext();
+    const { filieres_ou_prestataires } = useAnalysis();
 
     useEffect(() => {
         const fetchMappingTable = async () => {
@@ -63,10 +66,34 @@ const NewTableFinancial = ({ factures, entreprise_id }: Props) => {
         fetchMappingTable();
     }, [entreprise_id]);
 
+    useEffect(() => {
+        const fetchMappingNom = async () => {
+            try {
+                const res = await fetch(`/api/get_mapping_nom_filiere?entreprise_id=${entreprise_id}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setMappingNomFiliere((data?.data || data) as { nom: string; filiere: string }[]);
+                }
+            } catch (e) {
+                console.error('Error fetching mapping_nom_filiere', e);
+            }
+        };
+        fetchMappingNom();
+    }, [entreprise_id]);
+
     const filiereData = factures.reduce((acc: FiliereData, facture) => {
         facture.infos_json.departs.forEach(depart => {
-            const cleanedCed = depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
-            const filiere = mappingTable.find(m => m.ced.replace(' ', '').replace('*', '') === cleanedCed)?.filiere || 'Autres';
+            let filiere = 'Autres';
+            if (filieres_ou_prestataires.nom === 'filiere_nom') {
+                const wasteName = depart.line_header?.dechet_description || depart.line_header?.type_dechet;
+                if (wasteName) {
+                    const mappingEntry = mappingNomFiliere.find((item: { nom?: string; filiere: string }) => item.nom === wasteName);
+                    filiere = mappingEntry?.filiere || 'Autres';
+                }
+            } else {
+                const cleanedCed = depart.line_header.code_dechet.replaceAll(' ', '').replace('*', '');
+                filiere = mappingTable.find(m => m.ced.replace(' ', '').replace('*', '') === cleanedCed)?.filiere || 'Autres';
+            }
             
             if (!acc[filiere]) {
                 acc[filiere] = {

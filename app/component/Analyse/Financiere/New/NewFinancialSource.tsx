@@ -12,14 +12,17 @@ import { getFiliere, getMappingTableFiliere } from '@/app/register/RegisterCompo
 import OptiButton from "../../../Analyse/Optimisation/OptiButton";
 import RepComponent from "./RepComponent";
 import { cofounders_user_id } from "@/app/component/SideBar";
+import { useAnalysis } from "@/app/analysis/AnalysisProvider";
 
 const NewFinancialSource = () => {
     const {user_id, entreprise_id} = useSession()
     const { segmentDates, filieres, sites } = useFilterContext();
+    const { filieres_ou_prestataires } = useAnalysis();
     //const [entreprise_id, setEntreprise_id] = useState<string | null>(null);
     const [factures, setFactures] = useState<Facture[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
+    const [mappingNomFiliere, setMappingNomFiliere] = useState<{ nom: string; filiere: string }[]>([]);
     const [optiFactures, setOptiFactures] = useState<Facture[]>([]);
     const [isOptiActive, setIsOptiActive] = useState(false);
     
@@ -74,6 +77,22 @@ const NewFinancialSource = () => {
             setMappingTable(mapping || []);
         };
         fetchMappingTable();
+    }, [entreprise_id]);
+
+    useEffect(() => {
+        const fetchMappingNom = async () => {
+            if (!entreprise_id) return;
+            try {
+                const res = await fetch(`/api/get_mapping_nom_filiere?entreprise_id=${entreprise_id}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setMappingNomFiliere((data?.data || data) as { nom: string; filiere: string }[]);
+                }
+            } catch (e) {
+                console.error('Error fetching mapping_nom_filiere', e);
+            }
+        };
+        fetchMappingNom();
     }, [entreprise_id]);
 
     // Au début du composant
@@ -158,34 +177,48 @@ const NewFinancialSource = () => {
                 return false;
             }
 
-            // Nettoyage du code CED
-            const cleanedCed = header.code_dechet?.replaceAll(' ', '').replace('*', '').trim() || '';
-            
-            // Liste de tous les CEDs mappés
-            const allMappedCEDs = new Set(mappingTable.map(m => 
-                m.ced.replaceAll(' ', '').replace('*', '').trim()
-            ));
+            if (filieres_ou_prestataires.nom === 'filiere_nom') {
+                const wasteName = header?.dechet_description || header?.type_dechet || '';
+                const allMappedNames = new Set(mappingNomFiliere.map(m => m.nom));
+                const selectedFiliereNames = new Set(
+                    mappingNomFiliere
+                        .filter(m => selectedFilieres.filter(f => f !== 'Autres').includes(m.filiere))
+                        .map(m => m.nom)
+                );
+                const hasAutres = selectedFilieres.includes('Autres');
 
-            // Liste des CEDs des filières sélectionnées (sauf Autres)
-            const selectedFiliereCEDs = new Set(
-                mappingTable
-                    .filter(m => selectedFilieres.filter(f => f !== 'Autres').includes(m.filiere))
-                    .map(m => m.ced.replaceAll(' ', '').replace('*', '').trim())
-            );
+                if (hasAutres && selectedFilieres.length === 1) {
+                    return !allMappedNames.has(wasteName);
+                } else if (hasAutres) {
+                    return selectedFiliereNames.has(wasteName) || !allMappedNames.has(wasteName);
+                } else {
+                    return selectedFiliereNames.has(wasteName);
+                }
+            } else {
+                // Nettoyage du code CED
+                const cleanedCed = header.code_dechet?.replaceAll(' ', '').replace('*', '').trim() || '';
+                
+                // Liste de tous les CEDs mappés
+                const allMappedCEDs = new Set(mappingTable.map(m => 
+                    m.ced.replaceAll(' ', '').replace('*', '').trim()
+                ));
 
-            const hasAutres = selectedFilieres.includes('Autres');
+                // Liste des CEDs des filières sélectionnées (sauf Autres)
+                const selectedFiliereCEDs = new Set(
+                    mappingTable
+                        .filter(m => selectedFilieres.filter(f => f !== 'Autres').includes(m.filiere))
+                        .map(m => m.ced.replaceAll(' ', '').replace('*', '').trim())
+                );
 
-            // Si uniquement "Autres" est sélectionné
-            if (hasAutres && selectedFilieres.length === 1) {
-                return !allMappedCEDs.has(cleanedCed);
-            }
-            // Si "Autres" est sélectionné avec d'autres filières
-            else if (hasAutres) {
-                return selectedFiliereCEDs.has(cleanedCed) || !allMappedCEDs.has(cleanedCed);
-            }
-            // Si "Autres" n'est pas sélectionné
-            else {
-                return selectedFiliereCEDs.has(cleanedCed);
+                const hasAutres = selectedFilieres.includes('Autres');
+
+                if (hasAutres && selectedFilieres.length === 1) {
+                    return !allMappedCEDs.has(cleanedCed);
+                } else if (hasAutres) {
+                    return selectedFiliereCEDs.has(cleanedCed) || !allMappedCEDs.has(cleanedCed);
+                } else {
+                    return selectedFiliereCEDs.has(cleanedCed);
+                }
             }
         });
 

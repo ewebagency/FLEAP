@@ -14,6 +14,7 @@ interface Props {
 
 export function ChartRenderer({ config, data, exportImage, onExportImage }: Props) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  // Filter type is implicitly encoded in aggregated data via r.source. No context needed.
   const displayTitle = useMemo(() => {
     const custom = (config.title || '').trim();
     if (custom.toLowerCase() === 'graphique' || custom.length === 0) return '';
@@ -31,7 +32,10 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
     | { kind: 'table'; xLabels: string[]; yLabels: string[]; matrix: number[][] };
 
   const chartData = useMemo<BuiltChartData>(() => {
-    const rows = data?.data || [];
+    const rowsAll = data?.data || [];
+
+    // Data already pre-filtered upstream; keep as-is
+    const rows = rowsAll;
 
     const filtered = rows.filter(r => {
       if (!config.filterFamily || !config.filterValues || config.filterValues.length === 0) return true;

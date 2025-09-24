@@ -335,6 +335,12 @@ export const getFiliere = (code: string, mapping_table: { ced: string, filiere: 
   return result ? result : '';
 }
 
+export const getFiliereByNom = (nom: string, mapping_table: { nom: string, filiere: string }[]) => {
+  if(!nom || nom === '') return '';
+  const result = mapping_table.find((item:{nom: string, filiere: string}) => item.nom === nom)?.filiere;
+  return result ? result : '';
+}
+
 
 export const pushOnTableParametrage = async (user_id: string, entreprise_id: string, data: {formAPI: {createFormInput: FormInput}}, otherInfos?: OtherInfos) => {
 
