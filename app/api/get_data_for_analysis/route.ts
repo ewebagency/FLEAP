@@ -103,7 +103,9 @@ function parseTonnage(qty: string | number | null): number {
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const entreprise_id = searchParams.get('entreprise_id');
-    const sitesParam = searchParams.get('sites'); // Paramètre pour plusieurs sites (séparés par des virgules)
+    const sitesParam = searchParams.get('sites'); // Liste de noms de sites (séparés par des virgules)
+    const dateStart = searchParams.get('dateStart'); // ISO string
+    const dateEnd = searchParams.get('dateEnd'); // ISO string
     const type = (searchParams.get('type') as TypeParam | null) || 'bsd';
     const filterTypeParam = (searchParams.get('filterType') as FilterType | null) || 'imported';
 
@@ -115,7 +117,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Type not implemented yet' }, { status: 501 });
     }
 
-    // Parser les sites (séparés par des virgules)
+    // Parser les sites (séparés par des virgules) - noms de sites
     const sites = sitesParam ? sitesParam.split(',').map(s => s.trim()).filter(Boolean) : [];
 
     try {
@@ -149,7 +151,7 @@ export async function GET(request: Request) {
             [key: string]: unknown;
         };
 
-        // Fetch BSDs with pagination and site filtering
+        // Fetch BSDs with pagination and server-side filtering (sites, dates)
         const pageSize = 1000;
         let allData: unknown[] = [];
         let hasMore = true;
@@ -173,22 +175,34 @@ export async function GET(request: Request) {
                     other_infos->>fillRate,
                     other_infos->rep->>sent_to_rep,
                     other_infos->>tri
-                `, { count: 'exact' })
+                `)
                 .eq('entreprise_id', entreprise_id)
+                .order('created_at', { ascending: false })
+                .order('id', { ascending: false })
                 .range(page * pageSize, (page + 1) * pageSize - 1);
 
-            // Ajouter le filtre par sites si fournis
+            // Filtre par sites via SIRET si fournis
             if (sites.length > 0) {
-                query = query.in('infos_json->formAPI->createFormInput->emitter->company->siret', sites);
+                // Use JSON text accessor >> to compare as text
+                query = query.in('infos_json->formAPI->createFormInput->emitter->company->>siret', sites);
             }
 
-            const { data, error, count } = await query;
+            // Filtre par dates: aligné sur get_data_bsd (created_at uniquement pour performance)
+            if (dateStart) {
+                query = query.gte('created_at', dateStart);
+            }
+            if (dateEnd) {
+                query = query.lte('created_at', dateEnd);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
 
-            if (data && data.length > 0) {
-                allData = [...allData, ...data];
-                hasMore = count ? allData.length < count : false;
+            const batch = (data || []) as unknown[];
+            if (batch.length > 0) {
+                allData = [...allData, ...batch];
+                hasMore = batch.length === pageSize;
                 page++;
             } else {
                 hasMore = false;

@@ -81,7 +81,7 @@ const ObjectifTonnage = () => {
   const selectedSites = filterSites.filter(site => site.checked).map(site => site.orgId);
   
   const siret_dans_les_objectifs = Object.entries(objectifs).filter(([_, v]) => v.startDate && v.endDate).map(([k, _]) => k);
-  console.log('siret_dans_les_objectifs', siret_dans_les_objectifs);
+  
 
   
   // 1. Calcul du tonnage réel total pour les sites sélectionnés
@@ -183,7 +183,7 @@ const ObjectifTonnage = () => {
     });
     //console.log(`siret des BSDs pour le site ${siret}:`, bsdsForSite.map(bsd => bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret));
   });
-  console.log('Tonnage réel total:', tonnageReelTotal);
+
 
   selectedSites.forEach(siret => {
     const obj = objectifs[siret];
@@ -198,7 +198,7 @@ const ObjectifTonnage = () => {
     //console.log(`Tonnage optimal interpolé pour le site ${siret} à la date du jour:`, optimal);
   });
   //console.log('Tonnage optimal total à la date du jour:', tonnageOptimalTotal);
-  console.log('Progression réelle (peut dépasser 1):', progression);
+  
 
   React.useEffect(() => {
     const fetchSites = async () => {
@@ -301,7 +301,7 @@ const ObjectifTonnage = () => {
   // Fonction pour préparer les données du graphique
   const prepareChartData = () => {
     if (selectedSites.length === 0 || !minDate || !maxDate) {
-      console.log('No selected sites or dates');
+      //console.log('No selected sites or dates');
       return null;
     }
 
@@ -484,7 +484,7 @@ const ObjectifTonnage = () => {
   };
 
   const chartData = prepareChartData();
-  console.log('Chart Data:', chartData);
+  
   const { difference: chartDifference, percentageDifference: chartPercentageDifference } = chartData?.projectionInfo || { difference: 0, percentageDifference: 0 };
 
   const chartOptions = {

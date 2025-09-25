@@ -50,9 +50,23 @@ export default function ReportBuilderButton() {
     params.set('entreprise_id', entreprise_id);
     params.set('type', type);
     if (state.filterType) params.set('filterType', state.filterType);
+    // Server-side filters
+    const startISO = segmentDates?.debut ? new Date(segmentDates.debut).toISOString() : '';
+    const endDate = segmentDates?.fin ? new Date(segmentDates.fin) : null;
+    const endISO = endDate ? new Date(endDate.setHours(23,59,59,999)).toISOString() : '';
+    if (startISO) params.set('dateStart', startISO);
+    if (endISO) params.set('dateEnd', endISO);
+    if (state.selectedSites && state.selectedSites.length > 0) {
+      const nameToSiret = (siteName: string) => {
+        const found = sites.find(s => s.name === siteName);
+        return found?.orgId || '';
+      };
+      const sirets = Array.from(new Set(state.selectedSites.map(nameToSiret).filter(Boolean)));
+      if (sirets.length > 0) params.set('sites', sirets.join(','));
+    }
     const url = `/api/get_data_for_analysis?${params.toString()}`;
     return ['analysis-bsd', entreprise_id, hourBucket, url] as const;
-  }, [entreprise_id, step, hourBucket, shouldLoadAnalysis, state.filterType]);
+  }, [entreprise_id, step, hourBucket, shouldLoadAnalysis, state.filterType, segmentDates?.debut, segmentDates?.fin, state.selectedSites, sites]);
 
   const { data: gatedData, error: gatedError, isLoading: gatedIsLoading, mutate: gatedMutate } = useSWR(
     gatedKey,
@@ -73,87 +87,10 @@ export default function ReportBuilderButton() {
   // const analysisLoading = gatedIsLoading;
   // const analysisError = gatedError;
 
-  // Client-side filtering of analysis data using FilterContext dates only
-  const filteredAnalysisData: AnalysisResponse | undefined = useMemo(() => {
-    if (!analysisData) return undefined;
-
-    const rows = analysisData.data || [];
-
-    // Note: ne pas filtrer les sites ici; la sélection de sites se fait dans le builder
-
-    // Date range boundaries
-    const startTime = segmentDates?.debut ? new Date(segmentDates.debut).setHours(0,0,0,0) : null;
-    const endTime = segmentDates?.fin ? new Date(segmentDates.fin).setHours(23,59,59,999) : null;
-
-    const inDateRange = (mois_annee: string) => {
-      if (!startTime && !endTime) return true;
-      // Expect formats like '2024-01' or '01/2024'
-      let d: Date | null = null;
-      if (/^\d{4}-\d{2}$/.test(mois_annee)) {
-        d = new Date(mois_annee + '-01T00:00:00');
-      } else if (/^\d{2}\/\d{4}$/.test(mois_annee)) {
-        const [mm, yyyy] = mois_annee.split('/');
-        d = new Date(`${yyyy}-${mm}-01T00:00:00`);
-      }
-      if (!d) return true;
-      const t = d.getTime();
-      if (startTime && t < startTime) return false;
-      if (endTime && t > endTime) return false;
-      return true;
-    };
-
-    const filteredRows = rows.filter(r => {
-      if (!inDateRange(r.mois_annee)) return false;
-      return true;
-    });
-
-    // Recompute denominators from filtered rows
-    const uniqStrings = (arr: Array<string | undefined | null>) => Array.from(new Set((arr.filter(Boolean) as string[])));
-    const denom = {
-      unique_site: (analysisData.denominateur?.unique_site || []).filter(u => filteredRows.some(r => r.site === ((u.name && u.name.length > 0) ? u.name : u.siret))),
-      unique_exutoire: (analysisData.denominateur?.unique_exutoire || []).filter(u => filteredRows.some(r => r.exutoire === ((u.name && u.name.length > 0) ? u.name : u.siret))),
-      unique_transport: (analysisData.denominateur?.unique_transport || []).filter(u => filteredRows.some(r => r.transport === ((u.name && u.name.length > 0) ? u.name : u.siret))),
-      unique_filiere: uniqStrings(filteredRows.map(r => r.filiere)),
-      unique_mois_annee: uniqStrings(filteredRows.map(r => r.mois_annee)),
-      unique_contenant: uniqStrings(filteredRows.map(r => r.contenant)),
-      unique_code_dr: uniqStrings(filteredRows.map(r => r.code_dr)),
-      unique_valorisation: uniqStrings(filteredRows.map(r => r.valorisation)),
-      unique_tri: uniqStrings(filteredRows.map(r => r.tri)),
-      unique_rep: uniqStrings(filteredRows.map(r => r.rep)),
-      unique_source: uniqStrings(filteredRows.map(r => r.source)),
-    };
-
-    return { denominateur: denom, data: filteredRows } as AnalysisResponse;
-  }, [analysisData, segmentDates]);
-
-  // Apply site selection from the builder to analysis data (graphs + PDF)
+  // Data is already filtered server-side by dates and sites
   const finalAnalysisData: AnalysisResponse | undefined = useMemo(() => {
-    if (!filteredAnalysisData) return undefined;
-    const rows = filteredAnalysisData.data || [];
-
-    if (!state.selectedSites || state.selectedSites.length === 0) return filteredAnalysisData;
-
-    const allowed = new Set(state.selectedSites);
-    const rowsBySites = rows.filter(r => allowed.has(r.site));
-
-    // Recompute denominators on the site-filtered rows
-    const uniqStrings = (arr: Array<string | undefined | null>) => Array.from(new Set((arr.filter(Boolean) as string[])));
-    const denom = {
-      unique_site: (filteredAnalysisData.denominateur?.unique_site || []).filter(u => rowsBySites.some(r => r.site === ((u.name && u.name.length > 0) ? u.name : u.siret))),
-      unique_exutoire: (filteredAnalysisData.denominateur?.unique_exutoire || []).filter(u => rowsBySites.some(r => r.exutoire === ((u.name && u.name.length > 0) ? u.name : u.siret))),
-      unique_transport: (filteredAnalysisData.denominateur?.unique_transport || []).filter(u => rowsBySites.some(r => r.transport === ((u.name && u.name.length > 0) ? u.name : u.siret))),
-      unique_filiere: uniqStrings(rowsBySites.map(r => r.filiere)),
-      unique_mois_annee: uniqStrings(rowsBySites.map(r => r.mois_annee)),
-      unique_contenant: uniqStrings(rowsBySites.map(r => r.contenant)),
-      unique_code_dr: uniqStrings(rowsBySites.map(r => r.code_dr)),
-      unique_valorisation: uniqStrings(rowsBySites.map(r => r.valorisation)),
-      unique_tri: uniqStrings(rowsBySites.map(r => r.tri)),
-      unique_rep: uniqStrings(rowsBySites.map(r => r.rep)),
-      unique_source: uniqStrings(rowsBySites.map(r => r.source)),
-    };
-
-    return { denominateur: denom, data: rowsBySites } as AnalysisResponse;
-  }, [filteredAnalysisData, state.selectedSites]);
+    return analysisData;
+  }, [analysisData]);
 
   const onOpen = useCallback(async () => {
     if (!entreprise_id) return;
@@ -207,10 +144,10 @@ export default function ReportBuilderButton() {
 
   // Advance to BSD when analysis is ready
   useEffect(() => {
-    if (phase === 'analysis' && filteredAnalysisData) {
+    if (phase === 'analysis' && analysisData) {
       setPhase('bsd');
     }
-  }, [phase, filteredAnalysisData]);
+  }, [phase, analysisData]);
 
   // Ensure no sites are preselected when opening the builder for the first time
   useEffect(() => {
@@ -434,7 +371,7 @@ export default function ReportBuilderButton() {
                       />
 
                       <GraphConfigurator
-                        denominators={filteredAnalysisData?.denominateur}
+                        denominators={finalAnalysisData?.denominateur}
                         charts={state.charts}
                         onAddChart={addChart}
                         onUpdateChart={updateChart}
