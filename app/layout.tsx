@@ -14,6 +14,7 @@ import { RecurrenceInitializer } from './register/RegisterComponents/Modal/Recur
 import { FiltresPersoProvider } from "./component/FiltresPerso/FiltresPersoProvider";
 import { BSDsProvider } from "./register/BSDsProvider";
 //import { SSEHandler } from './component/SSEHandler';
+import { Analytics } from "@vercel/analytics/next"
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -110,6 +111,7 @@ export default function RootLayout({
                         {showSidebar && <SideBar className_props="min-h-full" />}
                         <main className={`flex-1 overflow-y-auto ${!showSidebar ? 'w-full' : ''}`}>
                           {children}
+                          <Analytics />
                         </main>
                       </div>
                     </BSDsProvider>
