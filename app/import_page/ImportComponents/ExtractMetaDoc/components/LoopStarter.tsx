@@ -18,6 +18,7 @@ interface PdfInfo {
     status: string;
     document_type: string | null;
     file_size: number | null;
+    nb_pages?: number | null;
     site_siret: string | null;
     provider: Record<string, unknown> | null;
     site_siret_plus: string[] | null;
@@ -37,6 +38,7 @@ interface FilterState {
     siteSirets: string[];
     documentTypes: string[];
     statuses: string[];
+    pages: '' | 'one' | 'multi';
 }
 
 interface FilterOptions {
@@ -218,7 +220,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
     const [sites, setSites] = useState<SiteInfo[]>([]);
     const [loading, setLoading] = useState(true);
-    const [processing, setProcessing] = useState(false);
+    const [processingSplitThenExtract, setProcessingSplitThenExtract] = useState(false);
+    const [processingSplitOnly, setProcessingSplitOnly] = useState(false);
+    const [processingExtractOnly, setProcessingExtractOnly] = useState(false);
     const [processingAutoLink, setProcessingAutoLink] = useState(false);
     const [processingAlertes, setProcessingAlertes] = useState(false);
     const [selectedPdfIds, setSelectedPdfIds] = useState<string[]>([]);
@@ -231,7 +235,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         providers: [],
         siteSirets: [],
         documentTypes: [],
-        statuses: []
+        statuses: [],
+        pages: ''
     });
 
     // Options pour les filtres (seront remplies depuis la BDD)
@@ -397,6 +402,13 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                 }
             }
 
+            // Filtre nombre de pages
+            if (filters.pages) {
+                const pages = typeof pdf.nb_pages === 'number' ? pdf.nb_pages : 0;
+                if (filters.pages === 'one' && pages !== 1) return false;
+                if (filters.pages === 'multi' && pages <= 1) return false;
+            }
+
             return true;
         });
     }, [pdfInfos, filters]);
@@ -419,6 +431,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         );
     };
 
+    const anyProcessing = processingSplitThenExtract || processingSplitOnly || processingExtractOnly;
+
     // Traiter les PDFs sélectionnés
     const handleProcessPdfs = async () => {
         if (selectedPdfIds.length === 0) {
@@ -431,12 +445,12 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             return;
         }
 
-        setProcessing(true);
+        setProcessingSplitThenExtract(true);
         setProcessingResults([]);
         setShowReview(false);
         
         try {
-            const result = await processPdfList(selectedPdfIds, parseInt(entreprise_id));
+            const result = await processPdfList(selectedPdfIds, parseInt(entreprise_id), 'split_then_extract');
             
             // Construire les résultats détaillés
             const detailedResults: ProcessingResult[] = [];
@@ -493,7 +507,125 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             console.error('Erreur lors du traitement:', error);
             toast.error('Erreur lors du traitement des PDFs');
         } finally {
-            setProcessing(false);
+            setProcessingSplitThenExtract(false);
+        }
+    };
+
+    // Diviser uniquement
+    const handleSplitOnly = async () => {
+        if (selectedPdfIds.length === 0) {
+            toast.error('Veuillez sélectionner au moins un PDF');
+            return;
+        }
+
+        if (!entreprise_id) {
+            toast.error('ID entreprise manquant');
+            return;
+        }
+
+        setProcessingSplitOnly(true);
+        setProcessingResults([]);
+        setShowReview(false);
+
+        try {
+            const result = await processPdfList(selectedPdfIds, parseInt(entreprise_id), 'split_only');
+
+            const detailedResults: ProcessingResult[] = [];
+            result.results.forEach(item => {
+                const originalPdf = pdfInfos.find(pdf => pdf.id === item.pdfId);
+                detailedResults.push({
+                    pdfId: item.pdfId,
+                    success: item.success,
+                    message: item.message,
+                    newPdfIds: item.newPdfIds,
+                    wasSplit: item.newPdfIds && item.newPdfIds.length > 0,
+                    originalPdfName: originalPdf?.name_pdf || 'Inconnu'
+                });
+            });
+            result.errors.forEach(error => {
+                const originalPdf = pdfInfos.find(pdf => pdf.id === error.pdfId);
+                detailedResults.push({
+                    pdfId: error.pdfId,
+                    success: false,
+                    message: error.error,
+                    error: error.error,
+                    originalPdfName: originalPdf?.name_pdf || 'Inconnu'
+                });
+            });
+
+            setProcessingResults(detailedResults);
+            setShowReview(true);
+
+            if (result.success) {
+                toast.success(`Division terminée : ${result.processedCount} PDF(s)`);
+                setSelectedPdfIds([]);
+            } else {
+                toast.error(result.message || 'Division terminée avec des erreurs');
+            }
+        } catch (error) {
+            console.error('Erreur division:', error);
+            toast.error('Erreur lors de la division des PDFs');
+        } finally {
+            setProcessingSplitOnly(false);
+        }
+    };
+
+    // Extraire uniquement
+    const handleExtractOnly = async () => {
+        if (selectedPdfIds.length === 0) {
+            toast.error('Veuillez sélectionner au moins un PDF');
+            return;
+        }
+
+        if (!entreprise_id) {
+            toast.error('ID entreprise manquant');
+            return;
+        }
+
+        setProcessingExtractOnly(true);
+        setProcessingResults([]);
+        setShowReview(false);
+
+        try {
+            const result = await processPdfList(selectedPdfIds, parseInt(entreprise_id), 'extract_only');
+
+            const detailedResults: ProcessingResult[] = [];
+            result.results.forEach(item => {
+                const originalPdf = pdfInfos.find(pdf => pdf.id === item.pdfId);
+                detailedResults.push({
+                    pdfId: item.pdfId,
+                    success: item.success,
+                    message: item.message,
+                    newPdfIds: item.newPdfIds,
+                    wasSplit: false,
+                    originalPdfName: originalPdf?.name_pdf || 'Inconnu'
+                });
+            });
+            result.errors.forEach(error => {
+                const originalPdf = pdfInfos.find(pdf => pdf.id === error.pdfId);
+                detailedResults.push({
+                    pdfId: error.pdfId,
+                    success: false,
+                    message: error.error,
+                    error: error.error,
+                    originalPdfName: originalPdf?.name_pdf || 'Inconnu'
+                });
+            });
+
+            setProcessingResults(detailedResults);
+            setShowReview(true);
+
+            if (result.success) {
+                toast.success(`Extraction terminée : ${result.processedCount} PDF(s)`);
+                setSelectedPdfIds([]);
+            } else {
+                toast.error(result.message || 'Extraction terminée avec des erreurs');
+            }
+        } catch (error) {
+            console.error('Erreur extraction:', error);
+            toast.error('Erreur lors de l\'extraction des PDFs');
+        } finally {
+            setProcessingExtractOnly(false);
         }
     };
 
@@ -714,7 +846,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
                     {/* Filtres multiselect en une ligne */}
                     <div className="mb-3">
-                        <div className="grid grid-cols-5 gap-1.5">
+                        <div className="grid grid-cols-6 gap-1.5">
                             {/* Filtre statuses multiselect */}
                             <MultiSelect
                                 options={filterOptions.statuses}
@@ -769,6 +901,21 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     <option value="false">Sans alerte</option>
                                 </select>
                             </div>
+                            {/* Filtre nombre de pages */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    Nombre de pages
+                                </label>
+                                <select
+                                    value={filters.pages}
+                                    onChange={(e) => setFilters(prev => ({ ...prev, pages: e.target.value as FilterState['pages'] }))}
+                                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 hover:border-gray-300 transition-colors"
+                                >
+                                    <option value="">Tous</option>
+                                    <option value="one">1 page</option>
+                                    <option value="multi">Plusieurs</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -813,6 +960,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Nom du document</th>
                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Statut</th>
                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Type</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Pages</th>
                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Site</th>
                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Provider</th>
                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Date</th>
@@ -851,6 +999,11 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 <td className="px-3 py-2">
                                                     <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm">
                                                         {filterOptions.documentTypes.find(t => t.value === pdf.document_type)?.label || pdf.document_type || 'Inconnu'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    <span className="text-xs text-gray-600">
+                                                        {typeof pdf.nb_pages === 'number' ? pdf.nb_pages : '-'}
                                                     </span>
                                                 </td>
                                                 <td className="px-3 py-2">
@@ -937,27 +1090,65 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-1.5">
-                                <button
-                                        onClick={handleProcessPdfs}
-                                        disabled={processing || processingAlertes || selectedPdfIds.length === 0}
-                                        className="px-3 py-1.5 bg-blue-500 text-white rounded-sm text-xs hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
-                                    >
-                                        {processing ? (
-                                            <>
-                                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                                <span>Traitement...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <BoxIcon name="bx-play" size="16" />
-                                                <span>Extraire ({selectedPdfIds.length})</span>
-                                            </>
-                                        )}
-                                    </button>                                    
+                                    <div className="flex flex-col items-stretch gap-2">
+                                        <button
+                                            onClick={handleProcessPdfs}
+                                            disabled={anyProcessing || processingAlertes || selectedPdfIds.length === 0}
+                                            className="w-full px-3 py-1.5 bg-blue-500 text-white rounded-sm text-xs hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5 transition-colors"
+                                        >
+                                            {processingSplitThenExtract ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                                    <span>Traitement...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <BoxIcon name="bx-play" size="16" />
+                                                    <span>Diviser puis extraire ({selectedPdfIds.length})</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                onClick={handleSplitOnly}
+                                                disabled={anyProcessing || processingAlertes || processingAutoLink || selectedPdfIds.length === 0}
+                                                className="w-full px-3 py-1.5 bg-purple-500 text-white rounded-sm text-xs hover:bg-purple-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5 transition-colors"
+                                            >
+                                                {processingSplitOnly ? (
+                                                    <>
+                                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                                        <span>Division...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <BoxIcon name="bx-copy-alt" size="16" />
+                                                        <span>Diviser</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={handleExtractOnly}
+                                                disabled={anyProcessing || processingAlertes || processingAutoLink || selectedPdfIds.length === 0}
+                                                className="w-full px-3 py-1.5 bg-green-600 text-white rounded-sm text-xs hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5 transition-colors"
+                                            >
+                                                {processingExtractOnly ? (
+                                                    <>
+                                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                                        <span>Extraction...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <BoxIcon name="bx-export" size="16" />
+                                                        <span>Extraire</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
                                     <button
                                         onClick={handleCheckAlertes}
-                                        disabled={processingAlertes || selectedPdfIds.length === 0}
-                                        className="px-2.5 py-1.5 bg-orange-500 text-white rounded-sm text-xs hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
+                                        disabled={processingAlertes || selectedPdfIds.length === 0 || anyProcessing}
+                                        className="px-2.5 py-1.5 bg-orange-500 text-white rounded-sm text-xs hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
                                         title="Mettre à jour les notifications après changement dans les cluster parameters"
                                     >
                                         {processingAlertes ? (
@@ -974,8 +1165,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     </button>
                                     <button
                                         onClick={handleAutoLinkSelected}
-                                        disabled={processingAutoLink || processing || processingAlertes || selectedPdfIds.length === 0}
-                                        className="px-2.5 py-1.5 bg-indigo-500 text-white rounded-sm text-xs hover:bg-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
+                                        disabled={processingAutoLink || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
+                                        className="px-2.5 py-1.5 bg-indigo-500 text-white rounded-sm text-xs hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
                                         title="Auto-linker les documents sélectionnés"
                                     >
                                         {processingAutoLink ? (
@@ -992,10 +1183,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     </button>
                                 </div>
                             </div>
+                            
                         </div>
                     </div>
-
-
 
                     {/* Section Review des résultats */}
                     {showReview && processingResults.length > 0 && (

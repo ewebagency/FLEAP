@@ -8,6 +8,7 @@ export interface PdfInfo {
     user_id: string; // uuid
     name_pdf_in_bucket: string | null;
     file_size: number | null; // real
+    nb_pages?: number | null; // integer
     site_siret: string | null;
     provider: Record<string, unknown> | null; // jsonb
     site_siret_plus: string[] | null; // text[]
@@ -23,6 +24,7 @@ export interface NewPdfInfo {
     name_pdf_in_bucket: string | null;
     status: string;
     file_size: number | null; // real
+    nb_pages?: number | null; // integer
     site_siret: string | null;
     document_type: string | null;
     provider: Record<string, unknown> | null; // jsonb

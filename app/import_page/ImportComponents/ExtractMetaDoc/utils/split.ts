@@ -57,8 +57,14 @@ export const splitPdfByPages = async (
         // 2. Détecter si le PDF contient plusieurs pages
         const { pageCount, pdfDoc, isMultipage } = await detectIfMultipage(pdfData);
 
-        // 3. Si une seule page, ne rien faire
+        // 3. Si une seule page, mettre nb_pages=1 si absent et ne rien faire
         if (!isMultipage) {
+            try {
+                await supabase
+                    .from('pdf_infos')
+                    .update({ nb_pages: 1 })
+                    .eq('id', pdfInfo.id);
+            } catch {}
             return {
                 success: true,
                 message: 'PDF contient une seule page, aucune division nécessaire'
@@ -118,6 +124,7 @@ export const splitPdfByPages = async (
                     name_pdf: newFileName,
                     name_pdf_in_bucket: newFileName,
                     status: 'splitted',
+                    nb_pages: 1,
                     file_size: newPdfBytes.byteLength / 1024, // Taille en KB
                     site_siret: pdfInfo.site_siret,
                     document_type: pdfInfo.document_type,

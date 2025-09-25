@@ -437,6 +437,16 @@ const ImportPDF = () => {
                 setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
 
                 const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+                // Compter le nombre de pages
+                let nb_pages: number | null = null;
+                try {
+                    const buf = await file.arrayBuffer();
+                    const { PDFDocument } = await import('pdf-lib');
+                    const doc = await PDFDocument.load(buf);
+                    nb_pages = doc.getPageCount();
+                } catch {
+                    nb_pages = null;
+                }
                 // Récupérer la sélection site/presta pour ce fichier
                 let site_siret_plus: string[] | null = null;
                 let provider: { name: string; siret: string; is_destination: boolean; is_transporter: boolean } | null = null;
@@ -465,6 +475,7 @@ const ImportPDF = () => {
                         name_pdf_in_bucket: filePath,
                         pdf_path: data.fullPath,
                         file_size: parseFloat(fileSizeInMB),
+                        nb_pages,
                         site_siret_plus,
                         provider,
                         document_type: metaSelections?.documentType === '' || !metaSelections?.documentType ? 'inconnu' : metaSelections.documentType

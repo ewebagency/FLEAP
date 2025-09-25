@@ -1,5 +1,6 @@
 import { supabase } from "@/app/database/supabaseClient";
 import { PdfInfo, NewPdfInfo, ParamsMapping } from '../interface/pdf_interface';
+import { PDFDocument } from 'pdf-lib';
 
 // Récupérer un PDF depuis le storage
 export const downloadPdfFromStorage = async (pdfPath: string) => {
@@ -67,6 +68,17 @@ export const createSignedUrl = async (path: string, expiresIn: number = 3600) =>
         .createSignedUrl(path, expiresIn);
     
     return { data, error };
+};
+
+// Compter le nombre de pages d'un PDF à partir d'un File/Blob
+export const getPdfPageCountFromFile = async (file: File | Blob): Promise<number> => {
+    try {
+        const buffer = await file.arrayBuffer();
+        const doc = await PDFDocument.load(buffer);
+        return doc.getPageCount();
+    } catch {
+        return 0;
+    }
 };
 
 // Insérer une nouvelle entrée dans pdf_infos
