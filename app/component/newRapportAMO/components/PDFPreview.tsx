@@ -202,6 +202,9 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
     if (!containerRef.current) return;
     setIsExporting(true);
     try {
+      try {
+        console.log('[RapportAMO] Print run — attachments rendered:', renderedAttachments.length);
+      } catch {}
       await performPdfExport(containerRef, title, onExportComplete);
     } catch (error) {
       console.error('Erreur lors de l\'export PDF:', error);
@@ -209,7 +212,7 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
       setIsExporting(false);
       setPendingExport(false);
     }
-  }, [containerRef, title, onExportComplete]);
+  }, [containerRef, title, onExportComplete, renderedAttachments.length]);
 
   // When export is pending, wait until both charts and attachments are ready, then perform export
   useEffect(() => {
@@ -229,9 +232,9 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-col items-center gap-3 mb-2">
         <div className="flex items-center gap-2">
-          {state.exportOptions.includeLinePdfs && !attachmentsRequested ? (
+          {state.exportOptions.includeLinePdfs && !attachmentsRequested && startLoadingBsd && !lastPageHasMore ? (
             <button 
               className={`px-4 py-2 rounded text-white text-base flex items-center gap-2 ${
                 isExporting
@@ -239,15 +242,15 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
                   : 'bg-blue-600 hover:bg-blue-700'
               }`} 
               onClick={onPrepare}
-              disabled={isExporting}
               title="Prépare les pièces pour l'export"
             >
               {(attachmentsLoading && !allAttachmentsReady) && (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
               )}
-              Préparer la donnée
+              Préparer les PDFs
             </button>
-          ) : (
+          ) : null}
+          {(!state.exportOptions.includeLinePdfs || attachmentsRequested) && (
             <button 
               className={`px-4 py-2 rounded text-white text-base flex items-center gap-2 ${
                 isExporting 
@@ -270,7 +273,11 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
                 ? 'Export en cours…'
                 : (!startLoadingBsd
                   ? 'Démarrer le chargement'
-                  : (lastPageHasMore ? 'Chargement des données…' : 'Exporter en PDF'))}
+                  : lastPageHasMore
+                    ? 'Chargement des données…'
+                    : (state.exportOptions.includeLinePdfs && attachmentsRequested && !allAttachmentsReady)
+                      ? 'Données en préparation…'
+                      : 'Exporter le PDF')}
             </button>
           )}
         </div>

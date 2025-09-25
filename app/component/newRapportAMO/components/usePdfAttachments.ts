@@ -14,6 +14,11 @@ type PdfDocument = {
   getPage: (pageNumber: number) => Promise<PdfPage>;
 };
 
+// Tweakable rendering constants
+export const PDF_RENDER_SCALE = 0.9;        // Lower = faster/lighter
+export const PDF_JPEG_QUALITY = 0.8;       // 0..1 (only for JPEG)
+export const PDF_MAX_PAGES = 50;           // Safety cap per attachment
+
 export function usePdfAttachments(
   tableRows: BsdItem[],
   state: ReportBuilderState,
@@ -43,10 +48,7 @@ export function usePdfAttachments(
   // Load PDF URLs from Supabase
   useEffect(() => {
     const loadPdfUrls = async () => {
-      console.log('🔍 PDF load effect triggered:', { 
-        includeLinePdfs: state.exportOptions.includeLinePdfs, 
-        tableRowsCount: tableRows.length 
-      });
+      console.log('🔍 PDFs: start load', { on: !!state.exportOptions.includeLinePdfs, rows: tableRows.length });
       
       if (!state.exportOptions.includeLinePdfs) { 
         console.log('❌ PDF option disabled');
@@ -56,7 +58,7 @@ export function usePdfAttachments(
       }
       
       const allIds = Array.from(new Set((tableRows.flatMap(r => r.pdf_ids || [])).filter(Boolean)));
-      console.log('📋 Found PDF IDs in table rows:', allIds);
+      console.log('🧮 PDFs expected:', allIds.length);
       
       if (allIds.length === 0) { 
         console.log('❌ No PDF IDs found in table rows');
@@ -67,7 +69,7 @@ export function usePdfAttachments(
       
       try {
         setAttachmentsLoading(true);
-        console.log('🔍 Fetching PDF info from Supabase...');
+        console.log('☁️ Supabase: fetch pdf_infos');
         const { data: infos, error } = await supabase
           .from('pdf_infos')
           .select('id, name_pdf_in_bucket')
@@ -80,7 +82,7 @@ export function usePdfAttachments(
           return;
         }
         
-        console.log('📄 PDF infos found:', infos?.length || 0);
+        console.log('📄 pdf_infos:', infos?.length || 0);
         
         const embeds: AttachedPdf[] = [];
         for (const info of infos || []) {
@@ -90,7 +92,7 @@ export function usePdfAttachments(
             continue;
           }
           
-          console.log('📥 Downloading PDF from bucket:', cast.name_pdf_in_bucket);
+          console.log('⬇️ DL', cast.id);
           // First try raw name
           let fileData: Blob | null = null;
           let dlErr: unknown = null;
@@ -113,16 +115,16 @@ export function usePdfAttachments(
           }
           
           if (!fileData) {
-            console.error('❌ Failed to download PDF (raw and encoded):', cast.name_pdf_in_bucket, dlErr);
+          console.error('❌ DL fail', cast.id, dlErr);
             continue;
           }
           
           const buf = await fileData.arrayBuffer();
           embeds.push({ id: cast.id, data: buf });
-          console.log('✅ PDF downloaded and buffered:', cast.id, 'size:', buf.byteLength);
+        console.log('✅ DL', cast.id, 'size=', buf.byteLength);
         }
         
-        console.log('🎉 Total PDFs loaded:', embeds.length);
+        console.log('🎉 DL total:', embeds.length, '/', allIds.length);
         setAttachedPdfs(embeds);
       } catch (e) {
         console.error('❌ Erreur génération URLs PDF:', e);
@@ -139,10 +141,7 @@ export function usePdfAttachments(
   // Render attached PDFs into images for robust printing
   useEffect(() => {
     const run = async () => {
-      console.log('🔍 PDF render effect triggered:', { 
-        includeLinePdfs: state.exportOptions.includeLinePdfs, 
-        attachedPdfsCount: attachedPdfs.length 
-      });
+      console.log('🖼️ Render start', { on: !!state.exportOptions.includeLinePdfs, count: attachedPdfs.length });
       
       if (!state.exportOptions.includeLinePdfs || attachedPdfs.length === 0) {
         console.log('❌ No PDFs to render or option disabled');
@@ -152,7 +151,7 @@ export function usePdfAttachments(
       }
       
       setAttachmentsLoading(true);
-      console.log('📄 Starting PDF rendering for', attachedPdfs.length, 'PDFs');
+      console.log('🖼️ Rendering', attachedPdfs.length, 'PDFs');
       
       try {
         // Dynamically import pdf.js in the client
@@ -178,43 +177,49 @@ export function usePdfAttachments(
         const results: RenderedAttachment[] = [];
         for (const p of attachedPdfs) {
           try {
-            console.log('🔄 Processing PDF:', p.id);
+            console.log('⚙️ PDF', p.id);
             const loadingTask = pdfjsGlobal.getDocument({ data: p.data });
             const pdf = await loadingTask.promise;
-            console.log('📖 PDF loaded, pages:', pdf.numPages);
+            console.log('📖 pages', pdf.numPages);
             
-            const maxPages = Math.min(pdf.numPages, 50);
+            const maxPages = Math.min(pdf.numPages, PDF_MAX_PAGES);
             const images: string[] = [];
             for (let i = 1; i <= maxPages; i++) {
-              console.log(`🖼️ Rendering page ${i}/${maxPages}`);
               const page = await pdf.getPage(i);
-              const viewport = page.getViewport({ scale: 1.2 });
+              const viewport = page.getViewport({ scale: PDF_RENDER_SCALE });
               const canvas = document.createElement('canvas');
               const ctx = canvas.getContext('2d');
               canvas.width = viewport.width;
               canvas.height = viewport.height;
               await page.render({ canvasContext: ctx!, viewport }).promise;
-              images.push(canvas.toDataURL('image/png'));
+              try {
+                images.push(canvas.toDataURL('image/jpeg', PDF_JPEG_QUALITY));
+              } catch {
+                images.push(canvas.toDataURL('image/png'));
+              }
             }
             const item = { id: p.id, images };
             results.push(item);
             setRenderedAttachments(prev => [...prev, item]);
-            console.log('✅ PDF rendered:', p.id, 'pages:', images.length);
+            console.log('✅ Render', p.id, 'pages=', images.length);
           } catch (e) {
-            console.error('❌ Rendering PDF to images failed for', p.id, ':', e);
+            console.error('❌ Render fail', p.id, e);
           }
         }
         if (results.length > 0) {
           setRenderedAttachments(results);
-          console.log('🎉 All PDFs rendered successfully:', results.length);
+          console.log('🎉 Render total:', results.length, '/', attachedPdfs.length);
         } else {
-          console.log('⚠️ No PDFs were successfully rendered');
+          console.log('⚠️ Render none');
         }
       } catch (e) {
         console.error('❌ PDF.js import or setup failed:', e);
       }
       
       setAttachmentsLoading(false);
+      try {
+        console.log('📊 Status exp/dl/rend:', expectedPdfIds.size, '/', attachedPdfs.length, '/', renderedAttachments.length);
+      } catch {}
     };
     if (attachmentsRequested) {
       run();

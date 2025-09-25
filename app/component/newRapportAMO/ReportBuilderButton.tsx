@@ -162,6 +162,10 @@ export default function ReportBuilderButton() {
 
   const onClose = useCallback(() => {
     setStep('closed');
+    setPhase('idle');
+    setShowConfigParams(true);
+    setState(initialState);
+    setShouldGeneratePdf(false);
   }, []);
 
   useEffect(() => {
@@ -402,8 +406,15 @@ export default function ReportBuilderButton() {
                           disabled={!entreprise_id || phase !== 'idle'}
                           className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-60"
                         >
-                          {phase === 'idle' ? 'Lancer le chargement' : 'Chargement en cours…'}
+                          {phase === 'idle'
+                            ? 'Lancer le chargement des données'
+                            : (phase === 'analysis' || phase === 'bsd')
+                              ? 'Chargement en cours…'
+                              : 'Chargement terminé'}
                         </button>
+                        <div className="text-xs text-gray-500 mt-2 hidden">
+                          <div><span className="font-medium">Chargement</span> = récupération des lignes BSD (période et sites choisis).</div>
+                        </div>
                       </div>
                     </div>
                     <div className="col-span-12 lg:col-span-6">
@@ -446,7 +457,7 @@ export default function ReportBuilderButton() {
                         state={state}
                         // Start BSD loading when phase reaches 'bsd'
                         startLoadingBsd={phase === 'bsd' || phase === 'attachments' || phase === 'done'}
-                        autoStartAttachments={true}
+                        autoStartAttachments={false}
                         onBsdFullyLoaded={() => {
                           if (state.exportOptions.includeLinePdfs) {
                             setPhase('attachments');
@@ -473,30 +484,32 @@ export default function ReportBuilderButton() {
                       extraIndexForSearch={extraIndexForSearch}
                     />
                   </div>
-                  <div className="flex justify-center">
+                  <div className="flex flex-col items-center justify-center">
                     <button
                       onClick={onStartLoading}
                       disabled={!entreprise_id || phase !== 'idle'}
                       className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-60"
                     >
-                      {phase === 'idle' ? 'Lancer le chargement' : 'Chargement en cours…'}
+                      {phase === 'idle'
+                        ? 'Lancer le chargement'
+                        : (phase === 'analysis' || phase === 'bsd')
+                          ? 'Chargement en cours…'
+                          : 'Chargement terminé'}
                     </button>
+                    <div className="text-xs text-gray-500 mt-2 text-center hidden">
+                      <div><span className="font-medium">Chargement</span> = récupération des lignes BSD (période et sites choisis).</div>
+                    </div>
                   </div>
                   
                   {/* Message et bouton d'export */}
                   <div className="flex flex-col items-center justify-center space-y-4">
-                    <div className="text-center">
-                      <p className="text-gray-600">
-                        Votre configuration a été chargée. <br/> Cliquez sur le bouton ci-dessous pour générer le PDF.
-                      </p>
-                    </div>
                     
                     <PDFPreview
                       title={state.reportTitle}
                       data={finalAnalysisData}
                       state={state}
                       startLoadingBsd={phase === 'bsd' || phase === 'attachments' || phase === 'done'}
-                      autoStartAttachments={true}
+                        autoStartAttachments={false}
                       onBsdFullyLoaded={() => {
                         if (state.exportOptions.includeLinePdfs) {
                           setPhase('attachments');

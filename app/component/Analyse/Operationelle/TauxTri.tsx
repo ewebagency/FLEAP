@@ -15,9 +15,12 @@ const removeAccents = (str: string) => {
   }
 
 // Fonction exportée pour calculer le taux de tri
+type MappingByCed = { ced: string; filiere: string; trie?: boolean; multiflux?: boolean; tri?: boolean };
+type MappingByNom = { nom: string; filiere: string; trie?: boolean; multiflux?: boolean; tri?: boolean };
+
 export const calculateTauxTri = (
     bsds: BSD[], 
-    mappingTable: Array<{ced?: string, nom?: string, filiere: string, trie?: boolean, multiflux?: boolean, tri?: boolean}>, 
+    mappingTable: Array<{ ced?: string; nom?: string; filiere: string; trie?: boolean; multiflux?: boolean; tri?: boolean }>, 
     filieres_ou_prestataires: { nom: 'filiere' | 'filiere_nom' }
 ) => {
     let totalWeight = 0;
@@ -36,16 +39,48 @@ export const calculateTauxTri = (
         let tri_potentiel = false;
 
         if (filieres_ou_prestataires.nom === 'filiere_nom') {
-            // En mode filiere_nom, utiliser le mapping_nom_filiere
+            // En mode filiere_nom, utiliser le mapping_nom_filiere + flags multiflux/tri
             const wasteName = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
-            const mappingEntry = mappingTable.find(item => item.nom === wasteName);
+            const mappingEntry = mappingTable.find(
+                (item): item is MappingByNom => 'nom' in item && typeof item.nom === 'string' && item.nom === wasteName
+            );
             filiere = mappingEntry ? mappingEntry.filiere : 'Autres';
-            tri_potentiel = mappingEntry ? (mappingEntry.trie || false) : false;
+
+            const mappingMultiflux = mappingEntry?.multiflux;
+            const mappingTri = (mappingEntry?.tri ?? mappingEntry?.trie);
+
+            // Appliquer la même logique que pour CED
+            if (mappingMultiflux === true && mappingTri === true) {
+                // Multiflux + trié => tri global (prestataire)
+                triByPresta += quantity;
+                return;
+            }
+            if (mappingMultiflux === true && mappingTri === false) {
+                // Multiflux + non trié => pas trié
+                nonRecycledWeight += quantity;
+                const code = bsd.infos_json.formAPI.createFormInput.wasteDetails.code;
+                const description = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
+                if (!wasteDetails[description]) {
+                    wasteDetails[description] = {
+                        code,
+                        description,
+                        quantity: 0
+                    };
+                }
+                wasteDetails[description].quantity += quantity;
+                return;
+            }
+            if (mappingMultiflux === false) {
+                // Monoflux => trié sur site
+                return;
+            }
+
+            tri_potentiel = mappingTri || false;
         } else {
             // En mode filiere, utiliser le mapping CED
             filiere = getFiliere(
                 bsd.infos_json.formAPI.createFormInput.wasteDetails.code,
-                mappingTable as Array<{ced: string, filiere: string}>
+                (mappingTable.filter((m): m is MappingByCed => 'ced' in m && typeof m.ced === 'string'))
             ) || 'Autres';
             
             // Utiliser other_infos.tri pour le mode filiere

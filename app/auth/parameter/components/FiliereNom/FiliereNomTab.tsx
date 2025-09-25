@@ -11,7 +11,9 @@ import { useSWRConfig } from 'swr';
 interface MappingNomFiliere {
     nom: string;
     filiere: string;
-    trie: boolean;
+    trie?: boolean; // legacy read-only
+    multiflux?: boolean;
+    tri?: boolean;
 }
 
 interface OptionType {
@@ -22,12 +24,16 @@ interface OptionType {
 export default function FiliereNomTab() {
     const [mappings, setMappings] = useState<MappingNomFiliere[]>([]);
     const [wasteNames, setWasteNames] = useState<string[]>([]);
+    const [factureNamesSet, setFactureNamesSet] = useState<Set<string>>(new Set());
+    const [factureNameToFirstId, setFactureNameToFirstId] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const session = useSession();
     const [selectedFiliere, setSelectedFiliere] = useState<OptionType | null>(null);
     const [selectedNoms, setSelectedNoms] = useState<OptionType[]>([]);
-    const [isTrie, setIsTrie] = useState<boolean>(true);
+    // Mapping mode UX: single choice defines multiflux and tri flags
+    // 'mono' => multiflux=false; 'multi_tri' => multiflux=true, tri=true; 'multi_non_tri' => multiflux=true, tri=false
+    const [mappingMode, setMappingMode] = useState<'mono' | 'multi_tri' | 'multi_non_tri'>('mono');
     const { mutate } = useSWRConfig();
     const [searchNom, setSearchNom] = useState<string>('');
 
@@ -53,7 +59,7 @@ export default function FiliereNomTab() {
 
     // Convertir les noms de déchets disponibles (filtrés) en options pour react-select
     const nomOptions: OptionType[] = filteredAvailableWasteNames.map(nom => ({
-        label: nom,
+        label: factureNamesSet.has(nom) ? `${nom} (facture ${factureNameToFirstId[nom] ?? ''})` : nom,
         value: nom,
     }));
 
@@ -126,9 +132,62 @@ export default function FiliereNomTab() {
                 }
             }
 
+            // Ajouter aussi les noms provenant des factures (type_dechet uniquement)
+            let f_from = 0;
+            const f_limit = 1000;
+            let f_hasMore = true;
+
+            const firstIdByName: Record<string, string> = {};
+            while (f_hasMore) {
+                const { data: f_data, error: f_error } = await supabase
+                    .from('facture')
+                    .select('id, infos_json')
+                    .eq('entreprise_id', session.entreprise_id)
+                    .range(f_from, f_from + f_limit - 1);
+
+                if (f_error) throw f_error;
+
+                if (f_data && f_data.length > 0) {
+                    type FactureHeader = { type_dechet?: string };
+                    type FactureDepart = { line_header?: FactureHeader };
+                    type FactureRow = { id: string; infos_json?: { departs?: FactureDepart[] } };
+
+                    const fRows = f_data as unknown as FactureRow[];
+                    const factureNames: string[] = [];
+                    fRows.forEach(row => {
+                        const namesInRow = (row.infos_json?.departs ?? [])
+                            .map(depart => depart?.line_header)
+                            .filter((header): header is FactureHeader => !!header)
+                            .flatMap(header => [header.type_dechet])
+                            .filter((v): v is string => typeof v === 'string')
+                            .map(v => v.trim())
+                            .filter(v => v.length > 0);
+                        namesInRow.forEach(n => {
+                            factureNames.push(n);
+                            if (!(n in firstIdByName)) {
+                                firstIdByName[n] = row.id;
+                            }
+                        });
+                    });
+
+                    allWasteNames.push(...factureNames);
+                    // Mémoriser les noms provenant des factures pour affichage du flag
+                    setFactureNamesSet(prev => {
+                        const next = new Set(prev);
+                        factureNames.forEach(n => next.add(n));
+                        return next;
+                    });
+                    f_from += f_limit;
+                    f_hasMore = f_data.length === f_limit;
+                } else {
+                    f_hasMore = false;
+                }
+            }
+
             // Dédupliquer et trier les noms
             const uniqueNames = Array.from(new Set(allWasteNames)).sort();
             setWasteNames(uniqueNames);
+            setFactureNameToFirstId(firstIdByName);
         } catch (err) {
             console.error('Erreur lors du chargement des noms de déchets:', err);
         }
@@ -155,10 +214,17 @@ export default function FiliereNomTab() {
         }
         
         // Créer les nouveaux mappings pour tous les noms sélectionnés
+        const flags = (() => {
+            if (mappingMode === 'mono') return { multiflux: false, tri: true };
+            if (mappingMode === 'multi_tri') return { multiflux: true, tri: true };
+            return { multiflux: true, tri: false };
+        })();
+
         const newMappings = selectedNoms.map(selectedNom => ({
             nom: selectedNom.value,
             filiere: selectedFiliere.value,
-            trie: isTrie
+            tri: flags.tri,
+            multiflux: flags.multiflux,
         }));
         
         const updatedMappings = [...mappings, ...newMappings];
@@ -174,7 +240,8 @@ export default function FiliereNomTab() {
             setMappings(updatedMappings);
             setSelectedNoms([]);
             setSelectedFiliere(null);
-            setIsTrie(true);
+            setMappingMode('mono');
+            // no-op
             setError(null); // Effacer les erreurs précédentes
             // Invalider le cache SWR du mapping_nom_filiere
             if (session.entreprise_id) {
@@ -326,16 +393,32 @@ export default function FiliereNomTab() {
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                id="isTrie"
-                                checked={isTrie}
-                                onChange={e => setIsTrie(e.target.checked)}
-                                className="form-checkbox h-5 w-5 text-green-600"
-                            />
-                            <label htmlFor="isTrie" className="text-sm text-gray-700 select-none">
-                                Trié ?
-                            </label>
+                            <div className="inline-flex rounded border border-gray-300 overflow-hidden">
+                                <button
+                                    type="button"
+                                    onClick={() => { setMappingMode('mono'); }}
+                                    className={`px-3 py-2 text-sm ${mappingMode==='mono' ? 'bg-green-600 text-white' : 'bg-white text-gray-700'}`}
+                                    title="Monoflux (tri sur site)"
+                                >
+                                    Monoflux
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setMappingMode('multi_tri'); }}
+                                    className={`px-3 py-2 text-sm border-l border-gray-300 ${mappingMode==='multi_tri' ? 'bg-green-600 text-white' : 'bg-white text-gray-700'}`}
+                                    title="Multiflux trié (prestataire)"
+                                >
+                                    Multiflux trié
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setMappingMode('multi_non_tri'); }}
+                                    className={`px-3 py-2 text-sm border-l border-gray-300 ${mappingMode==='multi_non_tri' ? 'bg-green-600 text-white' : 'bg-white text-gray-700'}`}
+                                    title="Multiflux non trié"
+                                >
+                                    Multiflux non trié
+                                </button>
+                            </div>
                         </div>
                         <button
                             type="submit"
@@ -372,7 +455,23 @@ export default function FiliereNomTab() {
                                             <div key={mapping.nom} className="flex flex-col bg-gray-100 rounded-lg px-3 py-1">
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-medium mr-2">{mapping.nom}</span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${mapping.trie ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>{mapping.trie ? 'Trié' : 'Non trié'}</span>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${mapping.tri ?? mapping.trie ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>{(mapping.tri ?? mapping.trie) ? 'Trié' : 'Non trié'}</span>
+                                                    {(() => {
+                                                        const mf = mapping.multiflux;
+                                                        const tr = mapping.tri ?? mapping.trie;
+                                                        const chips: { key: string; label: string; style: string }[] = [];
+                                                        if (mf === true && tr === true) chips.push({ key: 'mf-true', label: 'multiflux + trié (prestataire)', style: 'bg-green-100 text-green-700 border-green-200' });
+                                                        else if (mf === true && tr === false) chips.push({ key: 'mf-false', label: 'multiflux + non trié', style: 'bg-yellow-100 text-yellow-700 border-yellow-200' });
+                                                        else if (mf === false) chips.push({ key: 'mf-mono', label: 'monoflux', style: 'bg-gray-100 text-gray-700 border-gray-200' });
+                                                        if (chips.length === 0) return null;
+                                                        return (
+                                                            <div className="mt-1 flex gap-2 text-xs flex-wrap">
+                                                                {chips.map(c => (
+                                                                    <span key={c.key} className={`px-2 py-0.5 rounded border ${c.style}`}>{c.label}</span>
+                                                                ))}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                     <button
                                                         onClick={() => handleDelete(mapping.nom)}
                                                         className="text-red-500 hover:text-red-700"
