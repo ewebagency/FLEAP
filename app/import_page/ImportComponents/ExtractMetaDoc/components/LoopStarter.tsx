@@ -8,6 +8,8 @@ import { autoLinkDocs, BulkAutoLinkOutcome } from '../utils/bulk_autolink';
 import { verifierEtMettreAJourAlerte } from '../utils/alerte';
 import { toast } from 'react-hot-toast';
 import BoxIcon from '@/app/component/BoxIconWrapper';
+import { normalizePdfData, buildFactureFromNormalized, push_in_facture_bdd, ParamsMapping } from '../utils/link';
+import { getParamsMappingByEntreprise } from '../utils/bdd';
 
 interface PdfInfo {
     id: string;
@@ -225,6 +227,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const [processingExtractOnly, setProcessingExtractOnly] = useState(false);
     const [processingAutoLink, setProcessingAutoLink] = useState(false);
     const [processingAlertes, setProcessingAlertes] = useState(false);
+    const [processingPush, setProcessingPush] = useState(false);
     const [selectedPdfIds, setSelectedPdfIds] = useState<string[]>([]);
     const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([]);
     const [showReview, setShowReview] = useState(false);
@@ -699,6 +702,149 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         }
     };
 
+    // Push factures for selected PDFs (only if all selected are factures)
+    const handlePushSelected = async () => {
+        if (selectedPdfIds.length === 0) {
+            toast.error('Veuillez sélectionner au moins un PDF');
+            return;
+        }
+        if (!entreprise_id) {
+            toast.error('ID entreprise manquant');
+            return;
+        }
+        // Check all selected are invoices
+        const selectedPdfs = pdfInfos.filter(p => selectedPdfIds.includes(p.id));
+        const allFactures = selectedPdfs.every(p => (p.document_type || '').toLowerCase() === 'facture');
+        if (!allFactures) {
+            toast.error('La sélection doit contenir uniquement des factures');
+            return;
+        }
+
+        setProcessingPush(true);
+        try {
+            const entrepriseIdNumber = Number(entreprise_id);
+            const { data: mappings, error: mappingError } = await getParamsMappingByEntreprise(entrepriseIdNumber);
+            if (mappingError || !mappings) {
+                throw new Error('Impossible de récupérer les mappings');
+            }
+            const paramsMapping = mappings as ParamsMapping;
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (const pdfId of selectedPdfIds) {
+                try {
+                    // Load infos_raw for this pdf
+                    const { data: pdfRow, error: pdfErr } = await supabase
+                        .from('pdf_infos')
+                        .select('id, infos_raw')
+                        .eq('entreprise_id', entrepriseIdNumber)
+                        .eq('id', pdfId)
+                        .maybeSingle();
+                    if (pdfErr || !pdfRow || !pdfRow.infos_raw) {
+                        throw new Error(pdfErr?.message || 'infos_raw introuvable');
+                    }
+
+                    const doc = pdfRow.infos_raw as Record<string, unknown>;
+                    const dechets = Array.isArray((doc as { dechet?: unknown[] }).dechet)
+                        ? ((doc as { dechet: unknown[] }).dechet)
+                        : [];
+                    const indices: number[] = dechets.map((_, i) => i);
+
+                    // Fetch existings for this pdf
+                    const { data: existingRows, error: existingFetchErr } = await supabase
+                        .from('facture')
+                        .select('id,index_dechet_pdf')
+                        .eq('entreprise_id', entrepriseIdNumber)
+                        .eq('pdf_infos_id', pdfId);
+                    if (existingFetchErr) throw existingFetchErr;
+                    const existingIndexToId = new Map<number, string>();
+                    for (const row of existingRows || []) {
+                        const idx = (row as { index_dechet_pdf?: number }).index_dechet_pdf;
+                        const id = (row as { id?: string }).id;
+                        if (typeof idx === 'number' && id) existingIndexToId.set(idx, id);
+                    }
+
+                    // Single confirm per pdf if any exist
+                    const indicesExisting = indices.filter(i => existingIndexToId.has(i));
+                    let overwriteAllowed = false;
+                    if (indicesExisting.length > 0) {
+                        overwriteAllowed = window.confirm(`Le PDF ${pdfId} contient déjà ${indicesExisting.length} ligne(s) de facture. Écraser ?`);
+                    }
+
+                    let created = 0;
+                    let updated = 0;
+                    let skipped = 0;
+
+                    for (const idx of indices) {
+                        try {
+                            const normalized = normalizePdfData(
+                                doc,
+                                paramsMapping.params_mapping_site || {},
+                                paramsMapping.params_mapping_presta || {},
+                                idx,
+                                true
+                            );
+                            const factureJson = buildFactureFromNormalized(
+                                normalized,
+                                doc,
+                                idx,
+                                paramsMapping
+                            );
+
+                            const existingId = existingIndexToId.get(idx);
+                            if (existingId) {
+                                if (!overwriteAllowed) {
+                                    skipped += 1;
+                                    continue;
+                                }
+                                const { error: updateErr } = await supabase
+                                    .from('facture')
+                                    .update({ infos_json: factureJson, user_id: user_id || undefined })
+                                    .eq('id', existingId);
+                                if (updateErr) throw updateErr;
+                                updated += 1;
+                            } else {
+                                await push_in_facture_bdd(entrepriseIdNumber, pdfId, idx, factureJson, user_id || undefined);
+                                created += 1;
+                            }
+                        } catch (e) {
+                            console.error('Erreur push facture index', idx, e);
+                            skipped += 1;
+                            continue;
+                        }
+                    }
+
+                    const total = indices.length;
+                    const processed = created + updated;
+                    if (processed === total) {
+                        const pushedArray = indices.map(idx => ({ index_dechet: idx, status: 'pushed' as const }));
+                        const { error: updatePdfErr } = await supabase
+                            .from('pdf_infos')
+                            .update({ status: 'pushed', bsd_linked: pushedArray })
+                            .eq('entreprise_id', entrepriseIdNumber)
+                            .eq('id', pdfId);
+                        if (updatePdfErr) console.error('Erreur maj pdf_infos', updatePdfErr);
+                    }
+
+                    successCount++;
+                } catch (e) {
+                    errorCount++;
+                    console.error('Erreur push facture pour PDF', pdfId, e);
+                }
+            }
+
+            if (successCount > 0) toast.success(`${successCount} facture(s) poussée(s)`);
+            if (errorCount > 0) toast.error(`${errorCount} erreur(s) lors du push`);
+            setSelectedPdfIds([]);
+        } catch (error) {
+            console.error('Erreur push factures:', error);
+            toast.error('Erreur lors du push des factures');
+        } finally {
+            setProcessingPush(false);
+        }
+    };
+
     // Vérifier les alertes des PDFs sélectionnés
     const handleCheckAlertes = async () => {
         if (selectedPdfIds.length === 0) {
@@ -1163,24 +1309,44 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                             </>
                                         )}
                                     </button>
-                                    <button
-                                        onClick={handleAutoLinkSelected}
-                                        disabled={processingAutoLink || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
-                                        className="px-2.5 py-1.5 bg-indigo-500 text-white rounded-sm text-xs hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
-                                        title="Auto-linker les documents sélectionnés"
-                                    >
-                                        {processingAutoLink ? (
-                                            <>
-                                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                                <span>Auto-link...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <BoxIcon name="bx-link" size="16" />
-                                                <span>Auto-link ({selectedPdfIds.length})</span>
-                                            </>
-                                        )}
-                                    </button>
+                                    <div className='flex flex-col gap-2'>
+                                        <button
+                                            onClick={handleAutoLinkSelected}
+                                            disabled={processingAutoLink || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
+                                            className="px-2.5 py-1.5 bg-indigo-500 text-white rounded-sm text-xs hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
+                                            title="Auto-linker les documents sélectionnés"
+                                        >
+                                            {processingAutoLink ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                                    <span>Auto-link...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <BoxIcon name="bx-link" size="16" />
+                                                    <span>Auto-link ({selectedPdfIds.length})</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={handlePushSelected}
+                                            disabled={processingPush || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
+                                            className="px-2.5 py-1.5 bg-purple-600 text-white rounded-sm text-xs hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
+                                            title="Pousser les factures sélectionnées"
+                                        >
+                                            {processingPush ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                                    <span>Push...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <BoxIcon name="bx-upload" size="16" />
+                                                    <span>Push ({selectedPdfIds.length})</span>
+                                                </>
+                                            )}
+                                        </button>                                    
+                                    </div>
                                 </div>
                             </div>
                             

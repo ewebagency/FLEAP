@@ -125,7 +125,7 @@ const TableImportedFilesFunctional: React.FC = () => {
             case 'unread':
                 return ['unread', 'splitted'];
             case 'linked':
-                return ['linked'];
+                return ['linked', 'pushed'];
             default:
                 return [];
         }

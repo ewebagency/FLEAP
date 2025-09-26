@@ -1,5 +1,5 @@
 import { RowBSDPreview } from '../ButtonImportExcels';
-import { sendDataToBdd } from '../send_data_to_bdd';
+// import { sendDataToBdd } from '../send_data_to_bdd';
 import { ExcelData } from './ecobtp';
 
 
@@ -29,6 +29,7 @@ const CLASSIC_HEADER_MAPPING = [
   'siretInstallationDestination',
   'adresseInstallationDestination',
   'codeTraitementPrevuInstallationDestination',
+  'volumeUnitaire',
   'valo1_dest',
   'tonnage1_dest',
   'valo2_dest',
@@ -198,7 +199,7 @@ const ready_to_send = (allStandardizedData: StandardizedData[], data_excel: Exce
         }
       },
       other_infos: {
-        volume: "",
+        volume: String(row.volumeUnitaire || ""),
         volumeUnit: "m3",
         tri: typeof row.tri === 'boolean' ? row.tri : toBoolean(row.tri ?? false),
         ...(row.rep && { rep: row.rep })
@@ -210,6 +211,7 @@ const ready_to_send = (allStandardizedData: StandardizedData[], data_excel: Exce
     data_ready_to_send.push(newRow);
   });
   
+  // Afficher la donnée envoyée en preview juste avant l'import
   console.log("data_ready_to_send", data_ready_to_send);
   return data_ready_to_send;
 };
@@ -238,9 +240,7 @@ const standard_with_classic = async (data_excel: ExcelData, user_id: string, ent
     headerKeys.includes(expectedHeader)
   );
   
-  console.log('Header attendu:', CLASSIC_HEADER_MAPPING);
-  console.log('Header trouvé:', headerKeys);
-  console.log('Intersection:', intersection);
+  
   
   // Vérifier si l'intersection contient au moins 3 colonnes
   if (intersection.length < 3) {
@@ -269,9 +269,13 @@ const standard_with_classic = async (data_excel: ExcelData, user_id: string, ent
           standardizedRow[fieldName] = toNumber(value);
         } else if (fieldName === 'tri') {
           standardizedRow[fieldName] = toBoolean(value);
+        } else if (fieldName === 'volumeUnitaire') {
+          standardizedRow[fieldName] = toString(value);
         } else {
           standardizedRow[fieldName] = toString(value);
         }
+
+        
       }
     });
 
@@ -319,7 +323,7 @@ const standard_with_classic = async (data_excel: ExcelData, user_id: string, ent
     allStandardizedData.push(standardizedRow);
   }
 
-  console.log("Données standardisées Classic:", allStandardizedData);
+  
   
   // Transformer les données standardisées en RowBSDPreview
   const data_ready_to_send = ready_to_send(allStandardizedData, data_excel, user_id, entreprise_id);

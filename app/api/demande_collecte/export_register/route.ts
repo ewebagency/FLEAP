@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { supabase } from "@/app/database/supabaseClient";
-import { DataOnSupabase_infos_json, FormInput } from "@/app/register/interface/BSD_Interface";
+import { FormInput } from "@/app/register/interface/BSD_Interface";
 import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
@@ -14,7 +14,7 @@ type BSD_Export_Interface = {
     "Code déchet": string | number | null,
     "Nom du déchet": string | number | null,
     "Date de création": string | number | null,
-    "N° TrackDéchet": string | number | null,
+    "N° BSD": string | number | null,
     "Point de collecte": string | number | null,
     "Adresse de collecte": string | number | null,
     
@@ -297,7 +297,7 @@ const formatBSDData = (data: {
             "Code déchet": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.code),
             "Nom du déchet": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.name),
             "Date de création": getValue(() => format(new Date(item.created_at), 'dd/MM/yyyy', { locale: fr })),
-            "N° TrackDéchet": getValue(() => null, ["Ligne demandée", "Ligne validée", "Ligne automatique", "Ligne créée", "ID non disponible"].includes(item.readable_id_track_dechets) ? "ID FLEAP : " + item.id : item.readable_id_track_dechets),
+            "N° BSD": getValue(() => null, ["Ligne demandée", "Ligne validée", "Ligne automatique", "Ligne créée", "ID non disponible"].includes(item.readable_id_track_dechets) ? "ID FLEAP : " + item.id : item.readable_id_track_dechets),
             "Point de collecte": getValue(() => {
                 const workSite = item.infos_json.formAPI.createFormInput.emitter.workSite;
                 return workSite?.name ?? '';
@@ -397,8 +397,40 @@ const formatBSDData = (data: {
     }
 };
 
+// Fonction pour filtrer les colonnes entièrement vides
+const filterEmptyColumns = (data: BSD_Export_Interface[]): BSD_Export_Interface[] => {
+    if (!data || data.length === 0) return data;
+    
+    // Obtenir toutes les clés (colonnes) du premier objet
+    const allKeys = Object.keys(data[0]);
+    
+    // Trouver les colonnes qui ont au moins une valeur non vide
+    const columnsWithData = allKeys.filter(key => {
+        return data.some(item => {
+            const value = item[key];
+            // Considérer comme vide : null, undefined, chaîne vide, ou chaîne avec seulement des espaces
+            return value !== null && 
+                   value !== undefined && 
+                   value !== '' && 
+                   (typeof value !== 'string' || value.trim() !== '');
+        });
+    });
+    
+    // Filtrer les données pour ne garder que les colonnes avec des données
+    return data.map(item => {
+        const filteredItem: BSD_Export_Interface = {} as BSD_Export_Interface;
+        columnsWithData.forEach(key => {
+            filteredItem[key] = item[key];
+        });
+        return filteredItem;
+    });
+};
+
 const exportToExcel = (data: BSD_Export_Interface[], fileName: string, entrepriseName: string) => {
     try {
+    // Filtrer les colonnes vides
+    const filteredData = filterEmptyColumns(data);
+    
     // Créer une nouvelle feuille de calcul
     const worksheet = XLSX.utils.aoa_to_sheet([]);
     const workbook = XLSX.utils.book_new();
@@ -415,26 +447,17 @@ const exportToExcel = (data: BSD_Export_Interface[], fileName: string, entrepris
         alignment: { horizontal: "center" }
     };
 
-    const titleStyle = {
-        font: { bold: true, size: 16 },
-        alignment: { horizontal: "center" }
-    };
-
-    const subtitleStyle = {
-        font: { italic: true, size: 12 },
-        alignment: { horizontal: "center" }
-    };
 
     // Ajouter le titre et sous-titre
     worksheet['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: Object.keys(data[0]).length - 1 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: Object.keys(data[0]).length - 1 } }
+        { s: { r: 0, c: 0 }, e: { r: 0, c: Object.keys(filteredData[0]).length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: Object.keys(filteredData[0]).length - 1 } }
     ];
 
     XLSX.utils.sheet_add_aoa(worksheet, [[title], [subtitle]], { origin: 'A1' });
 
     // Ajouter les données à partir de la ligne 4
-    XLSX.utils.sheet_add_json(worksheet, data, { origin: 'A4' });
+    XLSX.utils.sheet_add_json(worksheet, filteredData, { origin: 'A4' });
 
     // Appliquer les styles aux en-têtes de colonnes
     const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
@@ -445,7 +468,7 @@ const exportToExcel = (data: BSD_Export_Interface[], fileName: string, entrepris
     }
 
     // Ajuster la largeur des colonnes
-    const columnWidths = Object.keys(data[0]).map(key => ({
+    const columnWidths = Object.keys(filteredData[0]).map(key => ({
         wch: Math.max(20, key.length * 1.2)
     }));
     worksheet['!cols'] = columnWidths;

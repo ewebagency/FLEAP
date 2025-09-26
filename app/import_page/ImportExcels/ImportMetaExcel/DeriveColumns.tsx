@@ -318,6 +318,8 @@ export default function DeriveColumns({ rows, availableColumns, value, onChange,
 
   const handleAddDerived = () => {
     if (!newName.trim()) return;
+    // Enforce predefined names only
+    if (unusedFieldKeys && unusedFieldKeys.length > 0 && !unusedFieldKeys.includes(newName.trim())) return;
     if (mode === 'formula') {
       if (tokens.length === 0) return;
       onChange([...value, { kind: 'formula', name: newName.trim(), tokens }]);
@@ -389,25 +391,17 @@ export default function DeriveColumns({ rows, availableColumns, value, onChange,
 
       <div className="mt-3">
         <div className="flex items-center gap-2">
-          <input
+          <select
+            onChange={(e) => { if (e.target.value) setNewName(e.target.value); }}
+            className="w-full px-2 py-1 text-xs border rounded bg-white"
             value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="ex: tonnage_valorise_R1"
-            className="w-full px-2 py-1 text-xs border rounded"
-          />
-          {unusedFieldKeys && unusedFieldKeys.length > 0 && (
-            <select
-              onChange={(e) => { if (e.target.value) setNewName(e.target.value); }}
-              className="px-2 py-1 text-xs border rounded bg-white w-auto"
-              value=""
-              title="Choisir un standard"
-            >
-              <option value="">—</option>
-              {unusedFieldKeys.map(k => (
-                <option key={k} value={k}>{k}</option>
-              ))}
-            </select>
-          )}
+            title="Nom standard de la colonne dérivée"
+          >
+            <option value="">— Sélectionner un nom standard —</option>
+            {(unusedFieldKeys || []).map(k => (
+              <option key={k} value={k}>{k}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -968,10 +962,10 @@ export function evaluateFormulaTokens(tokens: FormulaToken[], row: ExcelRow, col
 
 // Utilitaire pour évaluer une condition construite par tokens
 export function evaluateConditionTokens(tokens: ConditionToken[], row: ExcelRow, columnMapping?: { [mappedName: string]: string }): boolean {
-  console.log('🔍 [evaluateConditionTokens] Début évaluation:');
+  /*console.log('🔍 [evaluateConditionTokens] Début évaluation:');
   console.log('  - Tokens:', tokens);
   console.log('  - Row keys:', Object.keys(row));
-  console.log('  - Column mapping:', columnMapping);
+  console.log('  - Column mapping:', columnMapping);*/
 
   // Construire l'expression condition par condition
   let jsExpr = '';
@@ -988,12 +982,12 @@ export function evaluateConditionTokens(tokens: ConditionToken[], row: ExcelRow,
         .replace(/\n/g, '\\n')
         .replace(/\r/g, '\\r')
         .replace(/\t/g, '\\t');
-      console.log(`  - Token column: "${token.columnName}" -> original: "${originalColumnName}"`);
+      //console.log(`  - Token column: "${token.columnName}" -> original: "${originalColumnName}"`);
 
       // Chercher l'opérateur suivant
       if (i + 1 < tokens.length && tokens[i + 1].type === 'operator') {
         const operator = tokens[i + 1];
-        console.log(`  - Token operator: ${operator.type === 'operator' ? operator.value : 'unknown'}`);
+        //console.log(`  - Token operator: ${operator.type === 'operator' ? operator.value : 'unknown'}`);
 
         // Chercher la valeur suivante
         if (i + 2 < tokens.length && tokens[i + 2].type === 'value') {
@@ -1004,7 +998,7 @@ export function evaluateConditionTokens(tokens: ConditionToken[], row: ExcelRow,
             .replace(/\n/g, '\\n')
             .replace(/\r/g, '\\r')
             .replace(/\t/g, '\\t') : '';
-          console.log(`  - Token value: "${value.type === 'value' ? value.value : 'unknown'}"`);
+          //console.log(`  - Token value: "${value.type === 'value' ? value.value : 'unknown'}"`);
 
           // Construire l'expression selon l'opérateur
           switch (operator.type === 'operator' ? operator.value : '') {
@@ -1058,11 +1052,11 @@ export function evaluateConditionTokens(tokens: ConditionToken[], row: ExcelRow,
         i += 1;
       }
     } else if (token.type === 'logical') {
-      console.log(`  - Token logical: ${token.value}`);
+      //console.log(`  - Token logical: ${token.value}`);
       jsExpr += ` ${token.value.toLowerCase()} `;
       i += 1;
     } else if (token.type === 'paren') {
-      console.log(`  - Token paren: ${token.value}`);
+      //console.log(`  - Token paren: ${token.value}`);
       jsExpr += token.value;
       i += 1;
     } else {
@@ -1070,7 +1064,7 @@ export function evaluateConditionTokens(tokens: ConditionToken[], row: ExcelRow,
     }
   }
 
-  console.log('  - Expression JS générée:', jsExpr);
+  //console.log('  - Expression JS générée:', jsExpr);
 
   try {
     // Créer une fonction d'évaluation sécurisée
@@ -1089,10 +1083,10 @@ export function evaluateConditionTokens(tokens: ConditionToken[], row: ExcelRow,
     `);
 
     const result = conditionFn(row);
-    console.log('  - Résultat brut:', result, `(type: ${typeof result})`);
+    //console.log('  - Résultat brut:', result, `(type: ${typeof result})`);
 
     if (typeof result === 'boolean') {
-      console.log('  - ✅ Résultat final:', result);
+      //console.log('  - ✅ Résultat final:', result);
       return result;
     }
     console.log('  - ❌ Résultat invalide (pas un booléen)');

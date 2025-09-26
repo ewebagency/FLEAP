@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "@/app/component/SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
 import PdfDisplayer from '@/app/interface_admin_2/InterfaceAdmin2/PdfDisplayer';
@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import BoutonExtractDoc from './BoutonExtractDoc';
 import BoutonSplitDoc from './BoutonSplitDoc';
 import { MetaOcrResponse } from '../interface/pdf_interface';
+// removed PushFactureButton usage in this file per requirements
 
 // Import des interfaces depuis MetaDataInterface.ts
 interface PrestaInfosAdd {
@@ -114,6 +115,7 @@ const ExtractDoc = ({ pdf_id, pdf_path }: ExtractDocProps) => {
     const [isLoading, setIsLoading] = useState(false);
     const [confidenceData, setConfidenceData] = useState<{brute?: number, spec?: number, handwritten?: [number, boolean]} | null>(null);
     const [alerteData, setAlerteData] = useState<{stop?: boolean, message?: string} | null>(null);
+    const currentFormRef = useRef<Record<string, unknown> | null>(null);
 
     // Clés de persistance
     const formStorageKey = `extractDoc:form:${String(pdf_id)}`;
@@ -363,7 +365,7 @@ const ExtractDoc = ({ pdf_id, pdf_path }: ExtractDocProps) => {
         if (al) setAlerteData(al);
     };
 
-    const FormulaireExtractDoc = ({ onSave }: { onSave: (formData: DocInterface) => Promise<void> }) => {
+    const FormulaireExtractDoc = ({ onSave, onChange }: { onSave: (formData: DocInterface) => Promise<void>; onChange?: (formData: DocInterface) => void }) => {
         const [formData, setFormData] = useState<DocInterface>(() => {
             if (existingData) {
                 return existingData;
@@ -399,23 +401,30 @@ const ExtractDoc = ({ pdf_id, pdf_path }: ExtractDocProps) => {
         useEffect(() => {
             if (existingData) {
                 setFormData(existingData);
+                currentFormRef.current = existingData as unknown as Record<string, unknown>;
+                onChange?.(existingData);
             }
-        }, []);
+        }, [onChange]);
 
         const handleInputChange = (field: string, value: unknown) => {
-            setFormData(prev => ({
-                ...prev,
-                [field]: value
-            }));
+            setFormData(prev => {
+                const next = { ...prev, [field]: value } as DocInterface;
+                currentFormRef.current = next as unknown as Record<string, unknown>;
+                onChange?.(next);
+                return next;
+            });
         };
 
         const handleDechetChange = (index: number, field: string, value: string) => {
-            setFormData(prev => ({
-                ...prev,
-                dechet: prev.dechet.map((dechet, i) => 
-                    i === index ? { ...dechet, [field]: value } : dechet
-                )
-            }));
+            setFormData(prev => {
+                const next = {
+                    ...prev,
+                    dechet: prev.dechet.map((dechet, i) => i === index ? { ...dechet, [field]: value } : dechet)
+                } as unknown as DocInterface;
+                currentFormRef.current = next as unknown as Record<string, unknown>;
+                onChange?.(next);
+                return next;
+            });
         };
 
         const addDechet = () => {
@@ -445,17 +454,27 @@ const ExtractDoc = ({ pdf_id, pdf_path }: ExtractDocProps) => {
                 };
             }
 
-            setFormData(prev => ({
-                ...prev,
-                dechet: [...prev.dechet, newDechet as unknown as DechetMetaInterface]
-            } as unknown as DocInterface));
+            setFormData(prev => {
+                const next = {
+                    ...prev,
+                    dechet: [...prev.dechet, newDechet as unknown as DechetMetaInterface]
+                } as unknown as DocInterface;
+                currentFormRef.current = next as unknown as Record<string, unknown>;
+                onChange?.(next);
+                return next;
+            });
         };
 
         const removeDechet = (index: number) => {
-            setFormData(prev => ({
-                ...prev,
-                dechet: prev.dechet.filter((_, i) => i !== index)
-            }));
+            setFormData(prev => {
+                const next = {
+                    ...prev,
+                    dechet: prev.dechet.filter((_, i) => i !== index)
+                } as unknown as DocInterface;
+                currentFormRef.current = next as unknown as Record<string, unknown>;
+                onChange?.(next);
+                return next;
+            });
         };
 
         const renderDechetFields = (dechet: DechetMetaInterface, index: number) => {
@@ -998,6 +1017,7 @@ const ExtractDoc = ({ pdf_id, pdf_path }: ExtractDocProps) => {
                                     setIsOpen(false);
                                 }}
                             />
+                            {/* PushFactureButton now rendered in LinkMeta.tsx */}
                         </div>
                         
                         {/* Scores de confiance et Alertes */}
@@ -1052,7 +1072,7 @@ const ExtractDoc = ({ pdf_id, pdf_path }: ExtractDocProps) => {
                             <DisplayDocPDF pdf_path={pdf_path}/>
                         </div>
                         <div className="w-1/2 h-full">
-                            <FormulaireExtractDoc onSave={handleSave}/>
+                            <FormulaireExtractDoc onSave={handleSave} onChange={(fd) => { currentFormRef.current = fd as unknown as Record<string, unknown>; }}/>
                         </div>
                     </div>
                 </div>

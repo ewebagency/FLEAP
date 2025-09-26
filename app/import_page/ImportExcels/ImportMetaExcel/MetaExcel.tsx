@@ -12,6 +12,7 @@ import { RowBSDPreview } from '../ButtonImportExcels';
 import standard_with_classic from '../FormatsExcels/classic';
 import { ExcelData } from '../FormatsExcels/ecobtp';
 import { sendDataToBdd } from '../send_data_to_bdd';
+import { supabase } from '@/app/database/supabaseClient';
 
 interface MetaExcelProps {
   data: MetaExcelData;
@@ -1013,19 +1014,22 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
         const userMappedField = mappedFieldName || columnMappings[displayName];
         if (userMappedField && userMappedField in columnMappingDictionary) {
           finalKey = columnMappingDictionary[userMappedField as string];
+        } else if (displayName in columnMappingDictionary) {
+          // If the header/display name itself is a known meta key (e.g. 'codeDR'), map it
+          finalKey = columnMappingDictionary[displayName];
         } else {
           // fallback to mapped display name
           finalKey = getColumnDisplayName(displayName);
         }
 
         const normalized = toIsoDateIfNeeded(finalKey, value);
-        if (finalKey === 'dateCollecteTransporteur') {
-          console.log('[MetaExcel][preview][date-field]', {
+        if (Object.prototype.hasOwnProperty.call(out, finalKey)) {
+          console.warn('[MetaExcel][collision][exportCurrentAsExcel]', {
             finalKey,
+            previous: out[finalKey],
+            next: normalized,
             sourceColumn: colName,
             mappedFieldName: userMappedField || mappedFieldName,
-            rawValue: value,
-            normalized
           });
         }
         out[finalKey] = normalized;
@@ -1149,21 +1153,16 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
         const userMappedField = mappedFieldName || columnMappings[displayName];
         if (userMappedField && userMappedField in columnMappingDictionary) {
           finalKey = columnMappingDictionary[userMappedField as string];
+        } else if (displayName in columnMappingDictionary) {
+          // If the header/display name itself is a known meta key (e.g. 'codeDR'), map it
+          finalKey = columnMappingDictionary[displayName];
         } else {
           finalKey = getColumnDisplayName(displayName);
         }
 
         const normalized = toPreviewDateValue(finalKey, value);
-        if (finalKey === 'dateCollecteTransporteur') {
-          console.log('[MetaExcel][preview][date-field]', {
-            finalKey,
-            sourceColumn: colName,
-            displayName,
-            mappedFieldName: userMappedField || mappedFieldName,
-            rawValue: value,
-            normalized
-          });
-        }
+        
+        
         out[finalKey] = normalized;
       });
       return out;
@@ -1212,6 +1211,31 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
     setIsProcessingImport(true);
     try {
       await sendDataToBdd(finalPreviewData as RowBSDPreview[], session.entreprise_id);
+      // Créer une ligne dans la table pdf_infos après import final (aligné avec le flux classic)
+      try {
+        const { data: pdfData, error: pdfError } = await supabase
+          .from('pdf_infos')
+          .insert({
+            user_id: session.user_id,
+            pdf_path: '',
+            name_pdf: data.fileName,
+            name_pdf_in_bucket: '',
+            status: 'read',
+            site_siret: null,
+            document_type: 'excel',
+            entreprise_id: session.entreprise_id,
+            site_siret_plus: null,
+          })
+          .select()
+          .single();
+        if (pdfError) {
+          console.error('Erreur lors de la création de la ligne pdf_infos (MetaExcel):', pdfError);
+        } else {
+          void pdfData; // not used here; UI update non-critique
+        }
+      } catch (err) {
+        console.error('Erreur insertion pdf_infos (MetaExcel):', err);
+      }
       setShowFinalPreview(false);
     } catch (e) {
       console.error('Erreur lors de l\u0027import final:', e);

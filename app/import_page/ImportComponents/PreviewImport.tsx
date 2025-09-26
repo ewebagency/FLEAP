@@ -68,11 +68,14 @@ const PreviewImport: React.FC<PreviewImportProps> = ({
   }>>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [mappingTable, setMappingTable] = useState<Array<{ced: string, filiere: string}>>([]);
+  const [isLoadingMapping, setIsLoadingMapping] = useState(false);
+  const [hasLoadedIds, setHasLoadedIds] = useState(false);
 
   // Charger le mapping CED-filière depuis la table entreprise
   useEffect(() => {
     if (isOpen && entreprise_id) {
       const fetchMappingTable = async () => {
+        setIsLoadingMapping(true);
         try {
           const { data, error } = await supabase
             .from('entreprise')
@@ -90,6 +93,8 @@ const PreviewImport: React.FC<PreviewImportProps> = ({
         } catch (error) {
           console.error('Erreur lors du chargement du mapping CED-filière:', error);
           setMappingTable([]);
+        } finally {
+          setIsLoadingMapping(false);
         }
       };
 
@@ -100,6 +105,7 @@ const PreviewImport: React.FC<PreviewImportProps> = ({
   // Calcul des KPIs
   const kpis = useMemo(() => {
     const bsdsToAdd = previewData.filter(item => item.willBeAdded).map(item => item.row);
+    
     
     // Calculer le tonnage total
     const totalWeight = bsdsToAdd.reduce((sum, bsd) => {
@@ -121,35 +127,40 @@ const PreviewImport: React.FC<PreviewImportProps> = ({
     };
   }, [previewData, mappingTable]);
 
+  
+
   // Charger les IDs existants au montage du composant
   useEffect(() => {
     if (isOpen && entreprise_id) {
       setIsLoadingIds(true);
+      setHasLoadedIds(false);
       getExistingReadableIds(entreprise_id)
         .then(ids => {
           setExistingIds(ids);
           setIsLoadingIds(false);
+          setHasLoadedIds(true);
         })
         .catch(error => {
           console.error('Erreur lors du chargement des IDs existants:', error);
           toast.error('Erreur lors du chargement des données existantes');
           setIsLoadingIds(false);
+          setHasLoadedIds(true);
         });
     }
   }, [isOpen, entreprise_id]);
 
   // Préparer les données d'aperçu
   useEffect(() => {
-    if (existingIds.length > 0 && dataReadyToSend.length > 0) {
-      const existingIdsSet = new Set(existingIds);
-      const preview = dataReadyToSend.map(row => ({
-        row,
-        willBeAdded: !existingIdsSet.has(row.readable_id_track_dechets || ''),
-        readableId: row.readable_id_track_dechets || ''
-      }));
-      setPreviewData(preview);
-    }
-  }, [existingIds, dataReadyToSend]);
+    if (!isOpen) return;
+    if (!hasLoadedIds) return;
+    const existingIdsSet = new Set(existingIds);
+    const preview = (dataReadyToSend || []).map(row => ({
+      row,
+      willBeAdded: !existingIdsSet.has(row.readable_id_track_dechets || ''),
+      readableId: row.readable_id_track_dechets || ''
+    }));
+    setPreviewData(preview);
+  }, [isOpen, hasLoadedIds, existingIds, dataReadyToSend]);
 
   // Calculer les statistiques
   const stats = {

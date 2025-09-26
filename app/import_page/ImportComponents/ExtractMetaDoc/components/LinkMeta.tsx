@@ -5,6 +5,7 @@ import { useSession } from '@/app/component/SessionProvider';
 import { PdfInfo } from '../interface/pdf_interface';
 import { getPdfInfoById, getBSDCandidates } from '../utils/bdd';
 import { LINK_RULES_DEFAULT, BSDCandidate, ProposeActionAuto, ProposeActionResult, AutoLinkOrCreateThisDoc } from '../utils/link';
+import PushFactureButton from './PushFactureButton';
 import { DEFAULT_AUTO_LINK_PARAMS } from '../utils/default_auto_link_params';
 import { create_in_bdd, create_in_bdd_preview, link_in_bdd, translateByMapping } from '../utils/link_or_create_bdd';
 import { useParamsMapping } from '../utils/extract';
@@ -107,7 +108,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	const [previewModal, setPreviewModal] = useState<{ open: boolean; index: number; data: Record<string, unknown> | null }>({ open: false, index: -1, data: null });
 	
 	// State local pour le statut des déchets liés/créés (même structure que bsd_linked en BDD)
-	const [bsdLinked, setBsdLinked] = useState<Array<{ bsd_id: number; index_dechet: number; status: 'linked' | 'created' | 'check_by_user' }>>([]);
+	const [bsdLinked, setBsdLinked] = useState<Array<{ bsd_id?: number; index_dechet: number; status: 'linked' | 'created' | 'check_by_user' | 'pushed' }>>([]);
 
 	useEffect(() => {
 		const fetchPdf = async () => {
@@ -122,11 +123,11 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 				// Récupérer et synchroniser le statut bsd_linked depuis la BDD
 				const pdfData = data as PdfInfo;
 				if (pdfData.bsd_linked && Array.isArray(pdfData.bsd_linked)) {
-					// Convertir le format BDD en format local
+					// Convertir le format BDD en format local (inclure 'pushed')
 					const initialStatus = pdfData.bsd_linked.map(item => ({
 						bsd_id: item.bsd_id,
 						index_dechet: item.index_dechet,
-						status: item.status as 'linked' | 'created'
+						status: (item.status as 'linked' | 'created' | 'check_by_user' | 'pushed') || 'linked'
 					}));
 					setBsdLinked(initialStatus);
 				}
@@ -498,7 +499,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	};
 
 	// Fonction pour mettre à jour le statut local d'un déchet
-	const updateDechetStatus = (index: number, bsdId: number, status: 'linked' | 'created') => {
+	const updateDechetStatus = (index: number, bsdId: number, status: 'linked' | 'created' | 'pushed') => {
 		setBsdLinked(prev => {
 			// Retirer l'ancien statut s'il existe
 			const filtered = prev.filter(item => item.index_dechet !== index);
@@ -615,9 +616,20 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 							<span className="text-xs font-semibold text-purple-600">Association aux BSD</span>
 							<span className="text-[11px] text-gray-600">{typeDoc.toUpperCase()} · {pdfInfo.name_pdf}</span>
 						</div>
-						<button onClick={runAutoForAll} disabled={busyAll} className="px-3 py-1 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
-							Auto-linker tout
-						</button>
+						<div className="flex items-center gap-2">
+							{typeDoc === 'facture' && (
+								<PushFactureButton
+									entrepriseId={entrepriseIdNum!}
+									pdfId={pdfId}
+									userId={user_id || undefined}
+									doc={(pdfInfo?.infos_raw as Record<string, unknown>) || null}
+									disabled={!pdfInfo?.infos_raw}
+								/>
+							)}
+							<button onClick={runAutoForAll} disabled={busyAll} className="px-3 py-1 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+								Auto-linker tout
+							</button>
+						</div>
 					</div>
 				</div>
 
@@ -664,11 +676,11 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 								<div className="text-[12px] text-gray-800">{num_bon}</div>
 								<div className="text-[12px] text-gray-800 truncate">{num_bsd || ''}</div>
 								<div className="flex items-center gap-2">
-									{dechetStatus && (
-										<span className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${dechetStatus.status === 'linked' ? 'bg-green-50 text-green-700 border border-green-200' : dechetStatus.status === 'created' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-yellow-50 text-yellow-700 border border-yellow-200'}`}>{dechetStatus.status === 'linked' ? '🔗 Lié' : dechetStatus.status === 'created' ? '✨ Créé' : '👀 À vérifier'}</span>
-									)}
-									<button onClick={() => runProposeActionAuto(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-2.5 py-1 text-[11px] rounded-md bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">Proposer</button>
-									<button onClick={() => doCreate(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created')} className="px-2.5 py-1 text-[11px] rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">Créer</button>
+						{dechetStatus && (
+							<span className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${dechetStatus.status === 'linked' ? 'bg-green-50 text-green-700 border border-green-200' : dechetStatus.status === 'created' ? 'bg-blue-50 text-blue-700 border border-blue-200' : dechetStatus.status === 'pushed' ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-yellow-50 text-yellow-700 border border-yellow-200'}`}>{dechetStatus.status === 'linked' ? '🔗 Lié' : dechetStatus.status === 'created' ? '✨ Créé' : dechetStatus.status === 'pushed' ? '⬆︎ Pushed' : '👀 À vérifier'}</span>
+						)}
+							<button onClick={() => runProposeActionAuto(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created' || dechetStatus?.status === 'pushed')} className="px-2.5 py-1 text-[11px] rounded-md bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">Proposer</button>
+							<button onClick={() => doCreate(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created' || dechetStatus?.status === 'pushed')} className="px-2.5 py-1 text-[11px] rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">Créer</button>
 								</div>
 							</div>
 
