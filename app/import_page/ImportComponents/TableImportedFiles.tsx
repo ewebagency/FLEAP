@@ -769,6 +769,7 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
 }) => {
     const [selectedSites, setSelectedSites] = useState<string[]>(initialSite || []);
     const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
     // removed unused sitesFromContext
     const dropdownRef = React.useRef<HTMLDivElement>(null);
     
@@ -825,6 +826,14 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
         return <div className="text-xs text-red-500">Erreur de chargement</div>;
     }
 
+    const normalizedQuery = searchTerm.trim().toLowerCase();
+    const filteredSitesList = normalizedQuery
+        ? sites.filter(s =>
+            s.name.toLowerCase().includes(normalizedQuery) ||
+            (s.siret || '').toLowerCase().includes(normalizedQuery)
+        )
+        : sites;
+
     return (
         <div className="relative" ref={dropdownRef}>
             <button
@@ -844,7 +853,18 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
             {isOpen && (
                 <div className="absolute z-10 w-full max-w-[200px] mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
                     <div className="py-1">
-                        {sites.map((site) => (
+                        {sites.length > 5 && (
+                            <div className="px-3 py-2 sticky top-0 bg-white border-b">
+                                <input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    placeholder="Rechercher (nom, siret)"
+                                    className="w-full px-2 py-1 text-xs border rounded"
+                                />
+                            </div>
+                        )}
+                        {filteredSitesList.map((site) => (
                             <label
                                 key={site.siret}
                                 className="flex items-center px-3 py-1.5 hover:bg-gray-50 cursor-pointer whitespace-nowrap"
@@ -856,7 +876,7 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
                                     className="mr-2 rounded border-gray-300 text-[var(--green-medium)] focus:ring-[var(--green-medium)]"
                                 />
                                 <span className="text-xs">
-                                    {site.name}
+                                    {site.name}{site.siret ? ` - ${site.siret}` : ''}
                                 </span>
                             </label>
                         ))}
@@ -922,6 +942,7 @@ const SelectProvider: React.FC<{ entreprise_id: string | null; pdf_id: number; i
     const [selectedProvider, setSelectedProvider] = useState<string>('');
     const [isLoading, setIsLoading] = useState(true);
     const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
     const dropdownRef = React.useRef<HTMLDivElement>(null);
 
     // Charger les prestataires depuis table_autocompletion
@@ -998,6 +1019,26 @@ const SelectProvider: React.FC<{ entreprise_id: string | null; pdf_id: number; i
     }, []);
 
     const handleSelectProvider = async (providerId: string) => {
+        // Toggle selection: if clicking the already-selected provider, unselect it
+        if (selectedProvider === providerId) {
+            setSelectedProvider('');
+            setIsOpen(false);
+            try {
+                const { error } = await supabase
+                    .from('pdf_infos')
+                    .update({ provider: null })
+                    .eq('id', pdf_id);
+                if (error) {
+                    console.error('Erreur lors de la désélection du prestataire:', error);
+                    toast.error('Erreur lors de la désélection du prestataire');
+                }
+            } catch (error) {
+                console.error('Erreur lors de la désélection du prestataire:', error);
+                toast.error('Erreur lors de la désélection du prestataire');
+            }
+            return;
+        }
+
         const provider = providers.find(p => p.id === providerId);
         if (!provider) return;
 
@@ -1035,6 +1076,14 @@ const SelectProvider: React.FC<{ entreprise_id: string | null; pdf_id: number; i
         return <div className="text-xs">Chargement...</div>;
     }
 
+    const normalizedQuery = searchTerm.trim().toLowerCase();
+    const filteredProviders = normalizedQuery
+        ? providers.filter(p =>
+            p.name.toLowerCase().includes(normalizedQuery) ||
+            (p.siret || '').toLowerCase().includes(normalizedQuery)
+        )
+        : providers;
+
     return (
         <div className="relative" ref={dropdownRef}>
             <button
@@ -1050,18 +1099,29 @@ const SelectProvider: React.FC<{ entreprise_id: string | null; pdf_id: number; i
             {isOpen && (
                 <div className="absolute z-10 w-full max-w-[200px] mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
                     <div className="py-1">
+                        {providers.length > 5 && (
+                            <div className="px-3 py-2 sticky top-0 bg-white border-b">
+                                <input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    placeholder="Rechercher (nom, siret)"
+                                    className="w-full px-2 py-1 text-xs border rounded"
+                                />
+                            </div>
+                        )}
                         {providers.length === 0 ? (
                             <div className="px-3 py-2 text-xs text-gray-500">
                                 Aucun prestataire disponible
                             </div>
                         ) : (
-                            providers.map((provider) => (
+                            filteredProviders.map((provider) => (
                                 <button
                                     key={provider.id}
                                     onClick={() => handleSelectProvider(provider.id)}
-                                    className="w-full px-3 py-2 text-xs text-left hover:bg-gray-50 flex items-center justify-between"
+                                    className={`w-full px-3 py-2 text-xs text-left hover:bg-gray-50 flex items-center justify-between ${selectedProvider === provider.id ? 'bg-green-50' : ''}`}
                                 >
-                                    <span className="truncate">{provider.name}</span>
+                                    <span className="truncate">{provider.name}{provider.siret ? ` - ${provider.siret}` : ''}</span>
                                     <span className="text-xs text-gray-400 ml-2">
                                         {provider.type === 'transporteur' ? '🚛' : '🏭'}
                                     </span>

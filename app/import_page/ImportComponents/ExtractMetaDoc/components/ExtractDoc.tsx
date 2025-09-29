@@ -171,6 +171,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave }: Ext
 
             if (data) {
                 setDocumentType(data.document_type as "bon" | "bsd" | "facture" | null);
+
+                // Charger infos_raw telle quelle, sans écraser site_raw/presta_raw ici
                 if (data.infos_raw) {
                     setExistingData(data.infos_raw as DocInterface);
                 }

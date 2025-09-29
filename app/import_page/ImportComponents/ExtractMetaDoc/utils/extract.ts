@@ -1,4 +1,5 @@
 import { updatePdfExtractionResults, getPdfInfoById, getEntrepriseNameById, getParamsMappingByEntreprise, createSignedUrl } from './bdd';
+import { supabase } from '@/app/database/supabaseClient';
 import { MetaOcrParams, MetaOcrResponse, PdfInfo, ParamsMapping } from '../interface/pdf_interface';
 import useSWR from 'swr';
 
@@ -19,6 +20,39 @@ interface ExtractMetaOcrResult {
     };
     error?: string;
 }
+
+// Cache mémoire simple pour éviter de multiplier les appels à table_autocompletion
+const siteNameCacheByEntreprise: Record<string, Map<string, string>> = {};
+
+const resolveSiteNameBySiret = async (entrepriseId: number, siret: string): Promise<string | null> => {
+    const key = String(entrepriseId);
+    if (!siteNameCacheByEntreprise[key]) {
+        const { data } = await supabase
+            .from('table_autocompletion')
+            .select('site')
+            .eq('entreprise_id', entrepriseId);
+        const map = new Map<string, string>();
+        (data || []).forEach((item: { site?: { siret?: string; nom?: string } }) => {
+            const s = item.site?.siret?.replace(/\s/g, '');
+            const n = item.site?.nom;
+            if (s && n) map.set(s, n);
+        });
+        siteNameCacheByEntreprise[key] = map;
+    }
+    const normalized = siret.replace(/\s/g, '');
+    return siteNameCacheByEntreprise[key].get(normalized) || null;
+};
+
+// Vérifie que l'objet ressemble au schéma complet attendu côté formulaire
+const isCompleteDoc = (value: unknown): boolean => {
+    if (!value || typeof value !== 'object') return false;
+    const v = value as Record<string, unknown>;
+    const hasType = typeof v.type_doc === 'string' && v.type_doc.length > 0;
+    const hasDechet = Array.isArray(v.dechet);
+    const hasSite = typeof v.site_raw === 'string';
+    const hasPresta = typeof v.presta_raw === 'string';
+    return hasType && hasDechet && hasSite && hasPresta;
+};
 
 /**
  * Hook SWR pour récupérer et mémoriser les mappings lourds par entreprise
@@ -73,6 +107,38 @@ export const extractMetaOcr = async (params: MetaOcrParams): Promise<ExtractMeta
 
         // Parser la réponse JSON
         const result: MetaOcrResponse = await response.json();
+
+        // Écraser site_raw / presta_raw avec les valeurs utilisateur si présentes dans pdf_infos
+        try {
+            const entrepriseId = params.infos_pdf.entreprise_id as number;
+            // Override site_raw uniquement si le champ existe ET qu'il n'y a qu'une seule entité (exactement 1 SIRET)
+            const siteSiret = Array.isArray(params.infos_pdf.site_siret_plus) && params.infos_pdf.site_siret_plus.length === 1
+                ? params.infos_pdf.site_siret_plus[0]
+                : null;
+            const provider = (params.infos_pdf.provider || null) as { name?: string } | null;
+
+            const structured = (result as { structured_response?: Record<string, unknown> }).structured_response || {};
+
+            // Ne faire les overrides que si le JSON est complet
+            if (isCompleteDoc(structured)) {
+                // Résoudre le nom du site à partir du SIRET si disponible
+                if (siteSiret && entrepriseId) {
+                    const siteName = await resolveSiteNameBySiret(entrepriseId, siteSiret);
+                    if (siteName) {
+                        structured.site_raw = siteName;
+                    }
+                }
+
+                // Utiliser le nom du prestataire depuis provider si fourni
+                if (provider?.name) {
+                    structured.presta_raw = provider.name;
+                }
+
+                (result as { structured_response?: Record<string, unknown> }).structured_response = structured;
+            }
+        } catch (e) {
+            console.warn('Override site_raw/presta_raw skipped:', e);
+        }
 
         // Mettre à jour la base de données avec les résultats
         const { error: updateError } = await updatePdfExtractionResults(
@@ -203,7 +269,38 @@ export const runMetaOcrForPdf = async (
     if (!response.ok) {
         return { success: false, message: 'Erreur appel meta-ocr', error: `${response.status} ${response.statusText}` };
     }
-    const result: MetaOcrResponse = await response.json();
+        const result: MetaOcrResponse = await response.json();
+
+        // Écraser site_raw / presta_raw avec les valeurs utilisateur si présentes dans pdf_infos
+        try {
+            // Override site_raw uniquement si le champ existe ET qu'il n'y a qu'une seule entité (exactement 1 SIRET)
+            const siteSiret = Array.isArray(pdfInfo.site_siret_plus) && pdfInfo.site_siret_plus.length === 1
+                ? pdfInfo.site_siret_plus[0]
+                : null;
+            const provider = (pdfInfo.provider || null) as { name?: string } | null;
+
+            const structured = (result as { structured_response?: Record<string, unknown> }).structured_response || {};
+
+            // Ne faire les overrides que si le JSON est complet
+            if (isCompleteDoc(structured)) {
+                // Résoudre le nom du site à partir du SIRET si disponible
+                if (siteSiret && entrepriseId) {
+                    const siteName = await resolveSiteNameBySiret(entrepriseId, siteSiret);
+                    if (siteName) {
+                        structured.site_raw = siteName;
+                    }
+                }
+
+                // Utiliser le nom du prestataire depuis provider si fourni
+                if (provider?.name) {
+                    structured.presta_raw = provider.name;
+                }
+
+                (result as { structured_response?: Record<string, unknown> }).structured_response = structured;
+            }
+        } catch (e) {
+            console.warn('Override site_raw/presta_raw skipped:', e);
+        }
 
     // 7) Update BDD
     const { error: updateError } = await updatePdfExtractionResults(pdfInfo.id, entrepriseId, result, pdfInfo.status);
