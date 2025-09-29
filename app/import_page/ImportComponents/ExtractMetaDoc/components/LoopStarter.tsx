@@ -4,12 +4,15 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSession } from '@/app/component/SessionProvider';
 import { supabase } from '@/app/database/supabaseClient';
 import { processPdfList } from '../utils/loop';
+import { runMetaOcrForPdf } from '../utils/extract';
 import { autoLinkDocs, BulkAutoLinkOutcome } from '../utils/bulk_autolink';
 import { verifierEtMettreAJourAlerte } from '../utils/alerte';
 import { toast } from 'react-hot-toast';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 import { normalizePdfData, buildFactureFromNormalized, push_in_facture_bdd, ParamsMapping } from '../utils/link';
 import { getParamsMappingByEntreprise } from '../utils/bdd';
+import ExtractDoc from './ExtractDoc';
+
 
 interface PdfInfo {
     id: string;
@@ -231,6 +234,13 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const [selectedPdfIds, setSelectedPdfIds] = useState<string[]>([]);
     const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([]);
     const [showReview, setShowReview] = useState(false);
+    // Pause/Reprise en cas d'absence d'exemple RAG
+    const [paused, setPaused] = useState(false);
+    const [pausedPdfId, setPausedPdfId] = useState<string | null>(null);
+    const [pausedAtIndex, setPausedAtIndex] = useState<number | null>(null);
+    const [canResume, setCanResume] = useState(false);
+    const [resumeMode, setResumeMode] = useState<'split_then_extract' | 'extract_only' | null>(null);
+    const [showExtractModal, setShowExtractModal] = useState(false);
     
     // États des filtres multiselect
     const [filters, setFilters] = useState<FilterState>({
@@ -449,6 +459,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         }
 
         setProcessingSplitThenExtract(true);
+        setResumeMode('split_then_extract');
         setProcessingResults([]);
         setShowReview(false);
         
@@ -501,9 +512,35 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                 }
                 setSelectedPdfIds([]);
             } else {
-                toast.error(`Traitement terminé avec des erreurs : ${result.message}`);
-                if (result.errors.length > 0) {
-                    console.error('Erreurs détaillées:', result.errors);
+                // Si pause pour RAG manquant, ouvrir le modal d'extraction pour le PDF fautif
+                const ragErr = result.errors.find(e => e.error && e.error.toLowerCase && e.error.toLowerCase().includes('rag'));
+                if (ragErr && typeof ragErr.pdfId === 'string') {
+                    const blockingPdf = pdfInfos.find(p => p.id === ragErr.pdfId);
+                    toast.error(`Stop: Exemple RAG manquant pour ${blockingPdf?.name_pdf || ragErr.pdfId}`);
+                    setPaused(true);
+                    setPausedPdfId(ragErr.pdfId);
+                    setPausedAtIndex(result.pausedAtIndex ?? null);
+                    // Préremplir le brouillon avec les dernières données du backend
+                    try {
+                        const entrepriseIdNumber = Number(entreprise_id);
+                        const { data: latest } = await supabase
+                            .from('pdf_infos')
+                            .select('infos_raw')
+                            .eq('id', ragErr.pdfId)
+                            .eq('entreprise_id', entrepriseIdNumber)
+                            .single();
+                        if (latest?.infos_raw) {
+                            try {
+                                localStorage.setItem(`extractDoc:form:${ragErr.pdfId}`, JSON.stringify(latest.infos_raw));
+                            } catch {}
+                        }
+                    } catch {}
+                    setShowExtractModal(true);
+                } else {
+                    toast.error(`Traitement terminé avec des erreurs : ${result.message}`);
+                    if (result.errors.length > 0) {
+                        console.error('Erreurs détaillées:', result.errors);
+                    }
                 }
             }
         } catch (error) {
@@ -586,6 +623,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         }
 
         setProcessingExtractOnly(true);
+        setResumeMode('extract_only');
         setProcessingResults([]);
         setShowReview(false);
 
@@ -622,7 +660,32 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                 toast.success(`Extraction terminée : ${result.processedCount} PDF(s)`);
                 setSelectedPdfIds([]);
             } else {
-                toast.error(result.message || 'Extraction terminée avec des erreurs');
+                const ragErr = result.errors.find(e => e.error && e.error.toLowerCase && e.error.toLowerCase().includes('rag'));
+                if (ragErr && typeof ragErr.pdfId === 'string') {
+                    const blockingPdf = pdfInfos.find(p => p.id === ragErr.pdfId);
+                    toast.error(`Stop: Exemple RAG manquant pour ${blockingPdf?.name_pdf || ragErr.pdfId}`);
+                    setPaused(true);
+                    setPausedPdfId(ragErr.pdfId);
+                    setPausedAtIndex(result.pausedAtIndex ?? null);
+                    // Préremplir le brouillon avec les dernières données du backend
+                    try {
+                        const entrepriseIdNumber = Number(entreprise_id);
+                        const { data: latest } = await supabase
+                            .from('pdf_infos')
+                            .select('infos_raw')
+                            .eq('id', ragErr.pdfId)
+                            .eq('entreprise_id', entrepriseIdNumber)
+                            .single();
+                        if (latest?.infos_raw) {
+                            try {
+                                localStorage.setItem(`extractDoc:form:${ragErr.pdfId}`, JSON.stringify(latest.infos_raw));
+                            } catch {}
+                        }
+                    } catch {}
+                    setShowExtractModal(true);
+                } else {
+                    toast.error(result.message || 'Extraction terminée avec des erreurs');
+                }
             }
         } catch (error) {
             console.error('Erreur extraction:', error);
@@ -1291,6 +1354,98 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                             </button>
                                         </div>
                                     </div>
+                                    {paused && canResume && (
+                                        <button
+                                            onClick={async () => {
+                                                let didPause = false;
+                                                try {
+                                                    const idx = (pausedAtIndex ?? -1) + 1;
+                                                    const entrepriseIdNumber = Number(entreprise_id);
+                                                    const remainingPdfIds = selectedPdfIds.slice(idx);
+                                                    setCanResume(false);
+                                                    if (remainingPdfIds.length === 0) {
+                                                        toast.success('Plus aucun document à traiter.');
+                                                        setPaused(false);
+                                                        setPausedPdfId(null);
+                                                        setPausedAtIndex(null);
+                                                        setResumeMode(null);
+                                                        return;
+                                                    }
+                                                    const mode = resumeMode === 'extract_only' ? 'extract_only' : 'split_then_extract';
+                                                    const resumeResult = await processPdfList(remainingPdfIds, entrepriseIdNumber, mode);
+                                                    setProcessingResults(prev => [
+                                                        ...prev,
+                                                        ...resumeResult.results.map(r => ({
+                                                            pdfId: r.pdfId,
+                                                            success: r.success,
+                                                            message: r.message,
+                                                            error: r.success ? undefined : r.message
+                                                        })),
+                                                        ...resumeResult.errors.map(e => ({
+                                                            pdfId: e.pdfId,
+                                                            success: false,
+                                                            message: e.error,
+                                                            error: e.error
+                                                        }))
+                                                    ]);
+                                                    if (resumeResult.success) {
+                                                        toast.success(`Reprise terminée. ${resumeResult.processedCount} PDFs traités.`);
+                                                    } else {
+                                                        // Vérifier si la reprise s'est arrêtée à cause d'un RAG manquant
+                                                        const ragErr = resumeResult.errors.find(e => {
+                                                            const msg = (e.error || '').toLowerCase();
+                                                            return msg.includes('rag') || msg.includes('exemple');
+                                                        });
+                                                        if (ragErr && typeof ragErr.pdfId === 'string') {
+                                                            // Calculer l'index global du nouveau blocage
+                                                            const globalIdx = (pausedAtIndex ?? -1) + 1 + (resumeResult.pausedAtIndex ?? 0);
+                                                            setPaused(true);
+                                                            setPausedPdfId(ragErr.pdfId);
+                                                            setPausedAtIndex(globalIdx);
+                                                            // Préremplir brouillon depuis backend pour ce nouveau PDF bloqué
+                                                            try {
+                                                                const { data: latest } = await supabase
+                                                                    .from('pdf_infos')
+                                                                    .select('infos_raw')
+                                                                    .eq('id', ragErr.pdfId)
+                                                                    .eq('entreprise_id', entrepriseIdNumber)
+                                                                    .single();
+                                                                if (latest?.infos_raw) {
+                                                                    try {
+                                                                        localStorage.setItem(`extractDoc:form:${ragErr.pdfId}`, JSON.stringify(latest.infos_raw));
+                                                                    } catch {}
+                                                                }
+                                                            } catch {}
+                                                            setShowExtractModal(true);
+                                                            const blockingName = pdfInfos.find(p => p.id === ragErr.pdfId)?.name_pdf || ragErr.pdfId;
+                                                            toast.error(`Stop: Exemple RAG manquant pour ${blockingName}`);
+                                                            didPause = true;
+                                                            return; // Ne pas nettoyer l'état de pause
+                                                        }
+                                                        // Erreurs sans RAG: afficher un toast générique
+                                                        toast.error(`Reprise terminée avec des erreurs: ${resumeResult.message}`);
+                                                    }
+                                                } catch (e) {
+                                                    console.error('❌ Erreur lors de la reprise:', e);
+                                                    toast.error('Erreur lors de la reprise');
+                                                } finally {
+                                                    // Nettoyer uniquement si on n'a PAS re-déclenché une pause pour un nouveau doc
+                                                    if (!didPause) {
+                                                        setPaused(false);
+                                                        setPausedPdfId(null);
+                                                        setPausedAtIndex(null);
+                                                        setResumeMode(null);
+                                                    }
+                                                }
+                                            }}
+                                            className="px-3 py-1.5 bg-blue-600 text-white rounded-sm text-xs hover:bg-blue-700 flex items-center justify-center space-x-1.5 transition-colors"
+                                        >
+                                            <>
+                                                <BoxIcon name="bx-play-circle" size="16" />
+                                                <span>Reprendre</span>
+                                            </>
+                                        </button>
+                                    )}
                                     <button
                                         onClick={handleCheckAlertes}
                                         disabled={processingAlertes || selectedPdfIds.length === 0 || anyProcessing}
@@ -1467,6 +1622,46 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                     )}
                 </div>
             </div>
+            {/* Modal d'extraction si pause RAG */}
+            {showExtractModal && paused && pausedPdfId && (
+                <div className="fixed inset-0 z-[60]">
+                    {(() => {
+                        const blocking = pdfInfos.find(p => p.id === pausedPdfId);
+                        if (!blocking) return null;
+                        console.log('🔍 PDF bloqué trouvé:', {
+                            id: blocking.id,
+                            name_pdf_in_bucket: blocking.name_pdf_in_bucket,
+                            pdf_path: blocking.pdf_path
+                        });
+                        const onAfterSave = async () => {
+                            try {
+                                // Après sauvegarde, on ne re-extrait pas le PDF bloqué.
+                                // On ferme le modal et on affiche un bouton "Reprendre" pour continuer au PDF suivant.
+                                setShowExtractModal(false);
+                                setCanResume(true);
+                                toast.success('Données sauvegardées. Prêt à reprendre au document suivant.');
+                            } catch (e) {
+                                console.error('❌ Erreur post-sauvegarde:', e);
+                                toast.error('Erreur post-sauvegarde');
+                            }
+                        };
+                        return (
+                            <ExtractDoc
+                                pdf_id={pausedPdfId}
+                                pdf_path={blocking.name_pdf_in_bucket}
+                                autoOpen={true}
+                                onClose={() => {
+                                    setShowExtractModal(false);
+                                    setPaused(false);
+                                    setPausedPdfId(null);
+                                    setPausedAtIndex(null);
+                                }}
+                                onSave={onAfterSave}
+                            />
+                        );
+                    })()}
+                </div>
+            )}
         </div>
     );
 };
@@ -1613,3 +1808,7 @@ const PdfDetailsReview: React.FC<{
 };
 
 export default LoopStarter;
+
+// Floating resume button when paused and ready
+// Rendered by parent component return above; adding conditional render near root would be preferable,
+// but we place a top-level helper here for clarity.

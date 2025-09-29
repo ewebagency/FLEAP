@@ -56,6 +56,9 @@ export const extractMetaOcr = async (params: MetaOcrParams): Promise<ExtractMeta
         formData.append('liste_nom_eviter', JSON.stringify(params.liste_nom_eviter));
         formData.append('pdfInfos', JSON.stringify(params.infos_pdf));
         formData.append('clusterParams', JSON.stringify(params.cluster_params));
+        formData.append('entreprise_id', String(params.infos_pdf.entreprise_id));
+        
+        console.log('🔍 Debug extractMetaOcr - entreprise_id envoyé:', params.infos_pdf.entreprise_id, 'type:', typeof params.infos_pdf.entreprise_id);
 
         // Appeler l'API backend Python
         const url = `${process.env.NEXT_PUBLIC_SERVER_PYTHON}/meta-ocr`;
@@ -191,6 +194,9 @@ export const runMetaOcrForPdf = async (
     formData.append('liste_nom_eviter', JSON.stringify([ent.name]));
     formData.append('pdfInfos', JSON.stringify(pdfInfo));
     formData.append('clusterParams', JSON.stringify(clusterParams));
+    formData.append('entreprise_id', String(entrepriseId));
+    
+    console.log('🔍 Debug runMetaOcrForPdf - entreprise_id envoyé:', entrepriseId, 'type:', typeof entrepriseId);
 
     const url = `${process.env.NEXT_PUBLIC_SERVER_PYTHON}/meta-ocr`;
     const response = await fetch(url, { method: 'POST', body: formData });
@@ -204,6 +210,21 @@ export const runMetaOcrForPdf = async (
     if (updateError) {
         return { success: false, message: 'Erreur lors de la mise à jour BDD', error: updateError.message };
     }
+
+    // 8) Propager une erreur typée si l'exemple RAG manque et qu'une alerte stop est renvoyée
+    try {
+        const alerte = (result as { alerte?: { stop?: boolean; message?: string } }).alerte;
+        if (alerte && alerte.stop === true && typeof alerte.message === 'string') {
+            const msg = alerte.message.toLowerCase();
+            if (msg.includes('exemple') || msg.includes('rag')) {
+                return {
+                    success: false,
+                    message: alerte.message,
+                    error: 'RAG_MISSING'
+                };
+            }
+        }
+    } catch {}
 
     return { 
         success: true, 

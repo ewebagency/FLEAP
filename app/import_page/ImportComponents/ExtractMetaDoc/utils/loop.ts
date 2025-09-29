@@ -17,6 +17,7 @@ interface LoopResult {
         message: string;
         newPdfIds?: string[];
     }>;
+    pausedAtIndex?: number;
 }
 
 /**
@@ -32,7 +33,8 @@ export const processPdfList = async (
     const errors: LoopResult['errors'] = [];
     let processedCount = 0;
 
-    for (const pdfId of pdfIds) {
+    for (let i = 0; i < pdfIds.length; i++) {
+        const pdfId = pdfIds[i];
         try {
             // 1. Récupérer les infos du PDF
             const { data: pdfInfo, error: pdfError } = await getPdfInfoById(pdfId, entrepriseId);
@@ -79,6 +81,20 @@ export const processPdfList = async (
                     const extractionResults = await Promise.all(extractionPromises);
                     const failedExtractions = extractionResults.filter(result => !result.success);
 
+                    // Si une des pages a échoué pour cause RAG_MISSING, stopper immédiatement
+                    const ragMissing = extractionResults.find(r => r.success === false && r.error === 'RAG_MISSING');
+                    if (ragMissing) {
+                        errors.push({ pdfId, error: ragMissing.message || 'RAG_MISSING' });
+                        return {
+                            success: false,
+                            message: 'Arrêt: exemple RAG manquant',
+                            processedCount,
+                            errors,
+                            results,
+                            pausedAtIndex: i
+                        };
+                    }
+
                     if (failedExtractions.length > 0) {
                         errors.push({
                             pdfId,
@@ -103,6 +119,18 @@ export const processPdfList = async (
                     } else {
                         const extractionResult = await runMetaOcrForPdf(pdfId, entrepriseId);
                         if (!extractionResult.success) {
+                            // Stopper immédiatement si RAG_MISSING
+                            if (extractionResult.error === 'RAG_MISSING') {
+                                errors.push({ pdfId, error: extractionResult.message });
+                                return {
+                                    success: false,
+                                    message: 'Arrêt: exemple RAG manquant',
+                                    processedCount,
+                                    errors,
+                                    results,
+                                    pausedAtIndex: i
+                                };
+                            }
                             errors.push({
                                 pdfId,
                                 error: extractionResult.error || extractionResult.message
@@ -119,6 +147,17 @@ export const processPdfList = async (
                 // mode === 'extract_only' → Extraire directement sans tentative de split
                 const extractionResult = await runMetaOcrForPdf(pdfId, entrepriseId);
                 if (!extractionResult.success) {
+                    if (extractionResult.error === 'RAG_MISSING') {
+                        errors.push({ pdfId, error: extractionResult.message });
+                        return {
+                            success: false,
+                            message: 'Arrêt: exemple RAG manquant',
+                            processedCount,
+                            errors,
+                            results,
+                            pausedAtIndex: i
+                        };
+                    }
                     errors.push({
                         pdfId,
                         error: extractionResult.error || extractionResult.message

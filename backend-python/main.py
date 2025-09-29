@@ -29,6 +29,7 @@ from new.new_confidence import get_confidence, handwritten_confidence
 from new.new_structure import structure
 from new.new_recognize_type import recognize_type_one_page
 from new.new_alerte import alerte_function
+from new.new_similarity.new_find_best_proxy import create_best_prompt_example
 import time
 
 
@@ -368,7 +369,7 @@ async def ocr_density(file: UploadFile):
 
 #Related to import_page/ImportComponents/ExtractMeta/MetaDataInterface.ts
 @app.post("/meta-ocr")
-async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: str = Form("{}"), doc_type: str = Form("inconnu"), liste_nom_a_eviter: str = Form("[]"), voir: bool = Form(False)):
+async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: str = Form("{}"), doc_type: str = Form("inconnu"), liste_nom_a_eviter: str = Form("[]"), voir: bool = Form(False), entreprise_id: str = Form(None)):
     
     # Nettoyage préventif
     gc.collect()
@@ -407,7 +408,31 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
             print( "="*(43),"Données brutes : ", "\n", raw_text, "\n"*4)
 
         prompt = get_specific_prompt(type_lu, liste_nom_a_eviter_list, parse_or_ocr)
-        gemini_response = await extract_gemini(raw_text, prompt)
+        
+        # Générer un prompt d'exemple RAG basé sur des documents similaires
+        do_rag = True
+        if do_rag:
+            print(f"🔍 Debug entreprise_id reçu: '{entreprise_id}' (type: {type(entreprise_id)})")
+            rag_prompt = ""
+            rag_found_example = True
+            
+            if entreprise_id and entreprise_id != "None" and entreprise_id.strip():
+                try:
+                    entreprise_id_int = int(entreprise_id)
+                    rag_result = create_best_prompt_example(entreprise_id_int, type_lu, raw_text)
+                    rag_prompt = rag_result["prompt"]
+                    rag_found_example = rag_result["found_example"]
+                    print("🔍 RAG Prompt Example:", rag_prompt)
+                    print("🔍 RAG Found Example:", rag_found_example)
+                except ValueError as e:
+                    print(f"❌ Erreur conversion entreprise_id en int: {e}")
+            else:
+                print("⚠️ Pas d'entreprise_id fourni, impossible de générer un exemple RAG")
+        else:
+            rag_prompt = ""
+            rag_found_example = False
+        
+        gemini_response = await extract_gemini(raw_text, prompt + rag_prompt)
         
         if "error" in gemini_response:
             return {"error": gemini_response["error"]}
@@ -422,6 +447,14 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
             confidence =  { "brute": 100, "spec": 100, "handwritten": [0, False] }
         
         alerte = alerte_function(alerte_type, confidence, structured_response, pdfInfos_dict, clusterParams_dict)
+        
+        # Ajouter une alerte si aucun exemple RAG n'a été trouvé
+        prevent_from_not_rag = True
+        if not rag_found_example and prevent_from_not_rag and do_rag:
+            alerte = {
+                "stop": True,
+                "message": f"Il n'existe pas encore d'exemple pour ce type de document ({type_lu}). Veuillez d'abord traiter quelques documents de ce type avec le bouton RAG."
+            }
 
     except Exception as e:
         print(f"❌ ERREUR dans meta-ocr: {str(e)}")
@@ -505,3 +538,32 @@ async def detect_type(files: list[UploadFile]):
         results.append(recognize_type_one_page(raw_text))
     return results
 
+#=============================================PUSH TO RAG=============================================
+@app.post("/push_to_rag")
+async def push_to_rag(file: UploadFile, pdf_id: str = Form(...), extracted_data: str = Form(...), document_type: str = Form("inconnu")):
+    try:
+        # Parser les données extraites
+        extracted_data_dict = json.loads(extracted_data)
+        
+        print(f"📂 Fichier PDF reçu: {file.filename}")
+        print(f"📂 PDF ID: {pdf_id}")
+        print(f"📂 Type de document: {document_type}")
+        print(f"📂 Données extraites: {extracted_data_dict}")
+        
+        # Importer et utiliser la fonction de traitement RAG
+        from new.new_similarity.new_push_to_rag import process_document_for_rag
+        
+        # Traiter le document pour RAG
+        result = await process_document_for_rag(
+            file=file,
+            pdf_id=pdf_id,
+            extracted_data=extracted_data_dict,
+            document_type=document_type
+        )
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Erreur dans push_to_rag: {str(e)}")
+        return {"error": f"Erreur lors du traitement: {str(e)}"}
+#=============================================PUSH TO RAG=============================================

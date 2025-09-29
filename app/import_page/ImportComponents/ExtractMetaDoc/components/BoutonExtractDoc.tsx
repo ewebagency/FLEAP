@@ -3,6 +3,7 @@ import { runMetaOcrForPdf } from '../utils/extract';
 import { toast } from 'react-hot-toast';
 import { useSession } from '@/app/component/SessionProvider';
 import { MetaOcrResponse } from '../interface/pdf_interface';
+import { supabase } from '@/app/database/supabaseClient';
 
 interface BoutonExtractDocProps {
     pdfId: string;
@@ -67,9 +68,34 @@ const BoutonExtractDoc: React.FC<BoutonExtractDocProps> = ({
                     onExtractSuccess(pdfId.toString(), result.data);
                 }
             } else {
+                // Cas particulier: RAG manquant → on pré-remplit quand même avec les données BDD fraîchement mises à jour
+                if (result.error === 'RAG_MISSING') {
+                    try {
+                        const entrepriseIdNumber = Number(entreprise_id);
+                        const { data: latest } = await supabase
+                            .from('pdf_infos')
+                            .select('infos_raw, confidence, alerte')
+                            .eq('id', pdfId.toString())
+                            .eq('entreprise_id', entrepriseIdNumber)
+                            .single();
+                        if (latest?.infos_raw) {
+                            const pseudoResponse: MetaOcrResponse = {
+                                structured_response: latest.infos_raw as Record<string, unknown>,
+                                confidence: (latest.confidence as MetaOcrResponse['confidence']) || { brute: 0, spec: 0, handwritten: [0, false] },
+                                alerte: (latest.alerte as MetaOcrResponse['alerte']) || { stop: true, message: result.message }
+                            };
+                            if (onExtractSuccess) {
+                                onExtractSuccess(pdfId.toString(), pseudoResponse);
+                            }
+                            toast.error(result.message || 'Exemple RAG manquant');
+                            return;
+                        }
+                    } catch (e) {
+                        console.error('Erreur pré-remplissage après RAG_MISSING:', e);
+                    }
+                }
+
                 toast.error(`Erreur: ${result.message}`);
-                
-                // Callback d'erreur
                 if (onExtractError) {
                     onExtractError(pdfId.toString(), result.error || result.message);
                 }

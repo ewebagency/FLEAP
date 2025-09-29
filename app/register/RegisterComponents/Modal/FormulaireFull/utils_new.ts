@@ -111,7 +111,13 @@ export const getAllCEDS = async (entreprise_id:string, filiere:string) => {
     .select('mapping_ced_filiere')
     .eq('id', entreprise_id)
     .single();
-  return result.data?.mapping_ced_filiere.filter((mapping: {filiere: string}) => mapping.filiere === filiere).map((mapping: {ced: string}) => mapping.ced);
+  const mapping = result.data?.mapping_ced_filiere;
+  if (!Array.isArray(mapping)) {
+    return [] as string[];
+  }
+  return mapping
+    .filter((m: { filiere: string }) => m.filiere === filiere)
+    .map((m: { ced: string }) => m.ced);
 }
 
 export const getDataAutocompletion = async (entreprise_id:string, site?:string, filiere?:string, dechet_code?:string) => {
@@ -325,18 +331,21 @@ export const getMappingTableFiliere = async (entreprise_id: string) => {
     .select('mapping_ced_filiere')
     .eq('id', entreprise_id)
     .single();
-  return result.data?.mapping_ced_filiere;
+  const mapping = result.data?.mapping_ced_filiere;
+  return Array.isArray(mapping) ? mapping : [];
 }
 
 export const getFiliere = (code: string, mapping_table: { ced: string, filiere: string }[]) => {
   if(!code || code === '') return '';
   const code_clean = code.replaceAll(" ", "").replace('*', '');
+  if (!Array.isArray(mapping_table) || mapping_table.length === 0) return '';
   const result = mapping_table.find((item:{ced: string, filiere: string}) => item.ced === code_clean)?.filiere;
   return result ? result : '';
 }
 
 export const getFiliereByNom = (nom: string, mapping_table: { nom: string, filiere: string }[]) => {
   if(!nom || nom === '') return '';
+  if (!Array.isArray(mapping_table) || mapping_table.length === 0) return '';
   const result = mapping_table.find((item:{nom: string, filiere: string}) => item.nom === nom)?.filiere;
   return result ? result : '';
 }

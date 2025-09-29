@@ -5,6 +5,7 @@ import PdfDisplayer from '@/app/interface_admin_2/InterfaceAdmin2/PdfDisplayer';
 import { toast } from 'react-hot-toast';
 import BoutonExtractDoc from './BoutonExtractDoc';
 import BoutonSplitDoc from './BoutonSplitDoc';
+import Push2RAGButton from './Push2RAGButton';
 import { MetaOcrResponse } from '../interface/pdf_interface';
 // removed PushFactureButton usage in this file per requirements
 
@@ -105,10 +106,13 @@ interface ExtractDocProps {
     pdf_id: string | number;
     pdf_path: string;
     pdf_status?: string;
+    autoOpen?: boolean;
+    onClose?: () => void;
+    onSave?: (formData: DocInterface) => void;
 }
 
-const ExtractDoc = ({ pdf_id, pdf_path }: ExtractDocProps) => {
-    const [isOpen, setIsOpen] = useState(false);
+const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave }: ExtractDocProps) => {
+    const [isOpen, setIsOpen] = useState(autoOpen);
     const { entreprise_id } = useSession();
     const [existingData, setExistingData] = useState<DocInterface | null>(null);
     const [documentType, setDocumentType] = useState<"bon" | "bsd" | "facture" | null>(null);
@@ -206,6 +210,13 @@ const ExtractDoc = ({ pdf_id, pdf_path }: ExtractDocProps) => {
             } catch {}
 
             toast.success('Données sauvegardées avec succès');
+            
+            // Appeler le callback onSave si fourni
+            if (onSave) {
+                onSave(formData);
+            }
+            
+            // Fermer le modal (on laisse le parent gérer la suite via onSave)
             setIsOpen(false);
         } catch (error) {
             console.error('Error saving data:', error);
@@ -986,7 +997,10 @@ const ExtractDoc = ({ pdf_id, pdf_path }: ExtractDocProps) => {
                     {/* Header avec bouton de fermeture */}
                     <div className="absolute top-0 right-0 p-4 z-10">
                         <button
-                            onClick={() => setIsOpen(false)}
+                            onClick={() => {
+                                setIsOpen(false);
+                                if (onClose) onClose();
+                            }}
                             className="text-gray-500 hover:text-gray-700"
                         >
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1016,6 +1030,13 @@ const ExtractDoc = ({ pdf_id, pdf_path }: ExtractDocProps) => {
                                     console.log('Split terminé:', newPdfIds);
                                     setIsOpen(false);
                                 }}
+                            />
+                            <Push2RAGButton 
+                                pdfId={pdf_id}
+                                pdfPath={pdf_path}
+                                docData={currentFormRef.current}
+                                documentType={documentType || 'inconnu'}
+                                disabled={!currentFormRef.current}
                             />
                             {/* PushFactureButton now rendered in LinkMeta.tsx */}
                         </div>

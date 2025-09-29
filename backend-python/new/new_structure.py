@@ -355,8 +355,209 @@ def structure_facture(gemini_data: dict) :
         "site_raw": site_raw,
         "presta_raw": gemini_data.get("nom_prestataire", ""),
         "num_facture": gemini_data.get("num_facture", ""),
+        "montant_total_ht": gemini_data.get("montant_total_ht", ""),
         "dechet": dechets
     }
+
+
+# =============================================
+# FONCTIONS DE TRANSFORMATION INVERSE (structured_data -> gemini_data)
+# =============================================
+
+def reverse_structure_bon(structured_data: dict) -> dict:
+    """Reconstruit gemini_data à partir de structured_data pour un bon de livraison"""
+    
+    if not structured_data or structured_data.get("type_doc") != "bon":
+        return {}
+    
+    dechets = structured_data.get("dechet", [])
+    if not dechets:
+        return {}
+    
+    # Prendre le premier déchet pour les champs communs
+    first_dechet = dechets[0]
+    
+    # Reconstruire gemini_data
+    gemini_data = {
+        "date": first_dechet.get("date", ""),
+        "num_bon": first_dechet.get("num_bon", ""),
+        "nom_prestataire": structured_data.get("presta_raw", ""),
+        "nom_site": structured_data.get("site_raw", ""),
+        "adresse_site": structured_data.get("adresse_site", ""),
+    }
+    
+    # Gérer les déchets (peut être un seul ou plusieurs)
+    if len(dechets) == 1:
+        # Format simple (un seul déchet)
+        dechet = dechets[0]
+        gemini_data.update({
+            "nom_dechet": dechet.get("nom", ""),
+            "poids_net": dechet.get("tonnage", ""),
+            "code_ced": dechet.get("ced", ""),
+            "code_traitement": dechet.get("d_r", ""),
+            "nombre_de_tour": dechet.get("tour", "")
+        })
+    else:
+        # Format liste (plusieurs déchets)
+        gemini_data.update({
+            "nom_dechet": [d.get("nom", "") for d in dechets],
+            "poids_net": [d.get("tonnage", "") for d in dechets],
+            "code_ced": [d.get("ced", "") for d in dechets],
+            "code_traitement": [d.get("d_r", "") for d in dechets],
+            "nombre_de_tour": [d.get("tour", "") for d in dechets]
+        })
+    
+    return gemini_data
+
+
+def reverse_structure_bsd(structured_data: dict) -> dict:
+    """Reconstruit gemini_data à partir de structured_data pour un BSD"""
+    
+    if not structured_data or structured_data.get("type_doc") != "bsd":
+        return {}
+    
+    dechets = structured_data.get("dechet", [])
+    if not dechets:
+        return {}
+    
+    # Prendre le premier déchet pour les champs communs
+    first_dechet = dechets[0]
+    
+    # Reconstruire gemini_data
+    gemini_data = {
+        "date": first_dechet.get("date", ""),
+        "nom_prestataire": structured_data.get("presta_raw", ""),
+        "nom_site": structured_data.get("site_raw", ""),
+    }
+    
+    # Ajouter les champs de conformité
+    conformite = structured_data.get("conformite", {})
+    if conformite:
+        gemini_data.update({
+            "num_cap": conformite.get("CAP", ""),
+            "mention_adr": conformite.get("ADR", "")
+        })
+    
+    # Gérer les infos transporteur
+    add_presta_raw = structured_data.get("add_presta_raw")
+    if add_presta_raw and add_presta_raw.get("type") == "transporteur":
+        infos_transporteur = add_presta_raw.get("infos_transporteur", {})
+        if infos_transporteur:
+            gemini_data.update({
+                "recepisse": infos_transporteur.get("recepisse", ""),
+                "departement": infos_transporteur.get("departement", ""),
+                "limite_validite": infos_transporteur.get("limite_validite", ""),
+                "routier": infos_transporteur.get("routier", "")
+            })
+    
+    # Gérer les déchets (peut être un seul ou plusieurs)
+    if len(dechets) == 1:
+        # Format simple (un seul déchet)
+        dechet = dechets[0]
+        gemini_data.update({
+            "nom_dechet": dechet.get("nom", ""),
+            "quantite_relle_tonne": dechet.get("tonnage", ""),
+            "code_ced": dechet.get("ced", ""),
+            "code_traitement": dechet.get("d_r", ""),
+            "num_bsd": dechet.get("num_bsd", ""),
+            "nom_contenant": dechet.get("contenant", ""),
+            "volume_m3": dechet.get("volume_m3", "")
+        })
+    else:
+        # Format liste (plusieurs déchets)
+        gemini_data.update({
+            "nom_dechet": [d.get("nom", "") for d in dechets],
+            "quantite_relle_tonne": [d.get("tonnage", "") for d in dechets],
+            "code_ced": [d.get("ced", "") for d in dechets],
+            "code_traitement": [d.get("d_r", "") for d in dechets],
+            "num_bsd": [d.get("num_bsd", "") for d in dechets],
+            "nom_contenant": [d.get("contenant", "") for d in dechets],
+            "volume_m3": [d.get("volume_m3", "") for d in dechets]
+        })
+    
+    return gemini_data
+
+
+def reverse_structure_facture(structured_data: dict) -> dict:
+    """Reconstruit gemini_data à partir de structured_data pour une facture"""
+    
+    if not structured_data or structured_data.get("type_doc") != "facture":
+        return {}
+    
+    dechets = structured_data.get("dechet", [])
+    if not dechets:
+        return {}
+    
+    # Reconstruire gemini_data
+    gemini_data = {
+        "nom_prestataire": structured_data.get("presta_raw", ""),
+        "num_facture": structured_data.get("num_facture", ""),
+        "montant_total_ht": structured_data.get("montant_total_ht", "")
+    }
+    
+    # Reconstruire les collectes
+    collectes = []
+    for dechet in dechets:
+        collecte = {
+            "nom_site": structured_data.get("site_raw", ""),
+            "num_bon": dechet.get("num_bon", ""),
+            "num_bsd": dechet.get("num_bsd", ""),
+            "date": dechet.get("date", ""),
+            "nom_dechet": dechet.get("nom", ""),
+            "ced": dechet.get("ced", ""),
+            "contenant": dechet.get("contenant", ""),
+            "volume_m3": dechet.get("volume_m3", ""),
+            "declassement": dechet.get("declassement", "")
+        }
+        
+        # Reconstruire les prestations
+        facture = dechet.get("facture", {})
+        lignes = facture.get("ligne", [])
+        prestations = []
+        
+        for ligne in lignes:
+            prestation = {
+                "type_presta": ligne.get("type_operation", ""),
+                "unite": ligne.get("unite", ""),
+                "quantite": ligne.get("quantite", 0),
+                "prix_unitaire": ligne.get("prix_unitaire", 0),
+                "montant_ht": ligne.get("montant_ht", 0),
+                "tva_absolu": ligne.get("tva_absolute", 0)
+            }
+            prestations.append(prestation)
+        
+        collecte["prestations"] = prestations
+        collectes.append(collecte)
+    
+    # Si une seule collecte, utiliser le format simple
+    if len(collectes) == 1:
+        gemini_data.update(collectes[0])
+    else:
+        gemini_data["collecte"] = collectes
+    
+    return gemini_data
+
+
+def reverse_structure(type_doc: str, structured_data: dict) -> dict:
+    """
+    Reconstruit gemini_data à partir de structured_data selon le type de document
+    
+    Args:
+        type_doc: "bon", "bsd", ou "facture"
+        structured_data: Données structurées (format TypeScript)
+    
+    Returns:
+        dict: Données au format gemini_data
+    """
+    
+    if type_doc == "bon":
+        return reverse_structure_bon(structured_data)
+    elif type_doc == "bsd":
+        return reverse_structure_bsd(structured_data)
+    elif type_doc == "facture":
+        return reverse_structure_facture(structured_data)
+    else:
+        raise ValueError(f"Type de document non supporté: {type_doc}")
 
 
 

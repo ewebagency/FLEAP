@@ -12,6 +12,139 @@ def find(word, mapping):
                 if word==w: #on pourrait faire correspondance flou là
                     return meta_nom
     return None
+
+# ===== FONCTIONS D'ALERTE MODULAIRES =====
+
+def alerte_tonnage(tonnage_str: str):
+    """
+    Vérifie si le tonnage est un nombre valide entre 0 et 20
+    """
+    if not tonnage_str or tonnage_str.strip() == "":
+        return True, "Tonnage manquant"
+    
+    try:
+        # Nettoyer la chaîne (enlever espaces, virgules, etc.)
+        tonnage_clean = str(tonnage_str).replace(',', '.').replace(' ', '').strip()
+        tonnage_float = float(tonnage_clean)
+        
+        if tonnage_float < 0:
+            return True, f"Tonnage négatif: {tonnage_float}"
+        elif tonnage_float > 20:
+            return True, f"Tonnage trop élevé: {tonnage_float} (max: 20)"
+        else:
+            return False, ""
+            
+    except (ValueError, TypeError):
+        return True, f"Tonnage non numérique: {tonnage_str}"
+
+def alerte_date(date_str: str):
+    """
+    Vérifie la présence d'une date valide
+    
+    """
+    if not date_str or date_str.strip() == "":
+        return True, "Date manquante"
+    
+    # Vérifier si la date contient au moins des chiffres
+    if not any(c.isdigit() for c in str(date_str)):
+        return True, f"Date invalide (pas de chiffres): {date_str}"
+    
+    return False, ""
+
+def alerte_num_bsd(num_bsd: str):
+    """
+    Vérifie qu'un numéro BSD contient au moins 5 chiffres consécutifs
+    """
+    if not num_bsd or num_bsd.strip() == "":
+        return True, "Numéro BSD manquant"
+    
+    # Extraire tous les chiffres
+    chiffres = ''.join(c for c in str(num_bsd) if c.isdigit())
+    
+    if len(chiffres) < 5:
+        return True, f"Numéro BSD insuffisant (moins de 5 chiffres): {num_bsd}"
+    
+    return False, ""
+
+def alerte_num_bon(num_bon: str):
+    """
+    Vérifie qu'un numéro de bon contient au moins 5 chiffres consécutifs
+    """
+    if not num_bon or num_bon.strip() == "":
+        return True, "Numéro de bon manquant"
+    
+    # Extraire tous les chiffres
+    chiffres = ''.join(c for c in str(num_bon) if c.isdigit())
+    
+    if len(chiffres) < 5:
+        return True, f"Numéro de bon insuffisant (moins de 5 chiffres): {num_bon}"
+    
+    return False, ""
+
+def alerte_num_facture(num_facture: str):
+    """
+    Vérifie qu'un numéro de facture contient au moins 5 chiffres consécutifs
+    """
+    if not num_facture or num_facture.strip() == "":
+        return True, "Numéro de facture manquant"
+    
+    # Extraire tous les chiffres
+    chiffres = ''.join(c for c in str(num_facture) if c.isdigit())
+    
+    if len(chiffres) < 5:
+        return True, f"Numéro de facture insuffisant (moins de 5 chiffres): {num_facture}"
+    
+    return False, ""
+
+def alerte_ced(ced_code: str):
+    """
+    Vérifie qu'un code CED contient exactement 6 chiffres
+    """
+    if not ced_code or ced_code.strip() == "":
+        return True, "Code CED manquant"
+    
+    # Extraire tous les chiffres
+    chiffres = ''.join(c for c in str(ced_code) if c.isdigit())
+    
+    if len(chiffres) != 6:
+        return True, f"Code CED invalide (doit contenir exactement 6 chiffres): {ced_code} (trouvé: {len(chiffres)})"
+    
+    return False, ""
+
+def alerte_calcul_facture(quantite: float, prix_unitaire: float, montant: float):
+    """
+    Vérifie que quantité * prix_unitaire = montant (avec tolérance)
+
+    """
+    try:
+        calcul_attendu = quantite * prix_unitaire
+        # Tolérance de 0.01 pour les erreurs d'arrondi
+        if abs(calcul_attendu - montant) > 0.01:
+            return True, f"Calcul incorrect: {quantite} × {prix_unitaire} = {calcul_attendu} ≠ {montant}"
+        return False, ""
+    except (TypeError, ValueError):
+        return True, f"Valeurs non numériques: qty={quantite}, prix={prix_unitaire}, montant={montant}"
+
+def alerte_somme_facture(prestations: list, montant_total: float):
+    """
+    Vérifie que la somme des montants des prestations = montant_total
+
+    """
+    try:
+        somme_calculee = 0
+        for presta in prestations:
+            if isinstance(presta, dict) and 'montant_ht' in presta:
+                try:
+                    somme_calculee += float(presta['montant_ht'])
+                except (ValueError, TypeError):
+                    continue
+        
+        # Tolérance de 0.01 pour les erreurs d'arrondi
+        if abs(somme_calculee - montant_total) > 0.01:
+            return True, f"Somme incorrecte: {somme_calculee} ≠ {montant_total}"
+        return False, ""
+    except (TypeError, ValueError):
+        return True, f"Erreur de calcul de somme: prestations={prestations}, total={montant_total}"
     
 
 def alerte_function(alerte_type: bool, confidence: dict, structured_response, pdfInfos, clusterParams):
@@ -67,6 +200,112 @@ def alerte_function(alerte_type: bool, confidence: dict, structured_response, pd
     if isinstance(handwritten_data, list) and len(handwritten_data) > 1 and handwritten_data[1]:
         stop = True
         message.append("Le document contient trop de texte écrit à la main.")
+
+    # ===== NOUVELLES ALERTES MODULAIRES =====
+    # Ces alertes peuvent être facilement activées/désactivées en modifiant les variables ci-dessous
+    ENABLE_ALERTE_TONNAGE = True
+    ENABLE_ALERTE_DATE = True
+    ENABLE_ALERTE_NUM_BSD = True
+    ENABLE_ALERTE_NUM_BON = True
+    ENABLE_ALERTE_NUM_FACTURE = True
+    ENABLE_ALERTE_CED = True
+    ENABLE_ALERTE_CALCUL_FACTURE = True
+    ENABLE_ALERTE_SOMME_FACTURE = True
+
+    # Vérifications des nouvelles alertes
+    if structured_response and isinstance(structured_response, dict):
+        type_doc = structured_response.get('type_doc', '')
+        dechets = structured_response.get('dechet', [])
+        
+        # Alerte tonnage pour tous les déchets
+        if ENABLE_ALERTE_TONNAGE and dechets:
+            for dechet in dechets:
+                if isinstance(dechet, dict) and 'tonnage' in dechet:
+                    alerte, msg = alerte_tonnage(dechet['tonnage'])
+                    if alerte:
+                        stop = True
+                        message.append(f"Tonnage: {msg}")
+        
+        # Alerte date pour tous les déchets
+        if ENABLE_ALERTE_DATE and dechets:
+            for dechet in dechets:
+                if isinstance(dechet, dict) and 'date' in dechet:
+                    alerte, msg = alerte_date(dechet['date'])
+                    if alerte:
+                        stop = True
+                        message.append(f"Date: {msg}")
+        
+        # Alerte CED pour tous les déchets
+        if ENABLE_ALERTE_CED and dechets:
+            for dechet in dechets:
+                if isinstance(dechet, dict) and 'ced' in dechet:
+                    alerte, msg = alerte_ced(dechet['ced'])
+                    if alerte:
+                        stop = True
+                        message.append(f"Code CED: {msg}")
+        
+        # Alerte num_bsd pour tous les déchets
+        if ENABLE_ALERTE_NUM_BSD and dechets:
+            for dechet in dechets:
+                if isinstance(dechet, dict) and 'num_bsd' in dechet:
+                    alerte, msg = alerte_num_bsd(dechet['num_bsd'])
+                    if alerte:
+                        stop = True
+                        message.append(f"Numéro BSD: {msg}")
+        
+        # Alerte num_bon pour tous les déchets
+        if ENABLE_ALERTE_NUM_BON and dechets:
+            for dechet in dechets:
+                if isinstance(dechet, dict) and 'num_bon' in dechet:
+                    alerte, msg = alerte_num_bon(dechet['num_bon'])
+                    if alerte:
+                        stop = True
+                        message.append(f"Numéro de bon: {msg}")
+        
+        # Alerte num_facture (pour les factures)
+        if ENABLE_ALERTE_NUM_FACTURE and type_doc == 'facture' and 'num_facture' in structured_response:
+            alerte, msg = alerte_num_facture(structured_response['num_facture'])
+            if alerte:
+                stop = True
+                message.append(f"Numéro de facture: {msg}")
+        
+        # Alertes spécifiques aux factures
+        if type_doc == 'facture' and dechets:
+            for dechet in dechets:
+                if isinstance(dechet, dict) and 'facture' in dechet:
+                    facture = dechet['facture']
+                    if isinstance(facture, dict) and 'ligne' in facture:
+                        prestations = facture['ligne']
+                        
+                        # Alerte calcul facture pour chaque prestation
+                        if ENABLE_ALERTE_CALCUL_FACTURE and prestations:
+                            for presta in prestations:
+                                if isinstance(presta, dict) and all(key in presta for key in ['quantite', 'prix_unitaire', 'montant_ht']):
+                                    try:
+                                        qty = float(presta['quantite'])
+                                        prix = float(presta['prix_unitaire'])
+                                        montant = float(presta['montant_ht'])
+                                        alerte, msg = alerte_calcul_facture(qty, prix, montant)
+                                        if alerte:
+                                            stop = True
+                                            message.append(f"Calcul facture: {msg}")
+                                    except (ValueError, TypeError):
+                                        continue
+        
+        # Alerte somme facture (nécessite montant_total dans structured_response)
+        if ENABLE_ALERTE_SOMME_FACTURE and type_doc == 'facture':
+            montant_total = structured_response.get('montant_total_ht', 0)
+            if montant_total and dechets:
+                for dechet in dechets:
+                    if isinstance(dechet, dict) and 'facture' in dechet:
+                        facture = dechet['facture']
+                        if isinstance(facture, dict) and 'ligne' in facture:
+                            prestations = facture['ligne']
+                            alerte, msg = alerte_somme_facture(prestations, float(montant_total))
+                            if alerte:
+                                stop = True
+                                message.append(f"Somme facture: {msg}")
+                            break  # On vérifie seulement le premier déchet pour la somme totale
 
     
     if stop == False:
