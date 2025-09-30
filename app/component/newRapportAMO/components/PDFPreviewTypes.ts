@@ -3,6 +3,7 @@ export interface BsdCompany {
   orgId: string; 
   siret: string; 
   name: string; 
+  address?: string;
 }
 
 export interface BsdItem {
@@ -11,7 +12,7 @@ export interface BsdItem {
   created_at: string;
   status_track_dechets?: string;
   created_on_fleap?: boolean;
-  other_infos?: { numeroBon?: string };
+  other_infos?: { numeroBon?: string; containerDescription?: string };
   facture_infos?: { numeroFacture?: string };
   pdf_ids?: string[];
   infos_json: {
@@ -20,6 +21,7 @@ export interface BsdItem {
         takenOverAt: string;
         recipient: { processingOperation: string; company: BsdCompany };
         emitter: { company: BsdCompany };
+        transporter?: { company?: BsdCompany; receipt?: string; numberPlate?: string };
         wasteDetails: { name: string; code: string; quantity: string };
         quantityReceived?: string;
       }

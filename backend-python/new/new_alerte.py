@@ -17,7 +17,7 @@ def find(word, mapping):
 
 def alerte_tonnage(tonnage_str: str):
     """
-    Vérifie si le tonnage est un nombre valide entre 0 et 20
+    Vérifie si le tonnage est un nombre valide entre 0 et 50
     """
     if not tonnage_str or tonnage_str.strip() == "":
         return True, "Tonnage manquant"
@@ -29,8 +29,8 @@ def alerte_tonnage(tonnage_str: str):
         
         if tonnage_float < 0:
             return True, f"Tonnage négatif: {tonnage_float}"
-        elif tonnage_float > 20:
-            return True, f"Tonnage trop élevé: {tonnage_float} (max: 20)"
+        elif tonnage_float > 50:
+            return True, f"Tonnage trop élevé: {tonnage_float} (max: 50)"
         else:
             return False, ""
             

@@ -10,7 +10,7 @@ def get_supabase_client() -> Client:
     key = os.getenv("NEXT_PUBLIC_SUPABASE_KEY")
     
     if not url or not key:
-        raise ValueError("SUPABASE_URL et SUPABASE_ANON_KEY doivent être définis dans les variables d'environnement")
+        raise ValueError("NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_KEY doivent être définis dans les variables d'environnement")
     
     return create_client(url, key)
 

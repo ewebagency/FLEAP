@@ -21,7 +21,14 @@ export default function ReportBuilderButton() {
 
   const initialState: ReportBuilderState = useMemo(() => ({
     selectedSites: [],
-    exportOptions: { includeTitle: true, includeKPIs: true, includeTable: true, includeCharts: true, includeLinePdfs: false },
+    exportOptions: { 
+      includeTitle: true, 
+      includeKPIs: true, 
+      includeTable: true, 
+      includeCharts: true, 
+      includeLinePdfs: false,
+      tableColumns: ['doc','nBon','nFacture','date','site','waste','ced','qty','treatment','exutoire','exutoire_siret','exutoire_address','receipt','numberPlate','containerDescription']
+    },
     charts: [],
     reportTitle: 'Paramètres perso',
     filterType: 'imported',

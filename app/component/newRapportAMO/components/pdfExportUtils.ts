@@ -4,11 +4,11 @@ export function generatePrintStyles(): string {
     body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; color: #111827; }
     h1 { font-size: 24px; margin: 0 0 8px 0; }
     .header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; margin-bottom: 10px; justify-content: space-between; }
-    .title { font-size: 28px; font-weight: 900; letter-spacing: 0.2px; }
-    .subtitle { font-size: 15px; color: #111827; font-weight: 800; }
-    .meta { font-size: 14px; color: #111827; font-weight: 700; margin-top: 4px; }
+    .title { font-size: 32px; font-weight: 900; letter-spacing: 0.2px; }
+    .subtitle { font-size: 14px; color: #111827; font-weight: 600; }
+    .meta { font-size: 14px; color: #111827; font-weight: 400; margin-top: 4px; }
     .sites ul { margin: 8px 0 0 0; padding-left: 18px; }
-    .sites li { font-size: 12px; color: #374151; }
+    .sites li { font-size: 18px; color: #111827; font-weight: 700; }
     .kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
     .kpi { border: 1px solid #edf2f7; background: linear-gradient(180deg, #ffffff, #f9fafb); border-radius: 12px; padding: 12px; font-size: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
     .kpi .label { color: #6b7280; font-size: 11px; margin-bottom: 2px; }

@@ -53,7 +53,7 @@ export interface AnalysisResponse {
   data: GroupedDataItem[];
 }
 
-export type ChartType = 'bar' | 'pie' | 'table';
+export type ChartType = 'bar' | 'bar_grouped' | 'pie' | 'table';
 
 export interface ChartConfig {
   id: string;
@@ -73,6 +73,8 @@ export interface ExportOptionsState {
   includeTable: boolean;
   includeCharts: boolean;
   includeLinePdfs?: boolean;
+  // Ordered list of columns for the register table
+  tableColumns?: TableColumnKey[];
 }
 
 import type { FilterType } from '@/app/analysis/filterType';
@@ -95,5 +97,28 @@ export interface SavedReportConfig {
 export interface ReportConfigsResponse {
   configs: SavedReportConfig[];
 }
+
+
+// Columns available for the BSD register table in PDF
+export type TableColumnKey =
+  | 'doc'          // N°BSD ou N°Bon
+  | 'date'         // Date BSD ou de création
+  | 'site'         // Nom du site (affiché seulement si plusieurs sites dans les données)
+  | 'waste'        // Nom du déchet
+  | 'ced'          // Code CED
+  | 'qty'          // Tonnage
+  | 'treatment'    // Opération de traitement
+  | 'exutoire'     // Nom exutoire (destinataire)
+  | 'exutoire_siret'  // SIRET destinataire
+  | 'exutoire_address' // Adresse destinataire
+  | 'receipt'      // N° récépissé (transporteur)
+  | 'numberPlate'  // Immatriculation transporteur
+  | 'containerDescription' // Description contenant
+  | 'nBon'         // Numéro de bon
+  | 'nFacture'     // Numéro de facture
+  | 'site_siret'   // SIRET du site
+  | 'transport_name' // Nom du transporteur
+  | 'transport_siret' // SIRET du transporteur
+  | 'attachments'; // Lien vers pièces jointes (nécessite includeLinePdfs
 
 

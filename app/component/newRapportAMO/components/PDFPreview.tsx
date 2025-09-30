@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnalysisResponse, ReportBuilderState } from "../types";
+import { AnalysisResponse, ReportBuilderState, TableColumnKey } from "../types";
 import { ChartRenderer } from "./ChartRenderer";
 import { useSession } from "@/app/component/SessionProvider";
 import useSWR from 'swr';
@@ -300,7 +300,7 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
           <div className="header-grid">
             <div>
               <div className="title mb-4">{title}</div>
-              <div className="title">{entreprise_name || 'Entreprise'}</div>
+              <div className="subtitle">{entreprise_name || 'Entreprise'}</div>
             </div>
             <div>
               <div className="meta">
@@ -311,9 +311,15 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
               <div className="sites">
                 {state.selectedSites.length > 0 ? (
                   <ul>
-                    {state.selectedSites.map(s => (
-                      <li key={s}>{s}</li>
-                    ))}
+                    {state.selectedSites.map(s => {
+                      // Find SIRET for this site name
+                      const denom = data?.denominateur?.unique_site || [];
+                      const found = denom.find(d => (d.name && d.name.length > 0 ? d.name : d.siret) === s);
+                      const siret = found?.siret || '';
+                      return (
+                        <li key={s}>{s}{siret ? ` (${siret})` : ''}</li>
+                      );
+                    })}
                   </ul>
                 ) : (
                   <ul>
@@ -383,15 +389,38 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
             <table>
               <thead>
                 <tr>
-                  <th>BSD</th>
-                  <th>Date</th>
-                  {hasMultipleSitesValue && (<th>Site</th>)}
-                  <th>Déchet</th>
-                  <th className="col-ced">CED</th>
-                  <th className="num">Tonnage</th>
-                  <th>Traitement</th>
-                  <th>Exutoire</th>
-                  {state.exportOptions.includeLinePdfs ? (<th>Pièces</th>) : null}
+                  {(() => {
+                    const cols: TableColumnKey[] = (state.exportOptions.tableColumns && state.exportOptions.tableColumns.length > 0)
+                      ? state.exportOptions.tableColumns
+                      : ['doc','date','site','waste','ced','qty','treatment','exutoire'];
+                    return cols.map((col, idx) => {
+                      if (col === 'site' && !hasMultipleSitesValue) return null;
+                      if (col === 'attachments' && !state.exportOptions.includeLinePdfs) return null;
+                      const label = (
+                        col === 'doc' ? 'BSD/Bon' :
+                        col === 'nBon' ? 'N° Bon' :
+                        col === 'nFacture' ? 'N° Facture' :
+                        col === 'date' ? 'Date' :
+                        col === 'site' ? 'Site' :
+                        col === 'site_siret' ? 'SIRET site' :
+                        col === 'waste' ? 'Déchet' :
+                        col === 'ced' ? 'CED' :
+                        col === 'qty' ? 'Tonnage' :
+                        col === 'treatment' ? 'Traitement' :
+                        col === 'exutoire' ? 'Exutoire' :
+                        col === 'exutoire_siret' ? 'SIRET destinataire' :
+                        col === 'exutoire_address' ? 'Adresse destinataire' :
+                        col === 'transport_name' ? 'Transporteur' :
+                        col === 'transport_siret' ? 'SIRET transporteur' :
+                        col === 'receipt' ? 'N° récépissé' :
+                        col === 'numberPlate' ? 'Immatriculation' :
+                        col === 'containerDescription' ? 'Contenant' :
+                        col === 'attachments' ? 'Pièces' : ''
+                      );
+                      const className = col === 'ced' ? 'col-ced' : (col === 'qty' ? 'num' : undefined);
+                      return <th key={`${col}_${idx}`} className={className}>{label}</th>;
+                    });
+                  })()}
                 </tr>
               </thead>
               <tbody>
@@ -413,18 +442,35 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
                     docId = numeroBon;
                     docType = 'N°Bon';
                   }
+                  const cols: TableColumnKey[] = (state.exportOptions.tableColumns && state.exportOptions.tableColumns.length > 0)
+                    ? state.exportOptions.tableColumns
+                    : ['doc','date','site','waste','ced','qty','treatment','exutoire'];
                   return (
                     <tr key={i}>
-                      <td>{docId}{docType ? ` (${docType})` : ''}</td>
-                      <td>{dateStr}</td>
-                      {hasMultipleSitesValue && (<td>{ci.emitter.company.name}</td>)}
-                      <td>{ci.wasteDetails.name}</td>
-                      <td>{ci.wasteDetails.code}</td>
-                      <td className="num">{qty.toFixed(2)}</td>
-                      <td>{ci.recipient.processingOperation}</td>
-                      <td>{ci.recipient.company.name}</td>
-                      {state.exportOptions.includeLinePdfs ? (
-                        <td>
+                      {cols.map((col, idx2) => {
+                        if (col === 'site' && !hasMultipleSitesValue) return null;
+                        if (col === 'attachments' && !state.exportOptions.includeLinePdfs) return null;
+                        if (col === 'doc') return <td key={`c_${idx2}`}>{docId}{docType ? ` (${docType})` : ''}</td>;
+                        if (col === 'nBon') return <td key={`c_${idx2}`}>{b.other_infos?.numeroBon || ''}</td>;
+                        if (col === 'nFacture') return <td key={`c_${idx2}`}>{b.facture_infos?.numeroFacture || ''}</td>;
+                        if (col === 'date') return <td key={`c_${idx2}`}>{dateStr}</td>;
+                        if (col === 'site') return <td key={`c_${idx2}`}>{ci.emitter.company.name}</td>;
+                        if (col === 'site_siret') return <td key={`c_${idx2}`}>{ci.emitter.company.siret}</td>;
+                        if (col === 'waste') return <td key={`c_${idx2}`}>{ci.wasteDetails.name}</td>;
+                        if (col === 'ced') return <td key={`c_${idx2}`}>{ci.wasteDetails.code}</td>;
+                        if (col === 'qty') return <td key={`c_${idx2}`} className="num">{qty.toFixed(2)}</td>;
+                        if (col === 'treatment') return <td key={`c_${idx2}`}>{ci.recipient.processingOperation}</td>;
+                        if (col === 'exutoire') return <td key={`c_${idx2}`}>{ci.recipient.company.name}</td>;
+                        if (col === 'exutoire_siret') return <td key={`c_${idx2}`}>{ci.recipient.company.siret}</td>;
+                        if (col === 'exutoire_address') return <td key={`c_${idx2}`}>{ci.recipient.company.address || ''}</td>;
+                        if (col === 'transport_name') return <td key={`c_${idx2}`}>{ci.transporter?.company?.name || ''}</td>;
+                        if (col === 'transport_siret') return <td key={`c_${idx2}`}>{ci.transporter?.company?.siret || ''}</td>;
+                        if (col === 'receipt') return <td key={`c_${idx2}`}>{ci.transporter?.receipt || ''}</td>;
+                        if (col === 'numberPlate') return <td key={`c_${idx2}`}>{ci.transporter?.numberPlate || ''}</td>;
+                        if (col === 'containerDescription') return <td key={`c_${idx2}`}>{b.other_infos?.containerDescription || ''}</td>;
+                        if (col === 'attachments') {
+                          return (
+                            <td key={`c_${idx2}`}>
                           {(b.pdf_ids && b.pdf_ids.length > 0) ? (
                             <a 
                               href={`#pdf-${b.id}`} 
@@ -443,7 +489,10 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
                             <span style={{color:'#6b7280'}}>—</span>
                           )}
                         </td>
-                      ) : null}
+                          );
+                        }
+                        return null;
+                      })}
                     </tr>
                   );
                 })}

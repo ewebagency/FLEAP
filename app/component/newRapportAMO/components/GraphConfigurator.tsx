@@ -50,9 +50,10 @@ export function GraphConfigurator({ denominators, charts, onAddChart, onUpdateCh
             <select
               className="border rounded px-3 py-2 text-sm"
               value={chart.type}
-              onChange={e => onUpdateChart(chart.id, c => ({ ...c, type: e.target.value as 'bar' | 'pie' | 'table' }))}
+              onChange={e => onUpdateChart(chart.id, c => ({ ...c, type: e.target.value as 'bar' | 'bar_grouped' | 'pie' | 'table' }))}
             >
               <option value="bar">Barres</option>
+              <option value="bar_grouped">Barres groupées</option>
               <option value="pie">Camembert</option>
               <option value="table">Tableau croisé</option>
             </select>

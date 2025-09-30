@@ -24,11 +24,11 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
     
     const y = config.yAxis === 'tonnage' ? 'Tonnage' : config.yAxis === 'nbr_ligne' ? 'Lignes' : 'Remplissage %';
     if (config.type === 'pie') return `${custom} — ${y} par ${config.segmentFamily}`;
-    if (config.type === 'bar') return `${custom} — ${y} par ${config.xFamily} (seg: ${config.segmentFamily})`;
+    if (config.type === 'bar' || config.type === 'bar_grouped') return `${custom} — ${y} par ${config.xFamily} (seg: ${config.segmentFamily})`;
     return custom;
   }, [config]);
   type BuiltChartData =
-    | { kind: 'pie' | 'bar'; data: { labels: string[]; datasets: Array<{ label: string; data: number[]; backgroundColor?: string | string[]; borderColor?: string | string[]; borderWidth?: number }> } }
+    | { kind: 'pie' | 'bar' | 'bar_grouped'; data: { labels: string[]; datasets: Array<{ label: string; data: number[]; backgroundColor?: string | string[]; borderColor?: string | string[]; borderWidth?: number }> } }
     | { kind: 'table'; xLabels: string[]; yLabels: string[]; matrix: number[][] };
 
   const chartData = useMemo<BuiltChartData>(() => {
@@ -110,6 +110,15 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
     }
 
     if (config.type === 'table') {
+      const toMonthYear = (s: string) => {
+        // expects YYYY-MM; fallback to original
+        if (/^\d{4}-\d{2}$/.test(s)) {
+          const [y, m] = s.split('-');
+          return `${m}/${y}`;
+        }
+        return s;
+      };
+      
       const xSet = new Set<string>();
       const ySet = new Set<string>();
       filtered.forEach(r => {
@@ -142,12 +151,14 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
         if (xVal) xSet.add(xVal);
         if (yVal) ySet.add(yVal);
       });
-      const xLabels: string[] = Array.from(xSet).sort();
-      const yLabels: string[] = Array.from(ySet).sort();
+      const xLabelsRaw: string[] = Array.from(xSet).sort();
+      const yLabelsRaw: string[] = Array.from(ySet).sort();
+      const xLabels: string[] = xLabelsRaw.map(v => config.xFamily === 'mois_annee' ? toMonthYear(v) : v);
+      const yLabels: string[] = yLabelsRaw.map(v => (config.yFamily || 'filiere') === 'mois_annee' ? toMonthYear(v) : v);
       // Build matrix
       const matrix: number[][] = yLabels.map(y => xLabels.map(x => {
         const subset = filtered.filter(r => {
-          const xVal = (
+          const xValRaw = (
             config.xFamily === 'site' ? r.site :
             config.xFamily === 'exutoire' ? r.exutoire :
             config.xFamily === 'transport' ? r.transport :
@@ -160,7 +171,7 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
             config.xFamily === 'rep' ? r.rep :
             r.source
           );
-          const yVal = (
+          const yValRaw = (
             (config.yFamily || 'filiere') === 'site' ? r.site :
             (config.yFamily || 'filiere') === 'exutoire' ? r.exutoire :
             (config.yFamily || 'filiere') === 'transport' ? r.transport :
@@ -173,6 +184,8 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
             (config.yFamily || 'filiere') === 'rep' ? r.rep :
             r.source
           );
+          const xVal = config.xFamily === 'mois_annee' ? toMonthYear(xValRaw) : xValRaw;
+          const yVal = (config.yFamily || 'filiere') === 'mois_annee' ? toMonthYear(yValRaw) : yValRaw;
           return xVal === x && yVal === y;
         });
         if (config.yAxis === 'tonnage') return subset.reduce((a, b) => a + b.tonnage, 0);
@@ -184,7 +197,16 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
       return { kind: 'table', xLabels, yLabels, matrix };
     }
 
-    // bar
+    // bar / bar_grouped
+    const toMonthYear = (s: string) => {
+      // expects YYYY-MM; fallback to original
+      if (/^\d{4}-\d{2}$/.test(s)) {
+        const [y, m] = s.split('-');
+        return `${m}/${y}`;
+      }
+      return s;
+    };
+    
     const xSet = new Set<string>();
     filtered.forEach(r => {
       const val = (
@@ -202,7 +224,8 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
       );
       if (val) xSet.add(val);
     });
-    const labels = Array.from(xSet).sort();
+    const labelsRaw = Array.from(xSet).sort();
+    const labels = labelsRaw.map(v => config.xFamily === 'mois_annee' ? toMonthYear(v) : v);
 
     const segSet = new Set<string>();
     filtered.forEach(r => {
@@ -224,7 +247,7 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
     const segments = Array.from(segSet).sort();
 
     const datasets = segments.map((seg, i) => {
-      const points = labels.map(lbl => {
+      const points = labelsRaw.map(lblRaw => {
         const subset = filtered.filter(r => {
           const segVal = (
             config.segmentFamily === 'site' ? r.site :
@@ -252,7 +275,7 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
             config.xFamily === 'rep' ? r.rep :
             r.source
           );
-          return segVal === seg && xVal === lbl;
+          return segVal === seg && xVal === lblRaw;
         });
 
         if (config.yAxis === 'tonnage') return subset.reduce((a, b) => a + b.tonnage, 0);
@@ -264,7 +287,7 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
       return { label: seg, data: points, backgroundColor: colorFor(i), borderColor: colorFor(i), borderWidth: 1 };
     });
 
-    return { kind: 'bar', data: { labels, datasets } };
+    return { kind: (config.type === 'bar_grouped' ? 'bar_grouped' : 'bar'), data: { labels, datasets } };
   }, [config, data]);
 
   useEffect(() => {
@@ -351,7 +374,7 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
               title: { display: false }
             },
             layout: { padding: { top: 8, right: 8, bottom: 16, left: 8 } },
-            scales: { x: { stacked: true }, y: { stacked: true } }
+            scales: { x: { stacked: chartData.kind === 'bar' }, y: { stacked: chartData.kind === 'bar' } }
           }} />
         ) : (
           <div style={{ height: 360 }}>
@@ -359,7 +382,7 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
               responsive: true,
               maintainAspectRatio: false,
               plugins: { legend: { position: 'top' as const } },
-              scales: { x: { stacked: true }, y: { stacked: true } }
+              scales: { x: { stacked: chartData.kind === 'bar' }, y: { stacked: chartData.kind === 'bar' } }
             }} />
           </div>
         )

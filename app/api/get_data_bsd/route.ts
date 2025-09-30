@@ -41,6 +41,8 @@ interface FastDataSupa {
                     siret: string;
                     name: string;
                   }
+                  numberPlate?: string;
+                  receipt?: string;
                 };
                 wasteDetails: {
                     code: string;
@@ -59,6 +61,9 @@ interface FastDataSupa {
         rep?: {
             sent_to_rep: boolean;
         };
+        containerDescription?: string;
+        numeroBon?: string;
+        numeroFacture?: string;
     };
     on_track_dechets: boolean;
     created_on_fleap: string;
@@ -100,7 +105,9 @@ interface SupabaseFlatResponse {
             orgId: string;
             siret: string;
             name: string;
+            address?: string;
         };
+        valoParts?: Array<{ code_valo?: string; tonnage?: number }>;
     };
     transporter: {
         company: {
@@ -108,7 +115,12 @@ interface SupabaseFlatResponse {
             siret: string;
             name: string;
         };
+        numberPlate?: string;
+        receipt?: string;
     };
+    // Some fields may be flattened at root by Supabase selectors
+    numberPlate?: string;
+    receipt?: string;
     wasteDetails: {
         name: string;
         code: string;
@@ -121,6 +133,7 @@ interface SupabaseFlatResponse {
     flux: string;
     numeroBon: string;
     numeroFacture: string;
+    containerDescription?: string;
     checked?: string | boolean | null;
     sent_to_rep: boolean;
     on_track_dechets: boolean;
@@ -229,10 +242,13 @@ export async function GET(request: Request) {
         infos_json->formAPI->createFormInput->transporter,
         infos_json->formAPI->createFormInput->wasteDetails,
         infos_json->formAPI->createFormInput->>takenOverAt,
+        infos_json->formAPI->createFormInput->transporter->>numberPlate,
+        infos_json->formAPI->createFormInput->transporter->>receipt,
         other_infos->>fillRate,
         other_infos->>doe,
         other_infos->>flux,
         other_infos->rep->>sent_to_rep,
+        other_infos->>containerDescription,
         other_infos->>numeroBon,
         other_infos->>numeroFacture,
         other_infos->>checked,
@@ -302,18 +318,21 @@ export async function GET(request: Request) {
               company: {
                 siret: item.recipient.company.siret,
                 orgId: item.recipient.company.orgId,
-                name: item.recipient.company.name
+                name: item.recipient.company.name,
+                address: item.recipient.company.address || ''
               },
               processingOperation: item.recipient.processingOperation,
               // Pass through valoParts if present so downstream KPIs can use them
-              valoParts: (item as unknown as { recipient?: { valoParts?: Array<{ code_valo?: string; tonnage?: number }> } })?.recipient?.valoParts
+              valoParts: item.recipient.valoParts
             },
             transporter: {
               company: {
                 siret: item.transporter.company.siret,
                 orgId: item.transporter.company.orgId,
                 name: item.transporter.company.name
-              }
+              },
+              numberPlate: item.numberPlate ?? item.transporter.numberPlate ?? '',
+              receipt: item.receipt ?? item.transporter.receipt ?? ''
             },
             wasteDetails: {name: item.wasteDetails.name, code: item.wasteDetails.code, quantity: item.wasteDetails.quantity, isDangerous: item.wasteDetails.isDangerous},
             takenOverAt: item.takenOverAt,
@@ -325,6 +344,7 @@ export async function GET(request: Request) {
         doe: item.doe,
         flux: item.flux,
         rep: item.sent_to_rep ? { sent_to_rep: item.sent_to_rep } : undefined,
+        containerDescription: item.containerDescription || '',
         numeroBon: item.numeroBon,
         numeroFacture: item.numeroFacture,
         checked: typeof item.checked === 'boolean' 
