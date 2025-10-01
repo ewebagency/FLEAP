@@ -13,69 +13,46 @@ async def extract_gemini(text: str | dict, prompt: str) -> Dict[str, Any]:
     Extrait les informations d'un texte brut ou d'un dictionnaire avec un prompt défini en utilisant l'API Gemini
     """
     try:
-        # Appeler l'API Gemini
-        gemini_url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent"
-        headers = {
-            "Content-Type": "application/json",
-            "x-goog-api-key": os.getenv('GEMINI_API_KEY')
-        }
-
         # Ensure text is not None before concatenation
         if text is None:
             text = ""
         elif isinstance(text, dict):
             text = json.dumps(text, ensure_ascii=False, indent=2)
         
+        # Build request inline
         prompt_to_send = prompt + "\n\n" + text
         
-        payload = {
-            "contents": [{
-                "parts": [{
-                    "text": prompt_to_send
-                }]
-            }]
-        }
-
-        gemini_response = requests.post(gemini_url, headers=headers, json=payload)
+        # Call Gemini API
+        gemini_response = requests.post(
+            "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent",
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": os.getenv('GEMINI_API_KEY')
+            },
+            json={"contents": [{"parts": [{"text": prompt_to_send}]}]}
+        )
         
         if not gemini_response.ok:
             return {"error": f"Failed to get response from Gemini: {gemini_response.text}"}
 
-        gemini_data = gemini_response.json()
-        raw_extracted_data = gemini_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-        
-        # Nettoyer la réponse de Gemini
+        # Extract and clean data inline
+        raw_extracted_data = gemini_response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
         cleaned_data = clean_gemini_response(raw_extracted_data)
         
-        # Vérifier que c'est du JSON valide
+        # Validate JSON
         try:
             json.loads(cleaned_data)
-            return {
-                "success": True,
-                "text": text,
-                "extracted_data": cleaned_data
-            }
+            return {"success": True, "text": text, "extracted_data": cleaned_data}
         except json.JSONDecodeError as e:
-            # Dernière tentative: essayer de créer un objet JSON minimal
+            # Fallback: extract key-value pairs
             try:
-                # Essayer d'extraire des paires clé-valeur du texte
                 import re
-                key_value_pattern = r'"([^"]+)"\s*:\s*"([^"]*)"'
-                matches = re.findall(key_value_pattern, raw_extracted_data)
-                
+                matches = re.findall(r'"([^"]+)"\s*:\s*"([^"]*)"', raw_extracted_data)
                 if matches:
-                    minimal_data = {}
-                    for key, value in matches:
-                        minimal_data[key] = value
-                    
-                    return {
-                        "success": True,
-                        "text": text,
-                        "extracted_data": json.dumps(minimal_data, ensure_ascii=False)
-                    }
+                    minimal_data = {key: value for key, value in matches}
+                    return {"success": True, "text": text, "extracted_data": json.dumps(minimal_data, ensure_ascii=False)}
                 else:
                     return {"error": f"Invalid JSON from Gemini: {str(e)}", "raw_response": raw_extracted_data}
-                    
             except Exception:
                 return {"error": f"Invalid JSON from Gemini: {str(e)}", "raw_response": raw_extracted_data}
 

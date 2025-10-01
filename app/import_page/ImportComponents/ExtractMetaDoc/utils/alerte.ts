@@ -522,7 +522,7 @@ export const mettreAJourAlerteTraductions = async (
         const ENABLE_ALERTE_NUM_BSD = true;
         const ENABLE_ALERTE_NUM_BON = true;
         const ENABLE_ALERTE_NUM_FACTURE = true;
-        const ENABLE_ALERTE_CED = true;
+        const ENABLE_ALERTE_CED = false;
         const ENABLE_ALERTE_CALCUL_FACTURE = true;
         const ENABLE_ALERTE_SOMME_FACTURE = true;
 

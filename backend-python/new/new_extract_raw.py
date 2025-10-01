@@ -3,7 +3,8 @@ from new.extract_utils.mindee import send_to_mindee
 from new.extract_utils.ocr import ocr_this
 
 
-async def get_raw_text_from_pdf(file, doc_type):
+async def get_raw_text_from_pdf(file):
+    doc_type = "on s'en fout en fait"
     try:
         parsed_result = await parse_pdf_file(file)
         

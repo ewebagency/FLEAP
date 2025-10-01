@@ -32,6 +32,10 @@ from new.new_alerte import alerte_function
 from new.new_similarity.new_find_best_proxy import create_best_prompt_example
 import time
 
+# Compteur global de pages traitées pour reset du modèle OCR
+_pages_processed = 0
+MAX_PAGES_BEFORE_RESET = 8
+
 
 
 
@@ -50,15 +54,16 @@ def print_memory_usage(stage=""):
     memory = get_memory_usage()
     #print(f"🔄 MÉMOIRE {stage}: RSS={memory['rss_mb']:.1f}MB, VMS={memory['vms_mb']:.1f}MB, {memory['percent']:.1f}%")
 
-def aggressive_memory_cleanup():
-    """Nettoyage mémoire agressif pour optimiser l'utilisation sur Render"""
-    try:
-        import torch
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-    except Exception:
-        pass
-    gc.collect()
+def reset_ocr_model_if_needed():
+    """Reset le modèle OCR si le nombre de pages traitées dépasse la limite"""
+    global _pages_processed
+    if _pages_processed >= MAX_PAGES_BEFORE_RESET:
+        print(f"🔄 Reset modèle OCR après {_pages_processed} pages traitées")
+        cleanup_model()
+        initialize_model()
+        _pages_processed = 0
+        gc.collect()
+        print("✅ Modèle OCR réinitialisé")
 
 
 load_dotenv()
@@ -79,8 +84,6 @@ async def shutdown_event():
     #Nettoyer les ressources lors de l'arrêt du serveur
     print("Arrêt du serveur Fleap...")
     cleanup_model()
-    # Nettoyage mémoire final
-    aggressive_memory_cleanup()
     print("Serveur Fleap arrêté")
 
 
@@ -120,19 +123,6 @@ app.add_middleware(
 async def root():
     return {"message": "L'API Fleap est en ligne"}
 
-@app.get("/model-status")
-async def get_model_status():
-    """Retourne le statut actuel du modèle OCR"""
-    from utils.utils_doctr import get_model_status
-    return get_model_status()
-
-@app.post("/force-model-recycle")
-async def force_model_recycle():
-    """Force le recyclage immédiat du modèle OCR"""
-    from utils.utils_doctr import force_model_recycle
-    success = force_model_recycle()
-    return {"success": success, "message": "Modèle OCR recyclé avec succès"}
-
 
 @app.post("/parse-pdf-and-extract-info/") #Sur les BSD
 async def parse_pdf_and_extract_info(request: PDFRequest):
@@ -140,11 +130,6 @@ async def parse_pdf_and_extract_info(request: PDFRequest):
     print("======Parsed PDF:", parsed_pdf)
     json_from_gemini = await extract_gemini(parsed_pdf, prompt_bsd)
     print("======JSON from Gemini:", json_from_gemini)
-    
-    # Nettoyage mémoire
-    del parsed_pdf
-    gc.collect()
-    
     return json_from_gemini
 
 
@@ -228,10 +213,6 @@ async def extract_bsd_with_paddle_ocr(file: UploadFile):
     print("Text extracted from Paddle OCR", text)
     print("Extract Parsed Data with Gemini")
     parsed_info = await extract_gemini(text, prompt_bsd)
-    
-    # Nettoyage mémoire
-    aggressive_memory_cleanup()
-    
     return parsed_info
 
 
@@ -286,9 +267,6 @@ async def ocr_enrich_bon(file: UploadFile = Form(...), known_data: str = Form(..
         #result = await run_paddle_ocr(file)
         result = await ocr_this_pdf_with_doctr(file)
         text = result["text"]
-        
-        # Nettoyage mémoire après OCR
-        aggressive_memory_cleanup()
 
     print("\nEnrichment with BDD")
     enriched_text = enrich_text(text, known_data_dict)
@@ -311,18 +289,11 @@ async def ocr_enrich_bon(file: UploadFile = Form(...), known_data: str = Form(..
     # Extraire le perfect_extract du résultat
     perfect_extract = bsd_cerfa_data.get("perfect_extract", False)
     
-    # Préparer la réponse
-    response = {
+    return {
         "extracted_data": extracted_data,
         "bsd_cerfa_data": bsd_cerfa_data,
         "perfect_extract": perfect_extract
     }
-    
-    # Nettoyage mémoire final
-    del text, enriched_text
-    aggressive_memory_cleanup()
-    
-    return response
 
 
 #=============================================BONS=============================================
@@ -339,50 +310,32 @@ async def ocr_enrich_bon(file: UploadFile = Form(...), known_data: str = Form(..
 
 @app.post("/extract-with-doctr")
 async def extract_raw_text_with_doctr(file: UploadFile):
+    global _pages_processed
+    
     print("=" * 60)
     print("🚀 DÉBUT EXTRACTION OCR AVEC DOCTR")
     
-    # Mémoire avant traitement
-    #print_memory_usage("AVANT TRAITEMENT")
-    
     try:
-        #print("📄 Début de l'extraction OCR...")
         result = await ocr_this_pdf_with_doctr(file)
         
-        # Mémoire après OCR
-        #print_memory_usage("APRÈS OCR")
-        
+        # Count pages for OCR model reset
         text = result["text"]
+        estimated_pages = max(1, len(text) // 2000)
+        _pages_processed += estimated_pages
+        
         print(f"📝 Texte extrait: {len(text)} caractères")
+        print(f"📊 Pages traitées: {_pages_processed}/{MAX_PAGES_BEFORE_RESET}")
         
-        # Nettoyage mémoire agressif
-        aggressive_memory_cleanup()
-        #print_memory_usage("APRÈS NETTOYAGE")
+        # Reset OCR model if needed
+        reset_ocr_model_if_needed()
         
-        # Calcul de l'utilisation mémoire
-        memory = get_memory_usage()
-        memory_usage_mb = memory['rss_mb']
-        
-        print(f"📊 UTILISATION MÉMOIRE FINALE: {memory_usage_mb:.1f}MB")
-        print("=" * 60)
-        if memory_usage_mb > 502:
-            #print(f"⚠️  ATTENTION: Mémoire proche de la limite (502MB) - {memory_usage_mb:.1f}MB utilisés")
-            pass
-        else:
-            #print(f"✅ Mémoire dans les limites: {memory_usage_mb:.1f}MB / 502MB")
-            pass
-        
-        #print("=" * 60)
-        #print("✅ EXTRACTION TERMINÉE")
-        #print("=" * 60)
+        # Cleanup memory
+        gc.collect()
         
         return result
         
     except Exception as e:
         print(f"❌ ERREUR lors de l'extraction: {str(e)}")
-        # Nettoyage mémoire même en cas d'erreur
-        aggressive_memory_cleanup()
-        print_memory_usage("EN CAS D'ERREUR")
         raise e
 
 #@app.post("/extract-with-doctr/bon")
@@ -405,10 +358,6 @@ async def ocr_density(file: UploadFile):
     ocr_json = await ocr_this_pdf_with_doctr(file)
     results = classify_ocr_with_density(file, ocr_json, threshold=0.03)
     text_handwritten = extract_handwritten_lines(results)
-    
-    # Nettoyage mémoire
-    aggressive_memory_cleanup()
-    
     return {
         "results": results,
         "text_handwritten": text_handwritten
@@ -422,175 +371,91 @@ async def ocr_density(file: UploadFile):
 @app.post("/meta-ocr")
 async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: str = Form("{}"), doc_type: str = Form("inconnu"), liste_nom_a_eviter: str = Form("[]"), voir: bool = Form(False), entreprise_id: str = Form(None)):
     
-    # Nettoyage préventif agressif
-    aggressive_memory_cleanup()
-    start = time.time()
+    global _pages_processed
+    
+    gc.collect()
+    start_time = time.time()
     memory_before = get_memory_usage()["rss_mb"]
-    # Parser les paramètres JSON
+    
     try:
+        # Parse JSON parameters inline
         pdfInfos_dict = json.loads(pdfInfos) if pdfInfos else {"site_siret_plus": [], "provider": None}
         clusterParams_dict = json.loads(clusterParams) if clusterParams else {"data": {"params_mapping_site": {}, "params_mapping_presta": {}}}
         liste_nom_a_eviter_list = json.loads(liste_nom_a_eviter) if liste_nom_a_eviter else []
-    except json.JSONDecodeError as e:
-        return {"error": f"Invalid JSON format: {str(e)}"}
-    
-    ############### Extraction initiale + Détection du type ###############
-    raw_text_first, potential_json_from_ocr_first, parse_or_ocr_first = await get_raw_text_from_pdf(file, 'inconnu')
-    type_lu = recognize_type_one_page(raw_text_first)["type"]
-    
-    # Nettoyage immédiat des variables temporaires
-    del raw_text_first, potential_json_from_ocr_first, parse_or_ocr_first
-    gc.collect()
-    
-    if doc_type == "inconnu":
-        #doc_type = detect_type(file)
-        doc_type = "bsd"
-        alerte_type = False
-    else:
-        if type_lu != doc_type:
-            alerte_type = True
-        else:
-            alerte_type = False
-    #########################################################
-
-    # Deuxième extraction dépendant du type détecté (conservée), mais avec nettoyage renforcé
-    try:
-        # Réinitialiser le fichier pour une nouvelle lecture propre
-        await file.seek(0)
-        raw_text, potential_json_from_ocr, parse_or_ocr = await get_raw_text_from_pdf(file, type_lu)
+        
+        # Extract text and detect type
+        raw_text, potential_json_from_ocr, parse_or_ocr = await get_raw_text_from_pdf(file)
+        type_lu = recognize_type_one_page(raw_text)["type"]
+        
+        # Count pages for OCR model reset (estimate based on text length)
+        estimated_pages = max(1, len(raw_text) // 2000)  # ~2000 chars per page
+        _pages_processed += estimated_pages
+        
+        # Determine document type and alert status
+        doc_type = "bsd" if doc_type == "inconnu" else doc_type
+        alerte_type = type_lu != doc_type if doc_type != "bsd" else False
 
         if voir:
-            print( "="*(43),"Données brutes : ", "\n", raw_text, "\n"*4)
+            print("="*43, "Données brutes :", "\n", raw_text, "\n"*4)
 
+        # Generate prompt
         prompt = get_specific_prompt(type_lu, liste_nom_a_eviter_list, parse_or_ocr)
         
-        # Générer un prompt d'exemple RAG basé sur des documents similaires
-        do_rag = True
-        if do_rag:
-            print(f"🔍 Debug entreprise_id reçu: '{entreprise_id}' (type: {type(entreprise_id)})")
-            rag_prompt = ""
-            rag_found_example = True
-            
-            if entreprise_id and entreprise_id != "None" and entreprise_id.strip():
-                try:
-                    entreprise_id_int = int(entreprise_id)
-                    rag_result = create_best_prompt_example(entreprise_id_int, type_lu, raw_text)
-                    rag_prompt = rag_result["prompt"]
-                    rag_found_example = rag_result["found_example"]
-                    #print("🔍 RAG Prompt Example:", rag_prompt)
-                    #print("🔍 RAG Found Example:", rag_found_example)
-                except ValueError as e:
-                    print(f"❌ Erreur conversion entreprise_id en int: {e}")
-            else:
-                print("⚠️ Pas d'entreprise_id fourni, impossible de générer un exemple RAG")
+        # RAG processing inline
+        if entreprise_id and entreprise_id not in ("None", "") and entreprise_id.strip():
+            try:
+                rag_result = create_best_prompt_example(int(entreprise_id), type_lu, raw_text)
+                prompt += rag_result["prompt"]
+                rag_found_example = rag_result["found_example"]
+            except ValueError:
+                print(f"❌ Erreur conversion entreprise_id: {entreprise_id}")
+                rag_found_example = False
         else:
-            rag_prompt = ""
             rag_found_example = False
         
-        gemini_response = await extract_gemini(raw_text, prompt + rag_prompt)
+        # Extract data with Gemini
+        gemini_response = await extract_gemini(raw_text, prompt)
         
         if "error" in gemini_response:
             return {"error": gemini_response["error"]}
         
+        # Process data inline
         gemini_data = json.loads(gemini_response.get("extracted_data", "{}"))
-        
-        # Nettoyage immédiat du texte brut après traitement
-        del raw_text
-        gc.collect()
-        
         structured_response = structure(type_lu, gemini_data)
         
+        # Calculate confidence inline
+        confidence = get_confidence(gemini_data, potential_json_from_ocr) if parse_or_ocr == "ocr" else {"brute": 100, "spec": 100, "handwritten": [0, False]}
         if parse_or_ocr == "ocr":
-            confidence = get_confidence(gemini_data, potential_json_from_ocr)
             confidence["handwritten"] = handwritten_confidence(file, potential_json_from_ocr)
-            # Nettoyage immédiat du JSON OCR
-            del potential_json_from_ocr
-        else:
-            confidence =  { "brute": 100, "spec": 100, "handwritten": [0, False] }
         
-        # Nettoyage des variables temporaires
-        del gemini_data
-        gc.collect()
-        
+        # Generate alerts inline
         alerte = alerte_function(alerte_type, confidence, structured_response, pdfInfos_dict, clusterParams_dict)
+        if not rag_found_example:
+            alerte = {"stop": True, "message": f"Il n'existe pas encore d'exemple pour ce type de document ({type_lu}). Veuillez d'abord traiter quelques documents de ce type avec le bouton RAG."}
         
-        # Ajouter une alerte si aucun exemple RAG n'a été trouvé
-        prevent_from_not_rag = True
-        if not rag_found_example and prevent_from_not_rag and do_rag:
-            alerte = {
-                "stop": True,
-                "message": f"Il n'existe pas encore d'exemple pour ce type de document ({type_lu}). Veuillez d'abord traiter quelques documents de ce type avec le bouton RAG."
-            }
+        return {"structured_response": structured_response, "confidence": confidence, "alerte": alerte}
 
+    except json.JSONDecodeError as e:
+        return {"error": f"Invalid JSON format: {str(e)}"}
     except Exception as e:
         print(f"❌ ERREUR dans meta-ocr: {str(e)}")
         return {"error": f"Failed to process document: {str(e)}"}
     
-    dt = time.time() - start
-    memory_after = get_memory_usage()["rss_mb"]
-    memory_delta = memory_after - memory_before
-    print("\n\n------------Result Meta OCR")
-    print("\nMéthode utilisée : ", parse_or_ocr)
-    print("Type détecté : ", type_lu)
-    print("Temps : ", dt//60, "min", dt%60, "s")
-    print(f"Mémoire: avant={memory_before:.1f}MB, après={memory_after:.1f}MB, delta={memory_delta:.1f}MB")
-    print("Confidence : ", confidence)
-    print("Alerte : ", alerte)
-    print("Response : ", structured_response)
-    print("\n"*2)
-    response_payload = {
-        "structured_response": structured_response,
-        "confidence": confidence,  
-        "alerte" : alerte
-    }
-    try:
-        return response_payload
     finally:
-        # Fermer explicitement le fichier uploadé (au plus tôt)
-        try:
-            await file.close()
-        except Exception:
-            pass
-        # Mesure mémoire avant GC
-        memory_before_gc = get_memory_usage()["rss_mb"]
-        # Libérer les grosses variables locales (assignation à None)
-        try:
-            raw_text_first = None
-        except Exception:
-            pass
-        try:
-            potential_json_from_ocr_first = None; parse_or_ocr_first = None
-        except Exception:
-            pass
-        try:
-            raw_text = None; potential_json_from_ocr = None; parse_or_ocr = None
-        except Exception:
-            pass
-        try:
-            gemini_response = None; gemini_data = None; structured_response = None
-        except Exception:
-            pass
-        try:
-            confidence = None; alerte = None; response_payload = None; prompt = None
-        except Exception:
-            pass
-        try:
-            pdfInfos_dict = None; clusterParams_dict = None; liste_nom_a_eviter_list = None
-        except Exception:
-            pass
-        try:
-            type_lu = None; alerte_type = None
-        except Exception:
-            pass
-        try:
-            start = None; dt = None; memory_before = None; memory_after = None; memory_delta = None
-        except Exception:
-            pass
-        # Nettoyage mémoire post-traitement agressif
-        aggressive_memory_cleanup()
-        memory_after_gc = get_memory_usage()["rss_mb"]
-        freed_gc = max(0.0, memory_before_gc - memory_after_gc)
-        print(f"Mémoire après GC: {memory_after_gc:.1f}MB (libéré ~{freed_gc:.1f}MB)")
+        # Log results
+        processing_time = time.time() - start_time
+        memory_after = get_memory_usage()["rss_mb"]
+        print(f"------------Result Meta OCR")
+        print(f"Méthode: {parse_or_ocr} | Type: {type_lu} | Temps: {processing_time//60:.0f}min {processing_time%60:.1f}s")
+        print(f"Mémoire: {memory_before:.1f}MB → {memory_after:.1f}MB (Δ{memory_after-memory_before:.1f}MB)")
+        print(f"Pages traitées: {_pages_processed}/{MAX_PAGES_BEFORE_RESET}")
+        
+        # Reset OCR model if needed
+        reset_ocr_model_if_needed()
+        
+        await file.close()
+        for _ in range(3):
+            gc.collect()
 
 #=============================================META OCR - Nouvelle structure Fin=============================================
 
@@ -600,14 +465,8 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
 async def detect_type(files: list[UploadFile]):
     results = []
     for file in files:
-        raw_text, _, _ = await get_raw_text_from_pdf(file, "inconnu")
-        result = recognize_type_one_page(raw_text)
-        results.append(result)
-        
-        # Nettoyage immédiat après chaque fichier
-        del raw_text
-        gc.collect()
-    
+        raw_text, _, _ = await get_raw_text_from_pdf(file)
+        results.append(recognize_type_one_page(raw_text))
     return results
 
 #=============================================PUSH TO RAG=============================================

@@ -227,16 +227,13 @@ def create_best_prompt_example(entreprise_id: int, document_type: str, raw_text:
         result = find_best_proxy_by_document_type(raw_text, document_type, entreprise_id)
         
         if result['found'] and result['perfect_answer']:
-            # Formater le prompt avec l'exemple trouvé
-            prompt = (
-                f"\n\n Voici un document similaire sur lequel te baser : {result['raw_text']} "
-                f"\n La réponse parfaite pour ce document est : {result['perfect_answer']}"
-            )
-            
-            print(f"✅ Exemple trouvé avec score de similarité: {result['similarity_score']:.3f}")
-            return {"prompt": prompt, "found_example": True}
+            # Build prompt inline
+            print(f"\n✅ Exemple trouvé - Similarité: {result['similarity_score']:.3f}")
+            return {
+                "prompt": f"\n\n Voici un document similaire sur lequel te baser : {result['raw_text']} \n La réponse parfaite pour ce document est : {result['perfect_answer']}",
+                "found_example": True
+            }
         else:
-            # Aucun exemple trouvé
             print(f"⚠️ Aucun exemple trouvé pour le type {document_type}: {result['status']}")
             return {"prompt": "Fait au mieux", "found_example": False}
             

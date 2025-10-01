@@ -109,54 +109,44 @@ def structure(type_doc: str, gemini_data: dict) :
 def structure_bon(gemini_data: dict):
     """Structure les données d'un bon de livraison"""
     
-    # Extraire les données de base
+    # Extract common fields once
+    date = gemini_data.get("date", "")
+    num_bon = gemini_data.get("num_bon", "")
+    site_raw = gemini_data.get("nom_site", "")
+    adresse_site = gemini_data.get("adresse_site", "")
+    presta_raw = gemini_data.get("nom_prestataire", "")
+    
+    # Build dechets list inline
     dechets = []
     dechet_list = gemini_data.get("dechet")
-    if isinstance(dechet_list, list) and len(dechet_list) > 0:
-        # Nouveau format: tableau d'objets dechet
-        for d in dechet_list:
-            if not isinstance(d, dict):
-                continue
-            dechets.append({
-                "date": gemini_data.get("date", ""),
-                "nom": d.get("nom_dechet", ""),
-                "tonnage": d.get("poids_net", ""),
-                "ced": clean_ced_code(d.get("code_ced", "")),
-                "d_r": d.get("code_traitement", ""),
-                "tour": d.get("nombre_de_tour", ""),
-                "num_bon": gemini_data.get("num_bon", "")
-            })
-    elif isinstance(gemini_data.get("nom_dechet"), list):
-        # Ancien format: champs parallèles sous forme de listes
-        for i in range(len(gemini_data.get("nom_dechet", []))):
-            dechets.append({
-                "date": gemini_data.get("date", ""),
-                "nom": gemini_data.get("nom_dechet", [""])[i] if i < len(gemini_data.get("nom_dechet", [])) else "",
-                "tonnage": gemini_data.get("poids_net", [""])[i] if i < len(gemini_data.get("poids_net", [])) else "",
-                "ced": clean_ced_code(gemini_data.get("code_ced", [""])[i] if i < len(gemini_data.get("code_ced", [])) else ""),
-                "d_r": gemini_data.get("code_traitement", [""])[i] if i < len(gemini_data.get("code_traitement", [])) else "",
-                "tour": gemini_data.get("nombre_de_tour", [""])[i] if i < len(gemini_data.get("nombre_de_tour", [])) else "",
-                "num_bon": gemini_data.get("num_bon", "")
-            })
-    else:
-        # Ancien format: valeurs scalaires simples
-        dechets.append({
-            "date": gemini_data.get("date", ""),
-            "nom": gemini_data.get("nom_dechet", ""),
-            "tonnage": gemini_data.get("poids_net", ""),
-            "ced": clean_ced_code(gemini_data.get("code_ced", "")),
-            "d_r": gemini_data.get("code_traitement", ""),
-            "tour": gemini_data.get("nombre_de_tour", ""),
-            "num_bon": gemini_data.get("num_bon", "")
-        })
     
-    return {
-        "type_doc": "bon",
-        "site_raw": gemini_data.get("nom_site", ""),
-        "adresse_site": gemini_data.get("adresse_site", ""),
-        "presta_raw": gemini_data.get("nom_prestataire", ""),
-        "dechet": dechets
-    }
+    if isinstance(dechet_list, list) and dechet_list:
+        # New format: array of objects
+        dechets = [{
+            "date": date, "nom": d.get("nom_dechet", ""), "tonnage": d.get("poids_net", ""),
+            "ced": clean_ced_code(d.get("code_ced", "")), "d_r": d.get("code_traitement", ""),
+            "tour": d.get("nombre_de_tour", ""), "num_bon": num_bon
+        } for d in dechet_list if isinstance(d, dict)]
+    elif isinstance(gemini_data.get("nom_dechet"), list):
+        # Old format: parallel lists
+        nom_list = gemini_data.get("nom_dechet", [])
+        dechets = [{
+            "date": date, "nom": nom_list[i] if i < len(nom_list) else "",
+            "tonnage": gemini_data.get("poids_net", [""])[i] if i < len(gemini_data.get("poids_net", [])) else "",
+            "ced": clean_ced_code(gemini_data.get("code_ced", [""])[i] if i < len(gemini_data.get("code_ced", [])) else ""),
+            "d_r": gemini_data.get("code_traitement", [""])[i] if i < len(gemini_data.get("code_traitement", [])) else "",
+            "tour": gemini_data.get("nombre_de_tour", [""])[i] if i < len(gemini_data.get("nombre_de_tour", [])) else "",
+            "num_bon": num_bon
+        } for i in range(len(nom_list))]
+    else:
+        # Old format: scalar values
+        dechets = [{
+            "date": date, "nom": gemini_data.get("nom_dechet", ""), "tonnage": gemini_data.get("poids_net", ""),
+            "ced": clean_ced_code(gemini_data.get("code_ced", "")), "d_r": gemini_data.get("code_traitement", ""),
+            "tour": gemini_data.get("nombre_de_tour", ""), "num_bon": num_bon
+        }]
+    
+    return {"type_doc": "bon", "site_raw": site_raw, "adresse_site": adresse_site, "presta_raw": presta_raw, "dechet": dechets}
 
 def structure_bsd(gemini_data: dict) :
     """Structure les données d'un BSD"""
