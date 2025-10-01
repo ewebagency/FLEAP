@@ -339,10 +339,10 @@ export const verifierTraductionsPDF = async (
         if (infosRaw.dechet && Array.isArray(infosRaw.dechet)) {
             infosRaw.dechet.forEach(dechet => {
                 // Vérifier nom du déchet
-                if (dechet.nom) {
+                /*if (dechet.nom) {
                     const hasDechetMapping = hasMapping(dechet.nom, paramsMapping.params_mapping_nom_dechet);
                     dechets.push({ value: dechet.nom, hasMapping: hasDechetMapping });
-                }
+                }*/
 
                 // Vérifier contenant
                 if (dechet.contenant) {
@@ -421,9 +421,9 @@ export const getResumeTraductionsManquantes = (result: VerificationResult): stri
         missing.push(`Prestataire: "${result.details.presta_raw?.value}"`);
     }
     
-    if (result.missingFields.dechets.length > 0) {
+    /*if (result.missingFields.dechets.length > 0) {
         missing.push(`Déchets: ${result.missingFields.dechets.map(d => `"${d}"`).join(', ')}`);
-    }
+    }*/
     
     if (result.missingFields.operations.length > 0) {
         missing.push(`Opérations: ${result.missingFields.operations.map(o => `"${o}"`).join(', ')}`);
@@ -491,10 +491,10 @@ export const mettreAJourAlerteTraductions = async (
             }
 
             // Déchets manquants
-            if (verificationResult.missingFields.dechets.length > 0) {
+            /*if (verificationResult.missingFields.dechets.length > 0) {
                 const dechetsNonReconnus = verificationResult.missingFields.dechets.map(d => `"${d}"`).join(', ');
                 missingMessages.push(`Déchet(s) non reconnu(s): ${dechetsNonReconnus}`);
-            }
+            }*/
 
             // Opérations manquantes
             if (verificationResult.missingFields.operations.length > 0) {

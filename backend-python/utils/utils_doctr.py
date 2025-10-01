@@ -8,6 +8,9 @@ from fastapi import UploadFile
 import gc
 import psutil
 import numpy as np
+from pdf2image import convert_from_path
+from PIL import Image
+
 # Configuration OCR
 USE_PDF_DIRECT = True  # True = PDF direct, False = conversion en images
 PDF_DPI = 300          # Résolution pour la conversion PDF → images / 300 classique
@@ -19,6 +22,10 @@ os.environ["USE_TORCH"] = "1"
 # Variable globale pour stocker le modèle
 _model = None
 _model_initialized = False
+
+# Compteur de requêtes pour le recyclage du modèle
+_request_count = 0
+MAX_REQUESTS_BEFORE_RECYCLE = 7  # Recycler le modèle tous les 7 requêtes
 
 def initialize_model():
     #Initialise le modèle OCR au démarrage du serveur
@@ -47,18 +54,93 @@ def get_model():
         raise RuntimeError("Le modèle OCR n'a pas été initialisé. Appelez initialize_model() au démarrage du serveur.")
     return _model
 
-def cleanup_model():
-    #Libère la mémoire du modèle
-    global _model, _model_initialized
+def should_recycle_model():
+    """Vérifie si le modèle doit être recyclé selon le compteur de requêtes"""
+    global _request_count
+    return _request_count >= MAX_REQUESTS_BEFORE_RECYCLE
+
+def increment_request_count(num_pages=1):
+    """Incrémente le compteur de requêtes (pondéré par le nombre de pages) et recycle le modèle si nécessaire"""
+    global _request_count, _model, _model_initialized
+    
+    # Pondérer selon le nombre de pages (1 page = +1, 5 pages = +5)
+    _request_count += num_pages
+    
+    if should_recycle_model():
+        print(f"♻️  Recyclage du modèle OCR après {_request_count} requêtes pondérées (libération mémoire)")
+        
+        # Nettoyer l'ancien modèle
+        if _model is not None:
+            del _model
+            _model = None
+            _model_initialized = False
+        
+        # Nettoyage mémoire agressif
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        gc.collect()
+        
+        # Réinitialiser le modèle
+        initialize_model()
+        _request_count = 0
+        
+        print("✅ Modèle OCR recyclé avec succès")
+    
+    return _request_count
+
+def get_model_status():
+    """Retourne le statut actuel du modèle et du compteur"""
+    global _model_initialized, _request_count
+    return {
+        "model_initialized": _model_initialized,
+        "request_count": _request_count,
+        "max_requests": MAX_REQUESTS_BEFORE_RECYCLE,
+        "needs_recycle": should_recycle_model()
+    }
+
+def force_model_recycle():
+    """Force le recyclage immédiat du modèle (utile pour le debugging)"""
+    global _model, _model_initialized, _request_count
+    
+    print("🔄 Recyclage forcé du modèle OCR...")
+    
+    # Nettoyer l'ancien modèle
     if _model is not None:
         del _model
         _model = None
         _model_initialized = False
+    
+    # Nettoyage mémoire agressif
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
+    
+    # Réinitialiser le modèle
+    initialize_model()
+    _request_count = 0
+    
+    print("✅ Modèle OCR recyclé avec succès (recyclage forcé)")
+    return True
+
+def cleanup_model():
+    #Libère la mémoire du modèle
+    global _model, _model_initialized, _request_count
+    if _model is not None:
+        del _model
+        _model = None
+        _model_initialized = False
+        _request_count = 0  # Reset du compteur
         gc.collect()
         print("Modèle OCR nettoyé de la mémoire")
 
-# Fonction resize_image supprimée car elle nécessitait PIL et pdf2image
-# La conversion PDF vers images est désactivée pour éviter les problèmes sur Render
+def resize_image(img, max_width=MAX_IMAGE_WIDTH):
+    #Redimensionne une image en conservant le ratio d'aspect
+    width, height = img.size
+    if width > max_width:
+        ratio = max_width / float(width)
+        new_height = int(float(height) * ratio)
+        img = img.resize((max_width, new_height), Image.LANCZOS)
+    return img
 
 def get_memory_usage():
     #Retourne l'utilisation mémoire actuelle en MB
@@ -91,6 +173,20 @@ async def ocr_this_pdf_with_doctr(file: UploadFile):
     
     # Reset file position for potential future reads
     await file.seek(0)
+    
+    # Compter les pages du PDF
+    num_pages = 1  # Défaut
+    try:
+        import fitz  # PyMuPDF
+        pdf_doc = fitz.open(stream=contents, filetype="pdf")
+        num_pages = pdf_doc.page_count
+        pdf_doc.close()
+    except Exception:
+        pass
+    
+    # Incrémenter le compteur pondéré par le nombre de pages
+    current_count = increment_request_count(num_pages)
+    print(f"📊 Compteur modèle OCR: {current_count}/{MAX_REQUESTS_BEFORE_RECYCLE} (PDF: {num_pages} pages)")
 
     # Sauvegarder temporairement le fichier
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
@@ -102,16 +198,24 @@ async def ocr_this_pdf_with_doctr(file: UploadFile):
             # Traitement direct du PDF
             doc = DocumentFile.from_pdf(tmp_path)
         else:
-            # Mode conversion en images désactivé pour éviter les problèmes avec pdf2image sur Render
-            # Cette fonctionnalité nécessite poppler-utils qui n'est pas disponible sur Render
-            raise RuntimeError("Mode conversion PDF vers images désactivé. Utilisez USE_PDF_DIRECT=True.")
+            # Convertir le PDF en images
+            pages = convert_from_path(tmp_path, dpi=PDF_DPI)
+            
+            # Redimensionner chaque page
+            resized_pages = [resize_image(page) for page in pages]
+            
+            # Convertir en arrays numpy
+            numpy_images = [np.array(img) for img in resized_pages]
         
         # Récupération du modèle
         model = get_model()
         
         # Traitement OCR
         with torch.no_grad():
-            result_model = model(doc)
+            if USE_PDF_DIRECT:
+                result_model = model(doc)
+            else:
+                result_model = model(numpy_images)
         
         # Export des résultats
         result = result_model.export()
@@ -120,6 +224,11 @@ async def ocr_this_pdf_with_doctr(file: UploadFile):
         if USE_PDF_DIRECT:
             try:
                 del doc
+            except Exception:
+                pass
+        else:
+            try:
+                del pages, resized_pages, numpy_images
             except Exception:
                 pass
         try:
