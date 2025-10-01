@@ -1,9 +1,7 @@
-from utils.utils_doctr import ocr_this_pdf_with_doctr
-
-
+from utils.subprocess_ocr import ocr_in_subprocess
 
 async def ocr_this(file):
-    # Utiliser directement la fonction existante de utils_doctr
-    result = await ocr_this_pdf_with_doctr(file)
+    # Utiliser le subprocess pour forcer la libération mémoire
+    result = await ocr_in_subprocess(file)
     return result["text"], result["raw_result"]
 

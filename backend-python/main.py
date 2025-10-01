@@ -69,6 +69,9 @@ async def shutdown_event():
     #Nettoyer les ressources lors de l'arrêt du serveur
     print("Arrêt du serveur Fleap...")
     cleanup_model()
+    # Nettoyer le pool de subprocess OCR
+    from utils.subprocess_ocr import cleanup_executor
+    cleanup_executor()
     print("Serveur Fleap arrêté")
 
 
@@ -107,6 +110,7 @@ app.add_middleware(
 @app.get("/")
 async def root():
     return {"message": "L'API Fleap est en ligne"}
+
 
 @app.post("/parse-pdf-and-extract-info/") #Sur les BSD
 async def parse_pdf_and_extract_info(request: PDFRequest):
@@ -422,8 +426,8 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
                     rag_result = create_best_prompt_example(entreprise_id_int, type_lu, raw_text)
                     rag_prompt = rag_result["prompt"]
                     rag_found_example = rag_result["found_example"]
-                    print("🔍 RAG Prompt Example:", rag_prompt)
-                    print("🔍 RAG Found Example:", rag_found_example)
+                    #print("🔍 RAG Prompt Example:", rag_prompt)
+                    #print("🔍 RAG Found Example:", rag_found_example)
                 except ValueError as e:
                     print(f"❌ Erreur conversion entreprise_id en int: {e}")
             else:
