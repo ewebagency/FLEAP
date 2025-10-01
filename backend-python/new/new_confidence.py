@@ -42,23 +42,37 @@ def get_confidence(gemini_data, potential_json_from_ocr):
 
 
 def handwritten_confidence(file, ocr_json):
-    # Normaliser la forme du JSON OCR attendu par classify_ocr_with_density
-    # Ce dernier s'attend à un dict avec la clé 'raw_result' contenant 'pages'
-    if ocr_json is None:
-        normalized = {"raw_result": {"pages": []}}
-    elif isinstance(ocr_json, dict) and "raw_result" in ocr_json:
-        normalized = ocr_json
-    else:
-        # Quand on reçoit déjà le "raw_result" (ex: utils_doctr), on l'encapsule
-        normalized = {"raw_result": ocr_json}
+    """
+    Calcule la confiance pour l'écriture manuscrite.
+    Version compatible Render qui évite PyMuPDF si non disponible.
+    """
+    try:
+        # Normaliser la forme du JSON OCR attendu par classify_ocr_with_density
+        # Ce dernier s'attend à un dict avec la clé 'raw_result' contenant 'pages'
+        if ocr_json is None:
+            normalized = {"raw_result": {"pages": []}}
+        elif isinstance(ocr_json, dict) and "raw_result" in ocr_json:
+            normalized = ocr_json
+        else:
+            # Quand on reçoit déjà le "raw_result" (ex: utils_doctr), on l'encapsule
+            normalized = {"raw_result": ocr_json}
 
-    results = classify_ocr_with_density(file, normalized, threshold=0.03)
-    
-    handwritten_words_list = [
-        word for word in results 
-        if word.get('classification') == 'handwritten'
-    ]
-    n = len(handwritten_words_list)
-    too_much_handwritten_words = n > 6
-    
-    return n, too_much_handwritten_words
+        results = classify_ocr_with_density(file, normalized, threshold=0.03)
+        
+        handwritten_words_list = [
+            word for word in results 
+            if word.get('classification') == 'handwritten'
+        ]
+        n = len(handwritten_words_list)
+        too_much_handwritten_words = n > 6
+        
+        return n, too_much_handwritten_words
+        
+    except ImportError as e:
+        # PyMuPDF non disponible sur Render - retourner des valeurs par défaut
+        print(f"⚠️ PyMuPDF non disponible pour handwritten_confidence: {e}")
+        return 0, False  # Aucun mot manuscrit détecté, pas d'alerte
+    except Exception as e:
+        # Autre erreur - retourner des valeurs par défaut sécurisées
+        print(f"⚠️ Erreur dans handwritten_confidence: {e}")
+        return 0, False  # Aucun mot manuscrit détecté, pas d'alerte

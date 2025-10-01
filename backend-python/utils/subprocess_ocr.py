@@ -14,13 +14,18 @@ def _init_worker():
     """Initialise le modèle OCR dans le worker subprocess (appelé UNE SEULE fois par worker)"""
     global _model_cache
     if 'model' not in _model_cache:
-        from doctr.models import ocr_predictor
-        print("🔧 Init modèle OCR dans subprocess worker...")
-        model = ocr_predictor('db_mobilenet_v3_large', 'crnn_mobilenet_v3_small', 
-                              pretrained=True, detect_orientation=True)
-        model.eval()
-        _model_cache['model'] = model
-        print("✅ Modèle OCR prêt dans subprocess")
+        try:
+            from doctr.models import ocr_predictor
+            print("🔧 Init modèle OCR dans subprocess worker...")
+            model = ocr_predictor('db_mobilenet_v3_large', 'crnn_mobilenet_v3_small', 
+                                  pretrained=True, detect_orientation=True)
+            model.eval()
+            _model_cache['model'] = model
+            print("✅ Modèle OCR prêt dans subprocess")
+        except Exception as e:
+            print(f"❌ Erreur init modèle OCR dans subprocess: {e}")
+            # Ne pas initialiser le modèle si erreur - sera géré par le fallback
+            _model_cache['model'] = None
 
 def _ocr_worker(pdf_bytes: bytes):
     """Worker qui utilise le modèle préchargé (pas de rechargement à chaque appel)"""
@@ -33,21 +38,28 @@ def _ocr_worker(pdf_bytes: bytes):
         # Récupérer le modèle préchargé (déjà en mémoire du worker)
         model = _model_cache.get('model')
         if model is None:
-            raise Exception("Modèle OCR non initialisé dans le worker")
+            raise Exception("Modèle OCR non initialisé dans le worker - subprocess incompatible")
         
         # Sauver PDF temporairement
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             tmp.write(pdf_bytes)
             tmp_path = tmp.name
         
-        # Compter les pages avant traitement
+        # Compter les pages avant traitement - version compatible Render
         num_pages = 1  # Défaut
         try:
+            # Utiliser PyMuPDF de manière sécurisée
+            import fitz  # PyMuPDF pour compter les pages
             pdf_doc = fitz.open(tmp_path)
             num_pages = pdf_doc.page_count
             pdf_doc.close()
-        except:
-            pass
+        except ImportError:
+            # PyMuPDF non disponible sur Render - utiliser une estimation
+            print("⚠️ PyMuPDF non disponible, utilisation d'une page par défaut")
+            num_pages = 1
+        except Exception:
+            # Autre erreur - utiliser une page par défaut
+            num_pages = 1
         
         try:
             doc = DocumentFile.from_pdf(tmp_path)

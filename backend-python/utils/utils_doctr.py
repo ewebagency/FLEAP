@@ -8,9 +8,6 @@ from fastapi import UploadFile
 import gc
 import psutil
 import numpy as np
-from pdf2image import convert_from_path
-from PIL import Image
-
 # Configuration OCR
 USE_PDF_DIRECT = True  # True = PDF direct, False = conversion en images
 PDF_DPI = 300          # Résolution pour la conversion PDF → images / 300 classique
@@ -60,14 +57,8 @@ def cleanup_model():
         gc.collect()
         print("Modèle OCR nettoyé de la mémoire")
 
-def resize_image(img, max_width=MAX_IMAGE_WIDTH):
-    #Redimensionne une image en conservant le ratio d'aspect
-    width, height = img.size
-    if width > max_width:
-        ratio = max_width / float(width)
-        new_height = int(float(height) * ratio)
-        img = img.resize((max_width, new_height), Image.LANCZOS)
-    return img
+# Fonction resize_image supprimée car elle nécessitait PIL et pdf2image
+# La conversion PDF vers images est désactivée pour éviter les problèmes sur Render
 
 def get_memory_usage():
     #Retourne l'utilisation mémoire actuelle en MB
@@ -111,24 +102,16 @@ async def ocr_this_pdf_with_doctr(file: UploadFile):
             # Traitement direct du PDF
             doc = DocumentFile.from_pdf(tmp_path)
         else:
-            # Convertir le PDF en images
-            pages = convert_from_path(tmp_path, dpi=PDF_DPI)
-            
-            # Redimensionner chaque page
-            resized_pages = [resize_image(page) for page in pages]
-            
-            # Convertir en arrays numpy
-            numpy_images = [np.array(img) for img in resized_pages]
+            # Mode conversion en images désactivé pour éviter les problèmes avec pdf2image sur Render
+            # Cette fonctionnalité nécessite poppler-utils qui n'est pas disponible sur Render
+            raise RuntimeError("Mode conversion PDF vers images désactivé. Utilisez USE_PDF_DIRECT=True.")
         
         # Récupération du modèle
         model = get_model()
         
         # Traitement OCR
         with torch.no_grad():
-            if USE_PDF_DIRECT:
-                result_model = model(doc)
-            else:
-                result_model = model(numpy_images)
+            result_model = model(doc)
         
         # Export des résultats
         result = result_model.export()
@@ -137,11 +120,6 @@ async def ocr_this_pdf_with_doctr(file: UploadFile):
         if USE_PDF_DIRECT:
             try:
                 del doc
-            except Exception:
-                pass
-        else:
-            try:
-                del pages, resized_pages, numpy_images
             except Exception:
                 pass
         try:
