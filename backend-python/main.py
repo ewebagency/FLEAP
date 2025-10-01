@@ -388,8 +388,12 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
         return {"error": f"Invalid JSON format: {str(e)}"}
     
     ############### Extraction initiale + Détection du type ###############
+    print(f"[{time.strftime('%H:%M:%S')}] META_OCR_START: Début extraction initiale", flush=True)
     raw_text_first, potential_json_from_ocr_first, parse_or_ocr_first = await get_raw_text_from_pdf(file, 'inconnu')
+    print(f"[{time.strftime('%H:%M:%S')}] META_OCR_EXTRACT_DONE: Extraction terminée - méthode: {parse_or_ocr_first}", flush=True)
+    print(f"[{time.strftime('%H:%M:%S')}] META_OCR_TYPE_START: Détection du type", flush=True)
     type_lu = recognize_type_one_page(raw_text_first)["type"]
+    print(f"[{time.strftime('%H:%M:%S')}] META_OCR_TYPE_DONE: Type détecté: {type_lu}", flush=True)
     
     if doc_type == "inconnu":
         #doc_type = detect_type(file)
@@ -404,9 +408,11 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
 
     # Deuxième extraction dépendant du type détecté (conservée), mais avec nettoyage renforcé
     try:
+        print(f"[{time.strftime('%H:%M:%S')}] META_OCR_EXTRACT2_START: Deuxième extraction", flush=True)
         # Réinitialiser le fichier pour une nouvelle lecture propre
         await file.seek(0)
         raw_text, potential_json_from_ocr, parse_or_ocr = await get_raw_text_from_pdf(file, type_lu)
+        print(f"[{time.strftime('%H:%M:%S')}] META_OCR_EXTRACT2_DONE: Deuxième extraction terminée - méthode: {parse_or_ocr}", flush=True)
 
         if voir:
             print( "="*(43),"Données brutes : ", "\n", raw_text, "\n"*4)
@@ -436,13 +442,18 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
             rag_prompt = ""
             rag_found_example = False
         
+        print(f"[{time.strftime('%H:%M:%S')}] META_OCR_GEMINI_START: Appel Gemini", flush=True)
         gemini_response = await extract_gemini(raw_text, prompt + rag_prompt)
+        print(f"[{time.strftime('%H:%M:%S')}] META_OCR_GEMINI_DONE: Gemini terminé", flush=True)
         
         if "error" in gemini_response:
+            print(f"[{time.strftime('%H:%M:%S')}] META_OCR_GEMINI_ERROR: {gemini_response['error']}", flush=True)
             return {"error": gemini_response["error"]}
         
+        print(f"[{time.strftime('%H:%M:%S')}] META_OCR_STRUCTURE_START: Structuration des données", flush=True)
         gemini_data = json.loads(gemini_response.get("extracted_data", "{}"))
         structured_response = structure(type_lu, gemini_data)
+        print(f"[{time.strftime('%H:%M:%S')}] META_OCR_STRUCTURE_DONE: Structuration terminée", flush=True)
         
         if parse_or_ocr == "ocr":
             confidence = get_confidence(gemini_data, potential_json_from_ocr)
