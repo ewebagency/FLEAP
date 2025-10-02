@@ -557,7 +557,7 @@ export const mettreAJourAlerteTraductions = async (
             }
 
             // Alerte CED pour tous les déchets
-            if (ENABLE_ALERTE_CED) {
+            if (ENABLE_ALERTE_CED || typeDoc==="bsd") {
                 for (const dechet of dechets) {
                     if (dechet.ced !== undefined) {
                         const result = alerteCed(dechet.ced);

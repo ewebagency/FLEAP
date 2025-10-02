@@ -315,6 +315,15 @@ const parseLocaleNumber = (value: string | number | undefined): number => {
     return Number.isFinite(n) ? n : 0;
 };
 
+// Helper pour tester si un numéro est contenu dans l'autre (min 5 chiffres)
+export const isNumberContained = (num1: string, num2: string): boolean => {
+    if (!num1 || !num2) return false;
+    const clean1 = num1.replace(/\D/g, ''); // Garder que les chiffres
+    const clean2 = num2.replace(/\D/g, '');
+    if (clean1.length < 5 || clean2.length < 5) return false;
+    return clean1.includes(clean2) || clean2.includes(clean1);
+};
+
 // Fonction pour comparer les dates avec un écart
 const isDateInRange = (date1: string, date2: string, ecartDays: number): boolean => {
     const d1 = new Date(date1);
@@ -484,18 +493,12 @@ export const ProposeActionAuto = (
     // Fonction pour créer une condition basée sur une règle
     const createCondition = (rule: MatchingRule) => {
         return (pdfData: Record<string, string>, bsdCandidate: BSDCandidate): boolean => {
+
             // Vérification num_bsd
             if (rule.num_bsd) {
-                // Normaliser le numéro BSD issu du PDF :
-                // cas particulier si format "8chiffres-LETTRES-1chiffre" -> ne garder que les 8 premiers chiffres
-                const rawPdfNumBsd = pdfData.num_bsd || '';
-                const pdfNumBsd = (() => {
-                    //const match = rawPdfNumBsd.match(/^(\d{8})-[a-zA-Z]+-\d$/);
-                    //if (match) return match[1]; // Pour les id du style 09242253-DECHETSULTIMES-4 mais pour registre et bsd ont toute la chaine donc pas besoin 
-                    return rawPdfNumBsd;
-                })();
-                const candidateNumBsd = (bsdCandidate.readable_id_track_dechets || '').toLowerCase().trim();
-                if (!pdfNumBsd || !candidateNumBsd || pdfNumBsd !== candidateNumBsd) {
+                const pdfNumBsd = pdfData.num_bsd || '';
+                const candidateNumBsd = (bsdCandidate.readable_id_track_dechets || '').trim();
+                if (!isNumberContained(pdfNumBsd, candidateNumBsd)) {
                     return false;
                 }
             }
@@ -503,30 +506,35 @@ export const ProposeActionAuto = (
             // Vérification num_bon
             if (rule.num_bon) {
                 const pdfNumBon = pdfData.num_bon || '';
-                const candidateNumBon = (bsdCandidate.other_infos?.numeroBon || '').toLowerCase().trim();
-                if (!pdfNumBon || !candidateNumBon || pdfNumBon !== candidateNumBon) {
+                const candidateNumBon = (bsdCandidate.other_infos?.numeroBon || '').trim();
+                if (!isNumberContained(pdfNumBon, candidateNumBon)) {
                     return false;
                 }
             }
 
-            // Vérification site
+            // Vérification site (comparaison SIRET via mapping)
             if (rule.site) {
-                const pdfSite = pdfData.site || '';
-                const candidateSite = (bsdCandidate.infos_json.formAPI.createFormInput.emitter.company?.name || '').toLowerCase().trim();
-                if (!pdfSite || !candidateSite || pdfSite !== candidateSite) {
+                const pdfSiteName = pdfData.site || '';
+                const pdfSiteSiret = findSiretFromMapping(pdfSiteName, params_mapping.params_mapping_site || {});
+                const candidateSiteSiret = (bsdCandidate.infos_json.formAPI.createFormInput.emitter.company?.siret || '').trim();
+                
+                if (!pdfSiteSiret || !candidateSiteSiret || pdfSiteSiret !== candidateSiteSiret) {
                     return false;
                 }
             }
 
-            // Vérification prestataire (destinataire OU transporteur)
+            // Vérification prestataire (comparaison SIRET via mapping - destinataire OU transporteur)
             if (rule.presta) {
-                const pdfDestinataire = pdfData.destinataire || '';
-                const pdfTransporteur = pdfData.transporteur || '';
-                const candidateRecipient = (bsdCandidate.infos_json.formAPI.createFormInput.recipient.company.name || '').toLowerCase().trim();
-                const candidateTransporter = (bsdCandidate.infos_json.formAPI.createFormInput.transporter.company.name || '').toLowerCase().trim();
+                const pdfDestinataireName = pdfData.destinataire || '';
+                const pdfTransporteurName = pdfData.transporteur || '';
+                const pdfDestinataireSiret = findSiretFromMapping(pdfDestinataireName, params_mapping.params_mapping_presta || {});
+                const pdfTransporteurSiret = findSiretFromMapping(pdfTransporteurName, params_mapping.params_mapping_presta || {});
                 
-                const recipientOk = pdfDestinataire && candidateRecipient && candidateRecipient === pdfDestinataire;
-                const transporterOk = pdfTransporteur && candidateTransporter && candidateTransporter === pdfTransporteur;
+                const candidateRecipientSiret = (bsdCandidate.infos_json.formAPI.createFormInput.recipient.company.siret || '').trim();
+                const candidateTransporterSiret = (bsdCandidate.infos_json.formAPI.createFormInput.transporter.company.siret || '').trim();
+                
+                const recipientOk = pdfDestinataireSiret && candidateRecipientSiret && pdfDestinataireSiret === candidateRecipientSiret;
+                const transporterOk = pdfTransporteurSiret && candidateTransporterSiret && pdfTransporteurSiret === candidateTransporterSiret;
                 
                 if (!recipientOk && !transporterOk) {
                     return false;
@@ -670,6 +678,7 @@ export interface AutoLinkThisDocOptions {
     entrepriseId: number;
     pdfId: string;
     userId?: string;
+    simulationMode?: boolean;
 }
 
 export interface AutoLinkThisDocOutcomeItem {
@@ -802,22 +811,31 @@ export const AutoLinkOrCreateThisDoc = async (
         }
 
         if (result.action === 'to_link' && result.id_candidat) {
-            await link_in_bdd(options.entrepriseId, result.id_candidat, options.pdfId, index);
-            await upsertStatusFlag(options.entrepriseId, options.pdfId, prev =>
-                ensureStatusOnLinkedItem(prev, index, 'linked', result.id_candidat)
-            );
+            if (!options.simulationMode) {
+                await link_in_bdd(options.entrepriseId, result.id_candidat, options.pdfId, index);
+                await upsertStatusFlag(options.entrepriseId, options.pdfId, prev =>
+                    ensureStatusOnLinkedItem(prev, index, 'linked', result.id_candidat)
+                );
+            }
             outcome.results.push({ index_dechet: index, result, performed: 'linked', bsd_id: result.id_candidat });
         } else if (result.action === 'to_create') {
-            const createRes = await create_in_bdd(options.entrepriseId, options.pdfId, index, { user_id: options.userId });
-            const createdId = (createRes as { bsd_id?: string }).bsd_id;
-            await upsertStatusFlag(options.entrepriseId, options.pdfId, prev =>
-                ensureStatusOnLinkedItem(prev, index, 'created', createdId)
-            );
-            outcome.results.push({ index_dechet: index, result, performed: 'created', bsd_id: createdId });
+            if (!options.simulationMode) {
+                const createRes = await create_in_bdd(options.entrepriseId, options.pdfId, index, { user_id: options.userId });
+                const createdId = (createRes as { bsd_id?: string }).bsd_id;
+                await upsertStatusFlag(options.entrepriseId, options.pdfId, prev =>
+                    ensureStatusOnLinkedItem(prev, index, 'created', createdId)
+                );
+                outcome.results.push({ index_dechet: index, result, performed: 'created', bsd_id: createdId });
+            } else {
+                // En mode simulation, on simule un ID créé
+                outcome.results.push({ index_dechet: index, result, performed: 'created', bsd_id: 'SIMULATED_ID' });
+            }
         } else if (result.action === 'to_check_by_user') {
-            await upsertStatusFlag(options.entrepriseId, options.pdfId, prev =>
-                ensureStatusOnLinkedItem(prev, index, 'check_by_user')
-            );
+            if (!options.simulationMode) {
+                await upsertStatusFlag(options.entrepriseId, options.pdfId, prev =>
+                    ensureStatusOnLinkedItem(prev, index, 'check_by_user')
+                );
+            }
             outcome.results.push({ index_dechet: index, result, performed: 'to_check_by_user' });
         } else {
             outcome.results.push({ index_dechet: index, result, performed: 'skipped' });

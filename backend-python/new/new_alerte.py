@@ -1,3 +1,20 @@
+def safe_float(value, default=0.0):
+    """
+    Convertit une valeur en float en gérant les virgules comme séparateurs décimaux
+    """
+    if value is None:
+        return default
+    
+    try:
+        # Nettoyer la chaîne (enlever espaces, remplacer virgules par points)
+        if isinstance(value, str):
+            cleaned = str(value).replace(',', '.').replace(' ', '').strip()
+            return float(cleaned)
+        else:
+            return float(value)
+    except (ValueError, TypeError):
+        return default
+
 def find(word, mapping):
     # Vérification de sécurité pour éviter les erreurs NoneType
     if mapping is None:
@@ -111,37 +128,41 @@ def alerte_ced(ced_code: str):
     
     return False, ""
 
-def alerte_calcul_facture(quantite: float, prix_unitaire: float, montant: float):
+def alerte_calcul_facture(quantite, prix_unitaire, montant):
     """
     Vérifie que quantité * prix_unitaire = montant (avec tolérance)
-
     """
     try:
-        calcul_attendu = quantite * prix_unitaire
+        # Utiliser safe_float pour gérer les virgules comme séparateurs décimaux
+        qty_float = safe_float(quantite)
+        prix_float = safe_float(prix_unitaire)
+        montant_float = safe_float(montant)
+        
+        calcul_attendu = qty_float * prix_float
         # Tolérance de 0.01 pour les erreurs d'arrondi
-        if abs(calcul_attendu - montant) > 0.01:
-            return True, f"Calcul incorrect: {quantite} × {prix_unitaire} = {calcul_attendu} ≠ {montant}"
+        if abs(calcul_attendu - montant_float) > 0.01:
+            return True, f"Calcul incorrect: {qty_float} × {prix_float} = {calcul_attendu} ≠ {montant_float}"
         return False, ""
     except (TypeError, ValueError):
         return True, f"Valeurs non numériques: qty={quantite}, prix={prix_unitaire}, montant={montant}"
 
-def alerte_somme_facture(prestations: list, montant_total: float):
+def alerte_somme_facture(prestations: list, montant_total):
     """
     Vérifie que la somme des montants des prestations = montant_total
-
     """
     try:
         somme_calculee = 0
         for presta in prestations:
             if isinstance(presta, dict) and 'montant_ht' in presta:
-                try:
-                    somme_calculee += float(presta['montant_ht'])
-                except (ValueError, TypeError):
-                    continue
+                # Utiliser safe_float pour gérer les virgules comme séparateurs décimaux
+                somme_calculee += safe_float(presta['montant_ht'])
+        
+        # Utiliser safe_float pour le montant total aussi
+        montant_total_float = safe_float(montant_total)
         
         # Tolérance de 0.01 pour les erreurs d'arrondi
-        if abs(somme_calculee - montant_total) > 0.01:
-            return True, f"Somme incorrecte: {somme_calculee} ≠ {montant_total}"
+        if abs(somme_calculee - montant_total_float) > 0.01:
+            return True, f"Somme incorrecte: {somme_calculee} ≠ {montant_total_float}"
         return False, ""
     except (TypeError, ValueError):
         return True, f"Erreur de calcul de somme: prestations={prestations}, total={montant_total}"
@@ -281,16 +302,14 @@ def alerte_function(alerte_type: bool, confidence: dict, structured_response, pd
                         if ENABLE_ALERTE_CALCUL_FACTURE and prestations:
                             for presta in prestations:
                                 if isinstance(presta, dict) and all(key in presta for key in ['quantite', 'prix_unitaire', 'montant_ht']):
-                                    try:
-                                        qty = float(presta['quantite'])
-                                        prix = float(presta['prix_unitaire'])
-                                        montant = float(presta['montant_ht'])
-                                        alerte, msg = alerte_calcul_facture(qty, prix, montant)
-                                        if alerte:
-                                            stop = True
-                                            message.append(f"Calcul facture: {msg}")
-                                    except (ValueError, TypeError):
-                                        continue
+                                    # Utiliser safe_float pour gérer les virgules comme séparateurs décimaux
+                                    qty = safe_float(presta['quantite'])
+                                    prix = safe_float(presta['prix_unitaire'])
+                                    montant = safe_float(presta['montant_ht'])
+                                    alerte, msg = alerte_calcul_facture(qty, prix, montant)
+                                    if alerte:
+                                        stop = True
+                                        message.append(f"Calcul facture: {msg}")
         
         # Alerte somme facture (nécessite montant_total dans structured_response)
         if ENABLE_ALERTE_SOMME_FACTURE and type_doc == 'facture':
@@ -301,7 +320,7 @@ def alerte_function(alerte_type: bool, confidence: dict, structured_response, pd
                         facture = dechet['facture']
                         if isinstance(facture, dict) and 'ligne' in facture:
                             prestations = facture['ligne']
-                            alerte, msg = alerte_somme_facture(prestations, float(montant_total))
+                            alerte, msg = alerte_somme_facture(prestations, montant_total)
                             if alerte:
                                 stop = True
                                 message.append(f"Somme facture: {msg}")

@@ -7,7 +7,9 @@ import { processPdfList } from '../utils/loop';
 import { runMetaOcrForPdf } from '../utils/extract';
 import { autoLinkDocs, BulkAutoLinkOutcome } from '../utils/bulk_autolink';
 import { verifierEtMettreAJourAlerte } from '../utils/alerte';
+import { LINK_CONFIGS, getLinkConfigById } from '../utils/default_auto_link_params';
 import { toast } from 'react-hot-toast';
+import Swal from 'sweetalert2';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 import { normalizePdfData, buildFactureFromNormalized, push_in_facture_bdd, ParamsMapping } from '../utils/link';
 import { getParamsMappingByEntreprise } from '../utils/bdd';
@@ -220,6 +222,27 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValues, onCh
     );
 };
 
+// Composant Tooltip simple
+const Tooltip: React.FC<{ children: React.ReactNode; content: string }> = ({ children, content }) => {
+    const [show, setShow] = useState(false);
+    
+    return (
+        <div 
+            className="relative inline-block"
+            onMouseEnter={() => setShow(true)}
+            onMouseLeave={() => setShow(false)}
+        >
+            {children}
+            {show && (
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-50">
+                    {content}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => {
     const { entreprise_id, user_id } = useSession();
     const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
@@ -229,11 +252,22 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const [processingSplitOnly, setProcessingSplitOnly] = useState(false);
     const [processingExtractOnly, setProcessingExtractOnly] = useState(false);
     const [processingAutoLink, setProcessingAutoLink] = useState(false);
+    const [processingAutoPropose, setProcessingAutoPropose] = useState(false);
     const [processingAlertes, setProcessingAlertes] = useState(false);
     const [processingPush, setProcessingPush] = useState(false);
+    const [autoLinkPhase, setAutoLinkPhase] = useState<'idle' | 'simulation' | 'confirmation' | 'applying'>('idle');
     const [selectedPdfIds, setSelectedPdfIds] = useState<string[]>([]);
     const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([]);
     const [showReview, setShowReview] = useState(false);
+    
+    // Configuration de linkage sélectionnée
+    const [selectedConfigId, setSelectedConfigId] = useState<string>('normal');
+    
+    // Obtenir la configuration actuelle
+    const currentConfig = useMemo(() => {
+        return getLinkConfigById(selectedConfigId) || LINK_CONFIGS[1]; // fallback sur Normal
+    }, [selectedConfigId]);
+    
     // Pause/Reprise en cas d'absence d'exemple RAG
     const [paused, setPaused] = useState(false);
     const [pausedPdfId, setPausedPdfId] = useState<string | null>(null);
@@ -444,7 +478,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         );
     };
 
-    const anyProcessing = processingSplitThenExtract || processingSplitOnly || processingExtractOnly;
+    const anyProcessing = processingSplitThenExtract || processingSplitOnly || processingExtractOnly || processingAutoPropose;
 
     // Traiter les PDFs sélectionnés
     const handleProcessPdfs = async () => {
@@ -695,7 +729,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         }
     };
 
-    // Auto-link selected PDFs
+    // Auto-link selected PDFs (nouveau workflow en 2 étapes)
     const handleAutoLinkSelected = async () => {
         if (selectedPdfIds.length === 0) {
             toast.error('Veuillez sélectionner au moins un PDF');
@@ -713,12 +747,236 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             return;
         }
 
+        // Phase 1: Simulation pour obtenir les propositions
         setProcessingAutoLink(true);
+        setAutoLinkPhase('simulation');
         setProcessingResults([]);
         setShowReview(false);
 
         try {
-            const outcome: BulkAutoLinkOutcome = await autoLinkDocs(selectedPdfIds, parseInt(entreprise_id), user_id);
+            // D'abord, faire une simulation pour voir ce qui sera fait
+            const simulationOutcome: BulkAutoLinkOutcome = await autoLinkDocs(selectedPdfIds, parseInt(entreprise_id), user_id, true, currentConfig.params);
+
+            const detailedResults: ProcessingResult[] = [];
+            simulationOutcome.results.forEach(item => {
+                const originalPdf = pdfInfos.find(pdf => pdf.id === item.pdfId);
+                const autoLinkDetails = (item.results || []).map(r => ({
+                    index: r.index_dechet,
+                    performed: r.performed,
+                    bsd_id: r.bsd_id
+                }));
+                detailedResults.push({
+                    pdfId: item.pdfId,
+                    success: item.success,
+                    message: item.message,
+                    originalPdfName: originalPdf?.name_pdf || 'Inconnu',
+                    autoLinkDetails
+                });
+            });
+
+            simulationOutcome.errors.forEach(err => {
+                const originalPdf = pdfInfos.find(pdf => pdf.id === err.pdfId);
+                detailedResults.push({
+                    pdfId: err.pdfId,
+                    success: false,
+                    message: err.error,
+                    error: err.error,
+                    originalPdfName: originalPdf?.name_pdf || 'Inconnu'
+                });
+            });
+
+            setProcessingResults(detailedResults);
+            setShowReview(true);
+            setAutoLinkPhase('confirmation');
+
+            // Demander confirmation avant d'appliquer les changements
+            const totalActions = detailedResults.reduce((sum, result) => 
+                sum + (result.autoLinkDetails?.length || 0), 0);
+            
+            if (totalActions === 0) {
+                toast('Aucune action d\'auto-link proposée', { icon: 'ℹ️' });
+                setAutoLinkPhase('idle');
+                setSelectedPdfIds([]);
+                return;
+            }
+
+            // Attendre un peu pour que l'utilisateur puisse voir les résultats
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Préparer les détails pour SweetAlert2
+            const actionSummary = detailedResults.reduce((acc, result) => {
+                if (result.autoLinkDetails && result.autoLinkDetails.length > 0) {
+                    acc[result.originalPdfName || 'Document inconnu'] = result.autoLinkDetails.map(detail => ({
+                        index: detail.index,
+                        action: detail.performed,
+                        bsdId: detail.bsd_id
+                    }));
+                }
+                return acc;
+            }, {} as Record<string, Array<{index: number, action: string, bsdId?: string}>>);
+
+            const actionCounts = detailedResults.reduce((acc, result) => {
+                if (result.autoLinkDetails) {
+                    result.autoLinkDetails.forEach(detail => {
+                        acc[detail.performed] = (acc[detail.performed] || 0) + 1;
+                    });
+                }
+                return acc;
+            }, {} as Record<string, number>);
+
+            // Créer le HTML détaillé
+            const detailsHtml = Object.entries(actionSummary).map(([pdfName, actions]) => {
+                const actionsHtml = actions.map(action => {
+                    const actionLabel = action.action === 'linked' ? '🔗 Lié au BSD'
+                        : action.action === 'created' ? '✨ BSD créé'
+                        : action.action === 'to_check_by_user' ? '👀 À vérifier manuellement'
+                        : '⏭️ Déjà traité';
+                    
+                    const bsdInfo = action.bsdId ? ` (BSD: ${action.bsdId})` : '';
+                    return `<div class="ml-4 mb-1 text-sm">• Déchet #${action.index + 1}: ${actionLabel}${bsdInfo}</div>`;
+                }).join('');
+                
+                return `
+                    <div class="mb-3 p-2 bg-gray-50 rounded">
+                        <div class="font-medium text-gray-800 mb-2">📄 ${pdfName}</div>
+                        ${actionsHtml}
+                    </div>
+                `;
+            }).join('');
+
+            const confirmed = await Swal.fire({
+                title: 'Confirmer l\'auto-link',
+                html: `
+                    <div class="text-left">
+                        <div class="mb-4 p-3 bg-blue-50 rounded border-l-4 border-blue-400">
+                            <div class="font-medium text-blue-800">Configuration: ${currentConfig.name}</div>
+                            <div class="text-sm text-blue-600 mt-1">${currentConfig.description}</div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="font-medium text-gray-800 mb-2">📊 Résumé des actions:</div>
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                ${Object.entries(actionCounts).map(([action, count]) => {
+                                    const label = action === 'linked' ? '🔗 Liés' 
+                                        : action === 'created' ? '✨ Créés'
+                                        : action === 'to_check_by_user' ? '👀 À vérifier'
+                                        : '⏭️ Autres';
+                                    return `<div class="flex justify-between"><span>${label}:</span><span class="font-medium">${count}</span></div>`;
+                                }).join('')}
+                                <div class="flex justify-between font-medium border-t pt-1"><span>Total:</span><span>${totalActions}</span></div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="font-medium text-gray-800 mb-2">📋 Détail par document:</div>
+                            <div class="max-h-60 overflow-y-auto">
+                                ${detailsHtml}
+                            </div>
+                        </div>
+                        
+                        <div class="p-3 bg-yellow-50 rounded border-l-4 border-yellow-400">
+                            <div class="text-sm text-yellow-800">
+                                <strong>⚠️ Attention:</strong> Ces actions vont modifier la base de données. 
+                                Assurez-vous que ces propositions sont correctes avant de confirmer.
+                            </div>
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: '✅ Confirmer et appliquer',
+                cancelButtonText: '❌ Annuler',
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#ef4444',
+                width: '800px',
+                customClass: {
+                    popup: 'text-left',
+                    htmlContainer: 'text-left'
+                }
+            });
+
+            if (!confirmed.isConfirmed) {
+                toast('Auto-link annulé par l\'utilisateur', { icon: '❌' });
+                setAutoLinkPhase('idle');
+                setSelectedPdfIds([]);
+                return;
+            }
+
+            // Phase 2: Appliquer les changements en mode réel
+            setAutoLinkPhase('applying');
+            toast('Application des changements en cours...', { icon: '⏳' });
+            const realOutcome: BulkAutoLinkOutcome = await autoLinkDocs(selectedPdfIds, parseInt(entreprise_id), user_id, false, currentConfig.params);
+
+            // Mettre à jour les résultats avec les actions réelles
+            const finalResults: ProcessingResult[] = [];
+            realOutcome.results.forEach(item => {
+                const originalPdf = pdfInfos.find(pdf => pdf.id === item.pdfId);
+                const autoLinkDetails = (item.results || []).map(r => ({
+                    index: r.index_dechet,
+                    performed: r.performed,
+                    bsd_id: r.bsd_id
+                }));
+                finalResults.push({
+                    pdfId: item.pdfId,
+                    success: item.success,
+                    message: item.message,
+                    originalPdfName: originalPdf?.name_pdf || 'Inconnu',
+                    autoLinkDetails
+                });
+            });
+
+            realOutcome.errors.forEach(err => {
+                const originalPdf = pdfInfos.find(pdf => pdf.id === err.pdfId);
+                finalResults.push({
+                    pdfId: err.pdfId,
+                    success: false,
+                    message: err.error,
+                    error: err.error,
+                    originalPdfName: originalPdf?.name_pdf || 'Inconnu'
+                });
+            });
+
+            setProcessingResults(finalResults);
+
+            if (realOutcome.success) {
+                toast.success(`Auto-link appliqué : ${realOutcome.processedCount} document(s) traités`);
+                setSelectedPdfIds([]);
+            } else {
+                toast.error(realOutcome.message || 'Auto-link appliqué avec des erreurs');
+            }
+
+        } catch (error) {
+            console.error('Erreur auto-link:', error);
+            toast.error('Erreur lors de l\'auto-link des PDFs');
+        } finally {
+            setProcessingAutoLink(false);
+            setAutoLinkPhase('idle');
+        }
+    };
+
+    // Auto-propose selected PDFs (simulation mode)
+    const handleAutoProposeSelected = async () => {
+        if (selectedPdfIds.length === 0) {
+            toast.error('Veuillez sélectionner au moins un PDF');
+            return;
+        }
+
+        if (!entreprise_id) {
+            toast.error('ID entreprise manquant');
+            return;
+        }
+
+        if (!user_id) {
+            console.error('[handleAutoProposeSelected] user_id manquant dans la session');
+            toast.error('Utilisateur manquant pour l\'auto-proposition');
+            return;
+        }
+
+        setProcessingAutoPropose(true);
+        setProcessingResults([]);
+        setShowReview(false);
+
+        try {
+            const outcome: BulkAutoLinkOutcome = await autoLinkDocs(selectedPdfIds, parseInt(entreprise_id), user_id, true, currentConfig.params); // simulationMode = true
 
             const detailedResults: ProcessingResult[] = [];
             outcome.results.forEach(item => {
@@ -752,16 +1010,16 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             setShowReview(true);
 
             if (outcome.success) {
-                toast.success(`Auto-link terminé : ${outcome.processedCount} document(s)`);
+                toast.success(`Auto-proposition terminée : ${outcome.processedCount} document(s) simulés`);
                 setSelectedPdfIds([]);
             } else {
-                toast.error(outcome.message || 'Auto-link terminé avec des erreurs');
+                toast.error(outcome.message || 'Auto-proposition terminée avec des erreurs');
             }
         } catch (error) {
-            console.error('Erreur auto-link:', error);
-            toast.error('Erreur lors de l\'auto-link des PDFs');
+            console.error('Erreur auto-proposition:', error);
+            toast.error('Erreur lors de l\'auto-proposition des PDFs');
         } finally {
-            setProcessingAutoLink(false);
+            setProcessingAutoPropose(false);
         }
     };
 
@@ -1272,7 +1530,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                     </div>                    
 
                     {/* Résumé et statistiques en grid-2 */}
-                    <div className="grid grid-cols-2 gap-3 mb-3 mt-3">
+                    <div className="grid grid-cols-[1fr_4fr] gap-3 mb-3 mt-3">
                         {/* Résumé des paramètres */}
                         <div className="p-2.5 bg-gray-50 rounded-md">
                             <h3 className="text-xs font-medium text-gray-600 mb-1.5">Paramètres actifs :</h3>
@@ -1287,7 +1545,27 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
                         {/* Statistiques et boutons d'action */}
                         <div className="p-2.5 bg-blue-50 rounded-md">
-                            <div className="flex items-center justify-between h-full">
+                            {/* Sélecteur de configuration */}
+                            <div className="mb-0 border-b pb-1 border-b border-blue-200">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <span className="text-xs font-medium text-blue-700">Configuration de linkage :</span>
+                                        <div className="text-xs text-blue-600 mt-0.5 hidden">{currentConfig.description}</div>
+                                    </div>
+                                    <select
+                                        value={selectedConfigId}
+                                        onChange={(e) => setSelectedConfigId(e.target.value)}
+                                        className="text-xs border border-blue-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                    >
+                                        {LINK_CONFIGS.map(config => (
+                                            <option key={config.id} value={config.id}>
+                                                {config.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between h-full pb-4">
                                 <div className="flex items-center space-x-3">
                                     <div className="text-center">
                                         <div className="text-base font-semibold text-blue-500">{filteredPdfs.length}</div>
@@ -1465,16 +1743,42 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         )}
                                     </button>
                                     <div className='flex flex-col gap-2'>
-                                        <button
-                                            onClick={handleAutoLinkSelected}
-                                            disabled={processingAutoLink || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
-                                            className="px-2.5 py-1.5 bg-indigo-500 text-white rounded-sm text-xs hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
-                                            title="Auto-linker les documents sélectionnés"
-                                        >
+                                        <Tooltip content={`Config: ${currentConfig.name} - ${currentConfig.description}`}>
+                                            <button
+                                                onClick={handleAutoProposeSelected}
+                                                disabled={processingAutoPropose || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
+                                                className="px-2.5 py-1.5 bg-orange-500 text-white rounded-sm text-xs hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
+                                                title="Simuler l'auto-link des documents sélectionnés (mode simulation)"
+                                            >
+                                            {processingAutoPropose ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                                    <span>Auto-propose...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <BoxIcon name="bx-search" size="16" />
+                                                    <span>Auto-propose ({selectedPdfIds.length})</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        </Tooltip>
+                                        <Tooltip content={`Config: ${currentConfig.name} - ${currentConfig.description}`}>
+                                            <button
+                                                onClick={handleAutoLinkSelected}
+                                                disabled={processingAutoLink || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
+                                                className="px-2.5 py-1.5 bg-indigo-500 text-white rounded-sm text-xs hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
+                                                title="Auto-linker les documents sélectionnés (simulation puis confirmation)"
+                                            >
                                             {processingAutoLink ? (
                                                 <>
                                                     <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                                    <span>Auto-link...</span>
+                                                    <span>
+                                                        {autoLinkPhase === 'simulation' && 'Simulation...'}
+                                                        {autoLinkPhase === 'confirmation' && 'En attente confirmation...'}
+                                                        {autoLinkPhase === 'applying' && 'Application...'}
+                                                        {autoLinkPhase === 'idle' && 'Auto-link...'}
+                                                    </span>
                                                 </>
                                             ) : (
                                                 <>
@@ -1483,6 +1787,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 </>
                                             )}
                                         </button>
+                                        </Tooltip>
                                         <button
                                             onClick={handlePushSelected}
                                             disabled={processingPush || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
@@ -1513,7 +1818,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                         <div className="mt-4 p-4 bg-white rounded-md shadow-sm border border-gray-100">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-lg font-semibold text-gray-700">
-                                    📊 Résultats du traitement
+                                    {autoLinkPhase === 'confirmation' ? '🔍 Propositions d\'auto-link' : 
+                                     autoLinkPhase === 'applying' ? '⚡ Application en cours' :
+                                     '📊 Résultats du traitement'}
                                 </h3>
                                 <button
                                     onClick={() => setShowReview(false)}
@@ -1522,6 +1829,18 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     <BoxIcon name="bx-x" size="18" />
                                 </button>
                             </div>
+
+                            {/* Message informatif pour la phase de confirmation */}
+                            {autoLinkPhase === 'confirmation' && (
+                                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                                    <div className="flex items-center space-x-2">
+                                        <BoxIcon name="bx-info-circle" size="16" className="text-yellow-600" />
+                                        <span className="text-sm text-yellow-800 font-medium">
+                                            Propositions générées - En attente de votre confirmation pour appliquer les changements
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Résumé statistiques */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">

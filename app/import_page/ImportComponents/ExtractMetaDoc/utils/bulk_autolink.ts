@@ -1,5 +1,6 @@
 import { getBSDCandidates, getPdfInfoById, getParamsMappingByEntreprise } from './bdd';
 import { DEFAULT_AUTO_LINK_PARAMS } from './default_auto_link_params';
+import { AutoLinkParams } from './link';
 import { AutoLinkOrCreateThisDoc, BSDCandidate, ProposeActionResult } from './link';
 import { PdfInfo, ParamsMapping } from '../interface/pdf_interface';
 
@@ -39,7 +40,9 @@ const computeDateWindow = (pdfInfo: PdfInfo): { startISO: string; endISO: string
 export const autoLinkDocs = async (
     pdfIds: string[],
     entrepriseId: number,
-    userId?: string
+    userId?: string,
+    simulationMode: boolean = false,
+    linkParams?: AutoLinkParams
 ): Promise<BulkAutoLinkOutcome> => {
     if (!userId) {
         console.error('[autoLinkDocs] userId manquant');
@@ -92,8 +95,8 @@ export const autoLinkDocs = async (
                 (pdfInfo as PdfInfo).infos_raw || {},
                 candidates,
                 mappings as ParamsMapping,
-                DEFAULT_AUTO_LINK_PARAMS,
-                { entrepriseId, pdfId, userId }
+                linkParams || DEFAULT_AUTO_LINK_PARAMS,
+                { entrepriseId, pdfId, userId, simulationMode }
             );
 
             results.push({

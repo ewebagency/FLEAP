@@ -431,7 +431,7 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
         # Generate alerts inline
         alerte = alerte_function(alerte_type, confidence, structured_response, pdfInfos_dict, clusterParams_dict)
         if not rag_found_example:
-            alerte = {"stop": True, "message": f"Il n'existe pas encore d'exemple pour ce type de document ({type_lu}). Veuillez d'abord traiter quelques documents de ce type avec le bouton RAG."}
+            alerte = {"stop": True, "message": f"Il n'existe pas encore d'exemple rag pour ce type de document ({type_lu}). Veuillez d'abord traiter quelques documents de ce type avec le bouton RAG."}
         
         return {"structured_response": structured_response, "confidence": confidence, "alerte": alerte}
 

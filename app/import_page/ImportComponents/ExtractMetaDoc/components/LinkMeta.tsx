@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSession } from '@/app/component/SessionProvider';
 import { PdfInfo } from '../interface/pdf_interface';
 import { getPdfInfoById, getBSDCandidates } from '../utils/bdd';
-import { LINK_RULES_DEFAULT, BSDCandidate, ProposeActionAuto, ProposeActionResult, AutoLinkOrCreateThisDoc } from '../utils/link';
+import { LINK_RULES_DEFAULT, BSDCandidate, ProposeActionAuto, ProposeActionResult, AutoLinkOrCreateThisDoc, isNumberContained, findSiretFromMapping, MatchingRule, normalizePdfData } from '../utils/link';
 import PushFactureButton from './PushFactureButton';
-import { DEFAULT_AUTO_LINK_PARAMS } from '../utils/default_auto_link_params';
+import { LINK_CONFIGS, getLinkConfigById } from '../utils/default_auto_link_params';
 import { create_in_bdd, create_in_bdd_preview, link_in_bdd, translateByMapping } from '../utils/link_or_create_bdd';
 import { useParamsMapping } from '../utils/extract';
 
@@ -80,6 +80,27 @@ const isDateInRange = (date1: string, date2: string, ecartDays: number): boolean
 	return diffDays <= ecartDays;
 };
 
+// Composant Tooltip simple
+const Tooltip: React.FC<{ children: React.ReactNode; content: string }> = ({ children, content }) => {
+	const [show, setShow] = useState(false);
+	
+	return (
+		<div 
+			className="relative inline-block"
+			onMouseEnter={() => setShow(true)}
+			onMouseLeave={() => setShow(false)}
+		>
+			{children}
+			{show && (
+				<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-50">
+					{content}
+					<div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
+				</div>
+			)}
+		</div>
+	);
+};
+
 export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	const { user_id, entreprise_id } = useSession();
 	const entrepriseIdNum = useMemo(() => (entreprise_id ? Number(entreprise_id) : null), [entreprise_id]);
@@ -102,6 +123,14 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	const [showRules, setShowRules] = useState<boolean>(false);
 	const [busyAll, setBusyAll] = useState(false);
 	const [autoAllResults, setAutoAllResults] = useState<Record<number, ProposeActionResult | undefined>>({});
+	
+    // Configuration de linkage sélectionnée
+    const [selectedConfigId, setSelectedConfigId] = useState<string>('normal');
+	
+	// Obtenir la configuration actuelle
+	const currentConfig = useMemo(() => {
+		return getLinkConfigById(selectedConfigId) || LINK_CONFIGS[1]; // fallback sur Normal
+	}, [selectedConfigId]);
 	
 	// Dictionnaire des explications pour chaque action
 	// (removed unused actionExplanations to satisfy linter)
@@ -215,7 +244,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 				pdfInfo.infos_raw || {},
 				allCandidates,
 				mappings,
-				DEFAULT_AUTO_LINK_PARAMS,
+				currentConfig.params,
 				index
 			);
 			setProposeActionResults(prev => ({ ...prev, [index]: result }));
@@ -225,7 +254,108 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 			const usedRule = result.matched_rule;
 			const ruleInfo = result.rule_info || 'Règle par défaut';
 			
+			// Fonction locale pour extraire les chiffres d'un CED (comme dans link.ts)
+			const extractNumbersFromCed = (ced: string): string => {
+				return ced.replace(/[^\d]/g, '').replace(/\s/g, '');
+			};
+			
+			// Utiliser la MÊME logique que ProposeActionAuto pour la cohérence
+			// Créer une condition basée sur la règle utilisée
+			const createCondition = (rule: MatchingRule) => {
+				return (bsdCandidate: BSDCandidate): boolean => {
+					// Normaliser les données du PDF comme dans ProposeActionAuto
+					const normalizedPdf = normalizePdfData(
+						pdfInfo.infos_raw || {},
+						mappings?.params_mapping_site || {},
+						mappings?.params_mapping_presta || {},
+						index
+					);
+
+					// Vérification num_bsd
+					if (rule.num_bsd) {
+						const pdfNumBsd = normalizedPdf.num_bsd || '';
+						const candidateNumBsd = (bsdCandidate.readable_id_track_dechets || '').trim();
+						if (!isNumberContained(pdfNumBsd, candidateNumBsd)) {
+							return false;
+						}
+					}
+
+					// Vérification num_bon
+					if (rule.num_bon) {
+						const pdfNumBon = normalizedPdf.num_bon || '';
+						const candidateNumBon = (bsdCandidate.other_infos?.numeroBon || '').trim();
+						if (!isNumberContained(pdfNumBon, candidateNumBon)) {
+							return false;
+						}
+					}
+
+					// Vérification site (comparaison SIRET via mapping)
+					if (rule.site) {
+						const pdfSiteName = normalizedPdf.site || '';
+						const pdfSiteSiret = findSiretFromMapping(pdfSiteName, mappings?.params_mapping_site || {});
+						const candidateSiteSiret = (bsdCandidate.infos_json.formAPI.createFormInput.emitter.company?.siret || '').trim();
+						
+						if (!pdfSiteSiret || !candidateSiteSiret || pdfSiteSiret !== candidateSiteSiret) {
+							return false;
+						}
+					}
+
+					// Vérification prestataire (comparaison SIRET via mapping - destinataire OU transporteur)
+					if (rule.presta) {
+						const pdfDestinataireName = normalizedPdf.destinataire || '';
+						const pdfTransporteurName = normalizedPdf.transporteur || '';
+						const pdfDestinataireSiret = findSiretFromMapping(pdfDestinataireName, mappings?.params_mapping_presta || {});
+						const pdfTransporteurSiret = findSiretFromMapping(pdfTransporteurName, mappings?.params_mapping_presta || {});
+						
+						const candidateRecipientSiret = (bsdCandidate.infos_json.formAPI.createFormInput.recipient.company.siret || '').trim();
+						const candidateTransporterSiret = (bsdCandidate.infos_json.formAPI.createFormInput.transporter.company.siret || '').trim();
+						
+						const recipientOk = pdfDestinataireSiret && candidateRecipientSiret && pdfDestinataireSiret === candidateRecipientSiret;
+						const transporterOk = pdfTransporteurSiret && candidateTransporterSiret && pdfTransporteurSiret === candidateTransporterSiret;
+						
+						if (!recipientOk && !transporterOk) {
+							return false;
+						}
+					}
+
+					// Vérification CED
+					if (rule.ced) {
+						const pdfCedNumbers = extractNumbersFromCed(normalizedPdf.ced || '');
+						const candidateCedNumbers = extractNumbersFromCed(bsdCandidate.infos_json.formAPI.createFormInput.wasteDetails.code || '');
+						if (!pdfCedNumbers || !candidateCedNumbers || pdfCedNumbers !== candidateCedNumbers) {
+							return false;
+						}
+					}
+
+					// Vérification nom de déchet (fuzzy matching)
+					if (rule.nom_dechet) {
+						const pdfWaste = normalizedPdf.waste_name || '';
+						const candidateWaste = (bsdCandidate.infos_json.formAPI.createFormInput.wasteDetails.name || '').toLowerCase().trim();
+						const similarity = computeSimilarity(pdfWaste, candidateWaste);
+						if (!pdfWaste || !candidateWaste || similarity < (rule.nom_dechet_tresh / 100)) {
+							return false;
+						}
+					}
+
+					// Vérification date
+					if (rule.date) {
+						const takenOverAt = bsdCandidate.infos_json?.formAPI?.createFormInput?.takenOverAt || '';
+						const candidateDate = takenOverAt || bsdCandidate.created_at;
+						const dateMatch = isDateInRange(candidateDate, normalizedPdf.date, rule.date_tresh);
+						if (!normalizedPdf.date || !dateMatch) {
+							return false;
+						}
+					}
+
+					return true;
+				};
+			};
+
+			// Appliquer la condition avec la règle utilisée
 			if (usedRule) {
+				const isInCondition = createCondition(usedRule);
+				filteredCandidates = allCandidates.filter(isInCondition);
+				
 				// Configurer les filtres selon la règle
 				const filters = {
 					site: usedRule.site,
@@ -242,50 +372,55 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 				setDaysByIndex(prev => ({ ...prev, [index]: usedRule.date_tresh }));
 				setRawCandidatesByIndex(prev => ({ ...prev, [index]: allCandidates }));
 				
-				// Appliquer les filtres avec les nouveaux paramètres
-				const d = dechets[index] as DechetItem;
-				
-				// Calculer les traductions pour ce déchet spécifique (utiliser les valeurs globales du PDF)
-				const siteTranslated = translateByMapping(rawSite, mappings?.params_mapping_site || {});
-				const prestaTranslated = translateByMapping(rawPresta, mappings?.params_mapping_presta || {});
-				const translatedForThisDechet = { site: siteTranslated, presta: prestaTranslated };
-				
-				filteredCandidates = allCandidates.filter(c => {
-					const siteLc = (translatedForThisDechet.site.name || '').toLowerCase().trim();
-					const prestaLc = (translatedForThisDechet.presta.name || '').toLowerCase().trim();
-					const numBonLc = (d?.num_bon || '').toLowerCase().trim();
-					const numBsdLc = (d?.num_bsd || '').toLowerCase().trim();
-					const cedNumbers = (d?.ced || '').replace(/[^\d]/g, '').trim();
-					const wasteNameLc = (d?.nom || '').toLowerCase().trim();
-					const pdfDate = d?.date || '';
-					const nDays = usedRule.date_tresh;
-					
-					const siteName = (c.infos_json?.formAPI?.createFormInput?.emitter?.company?.name || '').toLowerCase().trim();
-					const recip = (c.infos_json?.formAPI?.createFormInput?.recipient?.company?.name || '').toLowerCase().trim();
-					const transp = (c.infos_json?.formAPI?.createFormInput?.transporter?.company?.name || '').toLowerCase().trim();
-					const candNumBon = (c.other_infos?.numeroBon || '').toLowerCase().trim();
-					const candNumBsd = (c.readable_id_track_dechets || '').toLowerCase().trim();
-					const candCed = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '').replace(/[^\d]/g, '').trim();
-					const candWaste = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '').toLowerCase().trim();
-					const takenOverAt = (c.infos_json?.formAPI?.createFormInput?.takenOverAt || '') as string;
-					const candDate = takenOverAt || c.created_at;
-					
-					const bySite = !filters.site || (siteLc && siteLc === siteName);
-					const byPresta = !filters.presta || (prestaLc && (prestaLc === recip || prestaLc === transp));
-					const byNumBon = !filters.numBon || (numBonLc && numBonLc === candNumBon);
-					const byNumBsd = !filters.numBsd || (numBsdLc && numBsdLc === candNumBsd);
-					const byCed = !filters.ced || (cedNumbers && cedNumbers === candCed);
-					
-					const wasteSimilarity = computeSimilarity(wasteNameLc, candWaste);
-					const byWaste = !filters.wasteName || (wasteNameLc && wasteSimilarity >= LINK_RULES_DEFAULT.wasteNameThresholdStrict);
-					
-					const byDate = !filters.date || (pdfDate && isDateInRange(candDate, pdfDate, nDays));
-					
-					return bySite && byPresta && byNumBon && byNumBsd && byCed && byWaste && byDate;
-				});
-				
 				// Afficher l'info de la règle utilisée
 				setActionMsg(`Filtres configurés avec ${ruleInfo}`);
+			} else {
+				// Pas de règle utilisée (to_create par défaut) - utiliser la dernière règle to_check_by_user testée
+				// Cela donne plus de sens à l'utilisateur de voir les filtres de la règle la plus stricte
+				const lastCheckedRule = currentConfig.params.to_check_by_user[currentConfig.params.to_check_by_user.length - 1];
+				
+				if (lastCheckedRule) {
+					const filters = {
+						site: lastCheckedRule.site,
+						presta: lastCheckedRule.presta,
+						numBon: lastCheckedRule.num_bon,
+						numBsd: lastCheckedRule.num_bsd,
+						ced: lastCheckedRule.ced,
+						wasteName: lastCheckedRule.nom_dechet,
+						date: lastCheckedRule.date
+					};
+					
+					// Appliquer le filtrage avec la dernière règle to_check_by_user
+					const isInCondition = createCondition(lastCheckedRule);
+					filteredCandidates = allCandidates.filter(isInCondition);
+					
+					// Mettre à jour les states
+					setFiltersByIndex(prev => ({ ...prev, [index]: filters }));
+					setDaysByIndex(prev => ({ ...prev, [index]: lastCheckedRule.date_tresh }));
+					setRawCandidatesByIndex(prev => ({ ...prev, [index]: allCandidates }));
+					
+					// Afficher l'info
+					setActionMsg(`Aucune règle spécifique - filtres de la dernière règle to_check_by_user (${filteredCandidates.length} candidats)`);
+				} else {
+					// Fallback si pas de règle to_check_by_user
+					const filters = {
+						site: false,
+						presta: false,
+						numBon: false,
+						numBsd: false,
+						ced: false,
+						wasteName: false,
+						date: false
+					};
+					
+					// Mettre à jour les states
+					setFiltersByIndex(prev => ({ ...prev, [index]: filters }));
+					setDaysByIndex(prev => ({ ...prev, [index]: LINK_RULES_DEFAULT.looseDays }));
+					setRawCandidatesByIndex(prev => ({ ...prev, [index]: allCandidates }));
+					
+					// Afficher l'info
+					setActionMsg(`Aucune règle spécifique - tous les candidats affichés (${allCandidates.length})`);
+				}
 			}
 			
 			setCandidatesByIndex(prev => ({ ...prev, [index]: filteredCandidates }));
@@ -342,29 +477,31 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		return maxLen === 0 ? 1 : 1 - dist / maxLen;
 	};
 
-	const applyFilters = (index: number, rawList: BSDCandidate[], d: DechetItem): BSDCandidate[] => {
-		const active = filtersByIndex[index] || { site: true, presta: true, numBon: true, numBsd: true, ced: true, wasteName: true, date: true };
+	const applyFilters = (index: number, rawList: BSDCandidate[], d: DechetItem, overrideDays?: number): BSDCandidate[] => {
+		const active = filtersByIndex[index] || { site: false, presta: false, numBon: false, numBsd: false, ced: false, wasteName: false, date: false };
 		
 		// Calculer les traductions pour ce déchet spécifique (utiliser les valeurs globales du PDF)
 		const siteTranslated = translateByMapping(rawSite, mappings?.params_mapping_site || {});
 		const prestaTranslated = translateByMapping(rawPresta, mappings?.params_mapping_presta || {});
 		const translatedForThisDechet = { site: siteTranslated, presta: prestaTranslated };
 		
-		const siteLc = (translatedForThisDechet.site.name || '').toLowerCase().trim();
-		const prestaLc = (translatedForThisDechet.presta.name || '').toLowerCase().trim();
-		const numBonLc = (d?.num_bon || '').toLowerCase().trim();
-		const numBsdLc = (d?.num_bsd || '').toLowerCase().trim();
+		const siteName = translatedForThisDechet.site.name || '';
+		const prestaName = translatedForThisDechet.presta.name || '';
+		const numBon = (d?.num_bon || '').trim();
+		const numBsd = (d?.num_bsd || '').trim();
 		const cedNumbers = (d?.ced || '').replace(/[^\d]/g, '').trim();
 		const wasteNameLc = (d?.nom || '').toLowerCase().trim();
 		const pdfDate = d?.date || '';
-		const nDays = daysByIndex[index] ?? LINK_RULES_DEFAULT.looseDays;
+		const nDays = overrideDays ?? daysByIndex[index] ?? LINK_RULES_DEFAULT.looseDays;
 		
 		return rawList.filter(c => {
-			const siteName = (c.infos_json?.formAPI?.createFormInput?.emitter?.company?.name || '').toLowerCase().trim();
-			const recip = (c.infos_json?.formAPI?.createFormInput?.recipient?.company?.name || '').toLowerCase().trim();
-			const transp = (c.infos_json?.formAPI?.createFormInput?.transporter?.company?.name || '').toLowerCase().trim();
-			const candNumBon = (c.other_infos?.numeroBon || '').toLowerCase().trim();
-			const candNumBsd = (c.readable_id_track_dechets || '').toLowerCase().trim();
+			// Récupérer les SIRET des candidats
+			const candidateSiteSiret = (c.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret || '').trim();
+			const candidateRecipientSiret = (c.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret || '').trim();
+			const candidateTransporterSiret = (c.infos_json?.formAPI?.createFormInput?.transporter?.company?.siret || '').trim();
+			
+			const candNumBon = (c.other_infos?.numeroBon || '').trim();
+			const candNumBsd = (c.readable_id_track_dechets || '').trim();
 			const candCed = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '').replace(/[^\d]/g, '').trim();
 			const candWaste = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '').toLowerCase().trim();
 			const takenOverAt = (c.infos_json?.formAPI?.createFormInput?.takenOverAt || '') as string;
@@ -372,10 +509,22 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 			
 			// Logique cohérente avec LinkAuto : si le filtre est coché, la donnée PDF doit exister ET correspondre
 			// Si le filtre est coché mais que le PDF n'a pas la donnée, le BSD est automatiquement filtré
-			const bySite = !active.site || (siteLc && siteLc === siteName);
-			const byPresta = !active.presta || (prestaLc && (prestaLc === recip || prestaLc === transp));
-			const byNumBon = !active.numBon || (numBonLc && numBonLc === candNumBon);
-			const byNumBsd = !active.numBsd || (numBsdLc && numBsdLc === candNumBsd);
+			
+			// Site : comparaison SIRET
+			const pdfSiteSiret = findSiretFromMapping(siteName, mappings?.params_mapping_site || {});
+			const bySite = !active.site || (pdfSiteSiret && pdfSiteSiret === candidateSiteSiret);
+			
+			// Prestataire : comparaison SIRET (destinataire OU transporteur)
+			const pdfDestinataireSiret = findSiretFromMapping(prestaName, mappings?.params_mapping_presta || {});
+			const pdfTransporteurSiret = findSiretFromMapping(prestaName, mappings?.params_mapping_presta || {});
+			const byPresta = !active.presta || (
+				(pdfDestinataireSiret && pdfDestinataireSiret === candidateRecipientSiret) ||
+				(pdfTransporteurSiret && pdfTransporteurSiret === candidateTransporterSiret)
+			);
+			
+			// Numéros : test de contenu mutuel (min 5 chiffres)
+			const byNumBon = !active.numBon || (numBon && isNumberContained(numBon, candNumBon));
+			const byNumBsd = !active.numBsd || (numBsd && isNumberContained(numBsd, candNumBsd));
 			const byCed = !active.ced || (cedNumbers && cedNumbers === candCed);
 			
 			// Fuzzy matching pour les noms de déchets (même seuil que LinkAuto)
@@ -408,28 +557,41 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		const translatedForThisDechet = { site: siteTranslated, presta: prestaTranslated };
 		
 		const filtered = rawList.filter(c => {
-			const siteLc = (translatedForThisDechet.site.name || '').toLowerCase().trim();
-			const prestaLc = (translatedForThisDechet.presta.name || '').toLowerCase().trim();
-			const numBonLc = (d?.num_bon || '').toLowerCase().trim();
-			const numBsdLc = (d?.num_bsd || '').toLowerCase().trim();
+			const siteName = translatedForThisDechet.site.name || '';
+			const prestaName = translatedForThisDechet.presta.name || '';
+			const numBon = (d?.num_bon || '').trim();
+			const numBsd = (d?.num_bsd || '').trim();
 			const cedNumbers = (d?.ced || '').replace(/[^\d]/g, '').trim();
 			const wasteNameLc = (d?.nom || '').toLowerCase().trim();
 			const pdfDate = d?.date || '';
 			
-			const siteName = (c.infos_json?.formAPI?.createFormInput?.emitter?.company?.name || '').toLowerCase().trim();
-			const recip = (c.infos_json?.formAPI?.createFormInput?.recipient?.company?.name || '').toLowerCase().trim();
-			const transp = (c.infos_json?.formAPI?.createFormInput?.transporter?.company?.name || '').toLowerCase().trim();
-			const candNumBon = (c.other_infos?.numeroBon || '').toLowerCase().trim();
-			const candNumBsd = (c.readable_id_track_dechets || '').toLowerCase().trim();
+			// Récupérer les SIRET des candidats
+			const candidateSiteSiret = (c.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret || '').trim();
+			const candidateRecipientSiret = (c.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret || '').trim();
+			const candidateTransporterSiret = (c.infos_json?.formAPI?.createFormInput?.transporter?.company?.siret || '').trim();
+			
+			const candNumBon = (c.other_infos?.numeroBon || '').trim();
+			const candNumBsd = (c.readable_id_track_dechets || '').trim();
 			const candCed = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '').replace(/[^\d]/g, '').trim();
 			const candWaste = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '').toLowerCase().trim();
 			const takenOverAt = (c.infos_json?.formAPI?.createFormInput?.takenOverAt || '') as string;
 			const candDate = takenOverAt || c.created_at;
 			
-			const bySite = !newFilters.site || (siteLc && siteLc === siteName);
-			const byPresta = !newFilters.presta || (prestaLc && (prestaLc === recip || prestaLc === transp));
-			const byNumBon = !newFilters.numBon || (numBonLc && numBonLc === candNumBon);
-			const byNumBsd = !newFilters.numBsd || (numBsdLc && numBsdLc === candNumBsd);
+			// Site : comparaison SIRET
+			const pdfSiteSiret = findSiretFromMapping(siteName, mappings?.params_mapping_site || {});
+			const bySite = !newFilters.site || (pdfSiteSiret && pdfSiteSiret === candidateSiteSiret);
+			
+			// Prestataire : comparaison SIRET (destinataire OU transporteur)
+			const pdfDestinataireSiret = findSiretFromMapping(prestaName, mappings?.params_mapping_presta || {});
+			const pdfTransporteurSiret = findSiretFromMapping(prestaName, mappings?.params_mapping_presta || {});
+			const byPresta = !newFilters.presta || (
+				(pdfDestinataireSiret && pdfDestinataireSiret === candidateRecipientSiret) ||
+				(pdfTransporteurSiret && pdfTransporteurSiret === candidateTransporterSiret)
+			);
+			
+			// Numéros : test de contenu mutuel (min 5 chiffres)
+			const byNumBon = !newFilters.numBon || (numBon && isNumberContained(numBon, candNumBon));
+			const byNumBsd = !newFilters.numBsd || (numBsd && isNumberContained(numBsd, candNumBsd));
 			const byCed = !newFilters.ced || (cedNumbers && cedNumbers === candCed);
 			
 			// Fuzzy matching pour les noms de déchets (même seuil que LinkAuto)
@@ -462,28 +624,41 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		const translatedForThisDechet = { site: siteTranslated, presta: prestaTranslated };
 		
 		const filtered = rawList.filter(c => {
-			const siteLc = (translatedForThisDechet.site.name || '').toLowerCase().trim();
-			const prestaLc = (translatedForThisDechet.presta.name || '').toLowerCase().trim();
-			const numBonLc = (d?.num_bon || '').toLowerCase().trim();
-			const numBsdLc = (d?.num_bsd || '').toLowerCase().trim();
+			const siteName = translatedForThisDechet.site.name || '';
+			const prestaName = translatedForThisDechet.presta.name || '';
+			const numBon = (d?.num_bon || '').trim();
+			const numBsd = (d?.num_bsd || '').trim();
 			const cedNumbers = (d?.ced || '').replace(/[^\d]/g, '').trim();
 			const wasteNameLc = (d?.nom || '').toLowerCase().trim();
 			const pdfDate = d?.date || '';
 			
-			const siteName = (c.infos_json?.formAPI?.createFormInput?.emitter?.company?.name || '').toLowerCase().trim();
-			const recip = (c.infos_json?.formAPI?.createFormInput?.recipient?.company?.name || '').toLowerCase().trim();
-			const transp = (c.infos_json?.formAPI?.createFormInput?.transporter?.company?.name || '').toLowerCase().trim();
-			const candNumBon = (c.other_infos?.numeroBon || '').toLowerCase().trim();
-			const candNumBsd = (c.readable_id_track_dechets || '').toLowerCase().trim();
+			// Récupérer les SIRET des candidats
+			const candidateSiteSiret = (c.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret || '').trim();
+			const candidateRecipientSiret = (c.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret || '').trim();
+			const candidateTransporterSiret = (c.infos_json?.formAPI?.createFormInput?.transporter?.company?.siret || '').trim();
+			
+			const candNumBon = (c.other_infos?.numeroBon || '').trim();
+			const candNumBsd = (c.readable_id_track_dechets || '').trim();
 			const candCed = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '').replace(/[^\d]/g, '').trim();
 			const candWaste = (c.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '').toLowerCase().trim();
 			const takenOverAt = (c.infos_json?.formAPI?.createFormInput?.takenOverAt || '') as string;
 			const candDate = takenOverAt || c.created_at;
 			
-			const bySite = !currentFilters.site || (siteLc && siteLc === siteName);
-			const byPresta = !currentFilters.presta || (prestaLc && (prestaLc === recip || prestaLc === transp));
-			const byNumBon = !currentFilters.numBon || (numBonLc && numBonLc === candNumBon);
-			const byNumBsd = !currentFilters.numBsd || (numBsdLc && numBsdLc === candNumBsd);
+			// Site : comparaison SIRET
+			const pdfSiteSiret = findSiretFromMapping(siteName, mappings?.params_mapping_site || {});
+			const bySite = !currentFilters.site || (pdfSiteSiret && pdfSiteSiret === candidateSiteSiret);
+			
+			// Prestataire : comparaison SIRET (destinataire OU transporteur)
+			const pdfDestinataireSiret = findSiretFromMapping(prestaName, mappings?.params_mapping_presta || {});
+			const pdfTransporteurSiret = findSiretFromMapping(prestaName, mappings?.params_mapping_presta || {});
+			const byPresta = !currentFilters.presta || (
+				(pdfDestinataireSiret && pdfDestinataireSiret === candidateRecipientSiret) ||
+				(pdfTransporteurSiret && pdfTransporteurSiret === candidateTransporterSiret)
+			);
+			
+			// Numéros : test de contenu mutuel (min 5 chiffres)
+			const byNumBon = !currentFilters.numBon || (numBon && isNumberContained(numBon, candNumBon));
+			const byNumBsd = !currentFilters.numBsd || (numBsd && isNumberContained(numBsd, candNumBsd));
 			const byCed = !currentFilters.ced || (cedNumbers && cedNumbers === candCed);
 			
 			// Fuzzy matching pour les noms de déchets (même seuil que LinkAuto)
@@ -571,7 +746,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 				pdfInfo.infos_raw || {},
 				allCandidates,
 				mappings,
-				DEFAULT_AUTO_LINK_PARAMS,
+				currentConfig.params,
 				{ entrepriseId: entrepriseIdNum, pdfId, userId: user_id || undefined }
 			);
 			// Store results per index
@@ -611,10 +786,31 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		<>
 			<div className="space-y-4">
 				<div className="bg-white rounded-lg border shadow-sm p-3">
-					<div className="flex items-center justify-between">
+					<div className="flex items-center justify-between mb-3">
 						<div className="flex flex-col">
 							<span className="text-xs font-semibold text-purple-600">Association aux BSD</span>
 							<span className="text-[11px] text-gray-600">{typeDoc.toUpperCase()} · {pdfInfo.name_pdf}</span>
+						</div>
+						
+						{/* Sélecteur de configuration */}
+						<div className="flex items-center space-x-2">
+							<span className="text-xs text-gray-600">Config:</span>
+							<select
+								value={selectedConfigId}
+								onChange={(e) => setSelectedConfigId(e.target.value)}
+								className="text-xs border border-gray-200 rounded px-2 py-1 bg-white"
+							>
+								{LINK_CONFIGS.map(config => (
+									<option key={config.id} value={config.id}>
+										{config.name}
+									</option>
+								))}
+							</select>
+						</div>
+					</div>
+					<div className="flex items-center justify-between">
+						<div className="flex flex-col">
+							<span className="text-xs text-gray-500">{currentConfig.description}</span>
 						</div>
 						<div className="flex items-center gap-2">
 							{typeDoc === 'facture' && (
@@ -626,9 +822,11 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 									disabled={!pdfInfo?.infos_raw}
 								/>
 							)}
-							<button onClick={runAutoForAll} disabled={busyAll} className="px-3 py-1 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
-								Auto-linker tout
-							</button>
+							<Tooltip content={`Config: ${currentConfig.name} - ${currentConfig.description}`}>
+								<button onClick={runAutoForAll} disabled={busyAll} className="px-3 py-1 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+									Auto-linker tout
+								</button>
+							</Tooltip>
 						</div>
 					</div>
 				</div>
@@ -679,7 +877,9 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 						{dechetStatus && (
 							<span className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${dechetStatus.status === 'linked' ? 'bg-green-50 text-green-700 border border-green-200' : dechetStatus.status === 'created' ? 'bg-blue-50 text-blue-700 border border-blue-200' : dechetStatus.status === 'pushed' ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-yellow-50 text-yellow-700 border border-yellow-200'}`}>{dechetStatus.status === 'linked' ? '🔗 Lié' : dechetStatus.status === 'created' ? '✨ Créé' : dechetStatus.status === 'pushed' ? '⬆︎ Pushed' : '👀 À vérifier'}</span>
 						)}
-							<button onClick={() => runProposeActionAuto(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created' || dechetStatus?.status === 'pushed')} className="px-2.5 py-1 text-[11px] rounded-md bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">Proposer</button>
+							<Tooltip content={`Config: ${currentConfig.name} - ${currentConfig.description}`}>
+								<button onClick={() => runProposeActionAuto(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created' || dechetStatus?.status === 'pushed')} className="px-2.5 py-1 text-[11px] rounded-md bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">Proposer</button>
+							</Tooltip>
 							<button onClick={() => doCreate(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created' || dechetStatus?.status === 'pushed')} className="px-2.5 py-1 text-[11px] rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">Créer</button>
 								</div>
 							</div>
@@ -699,7 +899,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 											<div className="text-sm font-semibold mb-2">Règles de configuration :</div>
 											<div className="text-xs space-y-1">
 												<div><strong>to_link :</strong></div>
-												{DEFAULT_AUTO_LINK_PARAMS.to_link.map((rule, i) => {
+												{currentConfig.params.to_link.map((rule: MatchingRule, i: number) => {
 													const isActive = proposeResult?.action === 'to_link' && proposeResult?.matched_rule === rule;
 													const enabled: string[] = [];
 													if (rule.site) enabled.push('site ✓');
@@ -717,7 +917,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 													);
 												})}
 												<div><strong>to_check_by_user :</strong></div>
-												{DEFAULT_AUTO_LINK_PARAMS.to_check_by_user.map((rule, i) => {
+												{currentConfig.params.to_check_by_user.map((rule: MatchingRule, i: number) => {
 													const isActive = proposeResult?.action === 'to_check_by_user' && proposeResult?.matched_rule === rule;
 													const enabled: string[] = [];
 													if (rule.site) enabled.push('site ✓');
@@ -735,7 +935,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 													);
 												})}
 												<div><strong>create :</strong></div>
-												{DEFAULT_AUTO_LINK_PARAMS.create.map((rule, i) => {
+												{currentConfig.params.create.map((rule: MatchingRule, i: number) => {
 													const isActive = proposeResult?.action === 'to_create' && proposeResult?.matched_rule === rule;
 													const enabled: string[] = [];
 													if (rule.site) enabled.push('site ✓');
