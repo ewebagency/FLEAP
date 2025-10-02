@@ -114,7 +114,8 @@ export const NORMAL_CONFIG: AutoLinkParams = {
 			site: true,
 			presta: true,
 			ced: true,
-			date: true
+			date: true,
+			date_tresh : 0
 		})
 	],
 	to_check_by_user: [
@@ -172,7 +173,7 @@ export const LINK_CONFIGS: LinkConfig[] = [
 	{
 		id: 'create',
 		name: 'Create',
-		description: 'Optimisé pour créer - link que si N°BSD ou N°BON',
+		description: 'Optimisé pour créer - ne link que si N°BSD ou N°BON',
 		params: CREATE_CONFIG
 	}
 ];

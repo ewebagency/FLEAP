@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Bar, Pie } from 'react-chartjs-2';
 import 'chart.js/auto';
 import { AnalysisResponse, ChartConfig, Family } from "../types";
+import { useFilterContext } from "@/app/FilterContext";
 
 interface Props {
   config: ChartConfig;
@@ -14,6 +15,7 @@ interface Props {
 
 export function ChartRenderer({ config, data, exportImage, onExportImage }: Props) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const { filieres } = useFilterContext();
   // Filter type is implicitly encoded in aggregated data via r.source. No context needed.
   const displayTitle = useMemo(() => {
     const custom = (config.title || '').trim();
@@ -34,8 +36,15 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
   const chartData = useMemo<BuiltChartData>(() => {
     const rowsAll = data?.data || [];
 
-    // Data already pre-filtered upstream; keep as-is
-    const rows = rowsAll;
+    // Apply filière filter from FilterContext
+    const activeFiliereNames = (filieres || []).filter(f => f.checked).map(f => (f.name || '').trim()).filter(Boolean);
+    const totalFiliereCount = (filieres || []).length;
+    const shouldFilterByFiliere = totalFiliereCount > 0 && activeFiliereNames.length < totalFiliereCount;
+
+    let rows = rowsAll;
+    if (shouldFilterByFiliere) {
+      rows = rowsAll.filter(r => activeFiliereNames.includes(r.filiere));
+    }
 
     const filtered = rows.filter(r => {
       if (!config.filterFamily || !config.filterValues || config.filterValues.length === 0) return true;
@@ -288,7 +297,7 @@ export function ChartRenderer({ config, data, exportImage, onExportImage }: Prop
     });
 
     return { kind: (config.type === 'bar_grouped' ? 'bar_grouped' : 'bar'), data: { labels, datasets } };
-  }, [config, data]);
+  }, [config, data, filieres]);
 
   useEffect(() => {
     if (!exportImage) return;

@@ -30,7 +30,7 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
   const [chartImages, setChartImages] = useState<Record<string, string>>({});
   const [isExporting, setIsExporting] = useState(false);
   const [pendingExport, setPendingExport] = useState(false);
-  const { segmentDates } = useFilterContext();
+  const { segmentDates, filieres } = useFilterContext();
   const { entreprise_name, entreprise_id, user_id } = useSession();
 
   // worker configured at module scope
@@ -107,8 +107,28 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
       debut: segmentDates.debut?.toISOString(),
       fin: segmentDates.fin?.toISOString()
     } : undefined;
-    return filterBsdRows(rows, state, selectedSirets, dateRange, state.filterType || 'imported');
-  }, [bsdPages, state, selectedSirets, segmentDates]);
+    const base = filterBsdRows(rows, state, selectedSirets, dateRange, state.filterType || 'imported');
+
+    // Apply filière filter from FilterContext (FiltreFilieresNom / Filtre CED)
+    const activeFiliereNames = (filieres || []).filter(f => f.checked).map(f => (f.name || '').trim()).filter(Boolean);
+    const totalFiliereCount = (filieres || []).length;
+    const shouldFilterByFiliere = totalFiliereCount > 0 && activeFiliereNames.length < totalFiliereCount;
+
+
+    if (!shouldFilterByFiliere) {
+      return base;
+    }
+
+    const mapping = (mappingNomResp?.data || []).map(m => ({ nom: (m.nom || '').trim(), filiere: m.filiere }));
+    const getFiliereForRow = (b: BsdItem): string => {
+      const name = (b.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '').trim();
+      if (!name) return 'Autres';
+      const found = mapping.find(m => m.nom === name);
+      return found?.filiere || 'Autres';
+    };
+
+    return base.filter(b => activeFiliereNames.includes(getFiliereForRow(b)));
+  }, [bsdPages, state, selectedSirets, segmentDates, filieres, mappingNomResp]);
 
   const hasMultipleSitesValue = useMemo(() => hasMultipleSites(tableRows), [tableRows]);
 

@@ -20,6 +20,7 @@ export function applyFilterType<T>(
         || opts.getStatus(it) === "Ligne créée automatiquement" 
         || opts.getStatus(it) === "Ligne validée"
         || opts.getStatus(it) === "Traitée"
+        || opts.getStatus(it) === "Traité"
         || opts.getStatus(it) === "Collecté"
         || opts.getStatus(it) === "Collecte demandée"
         || opts.getStatus(it) === "Brouillon"

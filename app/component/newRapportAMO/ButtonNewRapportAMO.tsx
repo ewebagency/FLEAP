@@ -3,6 +3,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import useSWR from 'swr';
 import { useSession } from '@/app/component/SessionProvider';
+import { useFilterContext } from '@/app/FilterContext';
 import { Bar } from 'react-chartjs-2';
 import 'chart.js/auto';
 
@@ -46,6 +47,7 @@ interface AnalysisResponse {
 
 export default function ButtonNewRapportAMO() {
   const { entreprise_id } = useSession();
+  const { filieres } = useFilterContext();
   const [clicked, setClicked] = useState(false);
 
   type Family = 'site' | 'exutoire' | 'transport' | 'filiere' | 'mois_annee' | 'contenant' | 'code_dr' | 'valorisation' | 'tri' | 'rep' | 'source';
@@ -116,8 +118,19 @@ export default function ButtonNewRapportAMO() {
 
   const chartData = useMemo(() => {
     const rows = data?.data || [];
+    
+    // Apply filière filter from FilterContext
+    const activeFiliereNames = (filieres || []).filter(f => f.checked).map(f => (f.name || '').trim()).filter(Boolean);
+    const totalFiliereCount = (filieres || []).length;
+    const shouldFilterByFiliere = totalFiliereCount > 0 && activeFiliereNames.length < totalFiliereCount;
+
+    let filteredRows = rows;
+    if (shouldFilterByFiliere) {
+      filteredRows = rows.filter(r => activeFiliereNames.includes(r.filiere));
+    }
+    
     // Apply filters
-    const filtered = rows.filter(r => {
+    const filtered = filteredRows.filter(r => {
       if (filterValues.length === 0) return true;
       const valueByFamily: Record<Family, string> = {
         site: r.site,
@@ -233,7 +246,7 @@ export default function ButtonNewRapportAMO() {
     });
 
     return { labels, datasets };
-  }, [data, filterFamily, filterValues, segmentFamily, xFamily, yAxis]);
+  }, [data, filterFamily, filterValues, segmentFamily, xFamily, yAxis, filieres]);
 
   return (
     <div className="flex flex-col gap-4">

@@ -392,8 +392,10 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
         _pages_processed += estimated_pages
         
         # Determine document type and alert status
-        doc_type = "bsd" if doc_type == "inconnu" else doc_type
-        alerte_type = type_lu != doc_type if doc_type != "bsd" else False
+        doc_type = "bon" if doc_type == "inconnu" else doc_type
+        if type_lu == "inconnu":
+            type_lu = doc_type if doc_type != "inconnu" else "bon"
+        alerte_type = type_lu != doc_type if doc_type != "bon" else False
 
         if voir:
             print("="*43, "Données brutes :", "\n", raw_text, "\n"*4)
