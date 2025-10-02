@@ -80,26 +80,6 @@ const isDateInRange = (date1: string, date2: string, ecartDays: number): boolean
 	return diffDays <= ecartDays;
 };
 
-// Composant Tooltip simple
-const Tooltip: React.FC<{ children: React.ReactNode; content: string }> = ({ children, content }) => {
-	const [show, setShow] = useState(false);
-	
-	return (
-		<div 
-			className="relative inline-block"
-			onMouseEnter={() => setShow(true)}
-			onMouseLeave={() => setShow(false)}
-		>
-			{children}
-			{show && (
-				<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-50">
-					{content}
-					<div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
-				</div>
-			)}
-		</div>
-	);
-};
 
 export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	const { user_id, entreprise_id } = useSession();
@@ -822,11 +802,9 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 									disabled={!pdfInfo?.infos_raw}
 								/>
 							)}
-							<Tooltip content={`Config: ${currentConfig.name} - ${currentConfig.description}`}>
-								<button onClick={runAutoForAll} disabled={busyAll} className="px-3 py-1 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
-									Auto-linker tout
-								</button>
-							</Tooltip>
+							<button onClick={runAutoForAll} disabled={busyAll} className="px-3 py-1 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+								Auto-linker tout
+							</button>
 						</div>
 					</div>
 				</div>
@@ -877,9 +855,7 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 						{dechetStatus && (
 							<span className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${dechetStatus.status === 'linked' ? 'bg-green-50 text-green-700 border border-green-200' : dechetStatus.status === 'created' ? 'bg-blue-50 text-blue-700 border border-blue-200' : dechetStatus.status === 'pushed' ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-yellow-50 text-yellow-700 border border-yellow-200'}`}>{dechetStatus.status === 'linked' ? '🔗 Lié' : dechetStatus.status === 'created' ? '✨ Créé' : dechetStatus.status === 'pushed' ? '⬆︎ Pushed' : '👀 À vérifier'}</span>
 						)}
-							<Tooltip content={`Config: ${currentConfig.name} - ${currentConfig.description}`}>
-								<button onClick={() => runProposeActionAuto(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created' || dechetStatus?.status === 'pushed')} className="px-2.5 py-1 text-[11px] rounded-md bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">Proposer</button>
-							</Tooltip>
+							<button onClick={() => runProposeActionAuto(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created' || dechetStatus?.status === 'pushed')} className="px-2.5 py-1 text-[11px] rounded-md bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">Proposer</button>
 							<button onClick={() => doCreate(idx)} disabled={busyIndex === idx || (dechetStatus?.status === 'linked' || dechetStatus?.status === 'created' || dechetStatus?.status === 'pushed')} className="px-2.5 py-1 text-[11px] rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">Créer</button>
 								</div>
 							</div>

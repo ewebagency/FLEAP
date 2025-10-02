@@ -222,26 +222,6 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValues, onCh
     );
 };
 
-// Composant Tooltip simple
-const Tooltip: React.FC<{ children: React.ReactNode; content: string }> = ({ children, content }) => {
-    const [show, setShow] = useState(false);
-    
-    return (
-        <div 
-            className="relative inline-block"
-            onMouseEnter={() => setShow(true)}
-            onMouseLeave={() => setShow(false)}
-        >
-            {children}
-            {show && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-50">
-                    {content}
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
-                </div>
-            )}
-        </div>
-    );
-};
 
 const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => {
     const { entreprise_id, user_id } = useSession();
@@ -1743,51 +1723,47 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         )}
                                     </button>
                                     <div className='flex flex-col gap-2'>
-                                        <Tooltip content={`Config: ${currentConfig.name} - ${currentConfig.description}`}>
-                                            <button
-                                                onClick={handleAutoProposeSelected}
-                                                disabled={processingAutoPropose || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
-                                                className="px-2.5 py-1.5 bg-orange-500 text-white rounded-sm text-xs hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
-                                                title="Simuler l'auto-link des documents sélectionnés (mode simulation)"
-                                            >
-                                            {processingAutoPropose ? (
-                                                <>
-                                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                                    <span>Auto-propose...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <BoxIcon name="bx-search" size="16" />
-                                                    <span>Auto-propose ({selectedPdfIds.length})</span>
-                                                </>
-                                            )}
-                                        </button>
-                                        </Tooltip>
-                                        <Tooltip content={`Config: ${currentConfig.name} - ${currentConfig.description}`}>
-                                            <button
-                                                onClick={handleAutoLinkSelected}
-                                                disabled={processingAutoLink || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
-                                                className="px-2.5 py-1.5 bg-indigo-500 text-white rounded-sm text-xs hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
-                                                title="Auto-linker les documents sélectionnés (simulation puis confirmation)"
-                                            >
-                                            {processingAutoLink ? (
-                                                <>
-                                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                                    <span>
-                                                        {autoLinkPhase === 'simulation' && 'Simulation...'}
-                                                        {autoLinkPhase === 'confirmation' && 'En attente confirmation...'}
-                                                        {autoLinkPhase === 'applying' && 'Application...'}
-                                                        {autoLinkPhase === 'idle' && 'Auto-link...'}
-                                                    </span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <BoxIcon name="bx-link" size="16" />
-                                                    <span>Auto-link ({selectedPdfIds.length})</span>
-                                                </>
-                                            )}
-                                        </button>
-                                        </Tooltip>
+                                        <button
+                                            onClick={handleAutoProposeSelected}
+                                            disabled={processingAutoPropose || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
+                                            className="px-2.5 py-1.5 bg-orange-500 text-white rounded-sm text-xs hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
+                                            title="Simuler l'auto-link des documents sélectionnés (mode simulation)"
+                                        >
+                                        {processingAutoPropose ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                                <span>Auto-propose...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <BoxIcon name="bx-search" size="16" />
+                                                <span>Auto-propose ({selectedPdfIds.length})</span>
+                                            </>
+                                        )}
+                                    </button>
+                                        <button
+                                            onClick={handleAutoLinkSelected}
+                                            disabled={processingAutoLink || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
+                                            className="px-2.5 py-1.5 bg-indigo-500 text-white rounded-sm text-xs hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
+                                            title="Auto-linker les documents sélectionnés (simulation puis confirmation)"
+                                        >
+                                        {processingAutoLink ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                                <span>
+                                                    {autoLinkPhase === 'simulation' && 'Simulation...'}
+                                                    {autoLinkPhase === 'confirmation' && 'En attente confirmation...'}
+                                                    {autoLinkPhase === 'applying' && 'Application...'}
+                                                    {autoLinkPhase === 'idle' && 'Auto-link...'}
+                                                </span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <BoxIcon name="bx-link" size="16" />
+                                                <span>Auto-link ({selectedPdfIds.length})</span>
+                                            </>
+                                        )}
+                                    </button>
                                         <button
                                             onClick={handlePushSelected}
                                             disabled={processingPush || anyProcessing || processingAlertes || selectedPdfIds.length === 0}

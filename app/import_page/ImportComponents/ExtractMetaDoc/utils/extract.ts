@@ -107,6 +107,7 @@ export const extractMetaOcr = async (params: MetaOcrParams): Promise<ExtractMeta
 
         // Parser la réponse JSON
         const result: MetaOcrResponse = await response.json();
+        console.log('🔍 Debug extractMetaOcr - réponse:', result);
 
         // Écraser site_raw / presta_raw avec les valeurs utilisateur si présentes dans pdf_infos
         try {

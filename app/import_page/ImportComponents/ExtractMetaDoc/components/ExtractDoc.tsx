@@ -1017,10 +1017,12 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave }: Ext
                             <BoutonExtractDoc 
                                 pdfId={String(pdf_id)}
                                 onExtractSuccess={(pdfId: string, data: MetaOcrResponse) => {
+                                    console.log('[ExtractDoc] Extraction success log:', { pdfId, data });
                                     applyExtractionToForm(data);
                                     toast.success('Extraction réussie');
                                 }}
                                 onExtractError={(pdfId: string, error: unknown) => {
+                                    console.log('[ExtractDoc] Extraction error log:', { pdfId, error });
                                     console.error('Erreur extraction:', error);
                                     toast.error('Erreur extraction');
                                 }}

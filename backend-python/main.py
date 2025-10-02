@@ -415,6 +415,7 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
         
         # Extract data with Gemini
         gemini_response = await extract_gemini(raw_text, prompt)
+        print("🧠 Gemini_response:", gemini_response)
         
         if "error" in gemini_response:
             return {"error": gemini_response["error"]}

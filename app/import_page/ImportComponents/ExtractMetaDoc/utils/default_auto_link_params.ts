@@ -84,13 +84,6 @@ export const CREATE_CONFIG: AutoLinkParams = {
 			date: true,
 			date_tresh: 5
 		}),			
-		completeRule({
-			site: true,
-			presta: true,
-			date: true,
-			date_tresh: 2,
-			ced: true,
-		})
 	],
 	create: [
 		completeRule({
@@ -179,7 +172,7 @@ export const LINK_CONFIGS: LinkConfig[] = [
 	{
 		id: 'create',
 		name: 'Create',
-		description: 'Optimisé pour créer - critères permissifs',
+		description: 'Optimisé pour créer - link que si N°BSD ou N°BON',
 		params: CREATE_CONFIG
 	}
 ];

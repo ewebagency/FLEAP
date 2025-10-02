@@ -36,7 +36,7 @@ async def process_document_for_rag(
         
         # 2. Extraire le texte brut du PDF
         print("📄 Extraction du texte brut...")
-        raw_text, _, parse_or_ocr = await get_raw_text_from_pdf(file, document_type)
+        raw_text, _, parse_or_ocr = await get_raw_text_from_pdf(file)
         print(f"✅ Texte extrait: {len(raw_text)} caractères (méthode: {parse_or_ocr})")
         
         # 3. Créer les objets pour RAG
