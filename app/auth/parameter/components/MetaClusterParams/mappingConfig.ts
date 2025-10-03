@@ -33,7 +33,7 @@ export const MAPPING_CONFIGS: MappingTypeConfig[] = [
         metaField: 'presta',
         displayFormat: 'withCode'
     },
-    {
+    /*{
         key: 'params_mapping_nom_dechet',
         label: 'Déchets',
         description: 'Associer les noms de déchets bruts aux déchets métas',
@@ -43,7 +43,7 @@ export const MAPPING_CONFIGS: MappingTypeConfig[] = [
         metaSource: 'autocompletion',
         metaField: 'dechet',
         displayFormat: 'withCode'
-    },
+    },*/
     {
         key: 'params_mapping_operation',
         label: 'Opérations',

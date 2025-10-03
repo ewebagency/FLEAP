@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic';
 
 import { supabase } from "@/app/database/supabaseClient";
 import { FormInput } from "@/app/register/interface/BSD_Interface";
-import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/FormulaireFull/utils_new";
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { format } from 'date-fns';
@@ -14,7 +13,10 @@ type BSD_Export_Interface = {
     "Code déchet": string | number | null,
     "Nom du déchet": string | number | null,
     "Date de création": string | number | null,
+    "ID FLEAP": string | number | null,
     "N° BSD": string | number | null,
+    "N° Bon": string | number | null,
+    "N° Facture": string | number | null,
     "Point de collecte": string | number | null,
     "Adresse de collecte": string | number | null,
     
@@ -159,7 +161,7 @@ export async function GET(request: Request) {
     // Récupérer les informations de l'entreprise
     const {data: entrepriseData, error: entrepriseError} = await supabase
     .from('entreprise')
-    .select('name')
+    .select('name, mapping_nom_filiere')
     .eq('id', entreprise_id)
     .single();
 
@@ -168,11 +170,11 @@ export async function GET(request: Request) {
             return NextResponse.json({ message: 'Erreur lors de la récupération des infos entreprise' }, { status: 500 });
     }
 
-        const mapping_filiere = await getMappingTableFiliere(entreprise_id);
-        console.log('Mapping filière récupéré:', mapping_filiere);
+        const mapping_filiere_nom = (entrepriseData as { name: string; mapping_nom_filiere?: { nom: string; filiere: string }[] }).mapping_nom_filiere || [];
+        console.log('Mapping filière (nom) récupéré:', mapping_filiere_nom);
 
         try {
-    const var_to_export = formatBSDData(bsdData, mapping_filiere) as BSD_Export_Interface[];
+    const var_to_export = formatBSDData(bsdData, mapping_filiere_nom as { nom: string; filiere: string }[]) as BSD_Export_Interface[];
             console.log('Données formatées avec succès, nombre d\'entrées:', var_to_export.length);
     
     return exportToExcel(
@@ -207,6 +209,8 @@ const formatBSDData = (data: {
         containerDescription: string,
         mentionAdr?: string,
         codeBale?: string,
+        numero_bon?: string,
+        numero_facture?: string,
         travauxAmiante?: {
             nom: string,
             siret: string
@@ -261,7 +265,7 @@ const formatBSDData = (data: {
         }>
     } | null,
     id: string
-}[], mapping_filiere: {ced: string, filiere: string}[]) => {
+}[], mapping_filiere: {nom: string, filiere: string}[]) => {
     try {
         // Déterminer le nombre maximum de transporteurs et destinataires supplémentaires
         let maxTransporters = 0;
@@ -289,7 +293,31 @@ const formatBSDData = (data: {
             }
         };
 
-        const filiere = mapping_filiere.find(mapping => mapping.ced?.replaceAll(' ', '').replace('*', '') === item.infos_json.formAPI.createFormInput.wasteDetails.code?.replaceAll(' ', '').replace('*', ''));
+        const wasteName = item.infos_json.formAPI.createFormInput.wasteDetails.name?.trim() || '';
+        const filiere = mapping_filiere.find(mapping => mapping.nom?.trim() === wasteName);
+                const shouldHideBSD = (value: string | null | undefined): boolean => {
+                    if (!value) return true;
+                    const v = value.toLowerCase();
+                    const bannedSubstrings = [
+                        'ligne',
+                        'dechet',
+                        'brouillon',
+                        'déchet',
+                        'automatique',
+                        'créée',
+                        'cree',
+                        'créé',
+                        'validée',
+                        'traitée',
+                        'traité',
+                        'validee',
+                        'demandée',
+                        'demande',
+                        'non disponible',
+                        'id non disponible'
+                    ];
+                    return bannedSubstrings.some(sub => v.includes(sub));
+                };
         
         // Objet de base avec toutes les colonnes fixes
         const baseObject: BSD_Export_Interface = {
@@ -297,7 +325,10 @@ const formatBSDData = (data: {
             "Code déchet": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.code),
             "Nom du déchet": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.name),
             "Date de création": getValue(() => format(new Date(item.created_at), 'dd/MM/yyyy', { locale: fr })),
-            "N° BSD": getValue(() => null, ["Ligne demandée", "Ligne validée", "Ligne automatique", "Ligne créée", "ID non disponible"].includes(item.readable_id_track_dechets) ? "ID FLEAP : " + item.id : item.readable_id_track_dechets),
+                    "ID FLEAP": getValue(() => item.id),
+                    "N° BSD": getValue(() => null, shouldHideBSD(item.readable_id_track_dechets) ? '' : item.readable_id_track_dechets),
+                    "N° Bon": getValue(() => null, (item.other_infos as unknown as { numeroBon?: string; numero_bon?: string })?.numeroBon || item.other_infos?.numero_bon || ''),
+                    "N° Facture": getValue(() => null, (item.other_infos as unknown as { numeroFacture?: string; numero_facture?: string })?.numeroFacture || item.other_infos?.numero_facture || (item.facture_infos as unknown as { numeroFacture?: string })?.numeroFacture || ''),
             "Point de collecte": getValue(() => {
                 const workSite = item.infos_json.formAPI.createFormInput.emitter.workSite;
                 return workSite?.name ?? '';
@@ -403,9 +434,11 @@ const filterEmptyColumns = (data: BSD_Export_Interface[]): BSD_Export_Interface[
     
     // Obtenir toutes les clés (colonnes) du premier objet
     const allKeys = Object.keys(data[0]);
+    const alwaysInclude = new Set(["N° Bon", "N° Facture"]);
     
     // Trouver les colonnes qui ont au moins une valeur non vide
     const columnsWithData = allKeys.filter(key => {
+        if (alwaysInclude.has(key)) return true;
         return data.some(item => {
             const value = item[key];
             // Considérer comme vide : null, undefined, chaîne vide, ou chaîne avec seulement des espaces

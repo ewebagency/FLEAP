@@ -8,6 +8,7 @@ import { MAPPING_CONFIGS, MappingTypeConfig, Mapping } from './mappingConfig';
 import { useMappingData } from './useMappingData';
 import MappingSection from './MappingSection';
 import { verifierEtMettreAJourAlerte } from '@/app/import_page/ImportComponents/ExtractMetaDoc/utils/alerte';
+import { RAW_FIELD_CLASS, REFERENCE_ENTITY_CLASS } from './fieldStyles';
 
 export default function MetaClusterParamsTab() {
     const { entreprise_id } = useSession();
@@ -176,7 +177,7 @@ export default function MetaClusterParamsTab() {
 
     return (
         <div className="flex justify-center">
-            <div className="bg-white rounded-lg shadow-lg p-8 w-[90%]">
+            <div className="bg-white rounded-lg shadow-lg p-4 w-[95%]">
                 {/* Bouton Enregistrer fixe en haut */}
                 {hasUnsavedChanges && (
                     <div className="sticky top-0 z-50 bg-white border-b border-gray-200 py-4 mb-6 -mx-8 px-8 shadow-sm">
@@ -224,15 +225,16 @@ export default function MetaClusterParamsTab() {
                     </div>
                 )}
 
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">Gestion des mappings de paramètres</h2>
-                <p className="text-gray-600 mb-8 px-10">
-                    Associez les données brutes extraites de vos PDF aux données métas pour standardiser vos informations. 
-                    Sélectionnez un meta puis cochez les données brutes à associer.
-                    <br /><br />
-                    <span className="text-sm text-blue-600">
-                        💡 <strong>Note :</strong> Après l&apos;enregistrement des mappings, le système mettra automatiquement à jour les alertes/notifications sur tous vos PDFs pour vérifier si les nouvelles traductions résolvent les problèmes précédents.
-                    </span>
-                </p>
+				<h2 className="text-2xl font-bold text-gray-800 mb-6">Associer les données brutes aux entités de référence</h2>
+				<div className="mb-6 px-10">
+					<div className="flex items-center justify-center gap-3 text-sm select-none">
+						<span className={`px-2 py-1 rounded ${RAW_FIELD_CLASS}`}>Champs bruts PDF</span>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+							<path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 11-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+						</svg>
+						<span className={`px-2 py-1 rounded ${REFERENCE_ENTITY_CLASS}`}>Entités de référence</span>
+					</div>
+				</div>
                 
                 {/* Sections de mapping pour chaque type */}
                 {MAPPING_CONFIGS.map((config) => (

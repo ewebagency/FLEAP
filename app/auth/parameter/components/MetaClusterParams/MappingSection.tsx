@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import Select from 'react-select';
 import { MappingTypeConfig, MetaValue, RawValue, Mapping } from './mappingConfig';
 import ExtractDoc from '@/app/import_page/ImportComponents/ExtractMetaDoc/components/ExtractDoc';
+import { RAW_FIELD_CLASS, REFERENCE_ENTITY_CLASS } from './fieldStyles';
 
 // Fonction utilitaire pour déterminer le flag selon le type de document
 const getDocumentFlag = (typeDoc: string) => {
@@ -44,6 +45,7 @@ export default function MappingSection({
     const [searchMeta, setSearchMeta] = useState('');
     const [selectedMeta, setSelectedMeta] = useState<OptionType | null>(null);
     const [selectedRaw, setSelectedRaw] = useState<Set<string>>(new Set());
+    const [isOpen, setIsOpen] = useState<boolean>(false);
     
     // États pour les modifications locales
     const [localMappings, setLocalMappings] = useState<Mapping>(mappings);
@@ -126,6 +128,11 @@ export default function MappingSection({
         return filteredRawValues.filter(item => !associatedRawValues.has(item.nom));
     }, [filteredRawValues, associatedRawValues]);
 
+    // Compter le nombre total de valeurs brutes non associées (toutes, pas seulement filtrées)
+    const unassociatedCount = useMemo(() => {
+        return rawValues.reduce((count, item) => count + (associatedRawValues.has(item.nom) ? 0 : 1), 0);
+    }, [rawValues, associatedRawValues]);
+
     // Gérer la sélection/désélection de toutes les valeurs brutes
     const handleSelectAllRaw = useCallback((checked: boolean) => {
         if (checked) {
@@ -195,21 +202,46 @@ export default function MappingSection({
     return (
         <div className="mb-12 relative group">
             <div className="mb-4 px-10">
-                <div>
-                    <h3 className="text-xl font-bold text-gray-800">{config.label}</h3>
-                    <p className="text-gray-600">{config.description}</p>
-                </div>
+                <button
+                    type="button"
+                    onClick={() => setIsOpen(prev => !prev)}
+                    className="w-full text-left flex items-center justify-between"
+                >
+                    <div>
+                        <h3 className="text-xl font-bold text-gray-800 flex items-center">
+                            {config.label}
+                            {unassociatedCount > 0 && (
+                                <span
+                                    className="ml-2 inline-block h-2.5 w-2.5 rounded-full bg-red-500"
+                                    title={`${unassociatedCount} valeur(s) brute(s) non associée(s)`}
+                                    aria-label={`${unassociatedCount} valeur(s) brute(s) non associée(s)`}
+                                />
+                            )}
+                        </h3>
+                        <p className="text-gray-600">{config.description}</p>
+                    </div>
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={`h-5 w-5 text-gray-600 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden="true"
+                    >
+                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                    </svg>
+                </button>
             </div>
             
+            {isOpen && (
             <div className="grid grid-cols-2 gap-8 px-10">
                 {/* Colonne gauche - Valeurs brutes */}
                 <div className="space-y-4">
-                    <h4 className="text-lg font-semibold text-gray-800">Valeurs brutes disponibles</h4>
+                    <h4 className="text-lg font-semibold text-gray-800"><span className="text-xl font-bold">{config.label} </span> brutes des PDFs</h4>
                     
                     {/* Barre de recherche */}
                     <input
                         type="text"
-                        placeholder={`Rechercher dans les ${config.label.toLowerCase()} bruts...`}
+                        placeholder={`Les champs bruts reconnus comme ${config.label.toLowerCase()} par l'IA :`}
                         value={searchRaw}
                         onChange={(e) => setSearchRaw(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -247,7 +279,7 @@ export default function MappingSection({
                                             className="form-checkbox h-4 w-4 text-blue-600"
                                         />
                                         <div className="flex items-center gap-2 flex-1">
-                                            <span className="text-sm text-gray-700">{item.nom}</span>
+                                            <span className={`text-sm ${RAW_FIELD_CLASS}`}>{item.nom}</span>
                                             {(() => {
                                                 const flag = getDocumentFlag(item.typeDoc);
                                                 return (
@@ -284,20 +316,20 @@ export default function MappingSection({
 
                 {/* Colonne droite - Valeurs métas et associations */}
                 <div className="space-y-4">
-                    <h4 className="text-lg font-semibold text-gray-800">{config.label} métas et associations</h4>
+                    <h4 className="text-md font-semibold text-gray-800"><span className="text-xl font-bold">{config.label} </span> de référence et associations</h4>
                     
                     {/* Sélection du meta */}
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Sélectionner un {config.label.toLowerCase()} meta :</label>
+                        <label className="hidden text-sm font-medium text-gray-700">Sélectionner un {config.label.toLowerCase()} meta :</label>
                         <Select
                             isClearable
                             value={selectedMeta}
                             onChange={(newValue) => setSelectedMeta(newValue)}
                             options={metaOptions}
-                            placeholder={`Choisir un ${config.label.toLowerCase()} meta...`}
+                            placeholder={`Vos ${config.label.toLowerCase()} de référence :`}
                             className="flex-1"
                             classNamePrefix="select"
-                            noOptionsMessage={() => `Aucun ${config.label.toLowerCase()} meta trouvé`}
+                            noOptionsMessage={() => `Aucun ${config.label.toLowerCase()} de référence trouvé`}
                             onInputChange={(newValue) => setSearchMeta(newValue)}
                             inputValue={searchMeta}
                         />
@@ -326,19 +358,19 @@ export default function MappingSection({
                                     const meta = metaValues.find(m => getMetaKey(m) === metaKey);
                                     
                                     return (
-                                        <div key={metaKey} className="border border-gray-200 rounded-lg p-4">
-                                            <h6 className="font-semibold text-gray-800 mb-2">
+                                        <div key={metaKey} className="border border-blue-600 rounded-lg p-2">
+                                            <h6 className={`mb-2 ${REFERENCE_ENTITY_CLASS}`}>
                                                 {meta?.nom || nom}
                                                 {(siret || code) && (
-                                                    <span className="text-sm text-gray-500 ml-2">
+                                                    <span>
                                                         ({siret || code})
                                                     </span>
                                                 )}
                                             </h6>
                                             <div className="space-y-1">
                                                 {values.map((value) => (
-                                                    <div key={value} className="flex items-center justify-between bg-gray-50 rounded px-3 py-2">
-                                                        <span className="text-sm text-gray-700">{value}</span>
+                                                    <div key={value} className="flex items-center justify-between bg-gray-50 rounded p-1">
+                                                        <span className={`text-sm ${RAW_FIELD_CLASS}`}>{value}</span>
                                                         <button
                                                             onClick={() => handleRemoveAssociation(metaKey, value)}
                                                             className="text-red-500 hover:text-red-700"
@@ -359,6 +391,7 @@ export default function MappingSection({
                     </div>
                 </div>
             </div>
+            )}
         </div>
     );
 }

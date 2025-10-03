@@ -5,6 +5,7 @@ import { supabase } from '@/app/database/supabaseClient';
 import { useSession } from '@/app/component/SessionProvider';
 import CreatableSelect from 'react-select/creatable';
 import useSWR from 'swr';
+import { REFERENCE_ENTITY_CLASS, ENTITY_CATEGORY_CLASS } from '../MetaClusterParams/fieldStyles';
 
 interface MappingSite {
     [key: string]: string[];
@@ -248,9 +249,15 @@ export default function SiteTab() {
     if (error || siretError) return <div className="text-red-500">{error || 'Erreur lors du chargement des données SIRET'}</div>;
 
     return (
-        <div className="flex justify-center">
-            <div className="bg-white rounded-lg shadow-lg p-8 w-[80%]">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">Grouper les sites</h2>
+        <div className="w-full">
+                {/* Légende: Entité de référence -> Catégorie */}
+                <div className="mb-4 px-10 hidden">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className={REFERENCE_ENTITY_CLASS}>Entité de référence</span>
+                        <span>→</span>
+                        <span className={ENTITY_CATEGORY_CLASS}>Catégorie</span>
+                    </div>
+                </div>
                 
                 {/* Section de sélection multiple */}
                 <div className="mb-8 px-10">
@@ -258,7 +265,7 @@ export default function SiteTab() {
                     <div className="grid grid-cols-2 gap-6">
                         {/* Colonne gauche - Sélection des SIRET */}
                         <div className="space-y-4">
-                            <h4 className="text-md font-medium text-gray-700">Sélectionner des sites :</h4>
+                            {/* Titre retiré - géré par le toggle parent */}
                             
                             {/* Barre de recherche */}
                             <input
@@ -293,7 +300,7 @@ export default function SiteTab() {
                                 ) : (
                                     <div className="space-y-1 p-2">
                                         {availableSirets.map(({ siret, name }) => (
-                                            <div key={siret} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded">
+                                            <div key={siret} className="flex items-center gap-1 p-1 hover:bg-gray-50 rounded">
                                                 <input
                                                     type="checkbox"
                                                     checked={selectedSirets.has(siret)}
@@ -301,8 +308,9 @@ export default function SiteTab() {
                                                     className="form-checkbox h-4 w-4 text-blue-600"
                                                 />
                                                 <div className="flex-1">
-                                                    <div className="text-sm font-medium text-gray-700">{siret}</div>
-                                                    <div className="text-xs text-gray-500">{name}</div>
+                                                    <div className={`${REFERENCE_ENTITY_CLASS}`}>
+                                                        {name} <span className="font-normal text-xs">({siret})</span>
+                                                    </div>                                                    
                                                 </div>
                                             </div>
                                         ))}
@@ -313,7 +321,7 @@ export default function SiteTab() {
 
                         {/* Colonne droite - Sélection du groupe et action */}
                         <div className="space-y-4">
-                            <h4 className="text-md font-medium text-gray-700">Groupe de destination :</h4>
+                            {/* Titre retiré - géré par le toggle parent */}
                             
                             <CreatableSelect
                                 isClearable
@@ -327,56 +335,52 @@ export default function SiteTab() {
                                 noOptionsMessage={() => "Aucun groupe trouvé"}
                             />
                             
-                            {selectedGroup && selectedSirets.size > 0 && (
+                            <div className="flex justify-end">
                                 <button
                                     onClick={handleAddMultipleSirets}
-                                    className="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+                                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+                                    disabled={!selectedGroup || selectedSirets.size === 0}
                                 >
-                                    Ajouter {selectedSirets.size} site(s) à &quot;{selectedGroup.label}&quot;
+                                    Ajouter {selectedSirets.size} site(s){selectedGroup ? ` à "${selectedGroup.label}"` : ''}
                                 </button>
-                            )}
+                            </div>
+
+                            {/* Regroupements affichés dans la colonne de droite */}
+                            <div className="space-y-3">
+                                {Object.entries(mappings).map(([group, sirets]) => (
+                                    <div key={group} className="border rounded-lg p-4">
+                                        <div className="flex">
+                                            <h3 className="text-lg font-semibold text-gray-800 w-48 shrink-0">
+                                                <span className={ENTITY_CATEGORY_CLASS}>{group}</span>
+                                            </h3>
+                                            <div className="flex-1">
+                                                <div className="flex flex-wrap gap-2 -ml-2">
+                                                    {sirets.map((siret) => (
+                                                        <div key={siret} className="flex flex-col bg-gray-100 rounded-lg px-3 py-1">
+                                                            <div className="flex items-center">
+                                                                <span className={`${REFERENCE_ENTITY_CLASS} mr-2`}>{siretToNameMapping[siret] || ''} <span className="font-normal text-xs">({siret})</span></span>
+                                                                <button
+                                                                    onClick={() => handleDelete(group, siret)}
+                                                                    className="text-red-500 hover:text-red-700"
+                                                                    title="Supprimer"
+                                                                >
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
-
-
-
-                {/* Liste groupée par type de site */}
-                <div className="space-y-3 px-10">
-                    {Object.entries(mappings).map(([group, sirets]) => (
-                        <div key={group} className="border rounded-lg p-4">
-                            <div className="flex">
-                                <h3 className="text-lg font-semibold text-gray-800 w-48 shrink-0">
-                                    {group}
-                                </h3>
-                                <div className="flex-1">
-                                    <div className="flex flex-wrap gap-2 -ml-2">
-                                        {sirets.map((siret) => (
-                                            <div key={siret} className="flex flex-col bg-gray-100 rounded-lg px-3 py-1">
-                                                <div className="flex items-center">
-                                                    <span className="font-medium mr-2">{siret}</span>
-                                                    <button
-                                                        onClick={() => handleDelete(group, siret)}
-                                                        className="text-red-500 hover:text-red-700"
-                                                        title="Supprimer"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                                        </svg>
-                                                    </button>
-                                                </div>
-                                                <span className="text-xs text-gray-500">
-                                                    {siretToNameMapping[siret] || 'Nom inconnu'}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+                
         </div>
     );
 } 

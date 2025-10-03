@@ -5,6 +5,7 @@ import EntityForm from './EntityForm';
 import { supabase } from '@/app/database/supabaseClient';
 import { useSession } from '@/app/component/SessionProvider';
 import LinkComponents from './LinkComponents';
+import { REFERENCE_ENTITY_CLASS } from '../MetaClusterParams/fieldStyles';
 import {
   Site,
   Transporteur,
@@ -164,7 +165,7 @@ const AutocompletionTab: React.FC = () => {
           
           // Gestion des points de collecte
           if (field.startsWith('pointsCollecte.')) {
-            const [_, index, prop] = field.split('.');
+            const [, index, prop] = field.split('.');
             const pointsCollecte = [...site.pointsCollecte];
             pointsCollecte[parseInt(index)] = {
               ...pointsCollecte[parseInt(index)],
@@ -178,7 +179,7 @@ const AutocompletionTab: React.FC = () => {
           
           // Gestion des contacts multiples
           if (field.startsWith('contacts.')) {
-            const [_, index, prop] = field.split('.');
+            const [, index, prop] = field.split('.');
             const contacts = [...site.contacts];
             contacts[parseInt(index)] = {
               ...contacts[parseInt(index)],
@@ -192,7 +193,7 @@ const AutocompletionTab: React.FC = () => {
           
           // Gestion des mots-clés
           if (field.startsWith('motsClefs.')) {
-            const [_, index] = field.split('.');
+            const [, index] = field.split('.');
             const motsClefs = [...(site.motsClefs || [])];
             motsClefs[parseInt(index)] = value as string;
             return {
@@ -297,6 +298,7 @@ const AutocompletionTab: React.FC = () => {
 
       // Créer une copie des données sans l'ID
       const { id: _, ...dataWithoutId } = dataToUpdate;
+      void _;
 
       const getTableName = (type: string) => {
         switch (type.toLowerCase()) {
@@ -783,7 +785,7 @@ const AutocompletionTab: React.FC = () => {
           
           return (
             <div key={uniqueId} className="bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-200 transition-all shadow-sm hover:shadow-md">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center cursor-pointer" onClick={() => !isEditing && toggleItem(itemId, type)}>
                 <div className="flex items-center gap-2 justify-between w-full">
                   {isEditing ? (
                     <input
@@ -793,10 +795,10 @@ const AutocompletionTab: React.FC = () => {
                       className="text-sm font-semibold text-gray-800 bg-white px-2 py-1 rounded-lg border border-gray-200 focus:outline-none focus:border-[var(--green-medium)] focus:ring-1 focus:ring-[var(--green-medium)]"
                     />
                   ) : (
-                    <h3 className="text-sm font-semibold text-gray-800">{String(entity[mainField as keyof typeof entity])}</h3>
+                    <h3 className={REFERENCE_ENTITY_CLASS}>{String(entity[mainField as keyof typeof entity])}</h3>
                   )}
                   <button
-                    onClick={() => toggleItem(itemId, type)}
+                    onClick={(e) => { e.stopPropagation(); toggleItem(itemId, type); }}
                     className="text-gray-400 hover:text-gray-600 text-sm mr-6"
                   >
                     {isItemExpanded(itemId, type) ? '▼' : '▶'}
@@ -1264,7 +1266,7 @@ const AutocompletionTab: React.FC = () => {
                   ? 'text-black'
                   : 'text-gray-400'
               }`}>
-                Catalogue des options
+                Création des entités de référence
               </span>
               <div className={`w-full h-0.5 mt-1 transition-all ${
                 viewMode === 'entities'
@@ -1281,7 +1283,7 @@ const AutocompletionTab: React.FC = () => {
                   ? 'text-black'
                   : 'text-gray-400'
               }`}>
-                Sélections par défaut
+                Paramétrage de la demande de collecte
               </span>
               <div className={`w-full h-0.5 mt-1 transition-all ${
                 viewMode === 'links'
