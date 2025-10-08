@@ -22,6 +22,7 @@ export interface PdfInfo {
     entreprise_id: number;
     user_id: string;
     infos_raw?: Record<string, unknown>;
+    bsd_linked?: Record<string, unknown> | null;
 }
 
 export interface SiteInfo {
@@ -31,11 +32,16 @@ export interface SiteInfo {
 
 export interface FilterState {
     alerteStop: boolean | null;
+    alerteFlags: string[];  // Nouveau filtre granulaire pour les types d'alertes
     providers: string[];
     siteSirets: string[];
     documentTypes: string[];
     statuses: string[];
     pages: '' | 'one' | 'multi';
+    confidenceBrute: string;  // Filtre pour score brute (ex: ">80", "<60", "80-90")
+    confidenceSpec: string;   // Filtre pour score spécifique
+    handwrittenPercent: string;  // Filtre pour taux manuscrit
+    coveragePercent: string;  // Filtre pour taux de couverture
 }
 
 export interface FilterOptions {
@@ -43,6 +49,7 @@ export interface FilterOptions {
     sites: Array<{id: string, name: string}>;
     documentTypes: Array<{value: string, label: string}>;
     statuses: Array<{value: string, label: string}>;
+    alerteFlags: Array<{value: string, label: string}>;
 }
 
 export interface ProcessingResult {

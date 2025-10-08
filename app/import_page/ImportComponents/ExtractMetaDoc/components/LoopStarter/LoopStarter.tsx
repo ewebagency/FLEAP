@@ -9,6 +9,7 @@ import { toast } from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 import ExtractDoc from '../ExtractDoc';
+import MetaClusterParamsTab from '@/app/auth/parameter/components/MetaClusterParams/MetaClusterParamsTab';
 import {
     PdfInfo,
     SiteInfo,
@@ -18,7 +19,8 @@ import {
     LoopStarterProps,
     FilterState as FilterStateType
 } from './LoopStarterTypes';
-import { MultiSelect, getAlerteFlags } from './LoopStarterFilters';
+import { MultiSelect, getAlerteFlags, getAllPossibleAlerteFlags, getFlagValueFromLabel } from './LoopStarterFilters';
+import { calculateCoverage, getCoverageColor } from '../../utils/coverage';
 import {
     refreshData,
     handleProcessPdfs,
@@ -64,24 +66,69 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const [resumeMode, setResumeMode] = useState<'split_then_extract' | 'extract_only' | null>(null);
     const [showExtractModal, setShowExtractModal] = useState(false);
     
+    // Extraction manuelle depuis le bouton de la ligne
+    const [manualExtractPdfId, setManualExtractPdfId] = useState<string | null>(null);
+    
+    // Modal d'association des mots-clés
+    const [showAssociationModal, setShowAssociationModal] = useState(false);
+    
+    // Vue des colonnes (pour simplifier l'affichage)
+    const [columnView, setColumnView] = useState<'all' | 'info' | 'analyse' | 'actions'>('all');
+    
+    // Déterminer quelles colonnes afficher selon la vue
+    const shouldShowColumn = (columnIndex: number): boolean => {
+        if (columnView === 'all') return true;
+        
+        // Vue Info : colonnes 1-7 (Checkbox, Temps, Nom, Taille, Type, Statut, Site, Provider)
+        if (columnView === 'info') {
+            return [1,2,3,4,5,6,7,8,17].includes(columnIndex)
+        }
+        
+        // Vue Analyse : colonnes 1, 8-14 (Checkbox + Presta, Pages, Déchets, Lignes, Brute, Spec, Manusc)
+        if (columnView === 'analyse') {
+            return [1,3,9,10,11,12,13,14,15,16,18].includes(columnIndex)
+        }
+        
+        // Vue Actions : colonnes 1, 15-18 (Checkbox + Couvert, Type d'alerte, Linkage, Actions)
+        if (columnView === 'actions') {
+            return [1,3,16,17,18].includes(columnIndex)
+        }
+        
+        return true;
+    };
+    
     // États des filtres multiselect - Chargés depuis localStorage
     const [filters, setFilters] = useState<FilterState>(() => {
+        const defaultFilters: FilterState = {
+            alerteStop: null,
+            alerteFlags: [],
+            providers: [],
+            siteSirets: [],
+            documentTypes: [],
+            statuses: [],
+            pages: '',
+            confidenceBrute: '',
+            confidenceSpec: '',
+            handwrittenPercent: '',
+            coveragePercent: ''
+        };
+        
         try {
             const saved = localStorage.getItem('loopStarter:filters');
             if (saved) {
-                return JSON.parse(saved);
+                const parsedFilters = JSON.parse(saved);
+                // Fusionner avec les valeurs par défaut pour s'assurer que tous les champs existent
+                return {
+                    ...defaultFilters,
+                    ...parsedFilters,
+                    // S'assurer que alerteFlags est toujours un array
+                    alerteFlags: Array.isArray(parsedFilters.alerteFlags) ? parsedFilters.alerteFlags : []
+                };
             }
         } catch (error) {
             console.error('Erreur chargement filtres:', error);
         }
-        return {
-        alerteStop: null,
-        providers: [],
-        siteSirets: [],
-        documentTypes: [],
-        statuses: [],
-        pages: ''
-        };
+        return defaultFilters;
     });
     
     // État pour la recherche par nom - Chargé depuis localStorage
@@ -117,7 +164,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         providers: [],
         sites: [],
         documentTypes: [],
-        statuses: []
+        statuses: [],
+        alerteFlags: getAllPossibleAlerteFlags()
     });
 
     // Wrapper pour refreshData
@@ -143,6 +191,24 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         fetchData();
     }, [entreprise_id, handleRefreshData]);
 
+    // Évaluer un filtre de pourcentage (seuil minimum, ex: "80" signifie "≥80%")
+    const evaluatePercentageFilter = useCallback((value: number | undefined, filter: string): boolean => {
+        if (!filter || value === undefined) return true;
+        
+        const trimmed = filter.trim();
+        if (!trimmed) return true;
+
+        // Parser le seuil minimum (nombre entier)
+        const threshold = parseInt(trimmed, 10);
+        
+        // Si c'est un nombre valide, vérifier que la valeur est >= au seuil
+        if (!isNaN(threshold)) {
+            return value >= threshold;
+        }
+        
+        return true;
+    }, []);
+
     // Filtrer les PDFs selon les critères multiselect
     const filteredPdfs = useMemo(() => {
         return pdfInfos.filter(pdf => {
@@ -161,6 +227,24 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             if (filters.alerteStop !== null) {
                 const alerteStop = pdf.alerte?.stop === true;
                 if (alerteStop !== filters.alerteStop) return false;
+            }
+
+            // Filtre alertes par flags (multiselect granulaire)
+            if (filters.alerteFlags && Array.isArray(filters.alerteFlags) && filters.alerteFlags.length > 0) {
+                const alerteMessage = pdf.alerte && typeof pdf.alerte === 'object' && 'message' in pdf.alerte 
+                    ? (pdf.alerte as { message?: string }).message || ''
+                    : '';
+                
+                // Obtenir les flags de ce PDF
+                const pdfFlags = getAlerteFlags(alerteMessage);
+                const pdfFlagValues = pdfFlags.map(flag => getFlagValueFromLabel(flag.label));
+                
+                // Vérifier si au moins un des flags sélectionnés est présent
+                const hasMatchingFlag = filters.alerteFlags.some(selectedFlag => 
+                    pdfFlagValues.includes(selectedFlag)
+                );
+                
+                if (!hasMatchingFlag) return false;
             }
 
             // Filtre providers (multiselect)
@@ -203,9 +287,32 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                 if (filters.pages === 'multi' && pages <= 1) return false;
             }
 
+            // Filtres de pourcentage pour les scores de confiance
+            const confidence = pdf.confidence as { brute?: number; spec?: number; handwritten?: [number, boolean] } | null | undefined;
+            
+            if (filters.confidenceBrute && confidence) {
+                const brutePct = Math.round(confidence.brute || 0);
+                if (!evaluatePercentageFilter(brutePct, filters.confidenceBrute)) return false;
+            }
+            
+            if (filters.confidenceSpec && confidence) {
+                const specPct = Math.round(confidence.spec || 0);
+                if (!evaluatePercentageFilter(specPct, filters.confidenceSpec)) return false;
+            }
+            
+            if (filters.handwrittenPercent && confidence?.handwritten && confidence.handwritten[1]) {
+                const handwrittenPct = Math.round(confidence.handwritten[0]);
+                if (!evaluatePercentageFilter(handwrittenPct, filters.handwrittenPercent)) return false;
+            }
+            
+            if (filters.coveragePercent) {
+                const coverage = calculateCoverage(pdf.infos_raw, pdf.document_type);
+                if (!evaluatePercentageFilter(coverage.percentage, filters.coveragePercent)) return false;
+            }
+
             return true;
         });
-    }, [pdfInfos, filters, searchName]);
+    }, [pdfInfos, filters, searchName, evaluatePercentageFilter]);
 
     // Gérer la sélection/désélection de tous les PDFs
     const handleSelectAll = () => {
@@ -237,11 +344,16 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const handleResetFilters = () => {
         setFilters({
             alerteStop: null,
+            alerteFlags: [],
             providers: [],
             siteSirets: [],
             documentTypes: [],
             statuses: [],
-            pages: ''
+            pages: '',
+            confidenceBrute: '',
+            confidenceSpec: '',
+            handwrittenPercent: '',
+            coveragePercent: ''
         });
         setSearchName('');
     };
@@ -316,6 +428,14 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         <BoxIcon name="bx-reset" size="14" />
                                         Reset
                                     </button>
+                                    <button
+                                        onClick={() => setShowAssociationModal(true)}
+                                        className="text-xs px-2 py-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-sm transition-colors flex items-center gap-1"
+                                        title="Associer les mots-clés aux entités de référence"
+                                    >
+                                        <BoxIcon name="bx-link-alt" size="14" />
+                                        Association
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -324,7 +444,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                             <table className="w-full">
                                 <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
                                     <tr>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50">
+                                        <th className="px-2 py-1.5 text-left bg-gray-50" style={{ display: shouldShowColumn(1) ? '' : 'none' }}>
                                             <input
                                                 type="checkbox"
                                                 checked={selectedPdfIds.length === filteredPdfs.length && filteredPdfs.length > 0}
@@ -332,7 +452,10 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 className="h-3.5 w-3.5 text-blue-500 focus:ring-0.5 focus:ring-blue-300 border-gray-200 rounded-sm"
                                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[200px]">
+                                        <th className="px-2 py-1.5 text-left bg-gray-50" style={{ display: shouldShowColumn(2) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Temps</div>
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[200px]" style={{ display: shouldShowColumn(3) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Nom</div>
                                             <input
                                                 type="text"
@@ -342,17 +465,10 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
                                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left min-w-[140px] bg-gray-50">
-                                            <div className="text-xs font-medium text-gray-600 mb-1">Statut</div>
-                            <MultiSelect
-                                options={filterOptions.statuses}
-                                selectedValues={filters.statuses}
-                                onChange={(values) => setFilters(prev => ({ ...prev, statuses: values }))}
-                                                placeholder="Tous"
-                                                label=""
-                            />
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[60px]" style={{ display: shouldShowColumn(4) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Taille</div>
                                         </th>
-                                        <th className="px-2 py-1.5 text-left min-w-[120px] bg-gray-50">
+                                        <th className="px-2 py-1.5 text-left min-w-[50px] bg-gray-50" style={{ display: shouldShowColumn(5) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Type</div>
                             <MultiSelect
                                 options={filterOptions.documentTypes}
@@ -362,7 +478,37 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 label=""
                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50">
+                                        <th className="px-2 py-1.5 text-left min-w-[50px] bg-gray-50" style={{ display: shouldShowColumn(6) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Statut</div>
+                            <MultiSelect
+                                options={filterOptions.statuses}
+                                selectedValues={filters.statuses}
+                                onChange={(values) => setFilters(prev => ({ ...prev, statuses: values }))}
+                                                placeholder="Tous"
+                                                label=""
+                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left min-w-[140px] bg-gray-50" style={{ display: shouldShowColumn(7) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Site</div>
+                            <MultiSelect
+                                options={filterOptions.sites}
+                                selectedValues={filters.siteSirets}
+                                onChange={(values) => setFilters(prev => ({ ...prev, siteSirets: values }))}
+                                                placeholder="Tous"
+                                                label=""
+                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left min-w-[140px] bg-gray-50" style={{ display: shouldShowColumn(8) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Presta</div>
+                            <MultiSelect
+                                options={filterOptions.providers}
+                                selectedValues={filters.providers}
+                                onChange={(values) => setFilters(prev => ({ ...prev, providers: values }))}
+                                                placeholder="Tous"
+                                                label=""
+                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50" style={{ display: shouldShowColumn(9) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Pages</div>
                                             <select
                                                 value={filters.pages}
@@ -374,53 +520,86 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 <option value="multi">+</option>
                                             </select>
                                         </th>
-                                        <th className="px-2 py-1.5 text-left min-w-[140px] bg-gray-50">
-                                            <div className="text-xs font-medium text-gray-600 mb-1">Site</div>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[60px]" style={{ display: shouldShowColumn(10) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Déchets</div>
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[60px]" style={{ display: shouldShowColumn(11) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Lignes</div>
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(12) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Brute</div>
+                                            <input
+                                                type="number"
+                                                placeholder="Min %"
+                                                value={filters.confidenceBrute}
+                                                onChange={(e) => setFilters(prev => ({ ...prev, confidenceBrute: e.target.value }))}
+                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                title="Seuil minimum (ex: 80 pour ≥80%)"
+                                                min="0"
+                                                max="100"
+                                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(13) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Spec</div>
+                                            <input
+                                                type="number"
+                                                placeholder="Min %"
+                                                value={filters.confidenceSpec}
+                                                onChange={(e) => setFilters(prev => ({ ...prev, confidenceSpec: e.target.value }))}
+                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                title="Seuil minimum (ex: 80 pour ≥80%)"
+                                                min="0"
+                                                max="100"
+                                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(14) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Manusc</div>
+                                            <input
+                                                type="number"
+                                                placeholder="Min %"
+                                                value={filters.handwrittenPercent}
+                                                onChange={(e) => setFilters(prev => ({ ...prev, handwrittenPercent: e.target.value }))}
+                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                title="Seuil minimum (ex: 50 pour ≥50%)"
+                                                min="0"
+                                                max="100"
+                                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(15) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Couvert</div>
+                                            <input
+                                                type="number"
+                                                placeholder="Min %"
+                                                value={filters.coveragePercent}
+                                                onChange={(e) => setFilters(prev => ({ ...prev, coveragePercent: e.target.value }))}
+                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                title="Seuil minimum (ex: 70 pour ≥70%)"
+                                                min="0"
+                                                max="100"
+                                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left min-w-[180px] bg-gray-50" style={{ display: shouldShowColumn(16) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Type d&apos;alerte</div>
                             <MultiSelect
-                                options={filterOptions.sites}
-                                selectedValues={filters.siteSirets}
-                                onChange={(values) => setFilters(prev => ({ ...prev, siteSirets: values }))}
+                                options={filterOptions.alerteFlags}
+                                selectedValues={filters.alerteFlags}
+                                onChange={(values) => setFilters(prev => ({ ...prev, alerteFlags: values }))}
                                                 placeholder="Tous"
                                                 label=""
                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left min-w-[140px] bg-gray-50">
-                                            <div className="text-xs font-medium text-gray-600 mb-1">Provider</div>
-                            <MultiSelect
-                                options={filterOptions.providers}
-                                selectedValues={filters.providers}
-                                onChange={(values) => setFilters(prev => ({ ...prev, providers: values }))}
-                                                placeholder="Tous"
-                                                label=""
-                                            />
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[120px]" style={{ display: shouldShowColumn(17) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Linkage</div>
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[100px]">
-                                            <div className="text-xs font-medium text-gray-600 mb-1">Confiance</div>
-                                        </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50">
-                                            <div className="text-xs font-medium text-gray-600 mb-1">Temps</div>
-                                        </th>
-                                        <th className="px-2 py-1.5 text-left min-w-[180px] bg-gray-50">
-                                            <div className="text-xs font-medium text-gray-600 mb-1">Alerte</div>
-                                <select
-                                    value={filters.alerteStop === null ? '' : filters.alerteStop.toString()}
-                                    onChange={(e) => setFilters(prev => ({
-                                        ...prev,
-                                        alerteStop: e.target.value === '' ? null : e.target.value === 'true'
-                                    }))}
-                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
-                                >
-                                    <option value="">Tous</option>
-                                                <option value="true">Avec</option>
-                                                <option value="false">Sans</option>
-                                </select>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(18) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Actions</div>
                                         </th>
                                     </tr>
                                 </thead>
                                 <tbody>
                             {filteredPdfs.length === 0 ? (
                                         <tr>
-                                            <td colSpan={10} className="p-8 text-center text-gray-500">
+                                            <td colSpan={18} className="p-8 text-center text-gray-500">
                                     <BoxIcon name="bx-file" size="48" className="mx-auto mb-4 text-gray-300" />
                                     <p className="text-lg font-medium">Aucun PDF trouvé</p>
                                     <p className="text-sm">Aucun PDF ne correspond aux critères de filtrage sélectionnés</p>
@@ -455,12 +634,16 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                             // Scores de confiance
                                             const confidence = pdf.confidence as { brute?: number; spec?: number; handwritten?: [number, boolean] } | null | undefined;
                                             
+                                            // Calcul du taux de couverture
+                                            const coverage = calculateCoverage(pdf.infos_raw, pdf.document_type);
+                                            
                                             return (
                                             <tr
                                                 key={pdf.id}
                                                 className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
                                             >
-                                                    <td className="px-2 py-2">
+                                                    {/* 1. Checkbox */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(1) ? '' : 'none' }}>
                                                     <input
                                                         type="checkbox"
                                                         checked={selectedPdfIds.includes(pdf.id)}
@@ -468,12 +651,32 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         className="h-3.5 w-3.5 text-blue-500 focus:ring-0.5 focus:ring-blue-300 border-gray-200 rounded-sm"
                                                     />
                                                 </td>
-                                                    <td className="px-2 py-2">
+                                                    {/* 2. Temps */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(2) ? '' : 'none' }}>
+                                                        <span className={`text-xs font-medium ${timeColor}`}>
+                                                            {timeDisplay}
+                                                        </span>
+                                                    </td>
+                                                    {/* 3. Nom */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(3) ? '' : 'none' }}>
                                                         <div className="font-medium text-gray-900 text-xs truncate max-w-[200px]" title={pdf.name_pdf || 'Document sans nom'}>
                                                         {pdf.name_pdf || 'Document sans nom'}
                                                     </div>
                                                 </td>
-                                                    <td className="px-2 py-2">
+                                                    {/* 4. Taille */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(4) ? '' : 'none' }}>
+                                                        <span className="text-xs text-gray-600">
+                                                            {pdf.file_size ? `${Math.round(pdf.file_size / 1024)} KB` : '-'}
+                                                        </span>
+                                                    </td>
+                                                    {/* 5. Type */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(5) ? '' : 'none' }}>
+                                                    <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm">
+                                                        {filterOptions.documentTypes.find(t => t.value === pdf.document_type)?.label || pdf.document_type || 'Inconnu'}
+                                                    </span>
+                                                </td>
+                                                    {/* 6. Statut */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(6) ? '' : 'none' }}>
                                                     <span className={`text-xs px-1.5 py-0.5 rounded-sm ${
                                                             pdf.status === 'processed' || pdf.status === 'extracted' || pdf.status === 'linked' || pdf.status === 'pushed' ? 'bg-green-50 text-green-600' :
                                                         pdf.status === 'error' ? 'bg-red-50 text-red-600' :
@@ -483,17 +686,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         {filterOptions.statuses.find(s => s.value === pdf.status)?.label || pdf.status}
                                                     </span>
                                                 </td>
-                                                    <td className="px-2 py-2">
-                                                    <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm">
-                                                        {filterOptions.documentTypes.find(t => t.value === pdf.document_type)?.label || pdf.document_type || 'Inconnu'}
-                                                    </span>
-                                                </td>
-                                                    <td className="px-2 py-2">
-                                                    <span className="text-xs text-gray-600">
-                                                        {typeof pdf.nb_pages === 'number' ? pdf.nb_pages : '-'}
-                                                    </span>
-                                                </td>
-                                                    <td className="px-2 py-2">
+                                                    {/* 7. Site */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(7) ? '' : 'none' }}>
                                                     {pdf.site_siret_plus && pdf.site_siret_plus.length > 0 ? (
                                                         <div className="flex flex-wrap gap-1">
                                                                 {pdf.site_siret_plus.slice(0, 1).map((siret: string, index: number) => (
@@ -515,7 +709,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         <span className="text-xs text-gray-400">-</span>
                                                     )}
                                                 </td>
-                                                    <td className="px-2 py-2">
+                                                    {/* 8. Presta */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(8) ? '' : 'none' }}>
                                                         {providerName ? (
                                                             <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm truncate max-w-[120px] block" title={String(providerName)}>
                                                                 {String(providerName)}
@@ -524,41 +719,95 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         <span className="text-xs text-gray-400">-</span>
                                                     )}
                                                 </td>
-                                                    <td className="px-2 py-2">
+                                                    {/* 9. Pages */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(9) ? '' : 'none' }}>
+                                                    <span className="text-xs text-gray-600">
+                                                        {typeof pdf.nb_pages === 'number' ? pdf.nb_pages : '-'}
+                                                    </span>
+                                                </td>
+                                                    {/* 10. Déchets */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(10) ? '' : 'none' }}>
+                                                        <span className="text-xs text-gray-600">
+                                                            {pdf.infos_raw && Array.isArray((pdf.infos_raw as { dechet?: unknown[] }).dechet) 
+                                                                ? (pdf.infos_raw as { dechet: unknown[] }).dechet.length 
+                                                                : '-'}
+                                                        </span>
+                                                    </td>
+                                                    {/* 11. Lignes */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(11) ? '' : 'none' }}>
+                                                        <span className="text-xs text-gray-600">
+                                                            {(() => {
+                                                                if (!pdf.infos_raw) return '-';
+                                                                const dechetArray = (pdf.infos_raw as { dechet?: unknown[] }).dechet;
+                                                                if (!Array.isArray(dechetArray)) return '-';
+                                                                
+                                                                // Compter le total de lignes de facture pour tous les déchets
+                                                                let totalLignes = 0;
+                                                                for (const dechet of dechetArray) {
+                                                                    if (dechet && typeof dechet === 'object') {
+                                                                        const facture = (dechet as { facture?: { ligne?: unknown[] } }).facture;
+                                                                        if (facture?.ligne && Array.isArray(facture.ligne)) {
+                                                                            totalLignes += facture.ligne.length;
+                                                                        }
+                                                                    }
+                                                                }
+                                                                return totalLignes > 0 ? totalLignes : '-';
+                                                            })()}
+                                                        </span>
+                                                    </td>
+                                                    {/* 12. Brute */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(12) ? '' : 'none' }}>
                                                         {confidence ? (
-                                                            <div className="flex flex-col gap-0.5">
-                                                                <div className="flex items-center gap-1">
-                                                                    <span className={`text-xs px-1 py-0.5 rounded-sm ${
-                                                                        Math.round(confidence.brute || 0) >= 80 ? 'bg-green-100 text-green-700' :
-                                                                        Math.round(confidence.brute || 0) >= 60 ? 'bg-yellow-100 text-yellow-700' :
-                                                                        'bg-red-100 text-red-700'
-                                                                    }`} title="Confiance brute">
-                                                                        B:{Math.round(confidence.brute || 0)}%
-                                                                    </span>
-                                                                    <span className={`text-xs px-1 py-0.5 rounded-sm ${
-                                                                        Math.round(confidence.spec || 0) >= 80 ? 'bg-green-100 text-green-700' :
-                                                                        Math.round(confidence.spec || 0) >= 60 ? 'bg-yellow-100 text-yellow-700' :
-                                                                        'bg-red-100 text-red-700'
-                                                                    }`} title="Confiance spécifique">
-                                                                        S:{Math.round(confidence.spec || 0)}%
-                                                                    </span>
-                                                                </div>
-                                                                {confidence.handwritten && confidence.handwritten[1] && (
-                                                                    <span className="text-xs px-1 py-0.5 bg-purple-100 text-purple-700 rounded-sm" title="Manuscrit détecté">
-                                                                        ✍️ {Math.round(confidence.handwritten[0])}%
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                                                            <span className={`text-xs px-1 py-0.5 rounded-sm ${
+                                                                Math.round(confidence.brute || 0) >= 80 ? 'bg-green-100 text-green-700' :
+                                                                Math.round(confidence.brute || 0) >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                                                                'bg-red-100 text-red-700'
+                                                            }`} title="Score de confiance brute">
+                                                                {Math.round(confidence.brute || 0)}%
+                                                            </span>
                                                         ) : (
                                                             <span className="text-xs text-gray-400">-</span>
                                                         )}
                                                     </td>
-                                                    <td className="px-2 py-2">
-                                                        <span className={`text-xs font-medium ${timeColor}`}>
-                                                            {timeDisplay}
-                                                        </span>
-                                                </td>
-                                                    <td className="px-2 py-2">
+                                                    {/* 13. Spec */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(13) ? '' : 'none' }}>
+                                                        {confidence ? (
+                                                            <span className={`text-xs px-1 py-0.5 rounded-sm ${
+                                                                Math.round(confidence.spec || 0) >= 80 ? 'bg-green-100 text-green-700' :
+                                                                Math.round(confidence.spec || 0) >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                                                                'bg-red-100 text-red-700'
+                                                            }`} title="Score de confiance spécifique">
+                                                                {Math.round(confidence.spec || 0)}%
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">-</span>
+                                                        )}
+                                                    </td>
+                                                    {/* 14. Manuscrit */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(14) ? '' : 'none' }}>
+                                                        {confidence?.handwritten && confidence.handwritten[1] ? (
+                                                            <span className="text-xs px-1 py-0.5 bg-purple-100 text-purple-700 rounded-sm" title="Taux manuscrit détecté">
+                                                                {Math.round(confidence.handwritten[0])}%
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">-</span>
+                                                        )}
+                                                    </td>
+                                                    {/* 15. Couverture */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(15) ? '' : 'none' }}>
+                                                        {coverage.percentage > 0 ? (
+                                                            <span 
+                                                                className={`text-xs px-1 py-0.5 rounded-sm ${getCoverageColor(coverage.percentage)}`} 
+                                                                title={`Couverture: ${coverage.filledCount}/${coverage.totalCount} champs remplis (${coverage.percentage}%)`}
+                                                            >
+                                                                {coverage.percentage}%
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">-</span>
+                                                        )}
+                                                    </td>
+                                                    {/* 16. Type d'alerte */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(16) ? '' : 'none' }}>
                                                         {alerteFlags.length > 0 ? (
                                                             <div className="flex flex-wrap gap-1" title={alerteMessage}>
                                                                 {alerteFlags.map((flag, idx) => (
@@ -571,6 +820,59 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         <span className="text-xs text-gray-400">-</span>
                                                     )}
                                                 </td>
+                                                    {/* 17. Linkage (BSDs) */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(17) ? '' : 'none' }}>
+                                                        {(() => {
+                                                            const bsdLinked = pdf.bsd_linked as Array<{
+                                                                index_dechet: number;
+                                                                status: 'created' | 'linked' | 'pushed';
+                                                                bsd_id?: string;
+                                                            }> | null | undefined;
+                                                            
+                                                            if (!bsdLinked || !Array.isArray(bsdLinked) || bsdLinked.length === 0) {
+                                                                return <span className="text-xs text-gray-400">-</span>;
+                                                            }
+                                                            
+                                                            return (
+                                                                <div className="flex flex-col gap-0.5">
+                                                                    {bsdLinked.slice(0, 3).map((link, index) => {
+                                                                        const statusColor = link.status === 'pushed' ? 'bg-purple-50 text-purple-600' :
+                                                                                          link.status === 'linked' ? 'bg-green-50 text-green-600' :
+                                                                                          'bg-blue-50 text-blue-600';
+                                                                        const statusLabel = link.status === 'pushed' ? 'Push' :
+                                                                                          link.status === 'linked' ? 'Link' :
+                                                                                          'Créé';
+                                                                        return (
+                                                                            <div key={index} className="flex items-center gap-1 flex-wrap">
+                                                                                <span className={`text-xs px-1 py-0.5 rounded-sm ${statusColor}`}>
+                                                                                    {statusLabel} D{link.index_dechet + 1}
+                                                                                </span>
+                                                                                {link.bsd_id && (
+                                                                                    <span className="text-xs text-gray-500">
+                                                                                        {link.bsd_id}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                    {bsdLinked.length > 3 && (
+                                                                        <span className="text-xs text-gray-400">+{bsdLinked.length - 3}</span>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </td>
+                                                    {/* 18. Actions */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(18) ? '' : 'none' }}>
+                                                        <button
+                                                            onClick={() => setManualExtractPdfId(pdf.id)}
+                                                            className="text-xs px-2 py-1 bg-blue-500 text-white rounded-sm hover:bg-blue-600 transition-colors flex items-center gap-1"
+                                                            title="Extraire les données de ce document"
+                                                        >
+                                                            <BoxIcon name="bx-export" size="14" />
+                                                            <span>Extraire</span>
+                                                        </button>
+                                                    </td>
                                             </tr>
                                                             );
                                                         })
@@ -612,6 +914,54 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     <div className="text-center">
                                         <div className="text-base font-semibold text-green-500">{selectedPdfIds.length}</div>
                                         <div className="text-xs text-green-500">Sélectionnés</div>
+                                    </div>
+                                    {/* Boutons de vue des colonnes */}
+                                    <div className="flex items-center gap-1 ml-4 pl-4 border-l border-blue-200">
+                                        <span className="text-xs text-blue-600 font-medium">Vue :</span>
+                                        <button
+                                            onClick={() => setColumnView('all')}
+                                            className={`text-xs px-2 py-1 rounded-sm transition-colors ${
+                                                columnView === 'all' 
+                                                    ? 'bg-blue-500 text-white' 
+                                                    : 'bg-white text-blue-600 hover:bg-blue-100'
+                                            }`}
+                                            title="Afficher toutes les colonnes"
+                                        >
+                                            Toutes
+                                        </button>
+                                        <button
+                                            onClick={() => setColumnView('info')}
+                                            className={`text-xs px-2 py-1 rounded-sm transition-colors ${
+                                                columnView === 'info' 
+                                                    ? 'bg-blue-500 text-white' 
+                                                    : 'bg-white text-blue-600 hover:bg-blue-100'
+                                            }`}
+                                            title="Infos de base (7 colonnes)"
+                                        >
+                                            Info
+                                        </button>
+                                        <button
+                                            onClick={() => setColumnView('analyse')}
+                                            className={`text-xs px-2 py-1 rounded-sm transition-colors ${
+                                                columnView === 'analyse' 
+                                                    ? 'bg-blue-500 text-white' 
+                                                    : 'bg-white text-blue-600 hover:bg-blue-100'
+                                            }`}
+                                            title="Analyse et scores (7 colonnes)"
+                                        >
+                                            Analyse
+                                        </button>
+                                        <button
+                                            onClick={() => setColumnView('actions')}
+                                            className={`text-xs px-2 py-1 rounded-sm transition-colors ${
+                                                columnView === 'actions' 
+                                                    ? 'bg-blue-500 text-white' 
+                                                    : 'bg-white text-blue-600 hover:bg-blue-100'
+                                            }`}
+                                            title="Linkage et actions (4 colonnes)"
+                                        >
+                                            Actions
+                                        </button>
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-1.5">
@@ -1131,6 +1481,68 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                             />
                         );
                     })()}
+                </div>
+            )}
+            {/* Modal d'extraction manuelle depuis le bouton */}
+            {manualExtractPdfId && (() => {
+                const pdfToExtract = pdfInfos.find(p => p.id === manualExtractPdfId);
+                if (!pdfToExtract) return null;
+                
+                return (
+                    <div className="fixed inset-0 z-[60]">
+                        <ExtractDoc
+                            pdf_id={manualExtractPdfId}
+                            pdf_path={pdfToExtract.name_pdf_in_bucket}
+                            autoOpen={true}
+                            openedFromLoopStarter={false}
+                            onClose={() => {
+                                setManualExtractPdfId(null);
+                            }}
+                            onSave={async () => {
+                                setManualExtractPdfId(null);
+                                toast.success('Document extrait avec succès');
+                                await handleRefreshData();
+                            }}
+                        />
+                    </div>
+                );
+            })()}
+            {/* Modal d'association des mots-clés */}
+            {showAssociationModal && (
+                <div className="fixed inset-0 z-[70] bg-black bg-opacity-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-[95%] max-h-[95%] overflow-hidden flex flex-col">
+                        {/* Header du modal */}
+                        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                            <h2 className="text-xl font-semibold text-gray-800">Association des mots-clés</h2>
+                            <button
+                                onClick={() => setShowAssociationModal(false)}
+                                className="text-gray-400 hover:text-gray-600 p-2 rounded-sm hover:bg-gray-100 transition-colors"
+                                title="Fermer"
+                            >
+                                <BoxIcon name="bx-x" size="24" />
+                            </button>
+                        </div>
+                        
+                        {/* Contenu du modal avec scroll */}
+                        <div className="flex-1 overflow-y-auto p-4">
+                            <MetaClusterParamsTab />
+                        </div>
+                        
+                        {/* Footer du modal */}
+                        <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 bg-gray-50">
+                            <button
+                                onClick={() => {
+                                    setShowAssociationModal(false);
+                                    // Rafraîchir les données au cas où des associations auraient été modifiées
+                                    handleRefreshData();
+                                }}
+                                className="px-4 py-2 bg-blue-500 text-white rounded-sm hover:bg-blue-600 transition-colors flex items-center gap-2"
+                            >
+                                <BoxIcon name="bx-check" size="16" />
+                                Fermer et rafraîchir
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

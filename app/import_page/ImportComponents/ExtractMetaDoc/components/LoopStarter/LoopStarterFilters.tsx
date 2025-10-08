@@ -140,6 +140,63 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValue
     );
 };
 
+// Obtenir tous les types de flags possibles pour le filtre
+export const getAllPossibleAlerteFlags = (): Array<{value: string, label: string}> => {
+    return [
+        { value: 'site_inconnu', label: 'Site inconnu' },
+        { value: 'presta_inconnu', label: 'Presta inconnu' },
+        { value: 'operation_inconnue', label: 'Opération inconnue' },
+        { value: 'unite_inconnue', label: 'Unité inconnue' },
+        { value: 'contenant_inconnu', label: 'Contenant inconnu' },
+        { value: 'dechet_inconnu', label: 'Déchet inconnu' },
+        { value: 'tonnage_non_lu', label: 'Tonnage non lu' },
+        { value: 'tonnage_invalide', label: 'Tonnage invalide' },
+        { value: 'tonnage_negatif', label: 'Tonnage négatif' },
+        { value: 'tonnage_eleve', label: 'Tonnage >50t' },
+        { value: 'date_non_lue', label: 'Date non lue' },
+        { value: 'date_invalide', label: 'Date invalide' },
+        { value: 'num_bsd_non_lu', label: 'N° BSD non lu' },
+        { value: 'num_bsd_invalide', label: 'N° BSD invalide' },
+        { value: 'num_bon_non_lu', label: 'N° Bon non lu' },
+        { value: 'num_bon_invalide', label: 'N° Bon invalide' },
+        { value: 'num_facture_non_lu', label: 'N° Facture non lu' },
+        { value: 'num_facture_invalide', label: 'N° Facture invalide' },
+        { value: 'ced_non_lu', label: 'CED non lu' },
+        { value: 'ced_invalide', label: 'CED invalide' },
+        { value: 'calcul_errone', label: 'Calcul erroné' },
+        { value: 'somme_erronee', label: 'Somme erronée' }
+    ];
+};
+
+// Mapper un label de flag vers sa value
+export const getFlagValueFromLabel = (label: string): string => {
+    const mapping: Record<string, string> = {
+        'Site inconnu': 'site_inconnu',
+        'Presta inconnu': 'presta_inconnu',
+        'Opération inconnue': 'operation_inconnue',
+        'Unité inconnue': 'unite_inconnue',
+        'Contenant inconnu': 'contenant_inconnu',
+        'Déchet inconnu': 'dechet_inconnu',
+        'Tonnage non lu': 'tonnage_non_lu',
+        'Tonnage invalide': 'tonnage_invalide',
+        'Tonnage négatif': 'tonnage_negatif',
+        'Tonnage >50t': 'tonnage_eleve',
+        'Date non lue': 'date_non_lue',
+        'Date invalide': 'date_invalide',
+        'N° BSD non lu': 'num_bsd_non_lu',
+        'N° BSD invalide': 'num_bsd_invalide',
+        'N° Bon non lu': 'num_bon_non_lu',
+        'N° Bon invalide': 'num_bon_invalide',
+        'N° Facture non lu': 'num_facture_non_lu',
+        'N° Facture invalide': 'num_facture_invalide',
+        'CED non lu': 'ced_non_lu',
+        'CED invalide': 'ced_invalide',
+        'Calcul erroné': 'calcul_errone',
+        'Somme erronée': 'somme_erronee'
+    };
+    return mapping[label] || label.toLowerCase().replace(/\s+/g, '_');
+};
+
 // Générer les flags d'alertes basés sur le message
 export const getAlerteFlags = (message: string): AlerteFlag[] => {
     if (!message) return [];

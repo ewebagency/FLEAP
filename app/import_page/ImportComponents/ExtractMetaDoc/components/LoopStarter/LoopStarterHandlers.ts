@@ -9,6 +9,7 @@ import { getParamsMappingByEntreprise } from '../../utils/bdd';
 import { smart_split_loop, apply_smart_split } from '../../utils/split';
 import { LinkConfig } from '../../utils/default_auto_link_params';
 import { PdfInfo, ProcessingResult, SiteInfo, FilterOptions } from './LoopStarterTypes';
+import { getAllPossibleAlerteFlags } from './LoopStarterFilters';
 
 // Fonction pour rafraîchir les données depuis la BDD
 export const refreshData = async (
@@ -118,7 +119,8 @@ export const refreshData = async (
                        status === 'splitted_extracted' ? 'Splitted Extrait' :
                        status === 'processed' ? 'Traité' :
                        status === 'error' ? 'Erreur' : status
-            }))
+            })),
+            alerteFlags: getAllPossibleAlerteFlags()
         });
 
     } catch (error) {
