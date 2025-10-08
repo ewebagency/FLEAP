@@ -5,6 +5,7 @@ import PdfDisplayer from '@/app/interface_admin_2/InterfaceAdmin2/PdfDisplayer';
 import { toast } from 'react-hot-toast';
 import BoutonExtractDoc from './BoutonExtractDoc';
 import BoutonSplitDoc from './BoutonSplitDoc';
+import BoutonSmartSplitDoc from './BoutonSmartSplitDoc';
 import Push2RAGButton from './Push2RAGButton';
 import { MetaOcrResponse } from '../interface/pdf_interface';
 // removed PushFactureButton usage in this file per requirements
@@ -109,9 +110,10 @@ interface ExtractDocProps {
     autoOpen?: boolean;
     onClose?: () => void;
     onSave?: (formData: DocInterface) => void;
+    openedFromLoopStarter?: boolean; // Pour afficher le bouton RAG
 }
 
-const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave }: ExtractDocProps) => {
+const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, openedFromLoopStarter = false }: ExtractDocProps) => {
     const [isOpen, setIsOpen] = useState(autoOpen);
     const { entreprise_id } = useSession();
     const [existingData, setExistingData] = useState<DocInterface | null>(null);
@@ -378,7 +380,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave }: Ext
         if (al) setAlerteData(al);
     };
 
-    const FormulaireExtractDoc = ({ onSave, onChange }: { onSave: (formData: DocInterface) => Promise<void>; onChange?: (formData: DocInterface) => void }) => {
+    const FormulaireExtractDoc = ({ onSave, onChange, showRagButton }: { onSave: (formData: DocInterface) => Promise<void>; onChange?: (formData: DocInterface) => void; showRagButton?: boolean }) => {
         const [formData, setFormData] = useState<DocInterface>(() => {
             if (existingData) {
                 return existingData;
@@ -970,8 +972,17 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave }: Ext
                         )}
                     </div>
 
-                    {/* Bouton de sauvegarde */}
-                    <div className="flex justify-end">
+                    {/* Boutons d'action */}
+                    <div className="flex justify-end gap-2">
+                        {showRagButton && (
+                            <Push2RAGButton 
+                                pdfId={String(pdf_id)}
+                                pdfPath={pdf_path}
+                                docData={formData as unknown as Record<string, unknown>}
+                                documentType={formData.type_doc}
+                                disabled={false}
+                            />
+                        )}
                         <button
                             onClick={async () => {
                                 setIsLoading(true);
@@ -1032,6 +1043,14 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave }: Ext
                                 entrepriseId={Number(entreprise_id) || 0}
                                 onSplitComplete={(newPdfIds) => {
                                     console.log('Split terminé:', newPdfIds);
+                                    setIsOpen(false);
+                                }}
+                            />
+                            <BoutonSmartSplitDoc 
+                                pdfId={pdf_id}
+                                entrepriseId={Number(entreprise_id) || 0}
+                                onSplitComplete={(newPdfIds) => {
+                                    console.log('Smart split terminé:', newPdfIds);
                                     setIsOpen(false);
                                 }}
                             />
@@ -1097,7 +1116,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave }: Ext
                             <DisplayDocPDF pdf_path={pdf_path}/>
                         </div>
                         <div className="w-1/2 h-full">
-                            <FormulaireExtractDoc onSave={handleSave} onChange={(fd) => { currentFormRef.current = fd as unknown as Record<string, unknown>; }}/>
+                            <FormulaireExtractDoc onSave={handleSave} onChange={(fd) => { currentFormRef.current = fd as unknown as Record<string, unknown>; }} showRagButton={openedFromLoopStarter}/>
                         </div>
                     </div>
                 </div>

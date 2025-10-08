@@ -1,19 +1,19 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSession } from '@/app/component/SessionProvider';
 import { supabase } from '@/app/database/supabaseClient';
-import { processPdfList } from '../utils/loop';
-import { runMetaOcrForPdf } from '../utils/extract';
-import { autoLinkDocs, BulkAutoLinkOutcome } from '../utils/bulk_autolink';
-import { verifierEtMettreAJourAlerte } from '../utils/alerte';
-import { LINK_CONFIGS, getLinkConfigById } from '../utils/default_auto_link_params';
+import { processPdfList } from '../../utils/loop';
+import { autoLinkDocs, BulkAutoLinkOutcome } from '../../utils/bulk_autolink';
+import { verifierEtMettreAJourAlerte } from '../../utils/alerte';
+import { LINK_CONFIGS, getLinkConfigById } from '../../utils/default_auto_link_params';
 import { toast } from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import BoxIcon from '@/app/component/BoxIconWrapper';
-import { normalizePdfData, buildFactureFromNormalized, push_in_facture_bdd, ParamsMapping } from '../utils/link';
-import { getParamsMappingByEntreprise } from '../utils/bdd';
-import ExtractDoc from './ExtractDoc';
+import { normalizePdfData, buildFactureFromNormalized, push_in_facture_bdd, ParamsMapping } from '../../utils/link';
+import { getParamsMappingByEntreprise } from '../../utils/bdd';
+import ExtractDoc from '../ExtractDoc';
+import { smart_split_loop, apply_smart_split } from '../../utils/split';
 
 
 interface PdfInfo {
@@ -30,6 +30,11 @@ interface PdfInfo {
     provider: Record<string, unknown> | null;
     site_siret_plus: string[] | null;
     alerte: Record<string, unknown> | null;
+    confidence?: {
+        brute?: number;
+        spec?: number;
+        handwritten?: [number, boolean];
+    } | null;
     entreprise_id: number;
     user_id: string;
 }
@@ -156,6 +161,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValues, onCh
                 
                 {isOpen && (
                     <div className="absolute z-50 w-full mt-0.5 bg-white border border-gray-200 rounded-md shadow-sm max-h-60 overflow-hidden">
+                        {options.length >= 6 && (
                         <div className="p-1.5 border-b border-gray-100">
                             <input
                                 type="text"
@@ -166,6 +172,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValues, onCh
                                 onClick={(e) => e.stopPropagation()}
                             />
                         </div>
+                        )}
                         
                         <div className="p-1.5 border-b border-gray-100 flex gap-1">
                             <button
@@ -173,14 +180,14 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValues, onCh
                                 onClick={handleSelectAll}
                                 className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-sm hover:bg-blue-100 transition-colors"
                             >
-                                Tout sélectionner
+                                Tout
                             </button>
                             <button
                                 type="button"
                                 onClick={handleClearAll}
                                 className="text-xs px-2 py-0.5 bg-gray-50 text-gray-600 rounded-sm hover:bg-gray-100 transition-colors"
                             >
-                                Tout effacer
+                                Rien
                             </button>
                         </div>
                         
@@ -235,6 +242,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const [processingAutoPropose, setProcessingAutoPropose] = useState(false);
     const [processingAlertes, setProcessingAlertes] = useState(false);
     const [processingPush, setProcessingPush] = useState(false);
+    const [processingSmartSplit, setProcessingSmartSplit] = useState(false);
     const [autoLinkPhase, setAutoLinkPhase] = useState<'idle' | 'simulation' | 'confirmation' | 'applying'>('idle');
     const [selectedPdfIds, setSelectedPdfIds] = useState<string[]>([]);
     const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([]);
@@ -256,15 +264,53 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const [resumeMode, setResumeMode] = useState<'split_then_extract' | 'extract_only' | null>(null);
     const [showExtractModal, setShowExtractModal] = useState(false);
     
-    // États des filtres multiselect
-    const [filters, setFilters] = useState<FilterState>({
+    // États des filtres multiselect - Chargés depuis localStorage
+    const [filters, setFilters] = useState<FilterState>(() => {
+        try {
+            const saved = localStorage.getItem('loopStarter:filters');
+            if (saved) {
+                return JSON.parse(saved);
+            }
+        } catch (error) {
+            console.error('Erreur chargement filtres:', error);
+        }
+        return {
         alerteStop: null,
         providers: [],
         siteSirets: [],
         documentTypes: [],
         statuses: [],
         pages: ''
+        };
     });
+    
+    // État pour la recherche par nom - Chargé depuis localStorage
+    const [searchName, setSearchName] = useState(() => {
+        try {
+            return localStorage.getItem('loopStarter:searchName') || '';
+        } catch (error) {
+            console.error('Erreur chargement searchName:', error);
+            return '';
+        }
+    });
+    
+    // Sauvegarder les filtres dans localStorage à chaque changement
+    useEffect(() => {
+        try {
+            localStorage.setItem('loopStarter:filters', JSON.stringify(filters));
+        } catch (error) {
+            console.error('Erreur sauvegarde filtres:', error);
+        }
+    }, [filters]);
+    
+    // Sauvegarder la recherche par nom dans localStorage à chaque changement
+    useEffect(() => {
+        try {
+            localStorage.setItem('loopStarter:searchName', searchName);
+        } catch (error) {
+            console.error('Erreur sauvegarde searchName:', error);
+        }
+    }, [searchName]);
 
     // Options pour les filtres (seront remplies depuis la BDD)
     const [filterOptions, setFilterOptions] = useState<FilterOptions>({
@@ -274,122 +320,154 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         statuses: []
     });
 
-    // Charger les PDFs et les options de filtres depuis la BDD
+    // Fonction pour rafraîchir les données depuis la BDD
+    const refreshData = useCallback(async () => {
+        if (!entreprise_id) return;
+        
+        try {
+            console.log('🔄 Début refresh data pour entreprise:', entreprise_id);
+            
+            // Récupérer les PDFs
+            const { data: pdfData, error: pdfError } = await supabase
+                .from('pdf_infos')
+                .select('*')
+                .eq('entreprise_id', entreprise_id)
+                .order('created_at', { ascending: false });
+
+            if (pdfError) throw pdfError;
+            
+            console.log('📊 PDFs récupérés:', pdfData?.length, 'documents');
+            if (pdfData && pdfData.length > 0) {
+                console.log('📋 Exemple premier PDF:', {
+                    id: pdfData[0].id,
+                    name: pdfData[0].name_pdf,
+                    status: pdfData[0].status,
+                    alerte: pdfData[0].alerte,
+                    confidence: pdfData[0].confidence
+                });
+            }
+            
+            setPdfInfos(pdfData || []);
+
+            // Récupérer les sites depuis table_autocompletion
+            const { data: siteData, error: siteError } = await supabase
+                .from('table_autocompletion')
+                .select('site')
+                .eq('entreprise_id', entreprise_id);
+
+            if (siteError) throw siteError;
+            
+            const siteInfos: SiteInfo[] = [];
+            const uniqueSites = new Set<string>();
+            siteData?.forEach(item => {
+                if (item.site?.siret && item.site?.nom) {
+                    siteInfos.push({
+                        siret: item.site.siret,
+                        name: item.site.nom
+                    });
+                    uniqueSites.add(item.site.siret);
+                }
+            });
+            setSites(siteInfos);
+
+            // Extraire les providers uniques des PDFs
+            const uniqueProviders = new Set<string>();
+            pdfData?.forEach(pdf => {
+                if (pdf.provider && typeof pdf.provider === 'object') {
+                    const providerName = Object.values(pdf.provider).join(' ').trim();
+                    if (providerName) {
+                        uniqueProviders.add(providerName);
+                    }
+                }
+            });
+
+            // Extraire les types de documents uniques depuis la BDD (exclure excel)
+            const uniqueDocumentTypes = new Set<string>();
+            pdfData?.forEach(pdf => {
+                if (pdf.document_type && pdf.document_type !== 'excel') {
+                    uniqueDocumentTypes.add(pdf.document_type);
+                }
+            });
+
+            // Extraire les statuts uniques depuis la BDD
+            const uniqueStatuses = new Set<string>();
+            pdfData?.forEach(pdf => {
+                if (pdf.status) {
+                    uniqueStatuses.add(pdf.status);
+                }
+            });
+
+            // Mettre à jour les options de filtres avec les données de la BDD
+            setFilterOptions({
+                providers: Array.from(uniqueProviders).map(name => ({ id: name, name })),
+                sites: Array.from(uniqueSites).map(siret => {
+                    const site = siteInfos.find(s => s.siret === siret);
+                    return { id: siret, name: site?.name || siret };
+                }),
+                documentTypes: Array.from(uniqueDocumentTypes).map(type => ({ 
+                    value: type, 
+                    label: type === 'bon' ? 'Bon' :
+                           type === 'bsd' ? 'BSD' :
+                           type === 'facture' ? 'Facture' :
+                           type === 'inconnu' ? 'Inconnu' :
+                           type === 'conformite' ? 'Conformité' :
+                           type === 'autre' ? 'Autre' : type
+                })),
+                statuses: Array.from(uniqueStatuses).map(status => ({ 
+                    value: status, 
+                    label: status === 'unread' ? 'Non lu' :
+                           status === 'read' ? 'Lu' :
+                           status === 'extracted' ? 'Extrait' :
+                           status === 'linked' ? 'Lié' :
+                           status === 'splitted' ? 'Splitted' :
+                           status === 'splitted_extracted' ? 'Splitted Extrait' :
+                           status === 'processed' ? 'Traité' :
+                           status === 'error' ? 'Erreur' : status
+                }))
+            });
+
+        } catch (error) {
+            console.error('❌ Erreur lors du rafraîchissement des données:', error);
+            toast.error('Erreur lors du rafraîchissement des données');
+            return;
+        }
+        
+        // Confirmation finale
+        console.log('✅ Refresh data terminé avec succès');
+    }, [entreprise_id]);
+
+    // Charger les PDFs et les options de filtres depuis la BDD au montage
     useEffect(() => {
         const fetchData = async () => {
             if (!entreprise_id) return;
             
             setLoading(true);
             try {
-                const entrepriseIdNumber = Number(entreprise_id);
-                if (isNaN(entrepriseIdNumber)) {
-                    console.error('entreprise_id invalide:', entreprise_id);
-                    return;
-                }
-                
-                // Récupérer les PDFs
-                const { data: pdfData, error: pdfError } = await supabase
-                    .from('pdf_infos')
-                    .select('*')
-                    .eq('entreprise_id', entrepriseIdNumber)
-                    .order('created_at', { ascending: false });
-
-                if (pdfError) throw pdfError;
-                setPdfInfos(pdfData || []);
-
-                // Récupérer les sites depuis table_autocompletion
-                const { data: siteData, error: siteError } = await supabase
-                    .from('table_autocompletion')
-                    .select('site')
-                    .eq('entreprise_id', entrepriseIdNumber);
-
-                if (siteError) throw siteError;
-                
-                const siteInfos: SiteInfo[] = [];
-                const uniqueSites = new Set<string>();
-                siteData?.forEach(item => {
-                    if (item.site?.siret && item.site?.nom) {
-                        siteInfos.push({
-                            siret: item.site.siret,
-                            name: item.site.nom
-                        });
-                        uniqueSites.add(item.site.siret);
-                    }
-                });
-                setSites(siteInfos);
-
-                // Extraire les providers uniques des PDFs
-                const uniqueProviders = new Set<string>();
-                pdfData?.forEach(pdf => {
-                    if (pdf.provider && typeof pdf.provider === 'object') {
-                        const providerName = Object.values(pdf.provider).join(' ').trim();
-                        if (providerName) {
-                            uniqueProviders.add(providerName);
-                        }
-                    }
-                });
-
-                // Extraire les types de documents uniques depuis la BDD (exclure excel)
-                const uniqueDocumentTypes = new Set<string>();
-                pdfData?.forEach(pdf => {
-                    if (pdf.document_type && pdf.document_type !== 'excel') {
-                        uniqueDocumentTypes.add(pdf.document_type);
-                    }
-                });
-
-                // Extraire les statuts uniques depuis la BDD
-                const uniqueStatuses = new Set<string>();
-                pdfData?.forEach(pdf => {
-                    if (pdf.status) {
-                        uniqueStatuses.add(pdf.status);
-                    }
-                });
-
-                // Mettre à jour les options de filtres avec les données de la BDD
-                setFilterOptions({
-                    providers: Array.from(uniqueProviders).map(name => ({ id: name, name })),
-                    sites: Array.from(uniqueSites).map(siret => {
-                        const site = siteInfos.find(s => s.siret === siret);
-                        return { id: siret, name: site?.name || siret };
-                    }),
-                    documentTypes: Array.from(uniqueDocumentTypes).map(type => ({ 
-                        value: type, 
-                        label: type === 'bon' ? 'Bons de livraison' :
-                               type === 'bsd' ? 'BSD' :
-                               type === 'facture' ? 'Factures' :
-                               type === 'inconnu' ? 'Inconnu' :
-                               type === 'conformite' ? 'Conformité' :
-                               type === 'autre' ? 'Autre' : type
-                    })),
-                    statuses: Array.from(uniqueStatuses).map(status => ({ 
-                        value: status, 
-                        label: status === 'unread' ? 'Non lu' :
-                               status === 'read' ? 'Lu' :
-                               status === 'extracted' ? 'Extrait' :
-                               status === 'linked' ? 'Lié' :
-                               status === 'splitted' ? 'Splitted' :
-                               status === 'splitted_extracted' ? 'Splitted Extrait' :
-                               status === 'processed' ? 'Traité' :
-                               status === 'error' ? 'Erreur' : status
-                    }))
-                });
-
+                await refreshData();
             } catch (error) {
-                console.error('Erreur lors du chargement des données:', error);
-                toast.error('Erreur lors du chargement des données');
+                console.error('Erreur lors du chargement initial des données:', error);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchData();
-    }, [entreprise_id]);
+    }, [entreprise_id, refreshData]);
 
     // Filtrer les PDFs selon les critères multiselect
     const filteredPdfs = useMemo(() => {
         return pdfInfos.filter(pdf => {
             // Exclure systématiquement les fichiers Excel
             if (pdf.document_type === 'excel') return false;
+            
+            // Filtre par nom (recherche)
+            if (searchName.trim()) {
+                const pdfName = (pdf.name_pdf || '').toLowerCase();
+                if (!pdfName.includes(searchName.toLowerCase().trim())) {
+                    return false;
+                }
+            }
+            
             // Filtre alerte.stop
             if (filters.alerteStop !== null) {
                 const alerteStop = pdf.alerte?.stop === true;
@@ -438,7 +516,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
             return true;
         });
-    }, [pdfInfos, filters]);
+    }, [pdfInfos, filters, searchName]);
 
     // Gérer la sélection/désélection de tous les PDFs
     const handleSelectAll = () => {
@@ -458,7 +536,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         );
     };
 
-    const anyProcessing = processingSplitThenExtract || processingSplitOnly || processingExtractOnly || processingAutoPropose;
+    const anyProcessing = processingSplitThenExtract || processingSplitOnly || processingExtractOnly || processingAutoPropose || processingSmartSplit;
 
     // Traiter les PDFs sélectionnés
     const handleProcessPdfs = async () => {
@@ -513,6 +591,10 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             
             if (result.success) {
                 toast.success(`Traitement terminé : ${result.processedCount} PDFs traités avec succès`);
+                // Rafraîchir les données
+                toast.loading('Rafraîchissement des données...', { id: 'refresh-split-extract' });
+                await refreshData();
+                toast.success('Données rafraîchies', { id: 'refresh-split-extract' });
                 // Enchaîner automatiquement avec la vérification des alertes
                 try {
                     // Lancer la vérification pour les mêmes IDs sélectionnés
@@ -520,6 +602,10 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                         await verifierEtMettreAJourAlerte(pdfId, entreprise_id);
                     }
                     toast.success('Vérification des alertes terminée');
+                    // Rafraîchir à nouveau après les alertes
+                    toast.loading('Rafraîchissement des données...', { id: 'refresh-post-alertes' });
+                    await refreshData();
+                    toast.success('Données rafraîchies', { id: 'refresh-post-alertes' });
                 } catch (e) {
                     console.error('Erreur lors de la vérification automatique des alertes:', e);
                     toast.error('Erreur lors de la vérification des alertes');
@@ -612,6 +698,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
             if (result.success) {
                 toast.success(`Division terminée : ${result.processedCount} PDF(s)`);
+                toast.loading('Rafraîchissement des données...', { id: 'refresh-split' });
+                await refreshData();
+                toast.success('Données rafraîchies', { id: 'refresh-split' });
                 setSelectedPdfIds([]);
             } else {
                 toast.error(result.message || 'Division terminée avec des erreurs');
@@ -621,6 +710,169 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             toast.error('Erreur lors de la division des PDFs');
         } finally {
             setProcessingSplitOnly(false);
+        }
+    };
+
+    // Smart Split - Division intelligente avec détection de type
+    const handleSmartSplit = async () => {
+        if (selectedPdfIds.length === 0) {
+            toast.error('Veuillez sélectionner au moins un PDF');
+            return;
+        }
+
+        if (!entreprise_id) {
+            toast.error('ID entreprise manquant');
+            return;
+        }
+
+        setProcessingSmartSplit(true);
+        
+        try {
+            const entrepriseIdNumber = parseInt(entreprise_id);
+            
+            // Phase 1: Analyser les PDFs et obtenir les propositions de segmentation
+            toast('Analyse des documents en cours...', { icon: '🔍' });
+            const analysisResult = await smart_split_loop(selectedPdfIds, entrepriseIdNumber);
+
+            // Afficher les erreurs s'il y en a, mais continuer si on a au moins un résultat
+            if (analysisResult.errors.length > 0) {
+                analysisResult.errors.forEach(err => {
+                    const pdfName = pdfInfos.find(p => p.id === err.pdfId)?.name_pdf || err.pdfId;
+                    toast.error(`${pdfName}: ${err.error}`);
+                });
+            }
+
+            // S'arrêter UNIQUEMENT si AUCUN PDF n'a réussi
+            if (analysisResult.results.length === 0) {
+                toast.error('Aucun PDF n\'a pu être analysé');
+                return;
+            }
+
+            // Phase 2: Préparer la preview pour SweetAlert2
+            const previewHtml = analysisResult.results.map(result => {
+                const pdf = pdfInfos.find(p => p.id === result.pdfId);
+                const pdfName = pdf?.name_pdf || result.pdfId;
+
+                if (!result.segments || result.segments.length === 0) {
+                    return `<div class="mb-2 p-2 bg-gray-50 rounded text-sm text-gray-600">📄 ${pdfName} - Aucun segment</div>`;
+                }
+
+                const segmentsHtml = result.segments.map((segment) => {
+                    const typeEmoji = segment.type === 'facture' ? '💰' : segment.type === 'bon' ? '📦' : segment.type === 'bsd' ? '📋' : '📄';
+                    const pagesText = segment.pages.length === 1 ? `P${segment.pages[0] + 1}` : `P${segment.pages[0] + 1}-${segment.pages[segment.pages.length - 1] + 1}`;
+                    return `<div class="flex items-center justify-between text-xs py-1"><span>${typeEmoji} ${segment.type}</span><span class="text-gray-500">${pagesText}</span></div>`;
+                }).join('');
+
+                return `<div class="mb-2 p-2 bg-gray-50 rounded"><div class="font-medium text-sm mb-1">📄 ${pdfName}</div>${segmentsHtml}</div>`;
+            }).join('');
+
+            // Compter les segments totaux et temps de traitement
+            const totalSegments = analysisResult.results.reduce((sum, r) => sum + (r.segments?.length || 0), 0);
+            const totalTime = analysisResult.results.reduce((sum, r) => sum + (r.metadata?.processing_time || 0), 0);
+
+            // Collecter toutes les alertes de vérification logique
+            const allAlerts = analysisResult.results.flatMap(r => r.metadata?.alerts || []);
+            const hasAlerts = allAlerts.length > 0;
+
+            // HTML pour les alertes de cohérence (compact)
+            const alertsHtml = hasAlerts ? `
+                <div class="mb-2 p-2 bg-orange-50 rounded border-l-2 border-orange-400">
+                    <div class="font-medium text-sm text-orange-800 mb-1">⚠️ ${allAlerts.length} incohérence(s) Gemini/Logique</div>
+                    <div class="max-h-24 overflow-y-auto text-xs text-orange-700 space-y-0.5">
+                        ${allAlerts.map(alert => `<div>P${alert.page_idx + 1}: ${alert.gemini_type} vs ${alert.logic_type}</div>`).join('')}
+                    </div>
+                </div>
+            ` : `
+                <div class="mb-2 p-2 bg-green-50 rounded border-l-2 border-green-400">
+                    <div class="text-sm text-green-800">✅ Vérification OK</div>
+                </div>
+            `;
+
+            // Phase 3: Afficher la preview et demander confirmation
+            const confirmed = await Swal.fire({
+                title: 'Smart Split',
+                html: `
+                    <div class="text-left">
+                        <div class="mb-2 p-2 bg-blue-50 rounded text-sm">
+                            <span class="font-medium">📊</span> ${analysisResult.results.length} doc(s) • ${totalSegments} segment(s) • ${totalTime.toFixed(1)}s
+                        </div>
+                        
+                        ${alertsHtml}
+                        
+                        <div class="mb-2 max-h-80 overflow-y-auto">
+                            ${previewHtml}
+                        </div>
+                        
+                        <div class="p-2 bg-yellow-50 rounded text-xs text-yellow-800">
+                            ⚠️ Action irréversible - Les PDFs seront divisés selon les segments détectés
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: '✅ Confirmer',
+                cancelButtonText: '❌ Annuler',
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#ef4444',
+                width: '700px',
+                customClass: {
+                    popup: 'text-left',
+                    htmlContainer: 'text-left'
+                }
+            });
+
+            if (!confirmed.isConfirmed) {
+                toast('Smart split annulé par l\'utilisateur', { icon: '❌' });
+                setSelectedPdfIds([]);
+                return;
+            }
+
+            // Phase 4: Appliquer le split intelligent
+            toast('Application du smart split...', { icon: '⏳' });
+            
+            let successCount = 0;
+            let errorCount = 0;
+            
+            for (const result of analysisResult.results) {
+                if (!result.segments || result.segments.length === 0) continue;
+
+                try {
+                    const pdf = pdfInfos.find(p => p.id === result.pdfId);
+                    if (!pdf) {
+                        errorCount++;
+                        continue;
+                    }
+
+                    const splitResult = await apply_smart_split(pdf as PdfInfo, result.segments);
+                    
+                    if (splitResult.success) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                        console.error('Erreur apply_smart_split:', splitResult.error);
+                    }
+                } catch (error) {
+                    errorCount++;
+                    console.error('Erreur lors du smart split:', error);
+                }
+            }
+
+            if (successCount > 0) {
+                toast.success(`Smart split réussi : ${successCount} document(s) divisé(s)`);
+                toast.loading('Rafraîchissement des données...', { id: 'refresh-smart-split' });
+                await refreshData();
+                toast.success('Données rafraîchies', { id: 'refresh-smart-split' });
+                setSelectedPdfIds([]);
+            }
+            
+            if (errorCount > 0) {
+                toast.error(`${errorCount} erreur(s) lors du smart split`);
+            }
+
+        } catch (error) {
+            console.error('Erreur smart split:', error);
+            toast.error('Erreur lors du smart split');
+        } finally {
+            setProcessingSmartSplit(false);
         }
     };
 
@@ -672,6 +924,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
             if (result.success) {
                 toast.success(`Extraction terminée : ${result.processedCount} PDF(s)`);
+                toast.loading('Rafraîchissement des données...', { id: 'refresh-extract' });
+                await refreshData();
+                toast.success('Données rafraîchies', { id: 'refresh-extract' });
                 setSelectedPdfIds([]);
             } else {
                 const ragErr = result.errors.find(e => e.error && e.error.toLowerCase && e.error.toLowerCase().includes('rag'));
@@ -919,6 +1174,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
             if (realOutcome.success) {
                 toast.success(`Auto-link appliqué : ${realOutcome.processedCount} document(s) traités`);
+                toast.loading('Rafraîchissement des données...', { id: 'refresh-autolink' });
+                await refreshData();
+                toast.success('Données rafraîchies', { id: 'refresh-autolink' });
                 setSelectedPdfIds([]);
             } else {
                 toast.error(realOutcome.message || 'Auto-link appliqué avec des erreurs');
@@ -1075,7 +1333,6 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
                     let created = 0;
                     let updated = 0;
-                    let skipped = 0;
 
                     for (const idx of indices) {
                         try {
@@ -1096,7 +1353,6 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                             const existingId = existingIndexToId.get(idx);
                             if (existingId) {
                                 if (!overwriteAllowed) {
-                                    skipped += 1;
                                     continue;
                                 }
                                 const { error: updateErr } = await supabase
@@ -1111,7 +1367,6 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                             }
                         } catch (e) {
                             console.error('Erreur push facture index', idx, e);
-                            skipped += 1;
                             continue;
                         }
                     }
@@ -1135,7 +1390,12 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                 }
             }
 
-            if (successCount > 0) toast.success(`${successCount} facture(s) poussée(s)`);
+            if (successCount > 0) {
+                toast.success(`${successCount} facture(s) poussée(s)`);
+                toast.loading('Rafraîchissement des données...', { id: 'refresh-push' });
+                await refreshData();
+                toast.success('Données rafraîchies', { id: 'refresh-push' });
+            }
             if (errorCount > 0) toast.error(`${errorCount} erreur(s) lors du push`);
             setSelectedPdfIds([]);
         } catch (error) {
@@ -1202,6 +1462,11 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             setProcessingResults(detailedResults);
             setShowReview(true);
             
+            // Rafraîchir les données dans tous les cas
+            toast.loading('Rafraîchissement des données...', { id: 'refresh-alertes' });
+            await refreshData();
+            toast.success('Données rafraîchies', { id: 'refresh-alertes' });
+            
             if (errorCount === 0) {
                 toast.success(`Vérification des alertes terminée : ${successCount} PDFs vérifiés avec succès`);
             } else {
@@ -1223,39 +1488,79 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         return site ? site.name : siret;
     };
 
-    // Charger les données détaillées d'un PDF après traitement
-    const loadDetailedPdfData = async (pdfId: string) => {
-        try {
-            if (!entreprise_id) return null;
-            const entrepriseIdNumber = Number(entreprise_id);
-            if (isNaN(entrepriseIdNumber)) return null;
-            
-            const { data, error } = await supabase
-                .from('pdf_infos')
-                .select('*')
-                .eq('id', pdfId)
-                .eq('entreprise_id', entrepriseIdNumber)
-                .single();
-
-            if (error || !data) return null;
-
-            return {
-                confidence: data.confidence,
-                alerte: data.alerte,
-                infos_raw: data.infos_raw,
-                status: data.status
-            };
-        } catch (error) {
-            console.error('Erreur lors du chargement des données détaillées:', error);
-            return null;
-        }
+    // Réinitialiser tous les filtres
+    const handleResetFilters = () => {
+        setFilters({
+            alerteStop: null,
+            providers: [],
+            siteSirets: [],
+            documentTypes: [],
+            statuses: [],
+            pages: ''
+        });
+        setSearchName('');
     };
-
-    // Obtenir le niveau de confiance en texte
-    const getConfidenceLevel = (confidence: { brute: number; spec: number }) => {
-        if (confidence.brute >= 80 && confidence.spec >= 80) return 'Élevée';
-        if (confidence.brute >= 60 && confidence.spec >= 60) return 'Moyenne';
-        return 'Faible';
+    
+    // Générer les flags d'alertes basés sur le message
+    const getAlerteFlags = (message: string): Array<{label: string, color: string}> => {
+        if (!message) return [];
+        
+        const flags: Array<{label: string, color: string}> = [];
+        const lowerMessage = message.toLowerCase();
+        
+        // Associations manquantes (non reconnu = lu mais pas de mapping)
+        if (lowerMessage.includes('non reconnu')) {
+            if (lowerMessage.includes('site')) flags.push({ label: 'Site inconnu', color: 'bg-red-100 text-red-700' });
+            if (lowerMessage.includes('prestataire')) flags.push({ label: 'Presta inconnu', color: 'bg-red-100 text-red-700' });
+            if (lowerMessage.includes('opération')) flags.push({ label: 'Opération inconnue', color: 'bg-red-100 text-red-700' });
+            if (lowerMessage.includes('unité')) flags.push({ label: 'Unité inconnue', color: 'bg-red-100 text-red-700' });
+            if (lowerMessage.includes('contenant')) flags.push({ label: 'Contenant inconnu', color: 'bg-red-100 text-red-700' });
+            if (lowerMessage.includes('déchet')) flags.push({ label: 'Déchet inconnu', color: 'bg-red-100 text-red-700' });
+        }
+        
+        // Tonnage
+        if (lowerMessage.includes('tonnage')) {
+            if (lowerMessage.includes('manquant')) flags.push({ label: 'Tonnage non lu', color: 'bg-orange-100 text-orange-700' });
+            else if (lowerMessage.includes('non numérique')) flags.push({ label: 'Tonnage invalide', color: 'bg-orange-100 text-orange-700' });
+            else if (lowerMessage.includes('négatif')) flags.push({ label: 'Tonnage négatif', color: 'bg-orange-100 text-orange-700' });
+            else if (lowerMessage.includes('trop élevé')) flags.push({ label: 'Tonnage >50t', color: 'bg-orange-100 text-orange-700' });
+        }
+        
+        // Date
+        if (lowerMessage.includes('date')) {
+            if (lowerMessage.includes('manquante')) flags.push({ label: 'Date non lue', color: 'bg-yellow-100 text-yellow-700' });
+            else if (lowerMessage.includes('invalide')) flags.push({ label: 'Date invalide', color: 'bg-yellow-100 text-yellow-700' });
+        }
+        
+        // Numéros
+        if (lowerMessage.includes('numéro bsd') || lowerMessage.includes('num_bsd')) {
+            if (lowerMessage.includes('manquant')) flags.push({ label: 'N° BSD non lu', color: 'bg-purple-100 text-purple-700' });
+            else if (lowerMessage.includes('insuffisant')) flags.push({ label: 'N° BSD invalide', color: 'bg-purple-100 text-purple-700' });
+        }
+        if (lowerMessage.includes('numéro de bon') || lowerMessage.includes('num_bon')) {
+            if (lowerMessage.includes('manquant')) flags.push({ label: 'N° Bon non lu', color: 'bg-purple-100 text-purple-700' });
+            else if (lowerMessage.includes('insuffisant')) flags.push({ label: 'N° Bon invalide', color: 'bg-purple-100 text-purple-700' });
+        }
+        if (lowerMessage.includes('numéro de facture') || lowerMessage.includes('num_facture')) {
+            if (lowerMessage.includes('manquant')) flags.push({ label: 'N° Facture non lu', color: 'bg-purple-100 text-purple-700' });
+            else if (lowerMessage.includes('insuffisant')) flags.push({ label: 'N° Facture invalide', color: 'bg-purple-100 text-purple-700' });
+        }
+        
+        // Code CED
+        if (lowerMessage.includes('code ced') || lowerMessage.includes('ced')) {
+            if (lowerMessage.includes('manquant')) flags.push({ label: 'CED non lu', color: 'bg-pink-100 text-pink-700' });
+            else if (lowerMessage.includes('invalide')) flags.push({ label: 'CED invalide', color: 'bg-pink-100 text-pink-700' });
+        }
+        
+        // Calculs
+        if (lowerMessage.includes('calcul incorrect')) {
+            flags.push({ label: 'Calcul erroné', color: 'bg-blue-100 text-blue-700' });
+        }
+        if (lowerMessage.includes('somme incorrecte')) {
+            flags.push({ label: 'Somme erronée', color: 'bg-blue-100 text-blue-700' });
+        }
+        
+        return flags;
     };
 
     if (!isOpen) return null;
@@ -1275,7 +1580,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-sm w-full max-w-6xl max-h-[90vh] overflow-y-auto border border-gray-100">
+            <div className="bg-white rounded-lg shadow-sm w-full h-full max-w-[95%] max-h-[95%] overflow-y-auto border border-gray-100">
                 <div className="p-3">
                     <div className="flex items-center justify-between mb-3">
                         <h2 className="text-xl font-semibold text-gray-700">
@@ -1291,81 +1596,6 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                         )}
                     </div>
 
-                    {/* Filtres multiselect en une ligne */}
-                    <div className="mb-3">
-                        <div className="grid grid-cols-6 gap-1.5">
-                            {/* Filtre statuses multiselect */}
-                            <MultiSelect
-                                options={filterOptions.statuses}
-                                selectedValues={filters.statuses}
-                                onChange={(values) => setFilters(prev => ({ ...prev, statuses: values }))}
-                                placeholder="Tous les statuts"
-                                label="Statuts"
-                            />
-
-                            {/* Filtre document_types multiselect */}
-                            <MultiSelect
-                                options={filterOptions.documentTypes}
-                                selectedValues={filters.documentTypes}
-                                onChange={(values) => setFilters(prev => ({ ...prev, documentTypes: values }))}
-                                placeholder="Tous les types"
-                                label="Types"
-                            />
-
-                            {/* Filtre sites multiselect */}
-                            <MultiSelect
-                                options={filterOptions.sites}
-                                selectedValues={filters.siteSirets}
-                                onChange={(values) => setFilters(prev => ({ ...prev, siteSirets: values }))}
-                                placeholder="Tous les sites"
-                                label="Sites"
-                            />
-
-                            {/* Filtre providers multiselect */}
-                            <MultiSelect
-                                options={filterOptions.providers}
-                                selectedValues={filters.providers}
-                                onChange={(values) => setFilters(prev => ({ ...prev, providers: values }))}
-                                placeholder="Tous les providers"
-                                label="Providers"
-                            />
-
-                            {/* Filtre alerte.stop */}
-                            <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                    Alerte Stop
-                                </label>
-                                <select
-                                    value={filters.alerteStop === null ? '' : filters.alerteStop.toString()}
-                                    onChange={(e) => setFilters(prev => ({
-                                        ...prev,
-                                        alerteStop: e.target.value === '' ? null : e.target.value === 'true'
-                                    }))}
-                                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 hover:border-gray-300 transition-colors"
-                                >
-                                    <option value="">Tous</option>
-                                    <option value="true">Avec alerte</option>
-                                    <option value="false">Sans alerte</option>
-                                </select>
-                            </div>
-                            {/* Filtre nombre de pages */}
-                            <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                    Nombre de pages
-                                </label>
-                                <select
-                                    value={filters.pages}
-                                    onChange={(e) => setFilters(prev => ({ ...prev, pages: e.target.value as FilterState['pages'] }))}
-                                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 hover:border-gray-300 transition-colors"
-                                >
-                                    <option value="">Tous</option>
-                                    <option value="one">1 page</option>
-                                    <option value="multi">Plusieurs</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
                     {/* Tableau des PDFs */}
                     <div className="bg-white border border-gray-100 rounded-md overflow-hidden">
                         <div className="bg-gray-50 px-3 py-2 border-b border-gray-100">
@@ -1379,48 +1609,175 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     />
                                     <span className="font-medium text-gray-600 text-sm">Sélectionner tous</span>
                                 </div>
-                                <span className="text-xs text-gray-400">
-                                    {filteredPdfs.length} document{filteredPdfs.length > 1 ? 's' : ''}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-400">
+                                        {filteredPdfs.length} document{filteredPdfs.length > 1 ? 's' : ''}
+                                    </span>
+                                    <button
+                                        onClick={async () => {
+                                            toast.loading('Rafraîchissement manuel...', { id: 'refresh-manual' });
+                                            await refreshData();
+                                            toast.success('Données rafraîchies !', { id: 'refresh-manual' });
+                                        }}
+                                        className="text-xs px-2 py-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-sm transition-colors flex items-center gap-1"
+                                        title="Rafraîchir les données"
+                                    >
+                                        <BoxIcon name="bx-refresh" size="14" />
+                                        Refresh
+                                    </button>
+                                    <button
+                                        onClick={handleResetFilters}
+                                        className="text-xs px-2 py-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-sm transition-colors flex items-center gap-1"
+                                        title="Réinitialiser les filtres"
+                                    >
+                                        <BoxIcon name="bx-reset" size="14" />
+                                        Reset
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="max-h-[300px] overflow-y-auto">
+                        <div className="max-h-[calc(95vh-350px)] overflow-y-auto">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedPdfIds.length === filteredPdfs.length && filteredPdfs.length > 0}
+                                                onChange={handleSelectAll}
+                                                className="h-3.5 w-3.5 text-blue-500 focus:ring-0.5 focus:ring-blue-300 border-gray-200 rounded-sm"
+                                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[200px]">
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Nom</div>
+                                            <input
+                                                type="text"
+                                                placeholder="Rechercher..."
+                                                value={searchName}
+                                                onChange={(e) => setSearchName(e.target.value)}
+                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left min-w-[140px] bg-gray-50">
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Statut</div>
+                            <MultiSelect
+                                options={filterOptions.statuses}
+                                selectedValues={filters.statuses}
+                                onChange={(values) => setFilters(prev => ({ ...prev, statuses: values }))}
+                                                placeholder="Tous"
+                                                label=""
+                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left min-w-[120px] bg-gray-50">
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Type</div>
+                            <MultiSelect
+                                options={filterOptions.documentTypes}
+                                selectedValues={filters.documentTypes}
+                                onChange={(values) => setFilters(prev => ({ ...prev, documentTypes: values }))}
+                                                placeholder="Tous"
+                                                label=""
+                                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50">
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Pages</div>
+                                            <select
+                                                value={filters.pages}
+                                                onChange={(e) => setFilters(prev => ({ ...prev, pages: e.target.value as FilterState['pages'] }))}
+                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                            >
+                                                <option value="">Tous</option>
+                                                <option value="one">1</option>
+                                                <option value="multi">+</option>
+                                            </select>
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left min-w-[140px] bg-gray-50">
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Site</div>
+                            <MultiSelect
+                                options={filterOptions.sites}
+                                selectedValues={filters.siteSirets}
+                                onChange={(values) => setFilters(prev => ({ ...prev, siteSirets: values }))}
+                                                placeholder="Tous"
+                                                label=""
+                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left min-w-[140px] bg-gray-50">
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Provider</div>
+                            <MultiSelect
+                                options={filterOptions.providers}
+                                selectedValues={filters.providers}
+                                onChange={(values) => setFilters(prev => ({ ...prev, providers: values }))}
+                                                placeholder="Tous"
+                                                label=""
+                                            />
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[100px]">
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Confiance</div>
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50">
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Temps</div>
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left min-w-[180px] bg-gray-50">
+                                            <div className="text-xs font-medium text-gray-600 mb-1">Alerte</div>
+                                <select
+                                    value={filters.alerteStop === null ? '' : filters.alerteStop.toString()}
+                                    onChange={(e) => setFilters(prev => ({
+                                        ...prev,
+                                        alerteStop: e.target.value === '' ? null : e.target.value === 'true'
+                                    }))}
+                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                >
+                                    <option value="">Tous</option>
+                                                <option value="true">Avec</option>
+                                                <option value="false">Sans</option>
+                                </select>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                             {filteredPdfs.length === 0 ? (
-                                <div className="p-8 text-center text-gray-500">
+                                        <tr>
+                                            <td colSpan={10} className="p-8 text-center text-gray-500">
                                     <BoxIcon name="bx-file" size="48" className="mx-auto mb-4 text-gray-300" />
                                     <p className="text-lg font-medium">Aucun PDF trouvé</p>
                                     <p className="text-sm">Aucun PDF ne correspond aux critères de filtrage sélectionnés</p>
-                                </div>
-                            ) : (
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-100">
-                                        <tr>
-                                            <th className="px-3 py-2 text-left">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedPdfIds.length === filteredPdfs.length && filteredPdfs.length > 0}
-                                                    onChange={handleSelectAll}
-                                                    className="h-3.5 w-3.5 text-blue-500 focus:ring-0.5 focus:ring-blue-300 border-gray-200 rounded-sm"
-                                                />
-                                            </th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Nom du document</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Statut</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Type</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Pages</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Site</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Provider</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Date</th>
-                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Alerte</th>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredPdfs.map((pdf) => (
+                                    ) : 
+                                        filteredPdfs.map((pdf: PdfInfo) => {
+                                            // Calcul du temps écoulé
+                                            const timeElapsed = Date.now() - new Date(pdf.created_at).getTime();
+                                            const hours = Math.floor(timeElapsed / (1000 * 60 * 60));
+                                            const days = Math.floor(hours / 24);
+                                            const remainingHours = hours % 24;
+                                            const timeDisplay = days > 0 ? `${days}j ${remainingHours}h` : `${hours}h`;
+                                            
+                                            // Code couleur selon le statut
+                                            const timeColor = 
+                                                pdf.status === 'linked' || pdf.status === 'pushed' ? 'text-green-600' :
+                                                pdf.status === 'read' || pdf.status === 'splitted_extracted' || pdf.status === 'extracted' ? 'text-orange-600' :
+                                                'text-red-600';
+                                            
+                                            // Extraction du nom du provider
+                                            const providerName = pdf.provider && typeof pdf.provider === 'object' 
+                                                ? (pdf.provider as Record<string, unknown>).nom || (pdf.provider as Record<string, unknown>).name || Object.values(pdf.provider)[0]
+                                                : null;
+                                            
+                                            // Message d'alerte
+                                            const alerteMessage = pdf.alerte && typeof pdf.alerte === 'object' && 'message' in pdf.alerte 
+                                                ? (pdf.alerte as { message?: string }).message || ''
+                                                : '';
+                                            const alerteFlags = getAlerteFlags(alerteMessage);
+                                            
+                                            // Scores de confiance
+                                            const confidence = pdf.confidence as { brute?: number; spec?: number; handwritten?: [number, boolean] } | null | undefined;
+                                            
+                                            return (
                                             <tr
                                                 key={pdf.id}
                                                 className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
                                             >
-                                                <td className="px-3 py-2">
+                                                    <td className="px-2 py-2">
                                                     <input
                                                         type="checkbox"
                                                         checked={selectedPdfIds.includes(pdf.id)}
@@ -1428,14 +1785,14 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         className="h-3.5 w-3.5 text-blue-500 focus:ring-0.5 focus:ring-blue-300 border-gray-200 rounded-sm"
                                                     />
                                                 </td>
-                                                <td className="px-3 py-2">
-                                                    <div className="font-medium text-gray-900 text-sm truncate max-w-xs" title={pdf.name_pdf || 'Document sans nom'}>
+                                                    <td className="px-2 py-2">
+                                                        <div className="font-medium text-gray-900 text-xs truncate max-w-[200px]" title={pdf.name_pdf || 'Document sans nom'}>
                                                         {pdf.name_pdf || 'Document sans nom'}
                                                     </div>
                                                 </td>
-                                                <td className="px-3 py-2">
+                                                    <td className="px-2 py-2">
                                                     <span className={`text-xs px-1.5 py-0.5 rounded-sm ${
-                                                        pdf.status === 'processed' || pdf.status === 'extracted' ? 'bg-green-50 text-green-600' :
+                                                            pdf.status === 'processed' || pdf.status === 'extracted' || pdf.status === 'linked' || pdf.status === 'pushed' ? 'bg-green-50 text-green-600' :
                                                         pdf.status === 'error' ? 'bg-red-50 text-red-600' :
                                                         pdf.status === 'splitted' || pdf.status === 'splitted_extracted' ? 'bg-blue-50 text-blue-600' :
                                                         'bg-yellow-50 text-yellow-600'
@@ -1443,31 +1800,31 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         {filterOptions.statuses.find(s => s.value === pdf.status)?.label || pdf.status}
                                                     </span>
                                                 </td>
-                                                <td className="px-3 py-2">
+                                                    <td className="px-2 py-2">
                                                     <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm">
                                                         {filterOptions.documentTypes.find(t => t.value === pdf.document_type)?.label || pdf.document_type || 'Inconnu'}
                                                     </span>
                                                 </td>
-                                                <td className="px-3 py-2">
+                                                    <td className="px-2 py-2">
                                                     <span className="text-xs text-gray-600">
                                                         {typeof pdf.nb_pages === 'number' ? pdf.nb_pages : '-'}
                                                     </span>
                                                 </td>
-                                                <td className="px-3 py-2">
+                                                    <td className="px-2 py-2">
                                                     {pdf.site_siret_plus && pdf.site_siret_plus.length > 0 ? (
                                                         <div className="flex flex-wrap gap-1">
-                                                            {pdf.site_siret_plus.slice(0, 2).map((siret, index) => (
+                                                                {pdf.site_siret_plus.slice(0, 1).map((siret: string, index: number) => (
                                                                 <span
                                                                     key={index}
-                                                                    className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-sm"
+                                                                        className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-sm truncate max-w-[120px]"
                                                                     title={getSiteName(siret)}
                                                                 >
-                                                                    {getSiteName(siret).length > 15 ? getSiteName(siret).substring(0, 15) + '...' : getSiteName(siret)}
+                                                                        {getSiteName(siret)}
                                                                 </span>
                                                             ))}
-                                                            {pdf.site_siret_plus.length > 2 && (
+                                                                {pdf.site_siret_plus.length > 1 && (
                                                                 <span className="text-xs text-gray-400">
-                                                                    +{pdf.site_siret_plus.length - 2}
+                                                                        +{pdf.site_siret_plus.length - 1}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1475,55 +1832,73 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         <span className="text-xs text-gray-400">-</span>
                                                     )}
                                                 </td>
-                                                <td className="px-3 py-2">
-                                                    {pdf.provider && typeof pdf.provider === 'object' ? (
-                                                        <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm">
-                                                            {Object.values(pdf.provider).join(' ').length > 20 
-                                                                ? Object.values(pdf.provider).join(' ').substring(0, 20) + '...' 
-                                                                : Object.values(pdf.provider).join(' ')
-                                                            }
+                                                    <td className="px-2 py-2">
+                                                        {providerName ? (
+                                                            <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm truncate max-w-[120px] block" title={String(providerName)}>
+                                                                {String(providerName)}
                                                         </span>
                                                     ) : (
                                                         <span className="text-xs text-gray-400">-</span>
                                                     )}
                                                 </td>
-                                                <td className="px-3 py-2">
-                                                    <span className="text-xs text-gray-500">
-                                                        {new Date(pdf.created_at).toLocaleDateString()}
-                                                    </span>
-                                                </td>
-                                                <td className="px-3 py-2">
-                                                    {pdf.alerte && typeof pdf.alerte === 'object' && 'stop' in pdf.alerte && pdf.alerte.stop === true ? (
-                                                        <span className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded-sm">
-                                                            ⚠️ Stop
+                                                    <td className="px-2 py-2">
+                                                        {confidence ? (
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className={`text-xs px-1 py-0.5 rounded-sm ${
+                                                                        Math.round(confidence.brute || 0) >= 80 ? 'bg-green-100 text-green-700' :
+                                                                        Math.round(confidence.brute || 0) >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                                                                        'bg-red-100 text-red-700'
+                                                                    }`} title="Confiance brute">
+                                                                        B:{Math.round(confidence.brute || 0)}%
+                                                                    </span>
+                                                                    <span className={`text-xs px-1 py-0.5 rounded-sm ${
+                                                                        Math.round(confidence.spec || 0) >= 80 ? 'bg-green-100 text-green-700' :
+                                                                        Math.round(confidence.spec || 0) >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                                                                        'bg-red-100 text-red-700'
+                                                                    }`} title="Confiance spécifique">
+                                                                        S:{Math.round(confidence.spec || 0)}%
+                                                                    </span>
+                                                                </div>
+                                                                {confidence.handwritten && confidence.handwritten[1] && (
+                                                                    <span className="text-xs px-1 py-0.5 bg-purple-100 text-purple-700 rounded-sm" title="Manuscrit détecté">
+                                                                        ✍️ {Math.round(confidence.handwritten[0])}%
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-2 py-2">
+                                                        <span className={`text-xs font-medium ${timeColor}`}>
+                                                            {timeDisplay}
                                                         </span>
+                                                </td>
+                                                    <td className="px-2 py-2">
+                                                        {alerteFlags.length > 0 ? (
+                                                            <div className="flex flex-wrap gap-1" title={alerteMessage}>
+                                                                {alerteFlags.map((flag, idx) => (
+                                                                    <span key={idx} className={`text-xs px-1.5 py-0.5 rounded-sm ${flag.color}`}>
+                                                                        {flag.label}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
                                                     ) : (
                                                         <span className="text-xs text-gray-400">-</span>
                                                     )}
                                                 </td>
                                             </tr>
-                                        ))}
+                                                            );
+                                                        })
+                                                    }
                                     </tbody>
                                 </table>
-                            )}
-                        </div>
-                    </div>                    
-
-                    {/* Résumé et statistiques en grid-2 */}
-                    <div className="grid grid-cols-[1fr_4fr] gap-3 mb-3 mt-3">
-                        {/* Résumé des paramètres */}
-                        <div className="p-2.5 bg-gray-50 rounded-md">
-                            <h3 className="text-xs font-medium text-gray-600 mb-1.5">Paramètres actifs :</h3>
-                            <div className="text-xs text-gray-500 space-y-0.5">
-                                <div>• Statuts: {filters.statuses.length > 0 ? filters.statuses.map(status => filterOptions.statuses.find(s => s.value === status)?.label || status).join(', ') : 'Tous'}</div>
-                                <div>• Types: {filters.documentTypes.length > 0 ? filters.documentTypes.map(type => filterOptions.documentTypes.find(t => t.value === type)?.label || type).join(', ') : 'Tous'}</div>
-                                <div>• Sites: {filters.siteSirets.length > 0 ? filters.siteSirets.map(siret => getSiteName(siret)).join(', ') : 'Tous'}</div>
-                                <div>• Providers: {filters.providers.length > 0 ? filters.providers.join(', ') : 'Tous'}</div>
-                                <div>• Alerte: {filters.alerteStop === null ? 'Tous' : filters.alerteStop ? 'Avec' : 'Sans'}</div>
                             </div>
                         </div>
 
                         {/* Statistiques et boutons d'action */}
+                    <div className="mb-3 mt-3">
                         <div className="p-2.5 bg-blue-50 rounded-md">
                             {/* Sélecteur de configuration */}
                             <div className="mb-0 border-b pb-1 border-b border-blue-200">
@@ -1575,7 +1950,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 </>
                                             )}
                                         </button>
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-3 gap-2">
                                             <button
                                                 onClick={handleSplitOnly}
                                                 disabled={anyProcessing || processingAlertes || processingAutoLink || selectedPdfIds.length === 0}
@@ -1590,6 +1965,24 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                     <>
                                                         <BoxIcon name="bx-copy-alt" size="16" />
                                                         <span>Diviser</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={handleSmartSplit}
+                                                disabled={anyProcessing || processingAlertes || processingAutoLink || selectedPdfIds.length === 0}
+                                                className="w-full px-3 py-1.5 bg-indigo-600 text-white rounded-sm text-xs hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5 transition-colors"
+                                                title="Division intelligente avec détection automatique des types de documents"
+                                            >
+                                                {processingSmartSplit ? (
+                                                    <>
+                                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                                        <span>Smart split...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <BoxIcon name="bx-brain" size="16" />
+                                                        <span>Smart split</span>
                                                     </>
                                                 )}
                                             </button>
@@ -1785,7 +2178,6 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     </div>
                                 </div>
                             </div>
-                            
                         </div>
                     </div>
 
@@ -1961,149 +2353,4 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     );
 };
 
-// Composant pour afficher les détails d'un PDF traité
-const PdfDetailsReview: React.FC<{
-    pdfId: string;
-    newPdfIds?: string[];
-    wasSplit?: boolean;
-}> = ({ pdfId, newPdfIds, wasSplit }) => {
-    const { entreprise_id } = useSession();
-    const [details, setDetails] = useState<{
-        confidence?: { brute: number; spec: number; handwritten: [number, boolean] };
-        alerte?: { stop: boolean; message: string };
-        status?: string;
-    } | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const loadDetails = async () => {
-            if (!entreprise_id) return;
-            
-            try {
-                const entrepriseIdNumber = Number(entreprise_id);
-                if (isNaN(entrepriseIdNumber)) return;
-                
-                // Si le PDF a été divisé, charger les détails de la première page divisée
-                const targetPdfId = wasSplit && newPdfIds && newPdfIds.length > 0 
-                    ? newPdfIds[0] 
-                    : pdfId;
-
-                const { data, error } = await supabase
-                    .from('pdf_infos')
-                    .select('confidence, alerte, status')
-                    .eq('id', targetPdfId)
-                    .eq('entreprise_id', entrepriseIdNumber)
-                    .single();
-
-                if (!error && data) {
-                    setDetails({
-                        confidence: data.confidence,
-                        alerte: data.alerte,
-                        status: data.status
-                    });
-                }
-            } catch (error) {
-                console.error('Erreur lors du chargement des détails:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadDetails();
-    }, [pdfId, newPdfIds, wasSplit, entreprise_id]);
-
-    if (loading) {
-        return (
-            <div className="text-sm text-gray-500">
-                Chargement des détails...
-            </div>
-        );
-    }
-
-    if (!details) {
-        return (
-            <div className="text-sm text-gray-500">
-                Aucun détail disponible
-            </div>
-        );
-    }
-
-    return (
-        <div className="space-y-2">
-            {/* Confidence */}
-            {details.confidence && (
-                <div className="flex items-center space-x-2">
-                    <span className="text-xs text-gray-500">Confidence:</span>
-                    <span className={`text-xs px-2 py-1 rounded ${
-                        details.confidence.brute >= 80 && details.confidence.spec >= 80
-                            ? 'bg-green-100 text-green-800'
-                            : details.confidence.brute >= 60 && details.confidence.spec >= 60
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                    }`}>
-                        Brute: {details.confidence.brute}% | Spec: {details.confidence.spec}%
-                    </span>
-                    {details.confidence.handwritten && details.confidence.handwritten[1] && (
-                        <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                            Manuscrit: {details.confidence.handwritten[0]}%
-                        </span>
-                    )}
-                </div>
-            )}
-
-            {/* Alerte */}
-            {details.alerte && (
-                <div className="flex items-center space-x-2">
-                    <span className="text-xs text-gray-500">Alerte:</span>
-                    {details.alerte.stop ? (
-                        <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
-                            ⚠️ Stop: {details.alerte.message}
-                        </span>
-                    ) : details.alerte.message ? (
-                        <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                            ℹ️ {details.alerte.message}
-                        </span>
-                    ) : (
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                            ✅ Aucune alerte
-                        </span>
-                    )}
-                </div>
-            )}
-
-            {/* Statut */}
-            {details.status && (
-                <div className="flex items-center space-x-2">
-                    <span className="text-xs text-gray-500">Statut:</span>
-                    <span className={`text-xs px-2 py-1 rounded ${
-                        details.status.includes('extracted') ? 'bg-green-100 text-green-800' :
-                        details.status.includes('error') ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                    }`}>
-                        {details.status}
-                    </span>
-                </div>
-            )}
-
-            {/* Informations sur le split */}
-            {wasSplit && newPdfIds && newPdfIds.length > 0 && (
-                <div className="flex items-center space-x-2">
-                    <span className="text-xs text-gray-500">Pages créées:</span>
-                    <div className="flex flex-wrap gap-1">
-                        {newPdfIds.map((id, index) => (
-                            <span key={index} className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded">
-                                Page {index + 1} (ID: {id})
-                            </span>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
 export default LoopStarter;
-
-// Floating resume button when paused and ready
-// Rendered by parent component return above; adding conditional render near root would be preferable,
-// but we place a top-level helper here for clarity.

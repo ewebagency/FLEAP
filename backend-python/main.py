@@ -11,6 +11,7 @@ from utils.utils_gemini import extract_gemini
 
 from utils.utils_parse import parse_pdf, parse_pdf_file
 from prompts import prompt_bsd, prompt_bon
+from new.new_smart_split import smart_split_pdf
 
 
 import json
@@ -501,3 +502,61 @@ async def push_to_rag(file: UploadFile, pdf_id: str = Form(...), extracted_data:
         print(f"❌ Erreur dans push_to_rag: {str(e)}")
         return {"error": f"Erreur lors du traitement: {str(e)}"}
 #=============================================PUSH TO RAG=============================================
+
+
+#=============================================SMART SPLIT=============================================
+@app.post("/smart-split")
+async def smart_split(file: UploadFile, check_logique: bool = Form(True)):
+    """
+    Smart Split - Division intelligente de PDFs multi-pages
+    Détecte automatiquement les segments et leurs types (facture, bon, bsd, autre)
+    
+    Args:
+        file: Fichier PDF à analyser
+        check_logique: Si True, vérifie la cohérence avec la règle logique de reconnaissance de type
+    
+    Returns:
+        {
+            "success": bool,
+            "segments": [{"type": "facture", "pages": [0, 1]}, ...],
+            "metadata": {
+                "processing_time": float,
+                "total_pages": int,
+                "check_logique_enabled": bool,
+                "alerts": [...]  # Si incohérences détectées
+            }
+        }
+    """
+    print("=" * 60)
+    print(f"🧠 SMART SPLIT: {file.filename}")
+    
+    try:
+        from new.new_smart_split import smart_split_pdf
+        
+        result = await smart_split_pdf(file, check_logique=check_logique)
+        
+        # Log compact
+        if result.get("success"):
+            meta = result.get("metadata", {})
+            segs = result.get("segments", [])
+            alerts = meta.get('alerts', [])
+            print(f"✅ {len(segs)} segment(s) | {meta.get('processing_time', 0):.2f}s | {len(alerts)} alerte(s)")
+            for idx, seg in enumerate(segs):
+                print(f"   #{idx + 1}: {seg.get('type')} {seg.get('pages')}")
+        else:
+            print(f"❌ {result.get('error', 'Erreur')}")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ {str(e)}")
+        return {
+            "success": False,
+            "error": f"Erreur: {str(e)}",
+            "metadata": {"processing_time": 0, "check_logique_enabled": check_logique}
+        }
+    finally:
+        await file.close()
+        gc.collect()
+        print("=" * 60)
+#=============================================SMART SPLIT=============================================

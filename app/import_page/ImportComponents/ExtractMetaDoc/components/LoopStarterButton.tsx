@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import BoxIcon from '@/app/component/BoxIconWrapper';
-import LoopStarter from './LoopStarter';
+import LoopStarter from './LoopStarter/LoopStarter';
 
 interface LoopStarterButtonProps {
     className?: string;
