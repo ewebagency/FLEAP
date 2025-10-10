@@ -447,32 +447,20 @@ const EnvBarChart = () => {
 
         // Modifier la création des datasets pour le graphique des traitements
         setTreatmentData({
-            labels: ['Tonnage', 'Équivalent CO₂'],
+            labels: ['Tonnage'],// 'Équivalent CO₂'],
             datasets: Array.from(treatmentStats.entries())
                 .filter(([_, stats]) => stats.tonnage > 0 || stats.carbon > 0)
                 .map(([category, stats]) => ({
                     label: category,
                     data: [
                         totalTonnage > 0 ? (stats.tonnage / totalTonnage * 100) : 0,
-                        totalCarbon > 0 ? (stats.carbon / totalCarbon * 100) : 0
+                       // totalCarbon > 0 ? (stats.carbon / totalCarbon * 100) : 0
                     ],
                     backgroundColor: treatmentColors[category as keyof typeof treatmentColors] || treatmentColors.default
                 }))
         });
 
-        // Log des statistiques finales par catégorie
-        console.log('📊 Statistiques finales par catégorie:');
-        treatmentStats.forEach((stats, category) => {
-            console.log(`  ${category}:`, {
-                tonnage: stats.tonnage.toFixed(2),
-                carbon: stats.carbon.toFixed(2),
-                details: Array.from(stats.details.entries()).map(([code, detail]) => ({
-                    code,
-                    tonnage: detail.tonnage.toFixed(2),
-                    carbon: detail.carbon.toFixed(2)
-                }))
-            });
-        });
+
 
         // Stocker les détails pour le tooltip
         setSortedTreatments(Array.from(treatmentStats.entries()));

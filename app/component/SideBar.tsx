@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
-import { SessionMore, useSession } from './SessionProvider';
+import { useSession } from './SessionProvider';
 import { supabase } from '../database/supabaseClient';
 import { useRouter, usePathname } from 'next/navigation';
 import DetailsSideBar from './DetailsSideBar';
@@ -40,7 +40,7 @@ export const cofounders_user_id = (user_id:string|null) => {
 
 const SideBar = (props:SideBarProps) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
-    const session = useSession() as SessionMore;
+    const { display_features, user_id, session } = useSession();
     const router = useRouter();
     const pathname = usePathname();
     const [userNames, setUserNames] = useState({first_name:'', last_name:''});
@@ -52,7 +52,7 @@ const SideBar = (props:SideBarProps) => {
         let timeoutId: NodeJS.Timeout;
         
         const checkSession = () => {
-            if (session?.user_id) {
+            if (user_id) {
                 setConnected(true);
             } else {
                 // On attend 3 secondes avant de considérer que l'utilisateur est vraiment déconnecté
@@ -71,22 +71,22 @@ const SideBar = (props:SideBarProps) => {
                 clearTimeout(timeoutId);
             }
         };
-    }, [session, router]);
+    }, [user_id, router]);
 
     useEffect(()=>{
-        if (session?.user_id && cofounders_user_id(session.user_id)){
+        if (user_id && cofounders_user_id(user_id)){
             setCofounderPermission(true);
         }
-    }, [session]);
+    }, [user_id]);
 
 
     useEffect(()=>{
         async function fetchUserNames(){
-            if (session?.user_id){
+            if (user_id){
                 const {data, error} = await supabase
                 .from('profiles')
                 .select('first_name, last_name, entreprise_id')
-                .eq('user_id', session.user_id)
+                .eq('user_id', user_id)
                 .single();
 
                 if(data){
@@ -107,7 +107,7 @@ const SideBar = (props:SideBarProps) => {
             }
         }
         fetchUserNames();
-    }, [session?.user_id])
+    }, [user_id])
 
 
     const handleLogout = async () => {
@@ -154,7 +154,7 @@ const SideBar = (props:SideBarProps) => {
                                 <FiltreSiteEtablissement/>
                                 <FiltrePointCollecte/>
                                 <FiltreDate/> 
-                                <CreationFiltrePerso/>
+                                {display_features?.filtres_perso && <CreationFiltrePerso/>}
                             </>
                         )}
                         <div className="h-[20px]"></div>

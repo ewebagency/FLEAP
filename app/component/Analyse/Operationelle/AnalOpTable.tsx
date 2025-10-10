@@ -158,7 +158,7 @@ const AnalOpTable = () => {
                                 Filière
                             </th>
                             <th className="px-2 py-1 text-right font-bold">Tonnage</th>
-                            <th className="px-2 py-1 text-right font-bold">Remplissage</th>
+                            <th className="px-2 py-1 text-right font-bold hidden">Remplissage</th>
                             <th className="px-2 py-1 text-right font-bold">Collectes</th>
                             <th className="px-2 py-1 text-right font-bold">Déclassés</th>
                             {/*<th className="px-2 py-1 text-right font-bold">(€/m³)</th>*/}
@@ -179,7 +179,7 @@ const AnalOpTable = () => {
                                     <td className="px-2 py-1 text-right">
                                         {formatNumber(data.totalWeight, true, true)} T
                                     </td>
-                                    <td className="px-2 py-1 text-right">
+                                    <td className="px-2 py-1 text-right hidden">
                                         {data.weightWithFillRate > 0 
                                             ? `${(data.weightedFillRateSum / data.weightWithFillRate).toFixed(0)}%`
                                             : '-'}

@@ -24,7 +24,7 @@ import { AnalysisProvider } from "../analysis/AnalysisProvider";
 
 const RegisterPage = () => {
     const router = useRouter();
-    const {user_id} = useSession();
+    const {user_id, display_features} = useSession();
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -52,8 +52,10 @@ const RegisterPage = () => {
                         <BoxIcon name='log-out' size="24px" color="#666666" />
                     </button>}
                 </div>
-                <BordereauxRegister />
-                <div className="hidden md:flex justify-between items-center mb-0">
+                {display_features?.demande_collecte && (
+                    <BordereauxRegister />
+                )}
+                <div className="hidden md:flex justify-between items-center mb-0 mt-1">
                     <h3 className="text-md text-gray-500 mb-0">Registre des déchets</h3>
                     <div className="flex gap-2 mr-[-8px] justify-end">
                         <CreateBSDLine/>

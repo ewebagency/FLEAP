@@ -3,10 +3,11 @@ import { useAnalysis } from "@/app/analysis/AnalysisProvider";
 import TauxTri from "./TauxTri";
 import TauxRemplissage from "./TauxRemplissage";
 import ObjectifTonnage from "./ObjectifTonnage";
+import { useSession } from "@/app/component/SessionProvider";
 
 const AnalOpBordereau = () => {
     const { bsds, loading, filterType, setFilterType } = useAnalysis();
-
+    const { display_features } = useSession();
     
 
     const stats = useMemo(() => {
@@ -65,7 +66,7 @@ const AnalOpBordereau = () => {
                 </div>
             </div>
             <div className="block">
-                <ObjectifTonnage/>
+                {display_features?.objectifs && <ObjectifTonnage/>}
             </div>
             <div className="flex gap-9 items-center">
                 <div className="block">

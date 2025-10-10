@@ -9,7 +9,7 @@ import { useAnalysis } from "../analysis/AnalysisProvider";
 
 const FiltreFilieresSwitcher = ({ showTypeFilter = true }: { showTypeFilter?: boolean }) => {
     const { filieres_ou_prestataires, setFilieresOuPrestataires } = useFilterContext();
-    const { entreprise_id } = useSession();
+    const { entreprise_id, display_features } = useSession();
     const { mutate } = useSWRConfig();
     const { filterType, setFilterType } = useAnalysis();
     const mode = filieres_ou_prestataires.nom;
@@ -20,7 +20,8 @@ const FiltreFilieresSwitcher = ({ showTypeFilter = true }: { showTypeFilter?: bo
                 {mode === 'filiere' ? <FiltreFilieres /> : <FiltreFilieresNom />}
             </div>
             <div className="flex gap-2 items-center">
-                <div className="flex items-center gap-0 mb-2 text-sm">
+                
+                {display_features?.ced_nom && <div className="flex items-center gap-0 mb-2 text-sm">
                     <button
                         onClick={() => {
                             setFilieresOuPrestataires({ nom: 'filiere' });
@@ -45,9 +46,11 @@ const FiltreFilieresSwitcher = ({ showTypeFilter = true }: { showTypeFilter?: bo
                     >
                         Nom
                     </button>
-                </div>
+                </div>}
+
+
                 {/* Bouton à 3 états pour le filtrage - masqué si showTypeFilter = false */}
-                {showTypeFilter && (
+                {showTypeFilter && display_features?.tous_importes && (
                     <div className="ml-4 mb-2">
                         <div className="flex rounded-md overflow-hidden border border-gray-300">
                             <button

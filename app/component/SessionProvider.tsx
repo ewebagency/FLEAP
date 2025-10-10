@@ -13,6 +13,7 @@ type SessionContextType = {
     user_email: string | null;
     user_contact: string | null;
     user_phone: string | null;
+    display_features: Record<string, boolean> | null;
 };
 
 export interface SessionMore extends Session {
@@ -23,6 +24,7 @@ export interface SessionMore extends Session {
     user_email: string | null;
     user_contact: string | null;
     user_phone: string | null;
+    display_features: Record<string, boolean> | null;
 }
 
 const SessionContext = createContext<SessionContextType>({
@@ -32,7 +34,8 @@ const SessionContext = createContext<SessionContextType>({
     entreprise_name: null,
     user_email: null,
     user_contact: null,
-    user_phone: null
+    user_phone: null,
+    display_features: null
 });
 
 export const useSession = () => useContext(SessionContext);
@@ -45,6 +48,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const [user_email, setUserEmail] = useState<string | null>(null);
     const [user_contact, setUserContact] = useState<string | null>(null);
     const [user_phone, setUserPhone] = useState<string | null>(null);
+    const [display_features, setDisplayFeatures] = useState<Record<string, boolean> | null>(null);
 
     useEffect(() => {
         setUserEmail(session?.user.email ?? null);
@@ -56,7 +60,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             try {
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
-                    .select('entreprise_id, first_name, last_name, phone')
+                    .select('entreprise_id, first_name, last_name, phone, display_features')
                     .eq('user_id', userId)
                     .single();
 
@@ -70,6 +74,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                     
                     // Set user phone
                     setUserPhone(profile.phone || null);
+                    
+                    // Set display features
+                    setDisplayFeatures(profile.display_features || null);
                     
                     if (profile.entreprise_id) {
                         setEntrepriseId(profile.entreprise_id);
@@ -107,6 +114,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             setEntrepriseName(null);
             setUserContact(null);
             setUserPhone(null);
+            setDisplayFeatures(null);
         });
 
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, sessionData) => {
@@ -121,6 +129,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 setEntrepriseName(null);
                 setUserContact(null);
                 setUserPhone(null);
+                setDisplayFeatures(null);
             }
         });
 
@@ -137,6 +146,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         sessionValue.user_email = user_email;
         sessionValue.user_contact = user_contact;
         sessionValue.user_phone = user_phone;
+        sessionValue.display_features = display_features;
     }
 
     //avant on faisait <SessionContext.Provider value={sessionValue}>
@@ -149,7 +159,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             entreprise_name: entreprise_name,
             user_email: user_email,
             user_contact: user_contact,
-            user_phone: user_phone
+            user_phone: user_phone,
+            display_features: display_features
         }}>
             {children}
         </SessionContext.Provider>

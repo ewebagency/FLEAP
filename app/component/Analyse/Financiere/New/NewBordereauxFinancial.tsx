@@ -1,12 +1,14 @@
 import React, { useMemo } from "react";
 import { Facture } from "../types";
 import NewObjectifFinancier from "./NewObjectifFinancier";
+import { useSession } from "@/app/component/SessionProvider";
 
 interface Props {
     factures: Facture[];
 }
 
 const NewBordereauxFinancial = ({ factures }: Props) => {
+    const { display_features } = useSession();
     const stats = useMemo(() => {
         const { costs, revenues } = factures.reduce((acc: { 
             costs: number,
@@ -44,7 +46,7 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
                 <div className={`text-sm font-thin ${
                     stats.totalCosts > stats.totalRevenues ? "text-gray-600" : "text-gray-600"
                 }`}>
-                    {stats.totalCosts > stats.totalRevenues ? "Budget Déchet" : "Gain Déchet"}
+                    {stats.totalCosts > stats.totalRevenues ? "Coûts nets" : "Gain Déchet"}
                 </div>
                 <div className="flex items-center mt-2">
                     <div className={`font-bold text-xl ${
@@ -62,11 +64,11 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
                 </div>
             </div>
             <div>
-                <NewObjectifFinancier factures={factures} />
+                {display_features?.objectifs && <NewObjectifFinancier factures={factures} />}
             </div>
             <div className="flex gap-12">
                 <div className="block">
-                    <div className="text-sm text-gray-600 font-thin">Revenus totaux</div>
+                    <div className="text-sm text-gray-600 font-thin">Revenus</div>
                     <div className="flex items-center mt-2">
                         <div className="font-medium text-xl text-green-600">
                             {stats.totalRevenues.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
@@ -74,7 +76,7 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
                     </div>
                 </div>
                 <div className="block">
-                    <div className="text-sm text-gray-600 font-thin">Coûts totaux</div>
+                    <div className="text-sm text-gray-600 font-thin">Dépenses</div>
                     <div className="flex items-center mt-2">
                         <div className="font-medium text-xl text-gray-700">
                             {stats.totalCosts.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €

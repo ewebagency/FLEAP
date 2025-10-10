@@ -31,7 +31,7 @@ const ConnectedToTrack = () => {
           Connecté à TrackDéchets
         </div>
         :
-        <div className="inline-block text-xs text-white py-1 px-2 rounded-md bg-gray-400">
+        <div className="inline-block text-xs text-white py-1 px-2 rounded-md bg-gray-400 hidden">
           Non connecté à TrackDéchets
         </div>
       }

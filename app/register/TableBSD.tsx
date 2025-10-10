@@ -133,24 +133,52 @@ const getCEDsFromFilieres = async (entreprise_id: string | null, checkedFilieres
     return [];
 }
 
-const DateToDisplay = ({ status, created_at, takenOverAt }: { status: string, created_at: string, takenOverAt: string }) => {
+const DateToDisplay = ({ status, created_at, takenOverAt, multiline = false }: { status: string, created_at: string, takenOverAt: string, multiline?: boolean }) => {
     if (status === "Ligne demandée") {
         if(takenOverAt !== "") {
-            return <div><p><span className="md:inline hidden">Attendu le </span>{new Date(takenOverAt as string).toLocaleDateString('fr-FR')}</p></div>;
+            return multiline ? (
+                <div className="flex flex-col">
+                    <span>Attendu le</span>
+                    <span>{new Date(takenOverAt as string).toLocaleDateString('fr-FR')}</span>
+                </div>
+            ) : (
+                <div><p><span className="md:inline hidden">Attendu le </span>{new Date(takenOverAt as string).toLocaleDateString('fr-FR')}</p></div>
+            );
         } else {
-            return <div><p><span className="md:inline hidden">Crée le </span>{new Date(created_at as string).toLocaleDateString('fr-FR')}</p></div>;
+            return multiline ? (
+                <div className="flex flex-col">
+                    <span>Créé le</span>
+                    <span>{new Date(created_at as string).toLocaleDateString('fr-FR')}</span>
+                </div>
+            ) : (
+                <div><p><span className="md:inline hidden">Crée le </span>{new Date(created_at as string).toLocaleDateString('fr-FR')}</p></div>
+            );
         }
     } else {
         if(takenOverAt !== "") {
-            return <div><p><span className="md:inline hidden">Collecté le </span>{new Date(takenOverAt as string).toLocaleDateString('fr-FR')}</p></div>
+            return multiline ? (
+                <div className="flex flex-col">
+                    <span>Collecté le</span>
+                    <span>{new Date(takenOverAt as string).toLocaleDateString('fr-FR')}</span>
+                </div>
+            ) : (
+                <div><p><span className="md:inline hidden">Collecté le </span>{new Date(takenOverAt as string).toLocaleDateString('fr-FR')}</p></div>
+            );
         } else {
-            return <div><p><span className="md:inline hidden">Créé le </span>{new Date(created_at as string).toLocaleDateString('fr-FR')}</p></div>
+            return multiline ? (
+                <div className="flex flex-col">
+                    <span>Créé le</span>
+                    <span>{new Date(created_at as string).toLocaleDateString('fr-FR')}</span>
+                </div>
+            ) : (
+                <div><p><span className="md:inline hidden">Créé le </span>{new Date(created_at as string).toLocaleDateString('fr-FR')}</p></div>
+            );
         }
     }
 }
 
 const TableBSD = () => {
-    const {entreprise_id, user_id} = useSession();
+    const {entreprise_id, user_id, display_features} = useSession();
     
     //const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
     //A faire passer sur useModalContextNew
@@ -1144,7 +1172,7 @@ const TableBSD = () => {
                             <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '0' }} 
                                 className="text-sm font-normal text-gray-500 mb-0">Déchet</th>
                             <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '23px' }}
-                                className="text-sm font-normal text-gray-500 mb-0">Statut</th>
+                                className="text-sm font-normal text-gray-500 mb-0">{display_features?.demande_collecte ? 'Statut' : 'Date'}</th>
                             <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '20%', textAlign: 'left', paddingLeft: '25px' }}
                                 className="text-sm font-normal text-gray-500 mb-0 hidden md:table-cell">Prestataires</th>
                             {/*<th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '15%', textAlign: 'right', paddingRight: '1.25rem' }}
@@ -1242,36 +1270,48 @@ const TableBSD = () => {
                                     </div>
                                 </td>
                                 <td style={{ padding: '6px', width: '20%', position: 'relative', height: '80px' }}>
-                                    <div className="absolute top-1 left-1.5 w-full">
-                                        <div className="text-[13px] text-gray-600 ml-4 flex justify-start gap-2">
-                                            <DateToDisplay status={bsd.status_track_dechets} created_at={bsd.created_at} takenOverAt={bsd.infos_json.formAPI.createFormInput.takenOverAt || ""} />
-                                            {/* {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p><span className="md:inline hidden">Collecté le </span>{new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>{bsd.status_track_dechets === "Ligne demandée" ? <p><span className="md:inline hidden">Attendu le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p> : <p><span className="md:inline hidden">Créé le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}</p>}
-                                            {/*<p>CREE le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>*/}
-                                            {/* {bsd.infos_json.formAPI.createFormInput.emittedAt} */}
-                                            {/* {bsd.infos_json.formAPI.createFormInput.createdAt} */}
-                                            {/* {bsd.infos_json.formAPI.createFormInput.processedAt} */}
-                                            {/* {bsd.infos_json.formAPI.createFormInput.receivedAt} */}
-                                            {/* {bsd.infos_json.formAPI.createFormInput.signedAt} */}  
-                                            {/* {bsd.infos_json.formAPI.createFormInput.takenOverAt} */}
-                                            {/* {bsd.infos_json.formAPI.createFormInput.updatedAt} */}
+                                    {!(display_features?.demande_collecte) ? (
+                                        // Mode normal : affichage de la date à gauche
+                                        <div className="h-full flex flex-col justify-center ml-4">
+                                            <div className="text-sm text-gray-700">
+                                                <DateToDisplay status={bsd.status_track_dechets} created_at={bsd.created_at} takenOverAt={bsd.infos_json.formAPI.createFormInput.takenOverAt || ""} multiline={true} />
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="h-full flex flex-col justify-center ml-4 mt-0">
-                                        {bsd.status_track_dechets !== null ? (
-                                            <>
-                                                <div className={`text-md md:text-md font-semibold ${getStatusStyle(bsd.status_track_dechets).color} text-[13px] md:text-base`}>
-                                                    {getStatusStyle(bsd.status_track_dechets).mainText}
+                                    ) : (
+                                        // Mode demande collecte : affichage statut + date en haut
+                                        <>
+                                            <div className="absolute top-1 left-1.5 w-full">
+                                                <div className="text-[13px] text-gray-600 ml-4 flex justify-start gap-2">
+                                                    <DateToDisplay status={bsd.status_track_dechets} created_at={bsd.created_at} takenOverAt={bsd.infos_json.formAPI.createFormInput.takenOverAt || ""} />
+                                                    {/* {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p><span className="md:inline hidden">Collecté le </span>{new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>{bsd.status_track_dechets === "Ligne demandée" ? <p><span className="md:inline hidden">Attendu le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p> : <p><span className="md:inline hidden">Créé le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}</p>}
+                                                    {/*<p>CREE le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>*/}
+                                                    {/* {bsd.infos_json.formAPI.createFormInput.emittedAt} */}
+                                                    {/* {bsd.infos_json.formAPI.createFormInput.createdAt} */}
+                                                    {/* {bsd.infos_json.formAPI.createFormInput.processedAt} */}
+                                                    {/* {bsd.infos_json.formAPI.createFormInput.receivedAt} */}
+                                                    {/* {bsd.infos_json.formAPI.createFormInput.signedAt} */}  
+                                                    {/* {bsd.infos_json.formAPI.createFormInput.takenOverAt} */}
+                                                    {/* {bsd.infos_json.formAPI.createFormInput.updatedAt} */}
                                                 </div>
-                                                {getStatusStyle(bsd.status_track_dechets).subText && (
-                                                    <div className={`text-xs ${getStatusStyle(bsd.status_track_dechets).color} mt-[-4px] hidden md:block`}>
-                                                        {getStatusStyle(bsd.status_track_dechets).subText}
-                                                    </div>
+                                            </div>
+                                            <div className="h-full flex flex-col justify-center ml-4 mt-0">
+                                                {bsd.status_track_dechets !== null ? (
+                                                    <>
+                                                        <div className={`text-md md:text-md font-semibold ${getStatusStyle(bsd.status_track_dechets).color} text-[13px] md:text-base`}>
+                                                            {getStatusStyle(bsd.status_track_dechets).mainText}
+                                                        </div>
+                                                        {getStatusStyle(bsd.status_track_dechets).subText && (
+                                                            <div className={`text-xs ${getStatusStyle(bsd.status_track_dechets).color} mt-[-4px] hidden md:block`}>
+                                                                {getStatusStyle(bsd.status_track_dechets).subText}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <div className="text-md">...</div>
                                                 )}
-                                            </>
-                                        ) : (
-                                            <div className="text-md">...</div>
-                                        )}
-                                    </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </td>
                                 <td style={{ padding: '6px', width: '20%', height: '80px' }} className="hidden md:table-cell overflow-hidden">
                                     <div className="text-xs ml-4 overflow-hidden space-y-0">

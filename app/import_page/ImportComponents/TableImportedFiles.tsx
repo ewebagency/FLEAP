@@ -438,16 +438,16 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                             className="text-xs font-normal text-gray-500 mb-0">Type</th>
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '6%', textAlign: 'left', paddingLeft: '23px' }}
                             className="text-xs font-normal text-gray-500 mb-0">Statut</th>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '17%', textAlign: 'left', paddingLeft: '25px' }}
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '23%', textAlign: 'left', paddingLeft: '25px' }}
                             className="text-xs font-normal text-gray-500 mb-0">Nom</th>
-                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '12%', textAlign: 'left' }}
+                        <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '7%', textAlign: 'left' }}
                             className="text-xs font-normal text-gray-500 mb-0">Date d&apos;import</th>
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '3%', textAlign: 'left' }}
                             className="text-xs font-normal text-gray-500 mb-0"></th>
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '10%', textAlign: 'left' }}
                             className="text-xs font-normal text-gray-500 mb-0">Document</th>
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '8%', textAlign: 'left' }}
-                            className="text-xs font-normal text-gray-500 mb-0">Date extraite</th>                            
+                            className="text-xs font-normal text-gray-500 mb-0 hidden">Date extraite</th>                            
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '16%', textAlign: 'left' }}
                             className="text-xs font-normal text-gray-500 mb-0">Site</th>
                         {cofounders_permission(user_id) && (
@@ -500,14 +500,14 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                         </span>
                                     ) : ( //extracted OU splitted_extracted
                                         <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
-                                            Extrait
+                                            Lu
                                         </span>
                                     )
                                 ) : (
                                     // Affichage pour les non-cofounders (simplifié)
                                     pdf.status === 'linked' || pdf.status === 'pushed' ? (
                                         <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
-                                            Prêt
+                                            Extrait
                                         </span>
                                     ) : (
                                         <span className="px-2 py-1 rounded-full font-semibold text-orange-600 text-xs">
@@ -539,7 +539,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                     />
                                 )}
                             </td>
-                            <td style={{ padding: '6px', height: '40px' }} className="align-middle">
+                            <td style={{ padding: '6px', height: '40px' }} className="align-middle hidden">
                                 <div className="flex justify-start items-center space-x-1">
                                     <div className="text-xs font-medium">
                                         {pdf.date_extracted ? new Date(pdf.date_extracted).toLocaleDateString('fr-FR') : ''}

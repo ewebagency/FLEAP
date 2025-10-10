@@ -70,7 +70,7 @@ const AnalysisPage = () => {
         points_collecte,
         sites 
     } = useFilterContext();
-    const {entreprise_id} = useSession();
+    const {entreprise_id, display_features} = useSession();
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
     const [serverData, setServerData] = useState<{ 
         labels: string[]; 
