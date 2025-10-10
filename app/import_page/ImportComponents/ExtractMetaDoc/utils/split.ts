@@ -305,7 +305,8 @@ export const smart_split = async (
         formData.append('file', new Blob([await pdfData.arrayBuffer()], { type: 'application/pdf' }), pdfInfo.name_pdf || 'document.pdf');
 
         // 5. Appeler l'API Python smart-split
-        const response = await fetch('http://localhost:8000/smart-split', {
+        const url = `${process.env.NEXT_PUBLIC_SERVER_PYTHON}/smart-split`;
+        const response = await fetch(url, {
             method: 'POST',
             body: formData
         });

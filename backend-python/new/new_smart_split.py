@@ -25,7 +25,7 @@ ENTRÉE: [{"idx_page": 0, "raw_text": "..."}, {"idx_page": 1, "raw_text": "..."}
 
 TYPES DE DOCUMENTS:
 - "facture": Facture avec montants, TVA, prix
-- "bon": Bon de pesée/livraison, BL, note de livraison avec poids (brut, tare, net)
+- "bon": Bon de commande/pesée/livraison, BL, note de livraison avec poids (brut, tare, net)
 - "bsd": Bordereau de Suivi de Déchets (CERFA)
 - "autre": Autre type
 

@@ -87,7 +87,8 @@ const DisplayPdfAndInfosPython: React.FC<Props> = ({ pdfFiles, pdfIds, session_u
       const blob = await response.blob();
       formData.append('file', blob, `document-${currentIndex}.pdf`);
 
-      const apiResponse = await fetch('http://localhost:8000/extract-text/', {
+      const url = `${process.env.NEXT_PUBLIC_SERVER_PYTHON}/extract-text/`;
+      const apiResponse = await fetch(url, {
         method: 'POST',
         body: formData,
       });

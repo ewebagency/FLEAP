@@ -476,30 +476,44 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                 )}
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
-                                {pdf.status === 'unread' ? (
-                                    <span className="px-2 py-1 rounded-full font-semibold text-orange-600 text-xs">
-                                        En cours
-                                    </span>
-                                ) : pdf.status === 'linked' ? (
-                                    <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
-                                        Affilié
-                                    </span>
-                                ) : pdf.status === 'pushed' ? (
-                                    <span className="px-2 py-1 rounded-full font-semibold text-purple-600 text-xs">
-                                        Poussée
-                                    </span>
-                                ) : pdf.status === 'error' ? (
-                                    <span className="px-2 py-1 rounded-full font-semibold text-red-600 text-xs">
-                                        Erreur
-                                    </span>
-                                ) : pdf.status === 'splitted' ? (
-                                    <span className="px-2 py-1 rounded-full font-semibold text-gray-600 text-xs">
-                                        Divisé
-                                    </span>
-                                ) : ( //extracted OU splitted_extracted
-                                    <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
-                                        Extrait
-                                    </span>
+                                {cofounders_permission(user_id) ? (
+                                    // Affichage pour les cofounders (détaillé)
+                                    pdf.status === 'unread' ? (
+                                        <span className="px-2 py-1 rounded-full font-semibold text-orange-600 text-xs">
+                                            En cours
+                                        </span>
+                                    ) : pdf.status === 'linked' ? (
+                                        <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
+                                            Affilié
+                                        </span>
+                                    ) : pdf.status === 'pushed' ? (
+                                        <span className="px-2 py-1 rounded-full font-semibold text-purple-600 text-xs">
+                                            Poussée
+                                        </span>
+                                    ) : pdf.status === 'error' ? (
+                                        <span className="px-2 py-1 rounded-full font-semibold text-red-600 text-xs">
+                                            Erreur
+                                        </span>
+                                    ) : pdf.status === 'splitted' ? (
+                                        <span className="px-2 py-1 rounded-full font-semibold text-gray-600 text-xs">
+                                            Divisé
+                                        </span>
+                                    ) : ( //extracted OU splitted_extracted
+                                        <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
+                                            Extrait
+                                        </span>
+                                    )
+                                ) : (
+                                    // Affichage pour les non-cofounders (simplifié)
+                                    pdf.status === 'linked' || pdf.status === 'pushed' ? (
+                                        <span className="px-2 py-1 rounded-full font-semibold text-green-600 text-xs">
+                                            Prêt
+                                        </span>
+                                    ) : (
+                                        <span className="px-2 py-1 rounded-full font-semibold text-orange-600 text-xs">
+                                            En cours
+                                        </span>
+                                    )
                                 )}
                             </td>
                             <td style={{ padding: '6px', height: '40px' }} className="align-middle">
