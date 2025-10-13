@@ -199,6 +199,9 @@ const TableBSD = () => {
     const [weightInputs, setWeightInputs] = useState<Record<string, number>>({});
     const { filterFunctions } = useFiltresPerso();
     
+    // Ref pour tracker les sites en cours de chargement (éviter les doublons)
+    const loadingSitesRef = useRef<Set<string>>(new Set());
+    
     const [showValidateModal, setShowValidateModal] = useState(false);
     const [selectedBsdForValidation, setSelectedBsdForValidation] = useState<BSD | null>(null);
 
@@ -347,7 +350,7 @@ const TableBSD = () => {
                 await invalidateCache();
             }
             
-            const siteParam = siteFilterMode === 'per_site' && selectedSiteId ? `&site=${encodeURIComponent(selectedSiteId)}` : '';
+            const siteParam = ''  // En mode cumulative, on charge les sites un par un, pas via ce paramètre
             const dateParam = (serverDateSearch && segmentDates?.debut && segmentDates?.fin) 
                 ? `&startDate=${encodeURIComponent(segmentDates.debut.toISOString())}&endDate=${encodeURIComponent(segmentDates.fin.toISOString())}`
                 : '';
@@ -453,7 +456,7 @@ const TableBSD = () => {
                 filterFunctions,
                 filterPendingBSDs,
                 filieres_ou_prestataires?.nom === 'filiere_nom' ? 'nom' : 'ced',
-                siteFilterMode === 'per_site'
+                false  // skipSiteFilter = false, on applique toujours le filtre des sites
             );
             
             //console.log("Nombre de BSDs après filtrage (filteredData):", filteredData.length);
@@ -462,9 +465,94 @@ const TableBSD = () => {
             const newDisplayedBSDs = filteredData.slice(0, displayLimit);
             //console.log("Nombre de BSDs à afficher (newDisplayedBSDs):", newDisplayedBSDs.length);
             setDisplayedBSDs(newDisplayedBSDs);
+        } else {
+            // Si aucun BSD n'est encore chargé, on applique quand même le filtre sur un tableau vide
+            // pour gérer le cas où aucune filière n'est sélectionnée
+            const filteredData = filterBSDs(
+                [],
+                filieres,
+                sites,
+                points_collecte,
+                segmentDates,
+                mappingTable,
+                filterFunctions,
+                filterPendingBSDs,
+                filieres_ou_prestataires?.nom === 'filiere_nom' ? 'nom' : 'ced',
+                false  // skipSiteFilter = false, on applique toujours le filtre des sites
+            );
+            setAllFilteredBSDs(filteredData);
+            setDisplayedBSDs(filteredData);
         }
         //console.log("=== Fin applyFilters ===");
     };
+
+    // Effet pour charger les données d'un site en mode cumulative
+    useEffect(() => {
+        if (siteFilterMode !== 'cumulative' || !entreprise_id || !user_id) return;
+        
+        const checkedSiteIds = sites.filter(s => s.checked).map(s => s.orgId);
+        
+        // Fonction async pour charger un site
+        const loadSiteData = async (siteId: string) => {
+            // Vérifier si on a déjà des BSDs de ce site
+            const hasSiteData = allBSDs.some(bsd => 
+                bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret === siteId
+            );
+            
+            // Vérifier si le site est déjà en cours de chargement
+            if (loadingSitesRef.current.has(siteId)) {
+                console.log(`Site ${siteId} déjà en cours de chargement - skip`);
+                return;
+            }
+            
+            // Si on a déjà les données ou si c'est "Autres", skip
+            if (hasSiteData || siteId === '----') {
+                return;
+            }
+            
+            console.log(`Chargement des données pour le site ${siteId}`);
+            
+            // Marquer le site comme "en cours de chargement"
+            loadingSitesRef.current.add(siteId);
+            
+            try {
+                const response = await fetch(`/api/get_data_bsd?entreprise_id=${entreprise_id}&user_id=${user_id}&site=${encodeURIComponent(siteId)}`);
+                const result = await response.json();
+                
+                if (result.data && result.data.length > 0) {
+                    // Fusionner les nouvelles données avec les existantes (éviter les doublons)
+                    setAllBSDs(prevBSDs => {
+                        const newData = [...prevBSDs, ...result.data];
+                        // Dédupliquer par ID
+                        const uniqueBSDs = Array.from(new Map(newData.map(bsd => [bsd.id, bsd])).values());
+                        // Trier par date décroissante
+                        return uniqueBSDs.sort((a: BSD, b: BSD) => 
+                            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                        );
+                    });
+                    console.log(`✅ Site ${siteId} chargé avec succès (${result.data.length} BSDs)`);
+                } else {
+                    console.log(`ℹ️ Site ${siteId} n'a pas de BSDs`);
+                }
+            } catch (error) {
+                console.error(`❌ Erreur lors du chargement du site ${siteId}:`, error);
+            } finally {
+                // Retirer le site de la liste des chargements en cours
+                loadingSitesRef.current.delete(siteId);
+            }
+        };
+        
+        // Charger les sites un par un (séquentiellement pour éviter les race conditions)
+        const loadAllSites = async () => {
+            for (const siteId of checkedSiteIds) {
+                await loadSiteData(siteId);
+            }
+        };
+        
+        loadAllSites();
+        
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sites, siteFilterMode, entreprise_id, user_id]);
 
     // Effet pour les changements de filtres
     useEffect(() => {
@@ -498,14 +586,44 @@ const TableBSD = () => {
     // Effet pour charger les données initiales
     useEffect(() => {
         if (entreprise_id) {
+            // En mode cumulative, ne JAMAIS appeler fetchBSDs
+            // Les données sont chargées site par site par l'effet dédié (ligne 490)
+            if (siteFilterMode === 'cumulative') {
+                console.log('Mode cumulative - chargement géré par effet dédié');
+                setIsLoadingInitialData(false);
+                setLoadingBSDs(false);
+                return;
+            }
+            
             setIsLoadingInitialData(true);
             setIsLoadingFullData(false);
             fetchBSDs();
         }
-    }, [entreprise_id, siteFilterMode, selectedSiteId]);
+    }, [entreprise_id, siteFilterMode, selectedSiteId, sites]);
 
     // Effet pour charger plus de données quand nécessaire
     useEffect(() => {
+        // Vérifier si toutes les filières sont désélectionnées
+        const checkedFilieres = filieres.filter(f => f.checked);
+        const hasNoFilieresSelected = filieres.length > 0 && checkedFilieres.length === 0;
+        
+        // Vérifier si tous les sites sont désélectionnés
+        // En mode 'all' : si aucun site n'est coché, on bloque
+        // En mode 'cumulative' : si aucun site n'est coché, on bloque aussi
+        const checkedSites = sites.filter(s => s.checked);
+        const hasNoSitesSelected = sites.length > 0 && checkedSites.length === 0;
+        
+        // Ne pas charger plus de données si aucune filière n'est sélectionnée ou aucun site
+        if (hasNoFilieresSelected || hasNoSitesSelected) {
+            return;
+        }
+        
+        // En mode cumulative, on ne charge pas automatiquement plus de BSDs
+        // Les données sont chargées site par site manuellement
+        if (siteFilterMode === 'cumulative') {
+            return;
+        }
+        
         const shouldLoadMore = displayedBSDs.length < 25 && !isLoadingMore && !loadingBSDs && hasMore && !filterPendingBSDs;
         
         if (shouldLoadMore) {
@@ -526,7 +644,7 @@ const TableBSD = () => {
             //    totalCount: totalBSDsCount
             //});
         }
-    }, [displayedBSDs.length, hasMore, isLoadingMore, loadingBSDs, lastLoadedDate, lastLoadedId, totalBSDsCount, allBSDs]);
+    }, [displayedBSDs.length, hasMore, isLoadingMore, loadingBSDs, lastLoadedDate, lastLoadedId, totalBSDsCount, allBSDs, filieres, sites, siteFilterMode]);
 
     useEffect(() => {
         // Exécution immédiate
@@ -1149,9 +1267,37 @@ const TableBSD = () => {
         }
     };
 
+    // Vérifier si aucune filière n'est sélectionnée
+    const checkedFilieres = filieres.filter(f => f.checked);
+    const hasNoFilieresSelected = filieres.length > 0 && checkedFilieres.length === 0;
+    
+    // Vérifier si aucun site n'est sélectionné (en mode cumulative, c'est normal au départ)
+    const checkedSites = sites.filter(s => s.checked);
+    const hasNoSitesSelected = sites.length > 0 && checkedSites.length === 0 && siteFilterMode === 'cumulative';
+
     return (
         <>
             <div className="overflow-x-auto">
+                {hasNoFilieresSelected && (
+                    <div className="bg-orange-50 p-3 mb-4 rounded-md text-sm text-orange-700 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <div>
+                            <strong>Aucune filière sélectionnée</strong> - Sélectionnez au moins une filière pour afficher des BSDs.
+                        </div>
+                    </div>
+                )}
+                {hasNoSitesSelected && (
+                    <div className="bg-orange-50 p-3 mb-4 rounded-md text-sm text-orange-700 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <div>
+                            <strong>Aucun site sélectionné</strong> - Sélectionnez au moins un site pour afficher des BSDs.
+                        </div>
+                    </div>
+                )}
                 {(isPartialData && false) && (
                     <div className="bg-blue-50 p-2 mb-4 rounded-md text-sm text-blue-700 flex items-center">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1631,8 +1777,12 @@ const TableBSD = () => {
                     </div>
                 )}
                 <div className="text-center mt-4">
-                    {allFilteredBSDs.length === 0 ? (
+                    {allFilteredBSDs.length === 0 && !hasNoFilieresSelected && !hasNoSitesSelected ? (
                         <div className="text-sm text-gray-500">Aucun BSD disponible pour ces filtres.</div>
+                    ) : hasNoFilieresSelected ? (
+                        <div className="text-sm text-gray-500">Sélectionnez au moins une filière pour afficher des BSDs.</div>
+                    ) : hasNoSitesSelected ? (
+                        <div className="text-sm text-gray-500">Sélectionnez au moins un site pour afficher des BSDs.</div>
                     ) : (
                         <button 
                             onClick={() => {

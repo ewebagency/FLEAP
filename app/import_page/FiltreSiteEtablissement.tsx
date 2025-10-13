@@ -90,7 +90,7 @@ const FiltreSiteEtablissement = () => {
     const [etablissementsWithStatus, setEtablissementsWithStatus] = useState<Etablissement[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const { sites, setSites, toggleSite, siteFilterMode, setSiteFilterMode, selectedSiteId, setSelectedSiteId } = useFilterContext();
+    const { sites, setSites, toggleSite, siteFilterMode, setSiteFilterMode } = useFilterContext();
     const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState<string>('');
 
@@ -120,6 +120,7 @@ const FiltreSiteEtablissement = () => {
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [userSiteAccess, setUserSiteAccess] = useState<string[]>([]);
     const limiteBeforeSearch = 10;
+    const prevSiteFilterMode = useRef<'all' | 'cumulative'>(siteFilterMode);
 
     // Utilisation de SWR pour récupérer les données des émetteurs
     const { data: emitterData, error: swrError, isLoading: isLoadingSWR } = useSWR(
@@ -133,6 +134,45 @@ const FiltreSiteEtablissement = () => {
             focusThrottleInterval: 60000
         }
     );
+
+    // Effet pour détecter le changement de mode et gérer les checkboxes
+    useEffect(() => {
+        // Vérifier si le mode a changé
+        if (prevSiteFilterMode.current !== siteFilterMode) {
+            
+            // Si on passe en mode cumulative (depuis all)
+            if (siteFilterMode === 'cumulative' && prevSiteFilterMode.current === 'all') {
+                console.log('Passage de "Tous" à "Aucun" - décochage de tous les sites');
+                // Décocher tous les sites
+                const uncheckedSites: ContextSite[] = sites.map(site => ({ ...site, checked: false }));
+                setSites(uncheckedSites);
+            }
+            
+            // Si on passe en mode "all" (depuis cumulative)
+            if (siteFilterMode === 'all' && prevSiteFilterMode.current === 'cumulative') {
+                console.log('Passage de "Aucun" à "Tous" - application des restrictions d\'accès');
+                
+                const checkedSites: ContextSite[] = sites.map(site => {
+                    // Si userSiteAccess est défini, respecter les restrictions
+                    if (userSiteAccess.length > 0) {
+                        // Le site "Autres" est toujours accessible
+                        if (site.orgId === '----') {
+                            return { ...site, checked: true };
+                        }
+                        // Pour les autres sites, vérifier s'ils sont dans la liste des accès
+                        return { ...site, checked: userSiteAccess.includes(site.orgId) };
+                    }
+                    // Sinon, cocher tous les sites
+                    return { ...site, checked: true };
+                });
+                
+                setSites(checkedSites);
+            }
+            
+            // Mettre à jour la référence
+            prevSiteFilterMode.current = siteFilterMode;
+        }
+    }, [siteFilterMode, setSites, sites, userSiteAccess]);
 
     // Effet pour traiter les données des émetteurs avec logs de débogage
     useEffect(() => {
@@ -286,12 +326,20 @@ const FiltreSiteEtablissement = () => {
             );
         }
 
-        // plus d'état sauvegardé utilisé pour le checked par défaut en mode 'all'
-
+        // Utiliser les états sauvegardés pour déterminer checked
         const sites_from_db: ContextSite[] = additionnalSites.map(site => {
-            const isChecked = siteFilterMode === 'per_site' 
-                ? (selectedSiteId ? selectedSiteId === site.siret : false)
-                : true;
+            let isChecked: boolean;
+            
+            if (siteFilterMode === 'cumulative') {
+                // En mode cumulative, restaurer l'état depuis localStorage
+                // Si pas d'état sauvegardé, par défaut false
+                isChecked = savedSiteStates[site.siret]?.checked ?? false;
+            } else {
+                // En mode all, tous les sites sont cochés par défaut
+                // Mais on peut aussi respecter le localStorage si disponible
+                isChecked = savedSiteStates[site.siret]?.checked ?? true;
+            }
+            
             return {
                 orgId: site.siret,
                 name: site.name,
@@ -309,7 +357,9 @@ const FiltreSiteEtablissement = () => {
             orgId: '----',
             name: 'Autres',
             givenName: '',
-            checked: siteFilterMode === 'per_site' ? false : true,
+            checked: siteFilterMode === 'cumulative' 
+                ? (savedSiteStates['----']?.checked ?? false)
+                : (savedSiteStates['----']?.checked ?? true),
             activated: true,
             isTrackDechets: false,
             isInDb: false
@@ -317,9 +367,16 @@ const FiltreSiteEtablissement = () => {
 
         if (etablissementsWithStatus.length > 0) {
             const vrai_sites: ContextSite[] = etablissementsWithStatus.map((etablissement: Etablissement) => {
-                const isChecked = siteFilterMode === 'per_site'
-                    ? (selectedSiteId ? selectedSiteId === etablissement.orgId : false)
-                    : true;
+                let isChecked: boolean;
+                
+                if (siteFilterMode === 'cumulative') {
+                    // En mode cumulative, restaurer l'état depuis localStorage
+                    isChecked = savedSiteStates[etablissement.orgId]?.checked ?? false;
+                } else {
+                    // En mode all, tous les sites sont cochés par défaut
+                    isChecked = savedSiteStates[etablissement.orgId]?.checked ?? true;
+                }
+                
                 return {
                     orgId: etablissement.orgId,
                     name: etablissement.name,
@@ -353,13 +410,14 @@ const FiltreSiteEtablissement = () => {
 
             const sitesAutre = {
                 ...sites_autre,
-                checked: siteFilterMode === 'per_site' ? false : sites_autre.checked
+                checked: siteFilterMode === 'cumulative' ? false : sites_autre.checked
             };
 
             let allSites = [...mergedSites, ...uniqueDbSites, sitesAutre];
 
             // Si l'utilisateur a des accès aux sites définis dans Supabase, on s'assure que seuls les sites autorisés sont cochés
-            if (userSiteAccess.length > 0) {
+            // MAIS seulement en mode "all", pas en mode cumulative où l'utilisateur gère manuellement
+            if (userSiteAccess.length > 0 && siteFilterMode === 'all') {
                 allSites = allSites.map(site => {
                     // Le site "Autres" est toujours accessible
                     if (site.orgId === '----') {
@@ -374,18 +432,8 @@ const FiltreSiteEtablissement = () => {
                 });
             }
 
-            if (window.innerWidth <= 768 && siteFilterMode === 'per_site') {
-                const firstValidSite = allSites.find(site => site.orgId !== '----' && site.activated);
-                if (firstValidSite) {
-                    allSites = allSites.map(site => ({
-                        ...site,
-                        checked: siteFilterMode === 'per_site' ? (selectedSiteId ? site.orgId === selectedSiteId : site.orgId === firstValidSite.orgId) : site.orgId === firstValidSite.orgId
-                    }));
-                    if (siteFilterMode === 'per_site' && !selectedSiteId) {
-                        setSelectedSiteId(firstValidSite.orgId);
-                    }
-                }
-            }
+            // En mode cumulative, on ne force pas de sélection
+            // L'utilisateur choisira manuellement les sites
 
             if (Object.keys(mappingSite).length > 0) {
                 
@@ -422,29 +470,30 @@ const FiltreSiteEtablissement = () => {
             }
         } else {
             
-            let sitesWithSavedStates = [...sites_from_db, sites_autre].map(site => ({
-                ...site,
-                checked: siteFilterMode === 'per_site' 
-                    ? (selectedSiteId ? selectedSiteId === site.orgId : false)
-                    : true
-            }));
-
-            if (window.innerWidth <= 768 && siteFilterMode === 'per_site') {
-                const firstValidSite = sitesWithSavedStates.find(site => site.orgId !== '----' && site.activated);
-                if (firstValidSite) {
-                    sitesWithSavedStates = sitesWithSavedStates.map(site => ({
-                        ...site,
-                        checked: siteFilterMode === 'per_site' ? (selectedSiteId ? site.orgId === selectedSiteId : site.orgId === firstValidSite.orgId) : site.orgId === firstValidSite.orgId
-                    }));
-                    if (siteFilterMode === 'per_site' && !selectedSiteId) {
-                        setSelectedSiteId(firstValidSite.orgId);
-                    }
+            let sitesWithSavedStates = [...sites_from_db, sites_autre].map(site => {
+                let isChecked: boolean;
+                
+                if (siteFilterMode === 'cumulative') {
+                    // En mode cumulative, restaurer l'état depuis localStorage
+                    isChecked = savedSiteStates[site.orgId]?.checked ?? false;
+                } else {
+                    // En mode all, tous les sites sont cochés par défaut
+                    isChecked = savedSiteStates[site.orgId]?.checked ?? true;
                 }
-            }
+                
+                return {
+                    ...site,
+                    checked: isChecked
+                };
+            });
+
+            // En mode cumulative, on ne force pas de sélection
+            // L'utilisateur choisira manuellement les sites
 
 
             // Si l'utilisateur a des accès aux sites définis dans Supabase, on s'assure que seuls les sites autorisés sont cochés
-            if (userSiteAccess.length > 0) {
+            // MAIS seulement en mode "all", pas en mode cumulative où l'utilisateur gère manuellement
+            if (userSiteAccess.length > 0 && siteFilterMode === 'all') {
                 sitesWithSavedStates = sitesWithSavedStates.map(site => {
                     // Le site "Autres" est toujours accessible
                     if (site.orgId === '----') {
@@ -499,9 +548,9 @@ const FiltreSiteEtablissement = () => {
     // Fonction pour vérifier si tous les sites d'un groupe sont cochés
     const isGroupChecked = (groupName: string) => {
         const groupSirets = mappingSite[groupName] || [];
-        // Ne prendre en compte que les sites visibles (cochés ou "Autres")
-        if (siteFilterMode === 'per_site') {
-            return groupSirets.includes(selectedSiteId || '');
+        // En mode cumulative, vérifier si au moins un site du groupe est coché
+        if (siteFilterMode === 'cumulative') {
+            return sites.some(site => groupSirets.includes(site.orgId) && site.checked);
         }
         const visibleSites = sites.filter(site => 
             groupSirets.includes(site.orgId) && (site.checked || site.orgId === '----')
@@ -511,6 +560,15 @@ const FiltreSiteEtablissement = () => {
 
     // Simplifier handleSiteToggle car la persistance est gérée dans le contexte
     const handleSiteToggle = (siteId: string) => {
+        // Vérifier les restrictions d'accès avant de permettre le toggle
+        if (userSiteAccess.length > 0 && siteId !== '----') {
+            // Si le site n'est pas dans la liste des accès, empêcher le toggle
+            if (!userSiteAccess.includes(siteId)) {
+                console.log(`Accès refusé au site ${siteId}`);
+                return;
+            }
+        }
+        
         toggleSite(siteId);
         setFilterPendingBSDs(false);
     };
@@ -520,16 +578,15 @@ const FiltreSiteEtablissement = () => {
         event.stopPropagation();
         const groupSirets = mappingSite[groupName] || [];
         
-        if (siteFilterMode === 'per_site') {
-            const firstSite = sites.find(s => groupSirets.includes(s.orgId));
-            if (firstSite) {
-                if (selectedSiteId !== firstSite.orgId) {
-                    setSelectedSiteId(firstSite.orgId);
-                    if (!firstSite.checked) {
-                        handleSiteToggle(firstSite.orgId);
-                    }
+        if (siteFilterMode === 'cumulative') {
+            // En mode cumulative, toggle tous les sites du groupe
+            const isCurrentlyChecked = isGroupChecked(groupName);
+            groupSirets.forEach(siret => {
+                const site = sites.find(s => s.orgId === siret);
+                if (site && site.checked !== !isCurrentlyChecked) {
+                    handleSiteToggle(siret);
                 }
-            }
+            });
             setFilterPendingBSDs(false);
             return;
         }
@@ -585,15 +642,8 @@ const FiltreSiteEtablissement = () => {
                 })
             : sites;
 
-        // En mode per_site, forcer l'affichage à une seule case cochée et désactiver "Autres"
-        if (siteFilterMode === 'per_site') {
-            filteredSites = filteredSites
-                .map(site => ({
-                    ...site,
-                    checked: selectedSiteId ? site.orgId === selectedSiteId : false
-                }))
-                .filter(site => site.orgId !== '----');
-        }
+        // En mode cumulative, ne pas filtrer "Autres"
+        // Les sites sont cochés/décochés manuellement par l'utilisateur
 
         // Appliquer le filtre de recherche si il y a un terme de recherche
         if (searchTerm) {
@@ -622,9 +672,6 @@ const FiltreSiteEtablissement = () => {
 
             // Calcul de l'état tri-state du groupe
             let groupState: 'all' | 'none' | 'some' = 'none';
-            if (siteFilterMode === 'per_site') {
-                groupState = selectedSiteId && groupSirets.includes(selectedSiteId) ? 'all' : 'none';
-            } else {
                 const checkedCount = sitesInGroup.filter(s => s.checked).length;
                 if (checkedCount === 0) {
                     groupState = 'none';
@@ -632,7 +679,6 @@ const FiltreSiteEtablissement = () => {
                     groupState = 'all';
                 } else {
                     groupState = 'some';
-                }
             }
 
             return (
@@ -691,18 +737,7 @@ const FiltreSiteEtablissement = () => {
                 className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md mb-0 cursor-pointer"
                 onClick={(e) => {
                     e.stopPropagation();
-                    if (siteFilterMode === 'per_site') {
-                        if (site.orgId !== '----') {
-                            if (selectedSiteId !== site.orgId) {
-                                setSelectedSiteId(site.orgId);
-                            }
-                            if (!site.checked) {
                                 handleSiteToggle(site.orgId);
-                            }
-                        }
-                    } else {
-                        handleSiteToggle(site.orgId);
-                    }
                     setFilterPendingBSDs(false);
                 }}
             >
@@ -722,7 +757,7 @@ const FiltreSiteEtablissement = () => {
                 <input
                     type="checkbox"
                     name="site-selection"
-                    checked={siteFilterMode === 'per_site' ? (selectedSiteId === site.orgId) : site.checked}
+                    checked={site.checked}
                     /*onChange={(e) => {
                         e.stopPropagation();
                         if (window.innerWidth <= 768) {
@@ -794,16 +829,25 @@ const FiltreSiteEtablissement = () => {
                         )}
                     </div>
                     {isOpen && (
-                        <div className="text-xs text-gray-600 ml-2">
-                            <div className="w-18">
+                        <div className="text-xs text-gray-600 ml-2 flex gap-1">
                                 <button
-                                    className={`w-18 px-2 py-0.5 rounded ${siteFilterMode === 'per_site' ? 'bg-green-100 text-green-700' : 'bg-gray-100'}`}
+                                className={`px-2 py-0.5 rounded transition-colors ${siteFilterMode === 'all' ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        setSiteFilterMode(siteFilterMode === 'all' ? 'per_site' : 'all');
-                                    }}
-                                >{siteFilterMode === 'all' ? 'Tous' : 'Site par site'}</button>
-                            </div>
+                                    if (siteFilterMode !== 'all') {
+                                        setSiteFilterMode('all');
+                                    }
+                                }}
+                            >Tous</button>
+                            <button
+                                className={`px-2 py-0.5 rounded transition-colors ${siteFilterMode === 'cumulative' ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (siteFilterMode !== 'cumulative') {
+                                        setSiteFilterMode('cumulative');
+                                    }
+                                }}
+                            >Aucun</button>
                         </div>
                     )}
                     {!isFullDataLoaded && !isInitialLoad && (

@@ -111,7 +111,7 @@ const BordereauxRegister = () => {
                     {showFormulaire && <Formulaire setDisplayThis={setShowFormulaire} />}
                     </div>
                     <div className="flex space-x-8">
-                        <div className='border border-[var(--green-medium)] rounded-lg'>
+                        <div className='border border-[var(--green-medium)] rounded-lg hidden'>
                             <button className={`text-center p-2 rounded-lg ${filterPendingBSDs ? 'text-white bg-[var(--green-medium)]' : 'text-gray-600 bg-gray-50 hover:bg-white'}`} 
                                     onClick={() => setFilterPendingBSDs(!filterPendingBSDs)}>
                                 <div className="text-2xl font-bold">{stats.pending}</div>

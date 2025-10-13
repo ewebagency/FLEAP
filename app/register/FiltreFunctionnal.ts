@@ -59,6 +59,13 @@ export const filterBSDs = (
     mode: 'ced' | 'nom' = 'ced',
     skipSiteFilter: boolean = false
 ): CommonBSD[] => {
+    // Vérification préliminaire : si aucune filière n'est cochée et qu'il y a des filières disponibles
+    const checkedFilieresPreCheck = filieres.filter(f => f.checked);
+    if (filieres.length > 0 && checkedFilieresPreCheck.length === 0) {
+        console.log("Aucune filière sélectionnée - retour tableau vide sans traitement");
+        return [];
+    }
+
     let filtered = [...bsds];
     console.log("1. BSDs entrants:", filtered.length);
 
@@ -148,11 +155,14 @@ export const filterBSDs = (
     if (!skipSiteFilter) {
         const checkedSites = sites.filter(site => site.checked).map(site => site.orgId);
         //console.log("Sites cochés:", checkedSites);
-        if (checkedSites.length === 0) {
-            // Si aucun site n'est coché, considérer que tous les sites sont sélectionnés par défaut
-            return filtered;
+        
+        // Vérification préliminaire : si aucun site n'est coché et qu'il y a des sites disponibles
+        if (sites.length > 0 && checkedSites.length === 0) {
+            console.log("Aucun site sélectionné - retour tableau vide sans traitement");
+            return [];
         }
-        if (checkedSites.length >= 0) {
+        
+        if (checkedSites.length > 0) {
             filtered = filtered.filter(bsd => {
                 const emitterSiret = bsd.infos_json.formAPI.createFormInput.emitter?.company?.siret;
                 if (checkedSites.includes('----')) {

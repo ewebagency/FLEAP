@@ -1,6 +1,5 @@
 'use client'
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, useMemo } from 'react';
-import { useModalContextNew } from './register/RegisterComponents/Modal/ContextModal';
 import { useSession } from './component/SessionProvider';
 
 export interface Filiere {
@@ -43,7 +42,7 @@ export interface FilterContextType {
   filieres_ced: Filiere[];
   filieres_nom: Filiere[];
   sites: Site[];
-  siteFilterMode: 'all' | 'per_site';
+  siteFilterMode: 'all' | 'cumulative';
   selectedSiteId: string | null;
   points_collecte: PointCollecte[];
   prestataires: Prestataire[];
@@ -60,7 +59,7 @@ export interface FilterContextType {
   setSegmentDates: (dates: SegmentDates) => void;
   setServerDateSearch: (useServer: boolean) => void;
   setFilieresOuPrestataires: (filieres_ou_prestataires: FiliereOuPrestataireInterface) => void;
-  setSiteFilterMode: (mode: 'all' | 'per_site') => void;
+  setSiteFilterMode: (mode: 'all' | 'cumulative') => void;
   setSelectedSiteId: (siteId: string | null) => void;
 
   toggleFiliere: (name: string) => void;
@@ -88,7 +87,7 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   const [filieres_ced, setFilieresCed] = useState<Filiere[]>([]);
   const [filieres_nom, setFilieresNom] = useState<Filiere[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
-  const [siteFilterMode, setSiteFilterMode] = useState<'all' | 'per_site'>('all');
+  const [siteFilterMode, setSiteFilterMode] = useState<'all' | 'cumulative'>('all');
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [points_collecte, setPointsCollecte] = useState<PointCollecte[]>([]);
   const [prestataires, setPrestataires] = useState<Prestataire[]>([]);
@@ -127,10 +126,11 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   const toggleSite = useCallback((siteId: string) => {
     setSites(prevSites => {
         let newSites: Site[];
-        if (siteFilterMode === 'per_site') {
-            // En mode per_site, on sélectionne toujours le site cliqué et on décoche les autres
-            newSites = prevSites.map(s => ({ ...s, checked: s.orgId === siteId }));
-            setSelectedSiteId(siteId);
+        if (siteFilterMode === 'cumulative') {
+            // En mode cumulative, on peut cocher/décocher plusieurs sites
+            newSites = prevSites.map(site =>
+                site.orgId === siteId ? { ...site, checked: !site.checked } : site
+            );
         } else {
             // Mode all: toggle classique
             newSites = prevSites.map(site =>
@@ -203,7 +203,7 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
       }
 
       const savedMode = localStorage.getItem(`siteFilterMode-${session.entreprise_id}`);
-      if (savedMode === 'all' || savedMode === 'per_site') {
+      if (savedMode === 'all' || savedMode === 'cumulative') {
         setSiteFilterMode(savedMode);
       }
 
@@ -229,15 +229,13 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
   }, [siteFilterMode, selectedSiteId, session?.entreprise_id]);
 
   // Fonction pour changer le mode avec logique de recheck des sites
-  const handleSetSiteFilterMode = useCallback((mode: 'all' | 'per_site') => {
+  const handleSetSiteFilterMode = useCallback((mode: 'all' | 'cumulative') => {
     setSiteFilterMode(mode);
     
-    // Si on passe de "per_site" à "all", rechecker tous les sites
-    if (mode === 'all') {
-      setSites(prevSites => prevSites.map(site => ({ ...site, checked: true })));
-      setSelectedSiteId(null);
-    }
-  }, [setSites]);
+    // Ne plus gérer le checked ici, c'est fait dans FiltreSiteEtablissement
+    // avec la prise en compte de userSiteAccess
+    setSelectedSiteId(null);
+  }, []);
 
   const value = {
     filieres,
