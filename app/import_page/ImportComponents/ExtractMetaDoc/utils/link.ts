@@ -869,6 +869,7 @@ export interface FactureLineHeader {
     site_description: string;
     site_num_affaire: string;
     dechet_description: string;
+    contenant?: string;
 }
 
 export interface FactureDepart {
@@ -962,7 +963,8 @@ export const buildFactureFromNormalized = (
             bon_intention: '',
             site_description: site,
             site_num_affaire: '',
-            dechet_description: mapValueByParams(
+            dechet_description: waste,
+            contenant : mapValueByParams(
                 (((pdf_infos as { dechet?: Array<{ contenant?: string }> }).dechet?.[dechetIndex]?.contenant as string) || '').trim(),
                 params_mapping.params_mapping_contenant
             )

@@ -18,7 +18,8 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
             facture.infos_json.departs.forEach(depart => {
                 depart.line_body.forEach(line => {
                     const montant = line.montant_ht;
-                    if (line.type_operation === "Rachat") {
+                    
+                    if (montant < 0) {
                         acc.revenues += Math.abs(montant);
                     } else {
                         acc.costs += montant;

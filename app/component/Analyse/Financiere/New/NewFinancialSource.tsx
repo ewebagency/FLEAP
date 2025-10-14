@@ -95,21 +95,6 @@ const NewFinancialSource = () => {
         fetchMappingNom();
     }, [entreprise_id]);
 
-    // Au début du composant
-    console.log('=== Configuration des filtres ===');
-    console.log('Filières configurées:', filieres.map(f => ({
-        nom: f.name,
-        active: f.checked
-    })));
-    console.log('Sites configurés:', sites.map(s => ({
-        orgId: s.orgId,
-        nom: s.name,
-        active: s.checked
-    })));
-    console.log('Période:', {
-        debut: segmentDates.debut?.toLocaleDateString(),
-        fin: segmentDates.fin?.toLocaleDateString()
-    });
 
     const validFactures = factures.map(facture => {
         // Vérifier la cohérence des montants

@@ -55,14 +55,12 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
         const fetchMappingTables = async () => {
             // Charger le mapping CED
             const mapping = await getMappingTableFiliere(entreprise_id);
-            console.log('Mapping table fetched:', mapping);
             setMappingTable(mapping || []);
             
             // Charger le mapping nom_filiere
             try {
                 const response = await fetch(`/api/get_mapping_nom_filiere?entreprise_id=${entreprise_id}`);
                 const { data: mappingNomFiliere } = await response.json();
-                console.log('Mapping nom filiere fetched:', mappingNomFiliere);
                 setMappingNomFiliere(mappingNomFiliere || []);
             } catch (error) {
                 console.error('Error fetching mapping nom filiere:', error);
@@ -73,8 +71,6 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
     }, [entreprise_id]);
 
     const filteredChartData = useMemo(() => {
-        if (!mappingTable.length) return null;
-
         // Si aucune filière n'est sélectionnée, retourner un dataset vide
         const selectedFilieres = filieres.filter(f => f.checked).map(f => f.name);
         if (selectedFilieres.length === 0) {
@@ -105,16 +101,6 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             currentDate.setMonth(currentDate.getMonth() + 1);
         }
 
-        console.log('All month labels:', monthLabels);
-        console.log('Month labels mapping:', monthLabels.map(label => {
-            const [monthStr, yearStr] = label.split(' ');
-            return {
-                original: label,
-                monthStr,
-                yearStr
-            };
-        }));
-
         const positiveAmountsByFiliere: { [key: string]: { [key: string]: number } } = {};
         const negativeAmountsByFiliere: { [key: string]: { [key: string]: number } } = {};
 
@@ -129,6 +115,7 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                 if (filieres_ou_prestataires.nom === 'filiere_nom') {
                     // En mode filiere_nom, utiliser le nom du déchet pour déterminer la filière
                     const wasteName = header?.dechet_description || header?.type_dechet;
+                    
                     if (wasteName) {
                         const mappingEntry = mappingNomFiliere.find((item: { nom?: string; filiere: string }) => 
                             item.nom === wasteName
@@ -155,8 +142,6 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                 depart.line_body.forEach(line => {
                     const montant = line.montant_ht || 0;
                     const dateDepart = new Date(header?.date_depart);
-                    console.log("header?.date_depart", header?.date_depart);
-                    console.log("dateDepart", dateDepart);
                     // Extraire les composants de la date en UTC
                     const utcYear = dateDepart.getUTCFullYear();
                     const utcMonth = dateDepart.getUTCMonth();
@@ -185,9 +170,6 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                 });
             });
         });
-
-        console.log('Positive amounts:', positiveAmountsByFiliere);
-        console.log('Negative amounts:', negativeAmountsByFiliere);
 
         const datasets = [
             ...Object.entries(positiveAmountsByFiliere).map(([filiere, data]) => {
@@ -272,8 +254,6 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             };
         });
 
-        console.log('Final datasets:', datasets);
-
         // Calculate min and max values for the first time
         if (ENABLE_FIXED_SCALE && (minScale === null || maxScale === null)) {
             let allValues: number[] = [];
@@ -330,10 +310,6 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             datasets: yearData
         };
     }, [filteredChartData, aggregation]);
-
-    if (!mappingTable.length) {
-        return <div className="text-center text-gray-500">Chargement des données...</div>;
-    }
 
     if (!filteredChartData) {
         return <div className="text-center text-gray-500">Traitement des données...</div>;
