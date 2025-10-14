@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/app/database/supabaseClient';
 import type { BsdItem, AttachedPdf, RenderedAttachment } from './PDFPreviewTypes';
 import type { ReportBuilderState } from '../types';
@@ -27,6 +27,8 @@ export function usePdfAttachments(
   const [attachedPdfs, setAttachedPdfs] = useState<AttachedPdf[]>([]);
   const [renderedAttachments, setRenderedAttachments] = useState<RenderedAttachment[]>([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [downloadComplete, setDownloadComplete] = useState(false);
+  const renderingRef = useRef<Set<string>>(new Set());
 
   // Expected vs rendered attachments tracking
   const expectedPdfIds = useMemo(() => {
@@ -53,7 +55,8 @@ export function usePdfAttachments(
       if (!state.exportOptions.includeLinePdfs) { 
         console.log('❌ PDF option disabled');
         setAttachedPdfs([]); 
-        setRenderedAttachments([]); 
+        setRenderedAttachments([]);
+        setDownloadComplete(false);
         return; 
       }
       
@@ -63,7 +66,8 @@ export function usePdfAttachments(
       if (allIds.length === 0) { 
         console.log('❌ No PDF IDs found in table rows');
         setAttachedPdfs([]); 
-        setRenderedAttachments([]); 
+        setRenderedAttachments([]);
+        setDownloadComplete(false);
         return; 
       }
       
@@ -78,13 +82,21 @@ export function usePdfAttachments(
         if (error) {
           console.error('❌ Erreur récupération pdf_infos:', error);
           setAttachedPdfs([]); 
-          setRenderedAttachments([]); 
+          setRenderedAttachments([]);
+          setDownloadComplete(false);
           return;
         }
         
         console.log('📄 pdf_infos:', infos?.length || 0);
         
-        const embeds: AttachedPdf[] = [];
+        // Reset before downloading
+        setAttachedPdfs([]);
+        setRenderedAttachments([]);
+        setDownloadComplete(false);
+        renderingRef.current.clear();
+        
+        const downloadedPdfs: AttachedPdf[] = [];
+        
         for (const info of infos || []) {
           const cast = info as { id: string; name_pdf_in_bucket?: string };
           if (!cast || !cast.name_pdf_in_bucket) {
@@ -120,16 +132,21 @@ export function usePdfAttachments(
           }
           
           const buf = await fileData.arrayBuffer();
-          embeds.push({ id: cast.id, data: buf });
+          const newPdf = { id: cast.id, data: buf };
+          downloadedPdfs.push(newPdf);
+          // Update state incrementally for progress tracking (download phase)
+          setAttachedPdfs([...downloadedPdfs]);
         console.log('✅ DL', cast.id, 'size=', buf.byteLength);
         }
         
-        console.log('🎉 DL total:', embeds.length, '/', allIds.length);
-        setAttachedPdfs(embeds);
+        console.log('🎉 DL complete, total downloaded:', downloadedPdfs.length, '/', allIds.length);
+        // Mark download as complete - this will trigger rendering
+        setDownloadComplete(true);
       } catch (e) {
         console.error('❌ Erreur génération URLs PDF:', e);
         setAttachedPdfs([]);
         setRenderedAttachments([]);
+        setDownloadComplete(false);
       }
     };
 
@@ -138,20 +155,29 @@ export function usePdfAttachments(
     }
   }, [state.exportOptions.includeLinePdfs, tableRows, attachmentsRequested]);
 
-  // Render attached PDFs into images for robust printing
+  // Render attached PDFs into images for robust printing (only after download is complete)
   useEffect(() => {
     const run = async () => {
-      console.log('🖼️ Render start', { on: !!state.exportOptions.includeLinePdfs, count: attachedPdfs.length });
-      
       if (!state.exportOptions.includeLinePdfs || attachedPdfs.length === 0) {
-        console.log('❌ No PDFs to render or option disabled');
-        setRenderedAttachments([]);
-        setAttachmentsLoading(false);
         return;
       }
       
-      setAttachmentsLoading(true);
-      console.log('🖼️ Rendering', attachedPdfs.length, 'PDFs');
+      // Wait until download is complete before starting rendering
+      if (!downloadComplete) {
+        return;
+      }
+      
+      // Filter PDFs that need rendering (not already rendered and not currently rendering)
+      const toRender = attachedPdfs.filter(p => !renderingRef.current.has(p.id));
+      
+      if (toRender.length === 0) {
+        return;
+      }
+      
+      console.log('🖼️ Rendering', toRender.length, 'PDFs (download phase complete)');
+      
+      // Mark these PDFs as being rendered
+      toRender.forEach(p => renderingRef.current.add(p.id));
       
       try {
         // Dynamically import pdf.js in the client
@@ -174,11 +200,12 @@ export function usePdfAttachments(
         }
         console.log('✅ PDF.js worker configured');
 
-        const results: RenderedAttachment[] = [];
-        for (const p of attachedPdfs) {
+        for (const p of toRender) {
           try {
-            console.log('⚙️ PDF', p.id);
-            const loadingTask = pdfjsGlobal.getDocument({ data: p.data });
+            console.log('⚙️ Rendering PDF', p.id);
+            // Clone the ArrayBuffer to prevent detachment issues with workers
+            const clonedData = p.data.slice(0);
+            const loadingTask = pdfjsGlobal.getDocument({ data: clonedData });
             const pdf = await loadingTask.promise;
             console.log('📖 pages', pdf.numPages);
             
@@ -199,41 +226,66 @@ export function usePdfAttachments(
               }
             }
             const item = { id: p.id, images };
-            results.push(item);
+            // Update state incrementally for progress tracking
             setRenderedAttachments(prev => [...prev, item]);
-            console.log('✅ Render', p.id, 'pages=', images.length);
+            console.log('✅ Rendered', p.id, 'pages=', images.length);
           } catch (e) {
             console.error('❌ Render fail', p.id, e);
+            // Remove from rendering set on failure so it can be retried
+            renderingRef.current.delete(p.id);
           }
         }
-        if (results.length > 0) {
-          setRenderedAttachments(results);
-          console.log('🎉 Render total:', results.length, '/', attachedPdfs.length);
-        } else {
-          console.log('⚠️ Render none');
-        }
+        
+        console.log('🎉 Render batch complete');
       } catch (e) {
         console.error('❌ PDF.js import or setup failed:', e);
+        // Clear rendering set on fatal error
+        toRender.forEach(p => renderingRef.current.delete(p.id));
       }
-      
-      setAttachmentsLoading(false);
-      try {
-        console.log('📊 Status exp/dl/rend:', expectedPdfIds.size, '/', attachedPdfs.length, '/', renderedAttachments.length);
-      } catch {}
     };
     if (attachmentsRequested) {
       run();
     }
-  }, [state.exportOptions.includeLinePdfs, attachedPdfs, attachmentsRequested]);
+  }, [state.exportOptions.includeLinePdfs, attachedPdfs, attachmentsRequested, downloadComplete]);
+
+  // Update loading state based on progress
+  useEffect(() => {
+    if (!state.exportOptions.includeLinePdfs || !attachmentsRequested) {
+      setAttachmentsLoading(false);
+      return;
+    }
+    
+    const expected = expectedPdfIds.size;
+    const downloaded = attachedPdfs.length;
+    const rendered = renderedAttachments.length;
+    
+    // Loading is done when all expected PDFs are both downloaded and rendered
+    if (expected > 0 && downloaded === expected && rendered === expected) {
+      setAttachmentsLoading(false);
+      console.log('✅ All attachments ready:', rendered, '/', expected);
+    } else if (expected > 0) {
+      setAttachmentsLoading(true);
+    }
+  }, [state.exportOptions.includeLinePdfs, attachmentsRequested, expectedPdfIds.size, attachedPdfs.length, renderedAttachments.length]);
+
+  // Reset function to clear all states
+  const resetAttachments = () => {
+    setAttachedPdfs([]);
+    setRenderedAttachments([]);
+    setDownloadComplete(false);
+    renderingRef.current.clear();
+  };
 
   return {
     attachedPdfs,
     renderedAttachments,
     attachmentsLoading,
+    downloadComplete,
     totalExpected,
     readyCount,
     allAttachmentsReady,
     setAttachedPdfs,
-    setRenderedAttachments
+    setRenderedAttachments,
+    resetAttachments
   };
 }

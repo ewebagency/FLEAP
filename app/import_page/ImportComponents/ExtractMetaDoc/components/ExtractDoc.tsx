@@ -247,28 +247,46 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         const [pdfUrl, setPdfUrl] = useState<string | null>(null);
         const [loading, setLoading] = useState(true);
         const [error, setError] = useState<string | null>(null);
-        const [urlCache, setUrlCache] = useState<Record<string, string>>({});
+        const [urlCache, setUrlCache] = useState<Record<string, { url: string; expiresAt: number }>>({});
 
-        const getPdfUrl = useCallback(async () => {
-            // Vérifier sessionStorage en premier (persistance inter-fenêtres)
-            const cachedInSession = sessionStorage.getItem(pdfUrlStorageKey);
-            if (cachedInSession) {
-                setPdfUrl(cachedInSession);
-                setLoading(false);
-                return cachedInSession;
-            }
-
-            // Vérifier le cache d'état local ensuite
-            if (urlCache[pdf_path]) {
-                const cached = urlCache[pdf_path];
-                setPdfUrl(cached);
-                setLoading(false);
-                try { sessionStorage.setItem(pdfUrlStorageKey, cached); } catch {}
-                return cached;
-            }
+        const getPdfUrl = useCallback(async (forceRefresh = false) => {
+            const now = Date.now();
+            const expiryStorageKey = `${pdfUrlStorageKey}:expiry`;
             
-            // Éviter les appels multiples si on a déjà une URL
-            if (pdfUrl) return pdfUrl;
+            // Vérifier sessionStorage en premier (persistance inter-fenêtres)
+            if (!forceRefresh) {
+                const cachedInSession = sessionStorage.getItem(pdfUrlStorageKey);
+                const cachedExpiry = sessionStorage.getItem(expiryStorageKey);
+                
+                if (cachedInSession && cachedExpiry) {
+                    const expiresAt = parseInt(cachedExpiry, 10);
+                    // Vérifier si l'URL n'est pas expirée (avec marge de 5 minutes)
+                    if (expiresAt > now + 300000) {
+                        setPdfUrl(cachedInSession);
+                        setLoading(false);
+                        return cachedInSession;
+                    } else {
+                        // URL expirée, nettoyer le cache
+                        sessionStorage.removeItem(pdfUrlStorageKey);
+                        sessionStorage.removeItem(expiryStorageKey);
+                    }
+                }
+
+                // Vérifier le cache d'état local ensuite
+                if (urlCache[pdf_path]) {
+                    const cached = urlCache[pdf_path];
+                    // Vérifier si l'URL n'est pas expirée (avec marge de 5 minutes)
+                    if (cached.expiresAt > now + 300000) {
+                        setPdfUrl(cached.url);
+                        setLoading(false);
+                        try { 
+                            sessionStorage.setItem(pdfUrlStorageKey, cached.url);
+                            sessionStorage.setItem(expiryStorageKey, cached.expiresAt.toString());
+                        } catch {}
+                        return cached.url;
+                    }
+                }
+            }
             
             try {
                 setLoading(true);
@@ -280,10 +298,16 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
 
                 if (data?.signedUrl) {
                     const signedUrl = data.signedUrl;
+                    // L'URL expire dans 3600 secondes
+                    const expiresAt = now + 3600000; // 3600 secondes en millisecondes
+                    
                     setPdfUrl(signedUrl);
-                    // Mettre en cache l'URL
-                    setUrlCache(prev => ({ ...prev, [pdf_path]: signedUrl }));
-                    try { sessionStorage.setItem(pdfUrlStorageKey, signedUrl); } catch {}
+                    // Mettre en cache l'URL avec son expiration
+                    setUrlCache(prev => ({ ...prev, [pdf_path]: { url: signedUrl, expiresAt } }));
+                    try { 
+                        sessionStorage.setItem(pdfUrlStorageKey, signedUrl);
+                        sessionStorage.setItem(expiryStorageKey, expiresAt.toString());
+                    } catch {}
                     return signedUrl;
                 }
                 throw new Error('URL du PDF non trouvée');
@@ -294,7 +318,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
             } finally {
                 setLoading(false);
             }
-        }, [pdf_path, pdfUrl, urlCache]);
+        }, [pdf_path, urlCache]);
         
         useEffect(() => {
             // Reset les états quand le pdf_path change
@@ -303,29 +327,24 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
             setLoading(true);
             
             if (pdf_path) {
-                // Essayer de restaurer depuis sessionStorage immédiatement
-                const existing = sessionStorage.getItem(pdfUrlStorageKey);
-                if (existing) {
-                    setPdfUrl(existing);
-                    setLoading(false);
-                } else {
-                    void getPdfUrl();
-                }
+                void getPdfUrl();
             }
         }, [pdf_path, getPdfUrl]);
 
-        // Précharger l'URL quand le modal s'ouvre
+        // Gérer les erreurs de chargement du PDF (JWT expiré)
         useEffect(() => {
-            if (isOpen && pdf_path && !pdfUrl) {
-                const existing = sessionStorage.getItem(pdfUrlStorageKey);
-                if (existing) {
-                    setPdfUrl(existing);
-                    setLoading(false);
-                } else {
-                    void getPdfUrl();
+            const handlePdfError = (event: ErrorEvent) => {
+                const errorMessage = event.message || '';
+                // Détecter les erreurs JWT expirées
+                if (errorMessage.includes('InvalidJWT') || errorMessage.includes('exp') || errorMessage.includes('401')) {
+                    console.log('JWT expiré détecté, régénération de l\'URL...');
+                    void getPdfUrl(true); // Force le refresh
                 }
-            }
-        }, [pdf_path, pdfUrl, getPdfUrl]);
+            };
+
+            window.addEventListener('error', handlePdfError);
+            return () => window.removeEventListener('error', handlePdfError);
+        }, [getPdfUrl]);
 
         return (
             <div className="w-full h-full">
@@ -341,7 +360,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                         <div className="text-center">
                             <p className="text-red-600 mb-2">{error}</p>
                             <button 
-                                onClick={() => { void getPdfUrl(); }}
+                                onClick={() => { void getPdfUrl(true); }}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                             >
                                 Réessayer
@@ -349,7 +368,20 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                         </div>
                     </div>
                 ) : pdfUrl ? (
-                    <PdfDisplayer pdfUrl={pdfUrl} />
+                    <PdfDisplayer 
+                        pdfUrl={pdfUrl} 
+                        onError={(error: Error | string) => {
+                            // Détecter les erreurs JWT expirées
+                            const errorStr = String(error);
+                            if (errorStr.includes('InvalidJWT') || errorStr.includes('exp') || errorStr.includes('401') || errorStr.includes('400')) {
+                                console.log('JWT expiré détecté dans PdfDisplayer, régénération...');
+                                toast.error('Le lien du PDF a expiré, rechargement en cours...');
+                                void getPdfUrl(true);
+                            } else {
+                                setError('Erreur lors du chargement du PDF');
+                            }
+                        }}
+                    />
                 ) : (
                     <div className="flex items-center justify-center h-full">
                         <p>Impossible de charger le PDF</p>

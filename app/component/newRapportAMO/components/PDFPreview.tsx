@@ -13,6 +13,7 @@ import { useKpis } from "./useKpis";
 import { filterBsdRows, hasMultipleSites } from "./PDFPreviewUtils";
 import { applyFilterType } from "@/app/analysis/filterType";
 import type { BsdItem } from "./PDFPreviewTypes";
+import { LoadingProgressBar } from "./LoadingProgressBar";
 
 interface Props {
   title: string;
@@ -136,14 +137,27 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
   
   // Use custom hook for PDF attachments
   const {
+    attachedPdfs,
     renderedAttachments,
     attachmentsLoading,
+    downloadComplete,
     totalExpected,
     readyCount,
     allAttachmentsReady,
-    setAttachedPdfs,
-    setRenderedAttachments
+    resetAttachments,
   } = usePdfAttachments(tableRows, state, attachmentsRequested);
+
+  // Derive loading phase from hook state (download first, then render)
+  const loadingPhase: 'idle' | 'downloading' | 'rendering' | 'done' = useMemo(() => {
+    if (!attachmentsRequested || !state.exportOptions.includeLinePdfs) return 'idle';
+    if (!downloadComplete) return 'downloading';
+    if (downloadComplete && !allAttachmentsReady) return 'rendering';
+    if (allAttachmentsReady) return 'done';
+    return 'idle';
+  }, [attachmentsRequested, state.exportOptions.includeLinePdfs, downloadComplete, allAttachmentsReady]);
+
+  // Downloaded count is the number of PDFs that have been fetched
+  const downloadedCount = useMemo(() => attachedPdfs.length, [attachedPdfs.length]);
 
 
   // BSDs for KPI calculation: follow selected filterType (all/imported/registres)
@@ -193,11 +207,10 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
       try { onBsdFullyLoaded?.(); } catch {}
       if (autoStartAttachments && state.exportOptions.includeLinePdfs && state.selectedSites && state.selectedSites.length > 0) {
         setAttachmentsRequested(true);
-        setAttachedPdfs([]);
-        setRenderedAttachments([]);
+        resetAttachments();
       }
     }
-  }, [startLoadingBsd, bsdPages, lastPageHasMore, onBsdFullyLoaded, autoStartAttachments, state.exportOptions.includeLinePdfs, state.selectedSites, setAttachedPdfs, setRenderedAttachments]);
+  }, [startLoadingBsd, bsdPages, lastPageHasMore, onBsdFullyLoaded, autoStartAttachments, state.exportOptions.includeLinePdfs, state.selectedSites, resetAttachments]);
 
   const onExport = useCallback(() => {
     // Trigger loading and defer the actual export until ready via effect
@@ -214,9 +227,8 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
     if (!state.selectedSites || state.selectedSites.length === 0) return;
     setAttachmentsRequested(true);
     // reset previous state for a fresh run
-    setAttachedPdfs([]);
-    setRenderedAttachments([]);
-  }, [state.exportOptions.includeLinePdfs, state.selectedSites, setAttachedPdfs, setRenderedAttachments]);
+    resetAttachments();
+  }, [state.exportOptions.includeLinePdfs, state.selectedSites, resetAttachments]);
 
   const performExport = useCallback(async () => {
     if (!containerRef.current) return;
@@ -301,6 +313,21 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
             </button>
           )}
         </div>
+        
+        {/* Barre de progression pour le chargement des PDFs */}
+        {state.exportOptions.includeLinePdfs && attachmentsRequested && loadingPhase !== 'idle' && (
+          <div className="w-full">
+            <LoadingProgressBar
+              phase={loadingPhase}
+              downloadProgress={totalExpected > 0 ? (downloadedCount / totalExpected) * 100 : 0}
+              renderProgress={totalExpected > 0 ? (readyCount / totalExpected) * 100 : 0}
+              totalExpected={totalExpected}
+              downloadedCount={downloadedCount}
+              renderedCount={readyCount}
+            />
+          </div>
+        )}
+        
         {(state.exportOptions.includeLinePdfs || (state.exportOptions.includeCharts && expectedChartIds.length > 0)) && (
           <div className="text-sm text-gray-600 ml-3">
             {state.exportOptions.includeCharts && expectedChartIds.length > 0 ? (

@@ -1,10 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface PdfDisplayerProps {
     pdfUrl: string | null;
+    onError?: (error: Error | string) => void;
 }
 
-const PdfDisplayer = ({ pdfUrl }: PdfDisplayerProps) => {
+const PdfDisplayer = ({ pdfUrl, onError }: PdfDisplayerProps) => {
+    const [hasError, setHasError] = useState(false);
+
     const sendPdfToServer = async (url: string) => {
         try {
             // Fetch the PDF file
@@ -36,6 +39,32 @@ const PdfDisplayer = ({ pdfUrl }: PdfDisplayerProps) => {
         }
     }, [pdfUrl]);*/
 
+    // Vérifier les erreurs de chargement du PDF
+    useEffect(() => {
+        if (!pdfUrl || !onError) return;
+
+        const checkPdfUrl = async () => {
+            try {
+                const response = await fetch(pdfUrl, { method: 'HEAD' });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    setHasError(true);
+                    onError(errorText || `HTTP Error: ${response.status}`);
+                }
+            } catch (error) {
+                setHasError(true);
+                onError(error instanceof Error ? error : String(error));
+            }
+        };
+
+        void checkPdfUrl();
+    }, [pdfUrl, onError]);
+
+    // Reset error state when URL changes
+    useEffect(() => {
+        setHasError(false);
+    }, [pdfUrl]);
+
     return (
         <div style={{ 
             marginRight: '5px',
@@ -46,7 +75,7 @@ const PdfDisplayer = ({ pdfUrl }: PdfDisplayerProps) => {
             flex: '1',
             display: 'flex'
         }}>
-            {pdfUrl && <iframe
+            {pdfUrl && !hasError && <iframe
                 src={pdfUrl}
                 style={{ 
                     border: 'none',
@@ -55,6 +84,13 @@ const PdfDisplayer = ({ pdfUrl }: PdfDisplayerProps) => {
                     display: 'block'
                 }}
                 title="Mon PDF"
+                onError={(e) => {
+                    console.error('Erreur iframe:', e);
+                    setHasError(true);
+                    if (onError) {
+                        onError('Erreur de chargement du PDF dans l\'iframe');
+                    }
+                }}
             />}
         </div>
     );

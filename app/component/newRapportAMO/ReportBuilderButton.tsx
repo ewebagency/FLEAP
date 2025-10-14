@@ -348,8 +348,11 @@ export default function ReportBuilderButton() {
                         <button
                           onClick={onStartLoading}
                           disabled={!entreprise_id || phase !== 'idle'}
-                          className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-60"
+                          className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-60 flex items-center gap-2"
                         >
+                          {(phase === 'analysis' || phase === 'bsd') && (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          )}
                           {phase === 'idle'
                             ? 'Lancer le chargement des données'
                             : (phase === 'analysis' || phase === 'bsd')
@@ -432,8 +435,11 @@ export default function ReportBuilderButton() {
                     <button
                       onClick={onStartLoading}
                       disabled={!entreprise_id || phase !== 'idle'}
-                      className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-60"
+                      className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-60 flex items-center gap-2"
                     >
+                      {(phase === 'analysis' || phase === 'bsd') && (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      )}
                       {phase === 'idle'
                         ? 'Lancer le chargement'
                         : (phase === 'analysis' || phase === 'bsd')
