@@ -201,6 +201,8 @@ const TableBSD = () => {
     
     // Ref pour tracker les sites en cours de chargement (éviter les doublons)
     const loadingSitesRef = useRef<Set<string>>(new Set());
+    // Ref pour tracker les sites cochés précédemment (détecter les nouveaux)
+    const prevCheckedSitesRef = useRef<Set<string>>(new Set());
     
     const [showValidateModal, setShowValidateModal] = useState(false);
     const [selectedBsdForValidation, setSelectedBsdForValidation] = useState<BSD | null>(null);
@@ -430,6 +432,12 @@ const TableBSD = () => {
     useEffect(() => {
         if (!entreprise_id || !user_id) return;
         
+        // En mode cumulative, ne pas charger via fetchBSDs
+        if (siteFilterMode === 'cumulative') {
+            console.log('Mode cumulative - skip fetchBSDs dans effet serverDateSearch');
+            return;
+        }
+        
         // Reset pagination
         setLastLoadedDate(null);
         setLastLoadedId(null);
@@ -491,6 +499,36 @@ const TableBSD = () => {
         if (siteFilterMode !== 'cumulative' || !entreprise_id || !user_id) return;
         
         const checkedSiteIds = sites.filter(s => s.checked).map(s => s.orgId);
+        const currentCheckedSet = new Set(checkedSiteIds);
+        
+        console.log(`🔄 Effet cumulative - allBSDs.length: ${allBSDs.length}, checkedSiteIds: ${checkedSiteIds.length}, prevRef.size: ${prevCheckedSitesRef.current.size}`);
+        
+        // Détecter les NOUVEAUX sites cochés (pas ceux qui étaient déjà cochés)
+        const newlyCheckedSites = checkedSiteIds.filter(siteId => !prevCheckedSitesRef.current.has(siteId));
+        
+        // CRITIQUE : Si on a plein de sites nouvellement cochés (> 10),
+        // c'est probablement qu'on vient de passer en mode cumulative avec tous les sites cochés
+        // NE PAS charger, attendre que l'utilisateur coche manuellement
+        if (newlyCheckedSites.length > 10) {
+            console.log(`⚠️ Détection probable de transition mode all→cumulative - ${newlyCheckedSites.length} sites "nouveaux" détectés - RESET`);
+            // Réinitialiser tout pour repartir de zéro
+            prevCheckedSitesRef.current = new Set();
+            setAllBSDs([]);
+            setAllFilteredBSDs([]);
+            setDisplayedBSDs([]);
+            return;
+        }
+        
+        // Mettre à jour la référence pour la prochaine fois
+        prevCheckedSitesRef.current = currentCheckedSet;
+        
+        // Ne charger QUE les sites nouvellement cochés
+        if (newlyCheckedSites.length === 0) {
+            console.log('✅ Aucun nouveau site à charger (tous déjà connus)');
+            return;
+        }
+        
+        console.log(`⚠️ Sites nouvellement cochés à charger: ${newlyCheckedSites.length}`, newlyCheckedSites);
         
         // Fonction async pour charger un site
         const loadSiteData = async (siteId: string) => {
@@ -544,7 +582,7 @@ const TableBSD = () => {
         
         // Charger les sites un par un (séquentiellement pour éviter les race conditions)
         const loadAllSites = async () => {
-            for (const siteId of checkedSiteIds) {
+            for (const siteId of newlyCheckedSites) {
                 await loadSiteData(siteId);
             }
         };

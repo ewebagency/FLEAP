@@ -121,6 +121,8 @@ const FiltreSiteEtablissement = () => {
     const [userSiteAccess, setUserSiteAccess] = useState<string[]>([]);
     const limiteBeforeSearch = 10;
     const prevSiteFilterMode = useRef<'all' | 'cumulative'>(siteFilterMode);
+    const isChangingMode = useRef(false);
+    const hasInitializedSites = useRef(false);
 
     // Utilisation de SWR pour récupérer les données des émetteurs
     const { data: emitterData, error: swrError, isLoading: isLoadingSWR } = useSWR(
@@ -139,11 +141,58 @@ const FiltreSiteEtablissement = () => {
     useEffect(() => {
         // Vérifier si le mode a changé
         if (prevSiteFilterMode.current !== siteFilterMode) {
+            console.log(`🔄 Changement de mode détecté: ${prevSiteFilterMode.current} → ${siteFilterMode}`);
+            
+            // CRITIQUE : Ne traiter le changement de mode QUE si c'est un VRAI clic utilisateur
+            // Pas lors de la restauration depuis localStorage au chargement de la page
+            
+            // Si les données sont encore en cours de chargement, attendre
+            if (isLoadingSWR || isLoadingTrack) {
+                console.log(`⏭️ Skip changement de mode - données en cours de chargement`);
+                prevSiteFilterMode.current = siteFilterMode;
+                return;
+            }
+            
+            // Si additionnalSites n'est pas encore chargé, attendre
+            if (additionnalSites.length === 0 && !swrError) {
+                console.log(`⏭️ Skip changement de mode - additionnalSites pas encore chargé`);
+                prevSiteFilterMode.current = siteFilterMode;
+                return;
+            }
+            
+            // Vérifier le nombre de sites attendus
+            const expectedSitesCount = additionnalSites.length + etablissementsWithStatus.length + 1; // +1 pour "Autres"
+            
+            // Si on a moins de sites que prévu, attendre
+            if (sites.length < expectedSitesCount) {
+                console.log(`⏭️ Skip changement de mode - sites incomplets (${sites.length}/${expectedSitesCount})`);
+                prevSiteFilterMode.current = siteFilterMode;
+                return;
+            }
+            
+            console.log(`✅ Traitement changement de mode avec ${sites.length}/${expectedSitesCount} sites`);
+            
+            // Marquer qu'on est en train de changer de mode
+            isChangingMode.current = true;
+            // Réinitialiser le flag d'initialisation pour permettre la reconstruction dans le nouveau mode
+            hasInitializedSites.current = false;
             
             // Si on passe en mode cumulative (depuis all)
             if (siteFilterMode === 'cumulative' && prevSiteFilterMode.current === 'all') {
                 console.log('Passage de "Tous" à "Aucun" - décochage de tous les sites');
-                // Décocher tous les sites
+                
+                // IMPORTANT: Mettre à jour le localStorage AVANT de setSites
+                if (entreprise_id) {
+                    const uncheckedStates = sites.reduce((acc, site) => ({
+                        ...acc,
+                        [site.orgId]: { checked: false }
+                    }), {});
+                    localStorage.setItem(`sites-${entreprise_id}`, JSON.stringify(uncheckedStates));
+                    console.log('✅ localStorage mis à jour - tous décochés:', Object.keys(uncheckedStates).length, 'sites');
+                    console.log('📝 Contenu localStorage:', JSON.stringify(uncheckedStates));
+                }
+                
+                // Ensuite décocher tous les sites
                 const uncheckedSites: ContextSite[] = sites.map(site => ({ ...site, checked: false }));
                 setSites(uncheckedSites);
             }
@@ -166,13 +215,29 @@ const FiltreSiteEtablissement = () => {
                     return { ...site, checked: true };
                 });
                 
+                // IMPORTANT: Mettre à jour le localStorage AVANT de setSites
+                if (entreprise_id) {
+                    const checkedStates = checkedSites.reduce((acc, site) => ({
+                        ...acc,
+                        [site.orgId]: { checked: site.checked }
+                    }), {});
+                    localStorage.setItem(`sites-${entreprise_id}`, JSON.stringify(checkedStates));
+                    console.log('✅ localStorage mis à jour - mode "Tous"');
+                }
+                
                 setSites(checkedSites);
             }
             
             // Mettre à jour la référence
             prevSiteFilterMode.current = siteFilterMode;
+            
+            // Débloquer après un court délai pour laisser le temps à React de se synchroniser
+            setTimeout(() => {
+                isChangingMode.current = false;
+                console.log('🔓 Changement de mode terminé');
+            }, 100);
         }
-    }, [siteFilterMode, setSites, sites, userSiteAccess]);
+    }, [siteFilterMode, setSites, sites, userSiteAccess, entreprise_id, additionnalSites, etablissementsWithStatus, isLoadingSWR, isLoadingTrack, swrError]);
 
     // Effet pour traiter les données des émetteurs avec logs de débogage
     useEffect(() => {
@@ -290,6 +355,12 @@ const FiltreSiteEtablissement = () => {
 
     // Effet pour mettre à jour les sites quand les données changent
     useEffect(() => {
+        // CRITIQUE : Ne PAS reconstruire les sites si on est en train de changer de mode
+        if (isChangingMode.current) {
+            console.log('⏭️ Skip reconstruction - changement de mode en cours');
+            return;
+        }
+        
         if (isInitialLoading) {
             return; // Ne pas mettre à jour les sites tant que le chargement initial n'est pas terminé
         }
@@ -302,8 +373,37 @@ const FiltreSiteEtablissement = () => {
         const savedSites = localStorage.getItem(`sites-${entreprise_id}`);
         const savedSiteStates = savedSites ? JSON.parse(savedSites) : {};
 
-        // Si l'utilisateur a des accès aux sites définis dans Supabase, on écrase les données du localStorage
-        if (userSiteAccess.length > 0) {
+        console.log(`🔍 Reconstruction sites - Mode: ${siteFilterMode}, Sites dans Context: ${sites.length}, Sites disponibles: ${additionnalSites.length + etablissementsWithStatus.length}, localStorage: ${Object.keys(savedSiteStates).length}`);
+        
+        // CRITIQUE : En mode cumulative
+        // On doit TOUJOURS avoir la liste COMPLÈTE des sites disponibles dans le Context
+        // Mais on skip la reconstruction si on a déjà tous les sites avec les bons états
+        if (siteFilterMode === 'cumulative' && sites.length > 0 && additionnalSites.length > 0) {
+            // Vérifier qu'on a TOUS les sites (pas juste "Autres")
+            const expectedSitesCount = additionnalSites.length + etablissementsWithStatus.length + 1; // +1 pour "Autres"
+            
+            if (sites.length >= expectedSitesCount) {
+                // On a tous les sites, vérifions qu'ils correspondent au localStorage
+                const contextMatchesLocalStorage = sites.every(site => {
+                    const savedState = savedSiteStates[site.orgId];
+                    if (!savedState) return site.checked === false;
+                    return savedState.checked === site.checked;
+                });
+                
+                if (contextMatchesLocalStorage) {
+                    console.log('⏭️ Skip reconstruction - Context complet et synchronisé');
+                    hasInitializedSites.current = true;
+                    return;
+                }
+            }
+            
+            console.log('🔄 Reconstruction nécessaire - Context incomplet ou désynchronisé');
+        }
+
+        // Si l'utilisateur a des accès aux sites définis dans Supabase
+        // En mode "all", on peut écraser le localStorage pour forcer les restrictions
+        // En mode "cumulative", on NE DOIT PAS écraser car l'utilisateur gère manuellement
+        if (userSiteAccess.length > 0 && siteFilterMode === 'all') {
             // Créer un nouvel objet pour stocker les états des sites
             const newSavedSiteStates: { [key: string]: { checked: boolean } } = {};
             
@@ -314,9 +414,10 @@ const FiltreSiteEtablissement = () => {
                 newSavedSiteStates['----'] = { checked: true };
             }
             
-            // On ajoute les sites autorisés
+            // On ajoute les sites autorisés avec leur état actuel du localStorage si disponible
             userSiteAccess.forEach(siret => {
-                newSavedSiteStates[siret] = { checked: true };
+                // Préserver l'état du localStorage si disponible
+                newSavedSiteStates[siret] = savedSiteStates[siret] || { checked: true };
             });
             
             // On sauvegarde dans le localStorage
@@ -324,6 +425,8 @@ const FiltreSiteEtablissement = () => {
                 `sites-${entreprise_id}`,
                 JSON.stringify(newSavedSiteStates)
             );
+            
+            console.log('🔄 userSiteAccess appliqué au localStorage (mode all)');
         }
 
         // Utiliser les états sauvegardés pour déterminer checked
@@ -510,7 +613,12 @@ const FiltreSiteEtablissement = () => {
 
             setSites(sitesWithSavedStates);
         }
-    }, [etablissementsWithStatus, additionnalSites, mappingSite, entreprise_id]);
+        
+        // Marquer que les sites ont été initialisés
+        hasInitializedSites.current = true;
+        console.log('✅ Sites reconstruits et initialisés');
+        
+    }, [etablissementsWithStatus, additionnalSites, mappingSite, entreprise_id, siteFilterMode, userSiteAccess]);
 
     // Effet pour récupérer le mapping_site
     useEffect(() => {

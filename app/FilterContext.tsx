@@ -125,6 +125,8 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
 
   const toggleSite = useCallback((siteId: string) => {
     setSites(prevSites => {
+        console.log(`🔘 toggleSite appelé - siteId: ${siteId}, mode: ${siteFilterMode}, prevSites.length: ${prevSites.length}`);
+        
         let newSites: Site[];
         if (siteFilterMode === 'cumulative') {
             // En mode cumulative, on peut cocher/décocher plusieurs sites
@@ -139,19 +141,41 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
         }
 
         if (session?.entreprise_id) {
-            const siteStates = newSites.reduce((acc, site) => ({
-                ...acc,
-                [site.orgId]: {
-                    checked: site.checked
-                }
-            }), {});
+            // En mode cumulative, si on a un tableau incomplet, FUSIONNER avec le localStorage existant
+            // au lieu d'écraser
+            let siteStates: Record<string, { checked: boolean }>;
+            
+            if (siteFilterMode === 'cumulative' && newSites.length < 3) {
+                // Tableau incomplet, fusionner avec l'existant
+                const existingData = localStorage.getItem(`sites-${session.entreprise_id}`);
+                const existingSites = existingData ? JSON.parse(existingData) : {};
+                
+                // Mettre à jour seulement le site qui a changé
+                siteStates = {
+                    ...existingSites,
+                    [siteId]: {
+                        checked: newSites.find(s => s.orgId === siteId)?.checked ?? false
+                    }
+                };
+                
+                console.log('💾 toggleSite - FUSION avec localStorage existant');
+            } else {
+                // Tableau complet, écraser normalement
+                siteStates = newSites.reduce((acc, site) => ({
+                    ...acc,
+                    [site.orgId]: {
+                        checked: site.checked
+                    }
+                }), {});
+            }
             
             localStorage.setItem(
                 `sites-${session.entreprise_id}`,
                 JSON.stringify(siteStates)
             );
             
-            //console.log('Sites sauvegardés dans le localStorage:', siteStates);
+            console.log('💾 toggleSite - Sites sauvegardés dans localStorage:', Object.keys(siteStates).length, 'sites');
+            console.log('📝 Contenu:', JSON.stringify(siteStates));
         }
 
         return newSites;
@@ -195,7 +219,17 @@ export const FilterProvider: React.FC<FilterProviderProps> = ({ children }) => {
         setFilieresNom(JSON.parse(savedFilieresNom));
       }
 
-      // Ne pas forcer les états des sites depuis localStorage au démarrage
+      // Charger les états des sites depuis localStorage (ajouté pour mode cumulative)
+      const savedSitesData = localStorage.getItem(`sites-${session.entreprise_id}`);
+      if (savedSitesData) {
+        try {
+          const savedSiteStates = JSON.parse(savedSitesData);
+          // Les sites seront reconstruits par FiltreSiteEtablissement avec ces états
+          console.log('📦 Sites chargés depuis localStorage:', Object.keys(savedSiteStates).length);
+        } catch (e) {
+          console.error('Erreur parsing sites localStorage:', e);
+        }
+      }
 
       const savedPointsCollecte = localStorage.getItem(`points_collecte-${session.entreprise_id}`);
       if (savedPointsCollecte) {
