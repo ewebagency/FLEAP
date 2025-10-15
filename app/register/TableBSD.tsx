@@ -21,6 +21,7 @@ import { handleCancelCollecte } from "./DemandeCollecteNew/DemandeFonctions";
 import { useBSDs } from './BSDsProvider';
 // import { handleDeleteLinkBon_PDF } from './RegisterComponents/Modal/DisplayModifyOnTable/deleteLinkBon_PDF';
 import { handleDeleteLinkMetaDoc } from '@/app/import_page/ImportComponents/ExtractMetaDoc/utils/link_or_create_bdd';
+import { applyFilterType, FilterType } from '../analysis/filterType';
 
 
 const cleanCED = (ced: string): string => {
@@ -182,7 +183,7 @@ const TableBSD = () => {
     
     //const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType } = useModal();
     //A faire passer sur useModalContextNew
-    const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType, filterPendingBSDs, setFilterPendingBSDs } = useModalContextNew();
+    const { modalReload, setModalReload, modalId, setModalId, modalType, setModalType, filterPendingBSDs, setFilterPendingBSDs, registerFilterType, setRegisterFilterType } = useModalContextNew();
     const { sites, filieres, points_collecte, segmentDates, siteFilterMode, selectedSiteId, filieres_ou_prestataires, serverDateSearch } = useFilterContext();
     const { allBSDs, setAllBSDs, allFilteredBSDs, setAllFilteredBSDs, displayedBSDs, setDisplayedBSDs } = useBSDs();
 
@@ -467,10 +468,20 @@ const TableBSD = () => {
                 false  // skipSiteFilter = false, on applique toujours le filtre des sites
             );
             
-            //console.log("Nombre de BSDs après filtrage (filteredData):", filteredData.length);
-            setAllFilteredBSDs(filteredData);
+            // Appliquer le filtre registerFilterType (registre vs demandes)
+            const finalFilteredData = applyFilterType<BSD>(
+                filteredData,
+                registerFilterType,
+                {
+                    getStatus: (bsd) => bsd.status_track_dechets,
+                    getCreatedOnFleap: (bsd) => bsd.created_on_fleap as boolean | undefined
+                }
+            );
+            
+            //console.log("Nombre de BSDs après filtrage (filteredData):", finalFilteredData.length);
+            setAllFilteredBSDs(finalFilteredData);
             //setDisplayLimit(50);
-            const newDisplayedBSDs = filteredData.slice(0, displayLimit);
+            const newDisplayedBSDs = finalFilteredData.slice(0, displayLimit);
             //console.log("Nombre de BSDs à afficher (newDisplayedBSDs):", newDisplayedBSDs.length);
             setDisplayedBSDs(newDisplayedBSDs);
         } else {
@@ -488,8 +499,19 @@ const TableBSD = () => {
                 filieres_ou_prestataires?.nom === 'filiere_nom' ? 'nom' : 'ced',
                 false  // skipSiteFilter = false, on applique toujours le filtre des sites
             );
-            setAllFilteredBSDs(filteredData);
-            setDisplayedBSDs(filteredData);
+            
+            // Appliquer le filtre registerFilterType
+            const finalFilteredData = applyFilterType<BSD>(
+                filteredData,
+                registerFilterType,
+                {
+                    getStatus: (bsd) => bsd.status_track_dechets,
+                    getCreatedOnFleap: (bsd) => bsd.created_on_fleap as boolean | undefined
+                }
+            );
+            
+            setAllFilteredBSDs(finalFilteredData);
+            setDisplayedBSDs(finalFilteredData);
         }
         //console.log("=== Fin applyFilters ===");
     };
@@ -618,7 +640,8 @@ const TableBSD = () => {
         allBSDs,
         siteFilterMode,
         selectedSiteId,
-        mappingTable
+        mappingTable,
+        registerFilterType
     ]);
 
     // Effet pour charger les données initiales

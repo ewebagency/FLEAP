@@ -21,10 +21,12 @@ import BoxIcon from '../component/BoxIconWrapper';
 import { useSession } from "../component/SessionProvider";
 // import ButtonReportAMO from "../component/ReportAMO/ButtonReportAMO";
 import { AnalysisProvider } from "../analysis/AnalysisProvider";
+import { useModalContextNew } from "./RegisterComponents/Modal/ContextModal";
 
 const RegisterPage = () => {
     const router = useRouter();
     const {user_id, display_features} = useSession();
+    const { registerFilterType, setRegisterFilterType } = useModalContextNew();
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -56,7 +58,34 @@ const RegisterPage = () => {
                     <BordereauxRegister />
                 )}
                 <div className="hidden md:flex justify-between items-center mb-0 mt-1">
-                    <h3 className="text-md text-gray-500 mb-0">Registre des déchets</h3>
+                    <div className="flex items-center gap-3">
+                        {display_features?.demande_collecte ? (
+                            <div className="flex gap-1">
+                                <button
+                                    onClick={() => setRegisterFilterType('imported')}
+                                    className={`px-4 py-2 text-sm transition-all border-b-2 ${
+                                        registerFilterType === 'imported'
+                                            ? 'border-[var(--green-medium)] text-[var(--green-medium)] font-bold'
+                                            : 'border-transparent text-gray-600 hover:text-gray-800'
+                                    }`}
+                                >
+                                    Registre
+                                </button>
+                                <button
+                                    onClick={() => setRegisterFilterType('demandes')}
+                                    className={`px-4 py-2 text-sm transition-all border-b-2 ${
+                                        registerFilterType === 'demandes'
+                                            ? 'border-[var(--green-medium)] text-[var(--green-medium)] font-bold'
+                                            : 'border-transparent text-gray-600 hover:text-gray-800'
+                                    }`}
+                                >
+                                    Demandes
+                                </button>
+                            </div>
+                        ) : (
+                            <h3 className="text-md text-gray-500 mb-0 hidden">Registre des déchets</h3>
+                        )}
+                    </div>
                     <div className="flex gap-2 mr-[-8px] justify-end">
                         <CreateBSDLine/>
                         <ImportRegisterButton/>

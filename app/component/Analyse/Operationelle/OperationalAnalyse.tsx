@@ -6,6 +6,7 @@ import AnalOpPieChart from "./AnalOpPieChart";
 import RepComponent from "../Financiere/New/RepComponent";
 import { cofounders_user_id } from "../../SideBar";
 import { useSession } from "../../SessionProvider";
+import ExportAnalysisButton from "./ExportAnalysisButton";
 
 const OperationalAnalyse = ({active}: {active: boolean}) => {
     const {user_id} = useSession()
@@ -43,6 +44,14 @@ const OperationalAnalyse = ({active}: {active: boolean}) => {
                                 <AnalOpPieChart/>
                             </div>
                         </div>
+
+                    {/* Bouton d'export Excel pour les cofounders */}
+                    {cofounders_user_id(user_id) && (
+                        <div className="mt-4">
+                            <ExportAnalysisButton />
+                        </div>
+                    )}
+            
                         
                     </div>
                 </div>  

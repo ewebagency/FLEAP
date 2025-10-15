@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { CompleteFormInput, FormInput } from '../../interface/BSD_Interface';
+import { FilterType } from '../../../analysis/filterType';
 /*interface this_FormAPI {
   formAPI?: {
       createFormInput?: {
@@ -76,6 +77,8 @@ interface ModalContextType {
     setModalReload: React.Dispatch<React.SetStateAction<boolean>>;
     filterPendingBSDs: boolean;
     setFilterPendingBSDs: React.Dispatch<React.SetStateAction<boolean>>;
+    registerFilterType: FilterType;
+    setRegisterFilterType: React.Dispatch<React.SetStateAction<FilterType>>;
 }
 
 // Créer le contexte
@@ -85,6 +88,7 @@ const ModalContextNew = createContext<ModalContextType>({} as ModalContextType);
 export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
     const [displayFormulaire, setDisplayFormulaire] = useState<boolean>(false);
     const [filterPendingBSDs, setFilterPendingBSDs] = useState<boolean>(false);
+    const [registerFilterType, setRegisterFilterType] = useState<FilterType>('imported');
 
     const initialToogleData: FormInput = {
         emitter: {
@@ -167,7 +171,9 @@ export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
             setModalReload,
             
             filterPendingBSDs,
-            setFilterPendingBSDs
+            setFilterPendingBSDs,
+            registerFilterType,
+            setRegisterFilterType
         }}>
             {children}
         </ModalContextNew.Provider>

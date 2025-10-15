@@ -41,8 +41,13 @@ export const calculateTauxTri = (
         if (filieres_ou_prestataires.nom === 'filiere_nom') {
             // En mode filiere_nom, utiliser le mapping_nom_filiere + flags multiflux/tri
             const wasteName = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
+            
+            // Comparaison insensible aux accents et à la casse
             const mappingEntry = mappingTable.find(
-                (item): item is MappingByNom => 'nom' in item && typeof item.nom === 'string' && item.nom === wasteName
+                (item): item is MappingByNom => {
+                    if (!('nom' in item) || typeof item.nom !== 'string') return false;
+                    return removeAccents(item.nom.toLowerCase()) === removeAccents(wasteName.toLowerCase());
+                }
             );
             filiere = mappingEntry ? mappingEntry.filiere : 'Autres';
 
@@ -70,7 +75,8 @@ export const calculateTauxTri = (
                 wasteDetails[description].quantity += quantity;
                 return;
             }
-            if (mappingMultiflux === false) {
+            // Si multiflux n'est pas défini (undefined) ou est false => monoflux => trié sur site
+            if (mappingMultiflux === false || mappingMultiflux === undefined) {
                 // Monoflux => trié sur site
                 return;
             }
@@ -128,10 +134,11 @@ export const calculateTauxTri = (
         // Logique différenciée selon le mode
         if (filieres_ou_prestataires.nom === 'filiere_nom') {
             // Mode filiere_nom : évaluer le tri pour TOUS les déchets selon leur mapping individuel
+            const wasteName = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
+            
             if (!tri_potentiel) {
                 nonRecycledWeight += quantity;
             } else {
-                const wasteName = bsd.infos_json.formAPI.createFormInput.wasteDetails.name;
                 if(removeAccents(wasteName).toLowerCase().includes('melang')){
                     triByPresta += quantity;
                 }
@@ -180,6 +187,7 @@ export const calculateTauxTri = (
 
     const tauxTri = totalWeight > 0 ? ((totalWeight - nonRecycledWeight) / totalWeight) * 100 : 0;
     const tauxTriSurSite = totalWeight > 0 ? ((totalWeight - nonRecycledWeight - triByPresta) / totalWeight) * 100 : 0;
+    
     return { tauxTri, totalWeight, nonRecycledDetails, tauxTriSurSite, triByPresta };
 };
 
