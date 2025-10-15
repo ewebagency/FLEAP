@@ -10,6 +10,7 @@ import { smart_split_loop, apply_smart_split } from '../../utils/split';
 import { LinkConfig } from '../../utils/default_auto_link_params';
 import { PdfInfo, ProcessingResult, SiteInfo, FilterOptions } from './LoopStarterTypes';
 import { getAllPossibleAlerteFlags } from './LoopStarterFilters';
+import { invalidateCache } from '@/app/utils/invalidateCache';
 
 // Fonction pour rafraîchir les données depuis la BDD
 export const refreshData = async (
@@ -1287,6 +1288,330 @@ export const handleCheckAlertes = async (
         toast.error('Erreur lors de la vérification des alertes');
     } finally {
         setProcessingAlertes(false);
+    }
+};
+
+// Supprimer les liens BSD des PDFs sélectionnés
+export const handleDeleteLinksSelected = async (
+    selectedPdfIds: string[],
+    entreprise_id: string,
+    user_id: string,
+    pdfInfos: PdfInfo[],
+    setProcessingDeleteLinks: (value: boolean) => void,
+    setSelectedPdfIds: (ids: string[]) => void,
+    onRefreshData: () => Promise<void>
+) => {
+    if (selectedPdfIds.length === 0) {
+        toast.error('Veuillez sélectionner au moins un PDF');
+        return;
+    }
+
+    if (!entreprise_id) {
+        toast.error('ID entreprise manquant');
+        return;
+    }
+
+    const entrepriseIdNum = parseInt(entreprise_id);
+
+    // Analyser ce qui va être supprimé pour chaque PDF
+    const analysisResults: Array<{
+        pdfId: string;
+        pdfName: string;
+        actions: Array<{
+            indexDechet: number;
+            status: string;
+            bsdId: string;
+            actionType: 'delete_bsd' | 'unlink_bsd' | 'remove_to_check';
+            actionLabel: string;
+        }>;
+    }> = [];
+
+    for (const pdfId of selectedPdfIds) {
+        const pdf = pdfInfos.find(p => p.id === pdfId);
+        if (!pdf) continue;
+
+        const bsdLinked = pdf.bsd_linked as Array<{
+            index_dechet: number;
+            status?: string;
+            bsd_id?: string;
+        }> | null | undefined;
+
+        if (!bsdLinked || !Array.isArray(bsdLinked) || bsdLinked.length === 0) {
+            continue;
+        }
+
+        const actions: Array<{
+            indexDechet: number;
+            status: string;
+            bsdId: string;
+            actionType: 'delete_bsd' | 'unlink_bsd' | 'remove_to_check';
+            actionLabel: string;
+        }> = [];
+
+        for (const item of bsdLinked) {
+            const status = item.status || 'unknown';
+            const bsdId = item.bsd_id || 'N/A';
+            
+            if (status === 'created') {
+                actions.push({
+                    indexDechet: item.index_dechet,
+                    status,
+                    bsdId,
+                    actionType: 'delete_bsd',
+                    actionLabel: '🗑️ Supprimer le BSD'
+                });
+            } else if (status === 'linked') {
+                actions.push({
+                    indexDechet: item.index_dechet,
+                    status,
+                    bsdId,
+                    actionType: 'unlink_bsd',
+                    actionLabel: '🔓 Délier du BSD'
+                });
+            } else if (status === 'check_by_user' || status === 'to_check_by_user') {
+                actions.push({
+                    indexDechet: item.index_dechet,
+                    status,
+                    bsdId: bsdId !== 'N/A' ? bsdId : '',
+                    actionType: 'remove_to_check',
+                    actionLabel: '❌ Retirer "À vérifier"'
+                });
+            } else if (status === 'pushed') {
+                // Ne rien faire pour les pushs - on les garde
+                continue;
+            }
+        }
+
+        if (actions.length > 0) {
+            analysisResults.push({
+                pdfId,
+                pdfName: pdf.name_pdf || 'Document sans nom',
+                actions
+            });
+        }
+    }
+
+    if (analysisResults.length === 0) {
+        toast('Aucun lien à supprimer pour les PDFs sélectionnés', { icon: 'ℹ️' });
+        return;
+    }
+
+    // Préparer le HTML pour SweetAlert
+    const detailsHtml = analysisResults.map(result => {
+        const actionsHtml = result.actions.map(action => {
+            const bsdInfo = action.bsdId && action.bsdId !== 'N/A' ? ` (BSD: ${action.bsdId})` : '';
+            return `<div class="ml-4 mb-1 text-sm">• Déchet #${action.indexDechet + 1}: ${action.actionLabel}${bsdInfo}</div>`;
+        }).join('');
+
+        return `
+            <div class="mb-3 p-2 bg-gray-50 rounded">
+                <div class="font-medium text-gray-800 mb-2">📄 ${result.pdfName}</div>
+                ${actionsHtml}
+            </div>
+        `;
+    }).join('');
+
+    // Compter les actions
+    const totalDeleteBsd = analysisResults.reduce((sum, r) => sum + r.actions.filter(a => a.actionType === 'delete_bsd').length, 0);
+    const totalUnlinkBsd = analysisResults.reduce((sum, r) => sum + r.actions.filter(a => a.actionType === 'unlink_bsd').length, 0);
+    const totalRemoveToCheck = analysisResults.reduce((sum, r) => sum + r.actions.filter(a => a.actionType === 'remove_to_check').length, 0);
+
+    // Afficher la confirmation
+    const confirmed = await Swal.fire({
+        title: 'Supprimer les liens BSD',
+        html: `
+            <div class="text-left">
+                <div class="mb-4 p-3 bg-yellow-50 rounded border-l-4 border-yellow-400">
+                    <div class="font-medium text-yellow-800 mb-2">⚠️ Actions à effectuer:</div>
+                    <div class="text-sm text-yellow-700 space-y-1">
+                        ${totalDeleteBsd > 0 ? `<div>🗑️ <strong>${totalDeleteBsd}</strong> BSD(s) seront <strong>supprimés</strong> (statut "Créé")</div>` : ''}
+                        ${totalUnlinkBsd > 0 ? `<div>🔓 <strong>${totalUnlinkBsd}</strong> BSD(s) seront <strong>déliés</strong> (statut "Lié")</div>` : ''}
+                        ${totalRemoveToCheck > 0 ? `<div>❌ <strong>${totalRemoveToCheck}</strong> marqueur(s) "À vérifier" seront <strong>retirés</strong></div>` : ''}
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <div class="font-medium text-gray-800 mb-2">📋 Détail par document:</div>
+                    <div class="max-h-60 overflow-y-auto">
+                        ${detailsHtml}
+                    </div>
+                </div>
+                
+                <div class="p-3 bg-red-50 rounded border-l-4 border-red-400">
+                    <div class="text-sm text-red-800">
+                        <strong>⚠️ Attention:</strong> Cette action est irréversible. Les BSDs créés seront définitivement supprimés. Les BSDs liés seront simplement déliés (ils resteront dans la base).
+                    </div>
+                </div>
+                
+                <div class="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                    ℹ️ Le statut des PDFs sera mis à jour automatiquement. La table facture ne sera pas modifiée.
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '✅ Confirmer la suppression',
+        cancelButtonText: '❌ Annuler',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#6b7280',
+        width: '800px',
+        customClass: {
+            popup: 'text-left',
+            htmlContainer: 'text-left'
+        }
+    });
+
+    if (!confirmed.isConfirmed) {
+        toast('Suppression annulée', { icon: '❌' });
+        return;
+    }
+
+    // Appliquer les suppressions
+    setProcessingDeleteLinks(true);
+    
+    try {
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const result of analysisResults) {
+            try {
+                const pdfId = result.pdfId;
+                
+                // Récupérer les données actuelles du PDF
+                const { data: currentPdf, error: fetchError } = await supabase
+                    .from('pdf_infos')
+                    .select('bsd_linked')
+                    .eq('id', pdfId)
+                    .eq('entreprise_id', entrepriseIdNum)
+                    .single();
+
+                if (fetchError || !currentPdf) {
+                    errorCount++;
+                    console.error('Erreur récupération PDF:', fetchError);
+                    continue;
+                }
+
+                const currentBsdLinked = currentPdf.bsd_linked as Array<{
+                    index_dechet: number;
+                    status?: string;
+                    bsd_id?: string;
+                }> | null | undefined;
+
+                if (!currentBsdLinked || !Array.isArray(currentBsdLinked)) {
+                    continue;
+                }
+
+                // Traiter chaque action
+                for (const action of result.actions) {
+                    if (action.actionType === 'delete_bsd' && action.bsdId && action.bsdId !== 'N/A') {
+                        // Supprimer le BSD de la table bsd
+                        const { error: deleteError } = await supabase
+                            .from('bsd')
+                            .delete()
+                            .eq('id', action.bsdId)
+                            .eq('entreprise_id', entrepriseIdNum);
+
+                        if (deleteError) {
+                            console.error('Erreur suppression BSD:', deleteError);
+                        }
+                    } else if (action.actionType === 'unlink_bsd' && action.bsdId && action.bsdId !== 'N/A') {
+                        // Délier le BSD (nettoyer les colonnes pdf_infos_id, index_dechet_pdf, pdf_ids)
+                        const { data: bsdData, error: bsdFetchError } = await supabase
+                            .from('bsd')
+                            .select('pdf_ids')
+                            .eq('id', action.bsdId)
+                            .eq('entreprise_id', entrepriseIdNum)
+                            .single();
+
+                        if (!bsdFetchError && bsdData) {
+                            const currentPdfIds = Array.isArray(bsdData.pdf_ids) ? bsdData.pdf_ids : [];
+                            const updatedPdfIds = currentPdfIds.filter(id => id !== pdfId);
+
+                            const updateData: Record<string, unknown> = {
+                                pdf_infos_id: null,
+                                index_dechet_pdf: null,
+                                pdf_ids: updatedPdfIds.length > 0 ? updatedPdfIds : []
+                            };
+
+                            const { error: unlinkError } = await supabase
+                                .from('bsd')
+                                .update(updateData)
+                                .eq('id', action.bsdId)
+                                .eq('entreprise_id', entrepriseIdNum);
+
+                            if (unlinkError) {
+                                console.error('Erreur déliage BSD:', unlinkError);
+                            }
+                        }
+                    }
+                }
+
+                // Mettre à jour bsd_linked du PDF (retirer les entrées traitées)
+                const updatedBsdLinked = currentBsdLinked.filter(item => {
+                    // Garder uniquement les entrées qui ne sont pas dans les actions traitées
+                    return !result.actions.some(action => action.indexDechet === item.index_dechet);
+                });
+
+                // Déterminer le nouveau statut du PDF
+                let newStatus = 'extracted';
+                if (updatedBsdLinked.length > 0) {
+                    // S'il reste des liens, garder le statut actuel ou mettre 'linked' si au moins un est linked
+                    const hasLinked = updatedBsdLinked.some(item => item.status === 'linked' || item.status === 'pushed');
+                    newStatus = hasLinked ? 'linked' : 'extracted';
+                } else {
+                    // Plus aucun lien, revenir à extracted
+                    newStatus = 'extracted';
+                }
+
+                const { error: updatePdfError } = await supabase
+                    .from('pdf_infos')
+                    .update({
+                        bsd_linked: updatedBsdLinked,
+                        status: newStatus
+                    })
+                    .eq('id', pdfId)
+                    .eq('entreprise_id', entrepriseIdNum);
+
+                if (updatePdfError) {
+                    errorCount++;
+                    console.error('Erreur mise à jour PDF:', updatePdfError);
+                } else {
+                    successCount++;
+                }
+
+            } catch (error) {
+                errorCount++;
+                console.error('Erreur traitement PDF:', error);
+            }
+        }
+
+        // Afficher les résultats
+        if (successCount > 0 && errorCount === 0) {
+            toast.success(`${successCount} PDF(s) traité(s) avec succès`);
+        } else if (successCount > 0 && errorCount > 0) {
+            toast(`${successCount} succès, ${errorCount} erreur(s)`, { icon: '⚠️' });
+        } else if (errorCount > 0) {
+            toast.error(`${errorCount} erreur(s) lors de la suppression des liens`);
+        }
+
+        // Invalider le cache et rafraîchir (même si erreurs partielles)
+        if (successCount > 0) {
+            try {
+                await invalidateCache(entreprise_id, user_id);
+                toast.loading('Rafraîchissement des données...', { id: 'refresh-delete-links' });
+                await onRefreshData();
+                toast.success('Données rafraîchies', { id: 'refresh-delete-links' });
+                setSelectedPdfIds([]);
+            } catch (refreshError) {
+                console.error('Erreur lors du rafraîchissement:', refreshError);
+                toast.error('Erreur lors du rafraîchissement (les suppressions ont été effectuées)');
+            }
+        }
+
+    } catch (error) {
+        console.error('Erreur inattendue lors de la suppression des liens:', error);
+        toast.error('Erreur inattendue lors de la suppression des liens BSD');
+    } finally {
+        setProcessingDeleteLinks(false);
     }
 };
 

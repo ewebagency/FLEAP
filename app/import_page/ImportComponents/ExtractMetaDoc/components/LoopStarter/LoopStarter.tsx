@@ -30,7 +30,8 @@ import {
     handleAutoLinkSelected,
     handleAutoProposeSelected,
     handlePushSelected,
-    handleCheckAlertes
+    handleCheckAlertes,
+    handleDeleteLinksSelected
 } from './LoopStarterHandlers';
 
 const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => {
@@ -46,6 +47,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const [processingAlertes, setProcessingAlertes] = useState(false);
     const [processingPush, setProcessingPush] = useState(false);
     const [processingSmartSplit, setProcessingSmartSplit] = useState(false);
+    const [processingDeleteLinks, setProcessingDeleteLinks] = useState(false);
     const [autoLinkPhase, setAutoLinkPhase] = useState<'idle' | 'simulation' | 'confirmation' | 'applying'>('idle');
     const [selectedPdfIds, setSelectedPdfIds] = useState<string[]>([]);
     const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([]);
@@ -332,7 +334,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         );
     };
 
-    const anyProcessing = processingSplitThenExtract || processingSplitOnly || processingExtractOnly || processingAutoPropose || processingSmartSplit;
+    const anyProcessing = processingSplitThenExtract || processingSplitOnly || processingExtractOnly || processingAutoPropose || processingSmartSplit || processingDeleteLinks;
 
     // Obtenir le nom du site à partir du SIRET
     const getSiteName = (siret: string): string => {
@@ -825,7 +827,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         {(() => {
                                                             const bsdLinked = pdf.bsd_linked as Array<{
                                                                 index_dechet: number;
-                                                                status: 'created' | 'linked' | 'pushed';
+                                                                status: 'created' | 'linked' | 'pushed' | 'check_by_user' | 'to_check_by_user';
                                                                 bsd_id?: string;
                                                             }> | null | undefined;
                                                             
@@ -838,9 +840,11 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                                     {bsdLinked.slice(0, 3).map((link, index) => {
                                                                         const statusColor = link.status === 'pushed' ? 'bg-purple-50 text-purple-600' :
                                                                                           link.status === 'linked' ? 'bg-green-50 text-green-600' :
+                                                                                          link.status === 'check_by_user' || link.status === 'to_check_by_user' ? 'bg-yellow-50 text-yellow-600' :
                                                                                           'bg-blue-50 text-blue-600';
                                                                         const statusLabel = link.status === 'pushed' ? 'Push' :
                                                                                           link.status === 'linked' ? 'Link' :
+                                                                                          link.status === 'check_by_user' || link.status === 'to_check_by_user' ? 'À vérifier' :
                                                                                           'Créé';
                                                                         return (
                                                                             <div key={index} className="flex items-center gap-1 flex-wrap">
@@ -1198,7 +1202,33 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                     <span>Push ({selectedPdfIds.length})</span>
                                                 </>
                                             )}
-                                        </button>                                    
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteLinksSelected(
+                                                selectedPdfIds,
+                                                entreprise_id || '',
+                                                user_id || '',
+                                                pdfInfos,
+                                                setProcessingDeleteLinks,
+                                                setSelectedPdfIds,
+                                                handleRefreshData
+                                            )}
+                                            disabled={processingDeleteLinks || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
+                                            className="px-2.5 py-1.5 bg-red-600 text-white rounded-sm text-xs hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
+                                            title="Supprimer les liens BSD des documents sélectionnés"
+                                        >
+                                            {processingDeleteLinks ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                                    <span>Suppression...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <BoxIcon name="bx-trash" size="16" />
+                                                    <span>Supprimer liens ({selectedPdfIds.length})</span>
+                                                </>
+                                            )}
+                                        </button>
                                     </div>
                                 </div>
                             </div>

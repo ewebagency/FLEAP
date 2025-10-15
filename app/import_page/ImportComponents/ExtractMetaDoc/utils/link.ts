@@ -765,6 +765,8 @@ export const AutoLinkOrCreateThisDoc = async (
     const outcome: AutoLinkThisDocOutcome = { results: [] };
 
     // Récupérer les indices déjà traités (bsd_linked) pour éviter les doublons
+    // Ne considérer comme "déjà traités" que les statuts finaux (linked, created, pushed)
+    // Les statuts check_by_user et to_check_by_user doivent être retraités
     const { data: currentPdfRow, error: currentPdfErr } = await supabase
         .from('pdf_infos')
         .select('bsd_linked, document_type')
@@ -776,7 +778,12 @@ export const AutoLinkOrCreateThisDoc = async (
     }
     const alreadyProcessed = new Set<number>(
         Array.isArray(currentPdfRow?.bsd_linked)
-            ? (currentPdfRow!.bsd_linked as Array<{ index_dechet?: number }>)
+            ? (currentPdfRow!.bsd_linked as Array<{ index_dechet?: number; status?: string }>)
+                .filter(it => {
+                    // Exclure les statuts check_by_user et to_check_by_user
+                    const status = it.status;
+                    return status !== 'check_by_user' && status !== 'to_check_by_user';
+                })
                 .map(it => it.index_dechet)
                 .filter((v): v is number => typeof v === 'number')
             : []
