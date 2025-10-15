@@ -60,7 +60,7 @@ export default function FiliereNomTab() {
 
     // Convertir les noms de déchets disponibles (filtrés) en options pour react-select
     const nomOptions: OptionType[] = filteredAvailableWasteNames.map(nom => ({
-        label: factureNamesSet.has(nom) ? `${nom} (facture ${factureNameToFirstId[nom] ?? ''})` : nom,
+        label: factureNamesSet.has(nom) ? `${nom} (facture)` : nom, //${factureNameToFirstId[nom] ?? ''}
         value: nom,
     }));
 
@@ -363,6 +363,7 @@ export default function FiliereNomTab() {
                                     <div className="space-y-1 p-2">
                                         {filteredAvailableWasteNames.map((nom) => {
                                             const isChecked = selectedNoms.some(n => n.value === nom);
+                                            const isFromFacture = factureNamesSet.has(nom);
                                             return (
                                                 <div key={nom} className="flex items-center gap-1 p-0 hover:bg-gray-50 rounded">
                                                     <input
@@ -378,7 +379,12 @@ export default function FiliereNomTab() {
                                                         className="form-checkbox h-4 w-4 text-blue-600"
                                                     />
                                                     <div className="flex-1">
-                                                        <span className={`${RAW_FIELD_CLASS}`}>{nom}</span>
+                                                        <span className={`${RAW_FIELD_CLASS}`}>
+                                                            {nom}
+                                                            {isFromFacture && (
+                                                                <span className="text-xs text-gray-500 ml-1">(facture)</span>
+                                                            )}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             );
@@ -400,6 +406,7 @@ export default function FiliereNomTab() {
                                 formatCreateLabel={(inputValue) => `Créer \"${inputValue}\"`}
                                 noOptionsMessage={() => "Aucune filière trouvée"}
                             />
+
                             <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <div className="inline-flex rounded border border-gray-300 overflow-hidden">
@@ -440,7 +447,9 @@ export default function FiliereNomTab() {
 
                             {/* Regroupements affichés dans la colonne de droite (par filière) */}
                             <div className="space-y-3">
-                                {Object.entries(groupedMappings).map(([filiere, noms]) => (
+                                {Object.entries(groupedMappings)
+                                    .filter(([filiere]) => !selectedFiliere || filiere === selectedFiliere.value)
+                                    .map(([filiere, noms]) => (
                                     <div key={filiere} className="border rounded-lg p-4">
                                         <div className="flex items-center gap-3">
                                             <h3 className="text-sm font-semibold text-gray-800">
@@ -457,27 +466,73 @@ export default function FiliereNomTab() {
                                             </button>
                                         </div>
                                         <div className="mt-2 flex flex-wrap gap-2 -ml-2">
-                                            {noms.map((mapping) => (
-                                                <div key={mapping.nom} className="flex flex-col bg-gray-100 rounded-lg px-3 py-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`${RAW_FIELD_CLASS}`}>{mapping.nom}</span>
-                                                        <span className={`text-xs px-2 py-0.5 rounded ${mapping.tri ?? mapping.trie ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>{(mapping.tri ?? mapping.trie) ? 'Trié' : 'Non trié'}</span>
-                                                        <button
-                                                            onClick={() => handleDelete(mapping.nom)}
-                                                            className="text-red-500 hover:text-red-700"
-                                                            title="Supprimer"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                                            </svg>
-                                                        </button>
+                                            {noms.map((mapping) => {
+                                                const isMultiflux = mapping.multiflux ?? false;
+                                                const isTri = mapping.tri ?? mapping.trie ?? true;
+                                                const isFromFacture = factureNamesSet.has(mapping.nom);
+                                                
+                                                let modeLabel = '';
+                                                let modeColor = '';
+                                                
+                                                if (!isMultiflux) {
+                                                    modeLabel = 'Monoflux';
+                                                    modeColor = 'bg-blue-200 text-blue-800';
+                                                } else if (isTri) {
+                                                    modeLabel = 'Multiflux trié';
+                                                    modeColor = 'bg-green-200 text-green-800';
+                                                } else {
+                                                    modeLabel = 'Multiflux non trié';
+                                                    modeColor = 'bg-yellow-200 text-yellow-800';
+                                                }
+                                                
+                                                return (
+                                                    <div key={mapping.nom} className="flex flex-col bg-gray-100 rounded-lg px-3 py-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`${RAW_FIELD_CLASS}`}>
+                                                                {mapping.nom}
+                                                                {isFromFacture && (
+                                                                    <span className="text-xs text-gray-500 ml-1">(facture)</span>
+                                                                )}
+                                                            </span>
+                                                            <span className={`text-xs px-2 py-0.5 rounded ${modeColor}`}>
+                                                                {modeLabel}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => handleDelete(mapping.nom)}
+                                                                className="text-red-500 hover:text-red-700"
+                                                                title="Supprimer"
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 ))}
                             </div>
+                            {/* Bloc explicatif des modes */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                                <div className="text-xs text-gray-700 space-y-1">
+                                    <div className="font-semibold text-blue-800 mb-2">Mode de collecte (pour calcul des taux de tri) :</div>
+                                    <div className="flex items-start gap-2">
+                                        <span className="font-medium text-blue-700 w-32 shrink-0">Monoflux :</span>
+                                        <span>Tri sur site (flux unique trié à la source)</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <span className="font-medium text-green-700 w-32 shrink-0">Multiflux trié :</span>
+                                        <span>Tri par prestataire (flux mélangé puis trié)</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <span className="font-medium text-yellow-700 w-32 shrink-0">Multiflux non trié :</span>
+                                        <span>Non trié (flux mélangé sans tri)</span>
+                                    </div>
+                                </div>
+                            </div>
+                                                        
                         </div>
                     </div>
                 </form>

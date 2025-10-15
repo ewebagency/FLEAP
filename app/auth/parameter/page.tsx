@@ -76,30 +76,17 @@ export default function UserSettings() {
                        Entités de référence
                     </a>
                     {cofounders_user_id(session?.user_id) && (
-                        <>
-                            {/*<a role="tab" 
-                            className={`tab border-0 ${activeTab === 'tab_filiere' ? 'border-b-4 border-green-500' : ''}`}
-                            onClick={() => handleTabClick('tab_filiere')}>
-                            Filière
-                            </a>*/}
-                            <a role="tab" 
-                                className={`tab border-0 ${activeTab === 'tab_meta_cluster_params' ? 'border-b-4 border-green-500' : ''}`}
-                                onClick={() => handleTabClick('tab_meta_cluster_params')}>
-                                Association des champs bruts
-                            </a>
-                            <a role="tab" 
-                            className={`tab border-0 ${activeTab === 'tab_categorie' ? 'border-b-4 border-green-500' : ''}`}
-                            onClick={() => handleTabClick('tab_categorie')}>
-                            Regroupement par catégorie
-                            </a>
-                            {/*<a role="tab" 
-                                className={`tab border-0 ${activeTab === 'tab_format_data' ? 'border-b-4 border-green-500' : ''}`}
-                                onClick={() => handleTabClick('tab_format_data')}>
-                                Paramétrage format de site
-                            </a>*/}           
-                                                                 
-                        </>
+                        <a role="tab" 
+                            className={`tab border-0 ${activeTab === 'tab_meta_cluster_params' ? 'border-b-4 border-green-500' : ''}`}
+                            onClick={() => handleTabClick('tab_meta_cluster_params')}>
+                            Association des champs bruts
+                        </a>
                     )}
+                    <a role="tab" 
+                        className={`tab border-0 ${activeTab === 'tab_categorie' ? 'border-b-4 border-green-500' : ''}`}
+                        onClick={() => handleTabClick('tab_categorie')}>
+                        Regroupement par catégorie
+                    </a>
                     {/*<a role="tab" 
                        className={`tab border-0 ${activeTab === 'tab_permissions' ? 'border-b-4 border-green-500' : ''}`}
                        onClick={() => handleTabClick('tab_permissions')}>

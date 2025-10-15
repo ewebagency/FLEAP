@@ -214,7 +214,7 @@ const AnalOpTable = () => {
                             <td className="px-2 py-1 text-right font-bold">
                                 {formatNumber(tableData.totals.totalWeight, true, true)} T
                             </td>
-                            <td className="px-2 py-1 text-right font-bold">
+                            <td className="px-2 py-1 text-right font-bold hidden">
                                 {tableData.totals.weightWithFillRate > 0 
                                     ? `${(tableData.totals.weightedFillRateSum / tableData.totals.weightWithFillRate).toFixed(0)}%`
                                     : '-'}

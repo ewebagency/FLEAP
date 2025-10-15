@@ -347,7 +347,9 @@ export default function SiteTab() {
 
                             {/* Regroupements affichés dans la colonne de droite */}
                             <div className="space-y-3">
-                                {Object.entries(mappings).map(([group, sirets]) => (
+                                {Object.entries(mappings)
+                                    .filter(([group]) => !selectedGroup || group === selectedGroup.value)
+                                    .map(([group, sirets]) => (
                                     <div key={group} className="border rounded-lg p-4">
                                         <div className="flex">
                                             <h3 className="text-lg font-semibold text-gray-800 w-48 shrink-0">

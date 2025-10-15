@@ -1552,14 +1552,14 @@ export const handleDeleteLinksSelected = async (
                 });
 
                 // Déterminer le nouveau statut du PDF
-                let newStatus = 'extracted';
+                let newStatus = 'read';
                 if (updatedBsdLinked.length > 0) {
                     // S'il reste des liens, garder le statut actuel ou mettre 'linked' si au moins un est linked
                     const hasLinked = updatedBsdLinked.some(item => item.status === 'linked' || item.status === 'pushed');
-                    newStatus = hasLinked ? 'linked' : 'extracted';
+                    newStatus = hasLinked ? 'linked' : 'read';
                 } else {
-                    // Plus aucun lien, revenir à extracted
-                    newStatus = 'extracted';
+                    // Plus aucun lien, revenir à read
+                    newStatus = 'read';
                 }
 
                 const { error: updatePdfError } = await supabase
