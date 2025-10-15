@@ -936,28 +936,6 @@ const FiltreSiteEtablissement = () => {
                             <h1 className="text-sm font-semibold text-gray-700">Sites</h1>
                         )}
                     </div>
-                    {isOpen && (
-                        <div className="text-xs text-gray-600 ml-2 flex gap-1">
-                                <button
-                                className={`px-2 py-0.5 rounded transition-colors ${siteFilterMode === 'all' ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                    if (siteFilterMode !== 'all') {
-                                        setSiteFilterMode('all');
-                                    }
-                                }}
-                            >Tous</button>
-                            <button
-                                className={`px-2 py-0.5 rounded transition-colors ${siteFilterMode === 'cumulative' ? 'bg-green-100 text-green-700 font-medium' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (siteFilterMode !== 'cumulative') {
-                                        setSiteFilterMode('cumulative');
-                                    }
-                                }}
-                            >Aucun</button>
-                        </div>
-                    )}
                     {!isFullDataLoaded && !isInitialLoad && (
                         <span className="text-xs text-blue-600 flex items-center hidden">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1008,6 +986,80 @@ const FiltreSiteEtablissement = () => {
                                 </div>
                             </div>
                         )}
+                        
+                        {/* Checkbox Sélectionner/Déselectionner tout */}
+                        <div className="p-3 border-b border-gray-200">
+                            <div 
+                                className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded-md"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Calculer l'état actuel
+                                    const visibleSites = userSiteAccess.length > 0 
+                                        ? sites.filter(site => site.orgId === '----' || userSiteAccess.includes(site.orgId))
+                                        : sites;
+                                    const checkedCount = visibleSites.filter(s => s.checked).length;
+                                    
+                                    // Si tous sont cochés → tout décocher (mode "cumulative")
+                                    if (checkedCount === visibleSites.length) {
+                                        setSiteFilterMode('cumulative');
+                                    } else {
+                                        // Si aucun ou quelques-uns sont cochés → tout cocher
+                                        // Cocher directement tous les sites autorisés
+                                        const updatedSites = sites.map(site => {
+                                            // Si userSiteAccess est défini, respecter les restrictions
+                                            if (userSiteAccess.length > 0) {
+                                                // Le site "Autres" est toujours accessible
+                                                if (site.orgId === '----') {
+                                                    return { ...site, checked: true };
+                                                }
+                                                // Pour les autres sites, vérifier s'ils sont dans la liste des accès
+                                                return { ...site, checked: userSiteAccess.includes(site.orgId) };
+                                            }
+                                            // Sinon, cocher tous les sites
+                                            return { ...site, checked: true };
+                                        });
+                                        
+                                        setSites(updatedSites);
+                                        setSiteFilterMode('all');
+                                        
+                                        // Mettre à jour le localStorage
+                                        if (entreprise_id) {
+                                            const checkedStates = updatedSites.reduce((acc, site) => ({
+                                                ...acc,
+                                                [site.orgId]: { checked: site.checked }
+                                            }), {});
+                                            localStorage.setItem(`sites-${entreprise_id}`, JSON.stringify(checkedStates));
+                                        }
+                                    }
+                                }}
+                            >
+                                <span className="text-sm font-medium text-gray-700">Sélectionner tous</span>                                
+                                <input
+                                    type="checkbox"
+                                    checked={(() => {
+                                        // Filtrer les sites visibles selon les restrictions d'accès
+                                        const visibleSites = userSiteAccess.length > 0 
+                                            ? sites.filter(site => site.orgId === '----' || userSiteAccess.includes(site.orgId))
+                                            : sites;
+                                        const checkedCount = visibleSites.filter(s => s.checked).length;
+                                        return checkedCount === visibleSites.length;
+                                    })()}
+                                    onChange={() => {}}
+                                    className="form-checkbox h-4 w-4 text-blue-600 cursor-pointer"
+                                    ref={(el) => {
+                                        if (el) {
+                                            // Calculer si on est en état indéterminé
+                                            const visibleSites = userSiteAccess.length > 0 
+                                                ? sites.filter(site => site.orgId === '----' || userSiteAccess.includes(site.orgId))
+                                                : sites;
+                                            const checkedCount = visibleSites.filter(s => s.checked).length;
+                                            el.indeterminate = checkedCount > 0 && checkedCount < visibleSites.length;
+                                        }
+                                    }}
+                                />                                
+                            </div>
+                        </div>
+                        
                         <div className="overflow-y-auto p-2">
                             {renderSites()}
                         </div>
