@@ -197,6 +197,8 @@ export async function GET(request: Request) {
   const site = searchParams.get('site');
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
+  const pageSizeParam = searchParams.get('pageSize');
+  const pageSize = pageSizeParam ? parseInt(pageSizeParam, 10) : 200; // Default 200, can be overridden
 
   if (!entreprise_id || !user_id) {
     return NextResponse.json({ error: 'entreprise_id and user_id are required' }, { status: 400 });
@@ -261,7 +263,7 @@ export async function GET(request: Request) {
       .eq('entreprise_id', entreprise_id)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
-      .limit(200);
+      .limit(pageSize);
 
     if (siteFilter) {
       query = query.filter('infos_json->formAPI->createFormInput->emitter->company->>siret', 'eq', siteFilter);

@@ -7,6 +7,7 @@ import RepComponent from "../Financiere/New/RepComponent";
 import { cofounders_user_id } from "../../SideBar";
 import { useSession } from "../../SessionProvider";
 import ExportAnalysisButton from "./ExportAnalysisButton";
+import ExportFactureAnalysisButton from "./ExportFactureAnalysisButton";
 
 const OperationalAnalyse = ({active}: {active: boolean}) => {
     const {user_id} = useSession()
@@ -45,10 +46,11 @@ const OperationalAnalyse = ({active}: {active: boolean}) => {
                             </div>
                         </div>
 
-                    {/* Bouton d'export Excel pour les cofounders */}
+                    {/* Boutons d'export Excel pour les cofounders */}
                     {cofounders_user_id(user_id) && (
-                        <div className="mt-4">
+                        <div className="mt-4 flex flex-col gap-3">
                             <ExportAnalysisButton />
+                            <ExportFactureAnalysisButton />
                         </div>
                     )}
             

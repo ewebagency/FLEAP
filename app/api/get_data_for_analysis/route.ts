@@ -108,6 +108,8 @@ export async function GET(request: Request) {
     const dateEnd = searchParams.get('dateEnd'); // ISO string
     const type = (searchParams.get('type') as TypeParam | null) || 'bsd';
     const filterTypeParam = (searchParams.get('filterType') as FilterType | null) || 'imported';
+    const pageSizeParam = searchParams.get('pageSize');
+    const pageSize = pageSizeParam ? parseInt(pageSizeParam, 10) : 1000; // Default 1000, can be overridden
 
     if (!entreprise_id) {
         return NextResponse.json({ error: 'entreprise_id is required' }, { status: 400 });
@@ -139,7 +141,11 @@ export async function GET(request: Request) {
             on_track_dechets?: boolean;
             created_on_fleap?: boolean;
             emitter?: { company?: { siret?: string; name?: string } };
-            recipient?: { processingOperation?: string; company?: { siret?: string; name?: string } };
+            recipient?: { 
+                processingOperation?: string; 
+                company?: { siret?: string; name?: string };
+                valoParts?: Array<{ code_valo?: string; tonnage?: number }>;
+            };
             transporter?: { company?: { siret?: string; name?: string } };
             wasteDetails?: { name?: string; code?: string; quantity?: string | number };
             takenOverAt?: string;
@@ -152,7 +158,7 @@ export async function GET(request: Request) {
         };
 
         // Fetch BSDs with pagination and server-side filtering (sites, dates)
-        const pageSize = 1000;
+        // pageSize is now defined from query param above (default 200)
         let allData: unknown[] = [];
         let hasMore = true;
         let page = 0;
@@ -247,7 +253,7 @@ export async function GET(request: Request) {
                 statusTrackDechets: (row as unknown as Record<string, unknown>)["status_track_dechets"] as string | undefined ?? row.status_track_dechets ?? null,
                 onTrackDechets: (row as unknown as Record<string, unknown>)["on_track_dechets"] as boolean | undefined ?? row.on_track_dechets ?? null,
                 createdOnFleap: (row as unknown as Record<string, unknown>)["created_on_fleap"] as boolean | undefined ?? row.created_on_fleap ?? null,
-                recipientValoParts: ((row as unknown as Record<string, unknown>)["infos_json->formAPI->createFormInput->recipient"] as { [k: string]: unknown } | undefined)?.["valoParts"] as Array<{ code_valo?: string; tonnage?: number }> | undefined || null,
+                recipientValoParts: row.recipient?.valoParts ?? null,
             };
 
             // Count names per siret for majority title computation
@@ -289,15 +295,6 @@ export async function GET(request: Request) {
             getCreatedOnFleap: (it) => typeof it.createdOnFleap === 'boolean' ? it.createdOnFleap : undefined,
         });
 
-        // Debug: log filtering summary
-        try {
-            const total = rows.length;
-            const kept = rowsImported.length;
-            const createdOnFleapTrue = rows.filter(r => r.createdOnFleap === true).length;
-            const createdOnFleapNull = rows.filter(r => r.createdOnFleap == null).length;
-            console.log('[get_data_for_analysis] rows total', total, 'kept(imported created_on_fleap=false)', kept, { createdOnFleapTrue, createdOnFleapNull });
-        } catch {}
-
         // Group rows by denominators
         const groupMap: Record<string, { tonnage: number; count: number; sample: FlatBsdRow; filiere: string; mois_annee: string; contenant: string; code_dr: string; valorisation: string; tri: string; rep: string; sumFill: number; numFill: number; source: string }> = {};
         const uniqueFiliereSet = new Set<string>();
@@ -325,18 +322,42 @@ export async function GET(request: Request) {
                 .replace('elimination','Élimination')
                 .replace('autre','Autre');
 
-            type MappingCedFiliereExtra = MappingCedFiliere & { multiflux?: boolean; tri?: boolean };
-            const codeClean = r.wasteCode ? normalizeCed(r.wasteCode) : '';
-            const cedEntry = (mappingCed as MappingCedFiliereExtra[]).find(m => normalizeCed(m.ced) === codeClean);
-            const mappingMultiflux = cedEntry?.multiflux;
-            const mappingTri = cedEntry?.tri;
-            const isMixed = (r.wasteName ? r.wasteName : '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes('melang');
+            // Get multiflux/tri flags: try name mapping first (like filiere), then fallback to CED
+            type MappingExtra = { multiflux?: boolean; tri?: boolean; trie?: boolean };
+            let mappingMultiflux: boolean | undefined;
+            let mappingTri: boolean | undefined;
+            
+            // Try by name first
+            if (r.wasteName) {
+                const byName = (mappingNom as (MappingNomFiliere & MappingExtra)[]).find(m => m.nom === r.wasteName);
+                if (byName) {
+                    mappingMultiflux = byName.multiflux;
+                    mappingTri = byName.tri ?? byName.trie;
+                }
+            }
+            // Fallback to CED if no name match
+            if (mappingMultiflux === undefined && mappingTri === undefined && r.wasteCode) {
+                const codeClean = normalizeCed(r.wasteCode);
+                const byCed = (mappingCed as (MappingCedFiliere & MappingExtra)[]).find(m => normalizeCed(m.ced) === codeClean);
+                if (byCed) {
+                    mappingMultiflux = byCed.multiflux;
+                    mappingTri = byCed.tri;
+                }
+            }
+            
+            // Follow exact logic from TauxTri.tsx but distinguish "Tri sur site" vs "Tri par prestataire"
             const triLabel = ((): string => {
-                if (mappingMultiflux === false) return 'Tri';
-                if (mappingTri === true) return 'Tri';
-                if (typeof r.triFlag === 'boolean') return r.triFlag ? 'Tri' : 'Non tri';
-                if (typeof r.triFlag === 'string') return r.triFlag.toLowerCase() === 'true' ? 'Tri' : 'Non tri';
-                if (isMixed) return 'Tri';
+                // Case 1: Multiflux + trié => tri par prestataire
+                if (mappingMultiflux === true && mappingTri === true) return 'Tri par prestataire';
+                
+                // Case 2: Multiflux + non trié => not sorted
+                if (mappingMultiflux === true && mappingTri === false) return 'Non tri';
+                
+                // Case 3: Monoflux (multiflux=false or undefined) => sorted on site
+                // In TauxTri.tsx: "Si multiflux n'est pas défini (undefined) ou est false => monoflux => trié sur site"
+                if (mappingMultiflux === false || mappingMultiflux === undefined) return 'Tri sur site';
+                
+                // Fallback (should not reach here but for safety)
                 return 'Non tri';
             })();
 

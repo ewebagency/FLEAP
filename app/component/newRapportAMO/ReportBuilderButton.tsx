@@ -71,6 +71,8 @@ export default function ReportBuilderButton() {
       const sirets = Array.from(new Set(state.selectedSites.map(nameToSiret).filter(Boolean)));
       if (sirets.length > 0) params.set('sites', sirets.join(','));
     }
+    // Use larger page size (600) for faster loading in reports
+    params.set('pageSize', '600');
     const url = `/api/get_data_for_analysis?${params.toString()}`;
     return ['analysis-bsd', entreprise_id, hourBucket, url] as const;
   }, [entreprise_id, step, hourBucket, shouldLoadAnalysis, state.filterType, segmentDates?.debut, segmentDates?.fin, state.selectedSites, sites]);

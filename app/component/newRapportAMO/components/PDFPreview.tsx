@@ -45,7 +45,7 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
     return sites.map(s => map.get(s) || ( /^\d{9,}$/.test(s) ? s : '' )).filter(Boolean);
   }, [state.selectedSites, data]);
 
-  // Paginated fetch of BSDs (server returns max 200 per call). Auto-fetch pages until no more.
+  // Paginated fetch of BSDs (server returns max pageSize per call). Auto-fetch pages until no more.
   const getBsdKey = useCallback((pageIndex: number, previousPageData: { data: BsdItem[]; hasMore?: boolean } | null) => {
     if (!entreprise_id || !user_id) return null;
     if (!startLoadingBsd) return null; // gated by parent orchestrator
@@ -56,6 +56,8 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
     // Pass date range to bypass cache path and align server filtering with UI period
     if (segmentDates?.debut) params.set('startDate', new Date(segmentDates.debut).toISOString());
     if (segmentDates?.fin) params.set('endDate', new Date(segmentDates.fin).toISOString());
+    // Use larger page size (600) for faster loading in reports
+    params.set('pageSize', '600');
     if (pageIndex > 0 && previousPageData && previousPageData.data && previousPageData.data.length > 0) {
       const last = previousPageData.data[previousPageData.data.length - 1];
       params.set('lastDate', last.created_at);
