@@ -88,7 +88,16 @@ const ModalContextNew = createContext<ModalContextType>({} as ModalContextType);
 export const ModalProviderNew = ({ children }: { children: ReactNode }) => {
     const [displayFormulaire, setDisplayFormulaire] = useState<boolean>(false);
     const [filterPendingBSDs, setFilterPendingBSDs] = useState<boolean>(false);
-    const [registerFilterType, setRegisterFilterType] = useState<FilterType>('imported');
+    
+    // Déterminer la valeur par défaut en fonction de si on est en mobile ou non
+    const getInitialFilterType = (): FilterType => {
+        if (typeof window !== 'undefined') {
+            return window.innerWidth < 768 ? 'demandes' : 'imported';
+        }
+        return 'imported';
+    };
+    
+    const [registerFilterType, setRegisterFilterType] = useState<FilterType>(getInitialFilterType());
 
     const initialToogleData: FormInput = {
         emitter: {

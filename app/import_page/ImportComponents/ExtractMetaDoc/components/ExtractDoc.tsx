@@ -127,36 +127,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
     const formStorageKey = `extractDoc:form:${String(pdf_id)}`;
     const pdfUrlStorageKey = `extractDoc:pdfUrl:${pdf_path}`;
 
-    // Sauvegarde automatique du formulaire
-    useEffect(() => {
-        if (!isOpen) return;
-        if (!existingData) return;
-        try {
-            localStorage.setItem(formStorageKey, JSON.stringify(existingData));
-        } catch {
-            // ignore storage errors
-        }
-    }, [existingData, formStorageKey, isOpen]);
-
-    // Restaurer le formulaire depuis localStorage à l'ouverture
-    useEffect(() => {
-        if (!isOpen) return;
-        try {
-            const raw = localStorage.getItem(formStorageKey);
-            if (raw) {
-                const parsed = JSON.parse(raw) as DocInterface;
-                // Contrôles basiques
-                if (parsed && parsed.type_doc && Array.isArray(parsed.dechet)) {
-                    setExistingData(parsed);
-                    setDocumentType(parsed.type_doc);
-                }
-            }
-        } catch {
-            // ignore
-        }
-    }, [isOpen, formStorageKey]);
-
-    const loadExistingData = async () => {
+    // Fonction pour charger les données depuis la BDD
+    const loadExistingData = useCallback(async () => {
         try {
             const { data, error } = await supabase
                 .from('pdf_infos')
@@ -188,7 +160,45 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         } catch (error) {
             console.error('Error loading existing data:', error);
         }
-    };
+    }, [pdf_id]);
+
+    // Sauvegarde automatique du formulaire
+    useEffect(() => {
+        if (!isOpen) return;
+        if (!existingData) return;
+        try {
+            localStorage.setItem(formStorageKey, JSON.stringify(existingData));
+        } catch {
+            // ignore storage errors
+        }
+    }, [existingData, formStorageKey, isOpen]);
+
+    // Charger les données depuis la BDD à l'ouverture, puis depuis localStorage si disponible
+    useEffect(() => {
+        if (!isOpen) return;
+        
+        const loadData = async () => {
+            // D'abord charger depuis la BDD
+            await loadExistingData();
+            
+            // Puis vérifier si localStorage a un brouillon plus récent
+            try {
+                const raw = localStorage.getItem(formStorageKey);
+                if (raw) {
+                    const parsed = JSON.parse(raw) as DocInterface;
+                    // Contrôles basiques
+                    if (parsed && parsed.type_doc && Array.isArray(parsed.dechet)) {
+                        setExistingData(parsed);
+                        setDocumentType(parsed.type_doc);
+                    }
+                }
+            } catch {
+                // ignore
+            }
+        };
+        
+        loadData();
+    }, [isOpen, formStorageKey, loadExistingData]);
 
     const handleSave = async (formData: DocInterface) => {
         setIsLoading(true);

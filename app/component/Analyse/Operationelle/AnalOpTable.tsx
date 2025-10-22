@@ -162,7 +162,7 @@ const AnalOpTable = () => {
                             <th className="px-2 py-1 text-right font-bold">Collectes</th>
                             <th className="px-2 py-1 text-right font-bold">Déclassés</th>
                             {/*<th className="px-2 py-1 text-right font-bold">(€/m³)</th>*/}
-                            <th className="px-2 py-1 text-right font-bold">(€/tonne)</th>
+                            <th className="px-2 py-1 text-right font-bold hidden">(€/tonne)</th>
                             {/*<th className="px-2 py-1 text-right font-bold">(€/collecte)</th>*/}
                         </tr>
                     </thead>
@@ -195,7 +195,7 @@ const AnalOpTable = () => {
                                             ? `${calculateMedian(data.pricePerVolume).toFixed(1)}`
                                             : '-'}
                                     </td>*/}
-                                    <td className="px-2 py-1 text-right">
+                                    <td className="px-2 py-1 text-right hidden">
                                         {data.pricePerTon.length > 0 
                                             ? `${calculateMedian(data.pricePerTon).toFixed(1)}`
                                             : '-'}
@@ -228,7 +228,7 @@ const AnalOpTable = () => {
                             {/*<td className="px-2 py-1 text-right font-bold">
                                 -
                             </td>*/}
-                            <td className="px-2 py-1 text-right font-bold">
+                            <td className="px-2 py-1 text-right font-bold hidden">
                                 -
                             </td>
                             {/*<td className="px-2 py-1 text-right font-bold">

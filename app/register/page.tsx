@@ -93,7 +93,33 @@ const RegisterPage = () => {
                         <EnrichImportedDataButton/>
                     </div>
                 </div>
-                <div className="flex md:hidden justify-end items-center mb-0">
+                <div className="md:hidden mb-0 flex justify-between items-center">
+                    {display_features?.demande_collecte ? (
+                        <div className="flex gap-0.5">
+                            <button
+                                onClick={() => setRegisterFilterType('imported')}
+                                className={`px-3 py-1 text-xs transition-all border-b-2 ${
+                                    registerFilterType === 'imported'
+                                        ? 'border-[var(--green-medium)] text-[var(--green-medium)] font-bold'
+                                        : 'border-transparent text-gray-600'
+                                }`}
+                            >
+                                Registre
+                            </button>
+                            <button
+                                onClick={() => setRegisterFilterType('demandes')}
+                                className={`px-3 py-1 text-xs transition-all border-b-2 ${
+                                    registerFilterType === 'demandes'
+                                        ? 'border-[var(--green-medium)] text-[var(--green-medium)] font-bold'
+                                        : 'border-transparent text-gray-600'
+                                }`}
+                            >
+                                Demandes
+                            </button>
+                        </div>
+                    ) : (
+                        <div></div>
+                    )}
                     <CreateBSDLine/>
                 </div>
             </div>

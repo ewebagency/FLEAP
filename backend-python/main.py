@@ -32,6 +32,9 @@ from new.new_recognize_type import recognize_type_one_page
 from new.new_alerte import alerte_function
 from new.new_similarity.new_find_best_proxy import create_best_prompt_example
 import time
+from new.extract_text_layout_v2 import visualize_ocr_boxes_comparison
+from new.extract_text_layout_v2 import extract_text_with_grid_for_llm
+from fastapi.responses import Response
 
 # Compteur global de pages traitées pour reset du modèle OCR
 _pages_processed = 0
@@ -370,7 +373,17 @@ async def ocr_density(file: UploadFile):
 
 #Related to import_page/ImportComponents/ExtractMeta/MetaDataInterface.ts
 @app.post("/meta-ocr")
-async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: str = Form("{}"), doc_type: str = Form("inconnu"), liste_nom_a_eviter: str = Form("[]"), voir: bool = Form(False), entreprise_id: str = Form(None)):
+async def meta_ocr(
+    file: UploadFile, 
+    pdfInfos: str = Form("{}"), 
+    clusterParams: str = Form("{}"), 
+    doc_type: str = Form("inconnu"), 
+    liste_nom_a_eviter: str = Form("[]"), 
+    voir: bool = Form(False), 
+    entreprise_id: str = Form(None),
+    use_grid_detection: bool = Form(True), ## On utilise toujours la détéction de tableau et le layout -> voir avec viusalizing bounding box pour comprendre ce qu'il se passe
+    force_ocr: bool = Form(False)
+):
     
     global _pages_processed
     
@@ -385,7 +398,11 @@ async def meta_ocr(file: UploadFile, pdfInfos: str = Form("{}"), clusterParams: 
         liste_nom_a_eviter_list = json.loads(liste_nom_a_eviter) if liste_nom_a_eviter else []
         
         # Extract text and detect type
-        raw_text, potential_json_from_ocr, parse_or_ocr = await get_raw_text_from_pdf(file)
+        if use_grid_detection:
+            raw_text, potential_json_from_ocr, parse_or_ocr = await extract_text_with_grid_for_llm(file, force_ocr=force_ocr)
+            print(f"🔍 Raw text avec layout: {raw_text}")
+        else:
+            raw_text, potential_json_from_ocr, parse_or_ocr = await get_raw_text_from_pdf(file)
         type_lu = recognize_type_one_page(raw_text)["type"]
         
         # Count pages for OCR model reset (estimate based on text length)
@@ -502,6 +519,104 @@ async def push_to_rag(file: UploadFile, pdf_id: str = Form(...), extracted_data:
         print(f"❌ Erreur dans push_to_rag: {str(e)}")
         return {"error": f"Erreur lors du traitement: {str(e)}"}
 #=============================================PUSH TO RAG=============================================
+
+
+#=============================================VISUALIZE BOUNDING BOXES=============================================
+@app.post("/visualize-bounding-boxes")
+async def visualize_bounding_boxes_route(file: UploadFile, force_ocr: bool = Form(False)):
+    """
+    Crée trois images côte à côte pour visualiser l'OCR et la détection de tableau.
+    
+    Retourne une image PNG combinée avec :
+    - Image 1 : Mots originaux OCR (rectangles verts)
+    - Image 2 : Mots après fusion (rectangles bleus)
+    - Image 3 : Tableau détecté avec grille (lignes rouges=colonnes, orange=lignes, violet=contour)
+    """
+    print("=" * 60)
+    print(f"🎨 VISUALISATION BOUNDING BOXES: {file.filename}")
+    
+    try:        
+        # Créer l'image combinée (les trois côte à côte)
+        combined_image_bytes = await visualize_ocr_boxes_comparison(file, force_ocr=force_ocr)
+        
+        return Response(
+            content=combined_image_bytes,
+            media_type="image/png",
+            headers={
+                "Content-Disposition": f"inline; filename=bboxes_comparison_{file.filename}.png"
+            }
+        )
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la visualisation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": f"Erreur lors de la visualisation: {str(e)}"
+        }
+    
+    finally:
+        await file.close()
+        print("=" * 60)
+
+#=============================================VISUALIZE BOUNDING BOXES=============================================
+
+
+#=============================================EXTRACT TEXT WITH TABLE GRID=============================================
+@app.post("/extract-text-with-grid")
+async def extract_text_with_grid_route(file: UploadFile, force_ocr: bool = Form(False)):
+    """
+    Extrait le texte avec détection intelligente de tableaux et formatage avec grille.
+    
+    Retourne un texte prêt pour LLM avec :
+    - Zones de tableau : formatées avec pipes "|" selon la grille détectée
+    - Zones normales : formatées avec espacement proportionnel
+    """
+    print("=" * 60)
+    print(f"📄 EXTRACTION TEXTE AVEC GRILLE: {file.filename}")
+    
+    start_time = time.time()
+    
+    try:        
+        # Extraire le texte formaté pour LLM
+        text_for_llm, json_ocr, method = await extract_text_with_grid_for_llm(file, force_ocr=force_ocr)
+        
+        processing_time = time.time() - start_time
+        
+        # Afficher le texte formaté
+        print("\n" + "="*80)
+        print("📄 TEXTE FINAL POUR LLM:")
+        print("="*80)
+        print(text_for_llm)
+        print("="*80 + "\n")
+        
+        return {
+            "success": True,
+            "text_for_llm": text_for_llm,
+            "json_ocr": json_ocr,
+            "method": method,
+            "metadata": {
+                "processing_time": processing_time,
+                "text_length": len(text_for_llm)
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de l'extraction: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": f"Erreur lors de l'extraction: {str(e)}"
+        }
+    
+    finally:
+        await file.close()
+        gc.collect()
+        print("=" * 60)
+
+#=============================================EXTRACT TEXT WITH TABLE GRID=============================================
 
 
 #=============================================SMART SPLIT=============================================

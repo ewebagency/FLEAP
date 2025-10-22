@@ -494,8 +494,8 @@ export const createLines = async (selectedFieldsList: SelectedFields[], entrepri
   if (!entreprise_id) throw new Error('Entreprise non trouvée');
   const ced_table = await getMappingTableFiliere(entreprise_id);
   try {
-    // Filtrer les lignes pour exclure le type 'depot uniquement'
-    const filteredLines = selectedFieldsList.filter(line => line.typePrestation !== TYPES_PRESTATION.DEPOT_UNIQUEMENT);
+    // Filtrer les lignes pour exclure le type 'depot uniquement' -> en fait non on les mets toutes
+    const filteredLines = selectedFieldsList; //.filter(line => line.typePrestation !== TYPES_PRESTATION.DEPOT_UNIQUEMENT);
     
     // Upload photos and create lines
     const linesToCreate = await Promise.all(filteredLines.map(async line => {

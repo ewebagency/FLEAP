@@ -70,6 +70,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     
     // Extraction manuelle depuis le bouton de la ligne
     const [manualExtractPdfId, setManualExtractPdfId] = useState<string | null>(null);
+    const [manualExtractPdfData, setManualExtractPdfData] = useState<PdfInfo | null>(null);
+    const [loadingManualPdf, setLoadingManualPdf] = useState(false);
     
     // Modal d'association des mots-clés
     const [showAssociationModal, setShowAssociationModal] = useState(false);
@@ -192,6 +194,60 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
         fetchData();
     }, [entreprise_id, handleRefreshData]);
+
+    // Charger les données du PDF manuel si non disponibles localement
+    useEffect(() => {
+        const loadManualPdfData = async () => {
+            if (!manualExtractPdfId || !entreprise_id) {
+                setManualExtractPdfData(null);
+                return;
+            }
+
+            // Vérifier si le PDF est déjà dans pdfInfos (snapshot au moment du clic)
+            const localPdf = pdfInfos.find(p => p.id === manualExtractPdfId);
+            if (localPdf) {
+                setManualExtractPdfData(localPdf);
+                return;
+            }
+
+            // Charger depuis la base de données seulement si pas trouvé localement
+            setLoadingManualPdf(true);
+            try {
+                const { data: pdfData, error: pdfError } = await supabase
+                    .from('pdf_infos')
+                    .select('*')
+                    .eq('id', manualExtractPdfId)
+                    .eq('entreprise_id', entreprise_id)
+                    .single();
+
+                if (pdfError) {
+                    console.error('Erreur chargement PDF:', pdfError);
+                    toast.error('Erreur lors du chargement du PDF');
+                    setManualExtractPdfId(null);
+                    setManualExtractPdfData(null);
+                    return;
+                }
+
+                if (pdfData) {
+                    setManualExtractPdfData(pdfData as PdfInfo);
+                } else {
+                    toast.error('PDF non trouvé');
+                    setManualExtractPdfId(null);
+                    setManualExtractPdfData(null);
+                }
+            } catch (error) {
+                console.error('Erreur lors du chargement du PDF:', error);
+                toast.error('Erreur lors du chargement du PDF');
+                setManualExtractPdfId(null);
+                setManualExtractPdfData(null);
+            } finally {
+                setLoadingManualPdf(false);
+            }
+        };
+
+        loadManualPdfData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [manualExtractPdfId, entreprise_id]);
 
     // Évaluer un filtre de pourcentage (seuil minimum, ex: "80" signifie "≥80%")
     const evaluatePercentageFilter = useCallback((value: number | undefined, filter: string): boolean => {
@@ -1515,21 +1571,37 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             )}
             {/* Modal d'extraction manuelle depuis le bouton */}
             {manualExtractPdfId && (() => {
-                const pdfToExtract = pdfInfos.find(p => p.id === manualExtractPdfId);
-                if (!pdfToExtract) return null;
+                // Afficher un loader pendant le chargement
+                if (loadingManualPdf) {
+                    return (
+                        <div className="fixed inset-0 z-[60] bg-black bg-opacity-50 flex items-center justify-center">
+                            <div className="bg-white rounded-lg p-6 shadow-xl">
+                                <div className="flex items-center gap-3">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                                    <span className="text-gray-700">Chargement du PDF...</span>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
+
+                // Utiliser les données chargées (locales ou depuis la BDD)
+                if (!manualExtractPdfData) return null;
                 
                 return (
                     <div className="fixed inset-0 z-[60]">
                         <ExtractDoc
                             pdf_id={manualExtractPdfId}
-                            pdf_path={pdfToExtract.name_pdf_in_bucket}
+                            pdf_path={manualExtractPdfData.name_pdf_in_bucket}
                             autoOpen={true}
                             openedFromLoopStarter={false}
                             onClose={() => {
                                 setManualExtractPdfId(null);
+                                setManualExtractPdfData(null);
                             }}
                             onSave={async () => {
                                 setManualExtractPdfId(null);
+                                setManualExtractPdfData(null);
                                 toast.success('Document extrait avec succès');
                                 await handleRefreshData();
                             }}
