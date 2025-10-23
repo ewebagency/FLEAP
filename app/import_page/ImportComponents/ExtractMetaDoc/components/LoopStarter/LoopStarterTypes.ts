@@ -42,6 +42,8 @@ export interface FilterState {
     confidenceSpec: string;   // Filtre pour score spécifique
     handwrittenPercent: string;  // Filtre pour taux manuscrit
     coveragePercent: string;  // Filtre pour taux de couverture
+    importTimeValue: string;  // Valeur numérique pour le filtre temps depuis import
+    importTimeUnit: 'h' | 'd';  // Unité: heures (h) ou jours (d)
 }
 
 export interface FilterOptions {

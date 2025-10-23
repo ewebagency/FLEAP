@@ -67,13 +67,20 @@ export const refreshData = async (
         });
         setSites(siteInfos);
 
-        // Extraire les providers uniques des PDFs
-        const uniqueProviders = new Set<string>();
+        // Extraire les providers uniques des PDFs (nom + SIRET uniquement)
+        const uniqueProviders = new Map<string, string>(); // id -> display name
         pdfData?.forEach(pdf => {
             if (pdf.provider && typeof pdf.provider === 'object') {
-                const providerName = Object.values(pdf.provider).join(' ').trim();
-                if (providerName) {
-                    uniqueProviders.add(providerName);
+                const provider = pdf.provider as Record<string, unknown>;
+                const nom = provider.nom || provider.name || '';
+                const siret = provider.siret || '';
+                
+                // Créer un identifiant unique et un label d'affichage
+                const displayName = [nom, siret].filter(Boolean).join(' - ');
+                const id = [nom, siret].filter(Boolean).join('|'); // Identifiant pour le filtrage
+                
+                if (displayName) {
+                    uniqueProviders.set(id, displayName);
                 }
             }
         });
@@ -96,7 +103,7 @@ export const refreshData = async (
 
         // Mettre à jour les options de filtres avec les données de la BDD
         setFilterOptions({
-            providers: Array.from(uniqueProviders).map(name => ({ id: name, name })),
+            providers: Array.from(uniqueProviders.entries()).map(([id, name]) => ({ id, name })),
             sites: Array.from(uniqueSites).map(siret => {
                 const site = siteInfos.find(s => s.siret === siret);
                 return { id: siret, name: site?.name || siret };

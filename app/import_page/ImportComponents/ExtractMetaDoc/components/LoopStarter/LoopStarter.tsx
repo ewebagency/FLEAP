@@ -114,7 +114,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             confidenceBrute: '',
             confidenceSpec: '',
             handwrittenPercent: '',
-            coveragePercent: ''
+            coveragePercent: '',
+            importTimeValue: '',
+            importTimeUnit: 'h'
         };
         
         try {
@@ -251,17 +253,21 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
     // Évaluer un filtre de pourcentage (seuil minimum, ex: "80" signifie "≥80%")
     const evaluatePercentageFilter = useCallback((value: number | undefined, filter: string): boolean => {
-        if (!filter || value === undefined) return true;
+        // Si pas de filtre, laisser passer
+        if (!filter) return true;
         
         const trimmed = filter.trim();
         if (!trimmed) return true;
+
+        // Si la valeur est undefined, la traiter comme 0
+        const actualValue = value !== undefined ? value : 0;
 
         // Parser le seuil minimum (nombre entier)
         const threshold = parseInt(trimmed, 10);
         
         // Si c'est un nombre valide, vérifier que la valeur est >= au seuil
         if (!isNaN(threshold)) {
-            return value >= threshold;
+            return actualValue >= threshold;
         }
         
         return true;
@@ -305,14 +311,19 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                 if (!hasMatchingFlag) return false;
             }
 
-            // Filtre providers (multiselect)
+            // Filtre providers (multiselect) - filtrer sur nom ou SIRET uniquement
             if (filters.providers.length > 0 && pdf.provider) {
-                const providerName = typeof pdf.provider === 'object' && pdf.provider !== null
-                    ? Object.values(pdf.provider).join(' ').toLowerCase()
-                    : '';
-                const hasMatchingProvider = filters.providers.some(provider => 
-                    providerName.includes(provider.toLowerCase())
-                );
+                const provider = pdf.provider as Record<string, unknown>;
+                const nom = (provider.nom || provider.name || '').toString().toLowerCase();
+                const siret = (provider.siret || '').toString().toLowerCase();
+                const providerText = `${nom} ${siret}`.trim();
+                
+                const hasMatchingProvider = filters.providers.some(filterValue => {
+                    // Le filterValue est au format "nom|siret"
+                    const [filterNom, filterSiret] = filterValue.split('|').map(s => s.toLowerCase());
+                    // Vérifier si le nom ou le SIRET correspond
+                    return providerText.includes(filterNom) || (filterSiret && providerText.includes(filterSiret));
+                });
                 if (!hasMatchingProvider) return false;
             }
 
@@ -345,24 +356,46 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                 if (filters.pages === 'multi' && pages <= 1) return false;
             }
 
+            // Filtre temps depuis import
+            if (filters.importTimeValue) {
+                const timeValue = parseFloat(filters.importTimeValue);
+                if (!isNaN(timeValue) && timeValue > 0) {
+                    const timeElapsed = Date.now() - new Date(pdf.created_at).getTime();
+                    const hoursElapsed = timeElapsed / (1000 * 60 * 60);
+                    
+                    // Convertir la valeur en heures selon l'unité
+                    const maxHours = filters.importTimeUnit === 'd' 
+                        ? timeValue * 24  // Convertir jours en heures
+                        : timeValue;      // Déjà en heures
+                    
+                    if (hoursElapsed > maxHours) return false;
+                }
+            }
+
             // Filtres de pourcentage pour les scores de confiance
             const confidence = pdf.confidence as { brute?: number; spec?: number; handwritten?: [number, boolean] } | null | undefined;
             
-            if (filters.confidenceBrute && confidence) {
-                const brutePct = Math.round(confidence.brute || 0);
+            // Confiance brute : si pas de données, traiter comme 0
+            if (filters.confidenceBrute) {
+                const brutePct = confidence?.brute !== undefined ? Math.round(confidence.brute) : undefined;
                 if (!evaluatePercentageFilter(brutePct, filters.confidenceBrute)) return false;
             }
             
-            if (filters.confidenceSpec && confidence) {
-                const specPct = Math.round(confidence.spec || 0);
+            // Confiance spécifique : si pas de données, traiter comme 0
+            if (filters.confidenceSpec) {
+                const specPct = confidence?.spec !== undefined ? Math.round(confidence.spec) : undefined;
                 if (!evaluatePercentageFilter(specPct, filters.confidenceSpec)) return false;
             }
             
-            if (filters.handwrittenPercent && confidence?.handwritten && confidence.handwritten[1]) {
-                const handwrittenPct = Math.round(confidence.handwritten[0]);
+            // Manuscrit : si pas de données ou manuscrit non détecté, traiter comme 0
+            if (filters.handwrittenPercent) {
+                const handwrittenPct = (confidence?.handwritten && confidence.handwritten[1]) 
+                    ? Math.round(confidence.handwritten[0]) 
+                    : undefined;
                 if (!evaluatePercentageFilter(handwrittenPct, filters.handwrittenPercent)) return false;
             }
             
+            // Couverture : si pas de données, traiter comme 0
             if (filters.coveragePercent) {
                 const coverage = calculateCoverage(pdf.infos_raw, pdf.document_type);
                 if (!evaluatePercentageFilter(coverage.percentage, filters.coveragePercent)) return false;
@@ -411,7 +444,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             confidenceBrute: '',
             confidenceSpec: '',
             handwrittenPercent: '',
-            coveragePercent: ''
+            coveragePercent: '',
+            importTimeValue: '',
+            importTimeUnit: 'h'
         });
         setSearchName('');
     };
@@ -510,8 +545,29 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 className="h-3.5 w-3.5 text-blue-500 focus:ring-0.5 focus:ring-blue-300 border-gray-200 rounded-sm"
                                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50" style={{ display: shouldShowColumn(2) ? '' : 'none' }}>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[110px]" style={{ display: shouldShowColumn(2) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Temps</div>
+                                            <div className="flex gap-1">
+                                                <input
+                                                    type="number"
+                                                    placeholder="≤"
+                                                    value={filters.importTimeValue}
+                                                    onChange={(e) => setFilters(prev => ({ ...prev, importTimeValue: e.target.value }))}
+                                                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                    title="Filtrer par temps depuis import (ex: 6)"
+                                                    min="0"
+                                                    step="0.5"
+                                                />
+                                                <select
+                                                    value={filters.importTimeUnit}
+                                                    onChange={(e) => setFilters(prev => ({ ...prev, importTimeUnit: e.target.value as FilterStateType['importTimeUnit'] }))}
+                                                    className="p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                    title="Unité de temps"
+                                                >
+                                                    <option value="h">h</option>
+                                                    <option value="d">j</option>
+                                                </select>
+                                            </div>
                                         </th>
                                         <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[200px]" style={{ display: shouldShowColumn(3) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Nom</div>
@@ -536,7 +592,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 label=""
                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left min-w-[50px] bg-gray-50" style={{ display: shouldShowColumn(6) ? '' : 'none' }}>
+                                        <th className="px-2 py-1.5 text-left min-w-[140px] bg-gray-50" style={{ display: shouldShowColumn(6) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Statut</div>
                             <MultiSelect
                                 options={filterOptions.statuses}
@@ -678,9 +734,14 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 pdf.status === 'read' || pdf.status === 'splitted_extracted' || pdf.status === 'extracted' ? 'text-orange-600' :
                                                 'text-red-600';
                                             
-                                            // Extraction du nom du provider
+                                            // Extraction du nom du provider (nom + SIRET uniquement)
                                             const providerName = pdf.provider && typeof pdf.provider === 'object' 
-                                                ? (pdf.provider as Record<string, unknown>).nom || (pdf.provider as Record<string, unknown>).name || Object.values(pdf.provider)[0]
+                                                ? (() => {
+                                                    const provider = pdf.provider as Record<string, unknown>;
+                                                    const nom = provider.nom || provider.name || '';
+                                                    const siret = provider.siret || '';
+                                                    return [nom, siret].filter(Boolean).join(' - ') || null;
+                                                })()
                                                 : null;
                                             
                                             // Message d'alerte
