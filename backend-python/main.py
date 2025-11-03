@@ -32,7 +32,6 @@ from new.new_recognize_type import recognize_type_one_page
 from new.new_alerte import alerte_function
 from new.new_similarity.new_find_best_proxy import create_best_prompt_example
 import time
-from new.extract_text_layout_v2 import visualize_ocr_boxes_comparison
 from new.extract_text_layout_v2 import extract_text_with_grid_for_llm
 from fastapi.responses import Response
 
@@ -403,8 +402,12 @@ async def meta_ocr(
             print(f"🔍 Raw text avec layout: {raw_text}")
         else:
             raw_text, potential_json_from_ocr, parse_or_ocr = await get_raw_text_from_pdf(file)
-        # type_lu = recognize_type_one_page(raw_text)["type"]
-        type_lu = await recognize_type_one_page_llm(raw_text)
+        # type_lu = recognize_type_one_page(raw_text)["type"] // Ce qu'on faisait avant
+        try:
+            type_lu = await recognize_type_one_page_llm(raw_text)
+        except Exception:
+            print("❌ Erreur dans recognize_type_one_page_llm -> fallback sans LLM")
+            type_lu = recognize_type_one_page(raw_text)["type"]
         
         # Count pages for OCR model reset (estimate based on text length)
         estimated_pages = max(1, len(raw_text) // 2000)  # ~2000 chars per page
@@ -536,12 +539,65 @@ async def visualize_bounding_boxes_route(file: UploadFile, force_ocr: bool = For
     print("=" * 60)
     print(f"🎨 VISUALISATION BOUNDING BOXES: {file.filename}")
     
-    try:        
-        # Créer l'image combinée (les trois côte à côte)
-        combined_image_bytes = await visualize_ocr_boxes_comparison(file, force_ocr=force_ocr)
-        
+    try:
+        # Créer une image par page (les trois vues combinées par page)
+        from new.extract_text_layout_v2 import visualize_ocr_boxes_comparison_pages
+        import io
+        try:
+            from PIL import Image, ImageDraw
+        except Exception:
+            # PIL est déjà une dépendance du projet (utilisée ailleurs)
+            from PIL import Image, ImageDraw  # type: ignore
+
+        images = await visualize_ocr_boxes_comparison_pages(file, force_ocr=force_ocr)
+
+        if not images:
+            return Response(status_code=204)
+
+        # Si une seule page, retourner directement l'image comme avant
+        if len(images) == 1:
+            return Response(
+                content=images[0],
+                media_type="image/png",
+                headers={
+                    "Content-Disposition": f"inline; filename=bboxes_comparison_{file.filename}.png"
+                }
+            )
+
+        # Sinon, combiner toutes les pages verticalement en une seule grande image PNG
+        pil_images = [Image.open(io.BytesIO(b)) for b in images]
+        widths = [im.width for im in pil_images]
+        heights = [im.height for im in pil_images]
+        margin = 40  # espace entre pages
+        label_height = 30
+        total_width = max(widths)
+        total_height = sum(heights) + margin * (len(pil_images) - 1) + label_height * len(pil_images)
+
+        combined = Image.new('RGB', (total_width, total_height), color='white')
+        draw = ImageDraw.Draw(combined)
+
+        y_offset = 0
+        for idx, im in enumerate(pil_images):
+            # Label de page
+            label_text = f"Page {idx + 1}"
+            draw.text((10, y_offset + 5), label_text, fill="black")
+            y_offset += label_height
+
+            # Centrer l'image si moins large que total_width
+            x_offset = (total_width - im.width) // 2
+            combined.paste(im, (x_offset, y_offset))
+            y_offset += im.height
+            if idx < len(pil_images) - 1:
+                # Séparateur
+                draw.line([(0, y_offset + margin // 2), (total_width, y_offset + margin // 2)], fill=(200, 200, 200), width=2)
+                y_offset += margin
+
+        out = io.BytesIO()
+        combined.save(out, format='PNG')
+        out.seek(0)
+
         return Response(
-            content=combined_image_bytes,
+            content=out.getvalue(),
             media_type="image/png",
             headers={
                 "Content-Disposition": f"inline; filename=bboxes_comparison_{file.filename}.png"
