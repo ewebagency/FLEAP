@@ -19,7 +19,7 @@ import {
     LoopStarterProps,
     FilterState as FilterStateType
 } from './LoopStarterTypes';
-import { MultiSelect, getAlerteFlags, getAllPossibleAlerteFlags, getFlagValueFromLabel } from './LoopStarterFilters';
+import { MultiSelect, getAlerteFlags, getAllPossibleAlerteFlags, getFlagValueFromLabel, getAllPossibleLinkageStatuses } from './LoopStarterFilters';
 import { calculateCoverage, getCoverageColor } from '../../utils/coverage';
 import {
     refreshData,
@@ -31,7 +31,9 @@ import {
     handleAutoProposeSelected,
     handlePushSelected,
     handleCheckAlertes,
-    handleDeleteLinksSelected
+    handleDeleteLinksSelected,
+    loadPauseState,
+    clearPauseState
 } from './LoopStarterHandlers';
 
 const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => {
@@ -116,7 +118,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             handwrittenPercent: '',
             coveragePercent: '',
             importTimeValue: '',
-            importTimeUnit: 'h'
+            importTimeUnit: 'h',
+            linkageStatuses: []
         };
         
         try {
@@ -128,7 +131,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                     ...defaultFilters,
                     ...parsedFilters,
                     // S'assurer que alerteFlags est toujours un array
-                    alerteFlags: Array.isArray(parsedFilters.alerteFlags) ? parsedFilters.alerteFlags : []
+                    alerteFlags: Array.isArray(parsedFilters.alerteFlags) ? parsedFilters.alerteFlags : [],
+                    // S'assurer que linkageStatuses est toujours un array
+                    linkageStatuses: Array.isArray(parsedFilters.linkageStatuses) ? parsedFilters.linkageStatuses : []
                 };
             }
         } catch (error) {
@@ -171,7 +176,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         sites: [],
         documentTypes: [],
         statuses: [],
-        alerteFlags: getAllPossibleAlerteFlags()
+        alerteFlags: getAllPossibleAlerteFlags(),
+        linkageStatuses: getAllPossibleLinkageStatuses()
     });
 
     // Wrapper pour refreshData
@@ -250,6 +256,150 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         loadManualPdfData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [manualExtractPdfId, entreprise_id]);
+
+    // Flag pour éviter d'afficher le Swal plusieurs fois
+    const [pauseCheckDone, setPauseCheckDone] = useState(false);
+    
+    // Reset le flag quand le modal se ferme pour pouvoir revérifier à la prochaine ouverture
+    useEffect(() => {
+        if (!isOpen) {
+            setPauseCheckDone(false);
+        }
+    }, [isOpen]);
+    
+    // Vérifier au mount s'il existe un état de pause sauvegardé dans localStorage
+    useEffect(() => {
+        const checkForPausedState = async () => {
+            // Vérifications de base : ne rien faire si le LoopStarter n'est pas ouvert
+            if (!isOpen || !entreprise_id || loading || pauseCheckDone) return;
+            
+            // Attendre que pdfInfos soit chargé (au moins 1 élément ou loading=false depuis assez longtemps)
+            if (pdfInfos.length === 0 && !loading) {
+                // On attend un peu pour être sûr que les données sont chargées
+                setTimeout(() => checkForPausedState(), 500);
+                return;
+            }
+            
+            const pauseState = loadPauseState();
+            if (!pauseState) {
+                setPauseCheckDone(true);
+                return;
+            }
+            
+            // Vérifier que l'entreprise_id correspond
+            if (pauseState.entreprise_id !== entreprise_id) {
+                // Mauvaise entreprise, supprimer l'état
+                clearPauseState();
+                setPauseCheckDone(true);
+                return;
+            }
+            
+            // Marquer comme vérifié pour éviter de re-trigger
+            setPauseCheckDone(true);
+            
+            // Afficher immédiatement le Swal de reprise
+            const result = await Swal.fire({
+                title: '⚠️ Traitement en pause',
+                html: `
+                    <div class="text-left">
+                        <div class="mb-3 p-3 bg-yellow-50 rounded border-l-4 border-yellow-400">
+                            <div class="font-medium text-yellow-800 mb-2">Un traitement a été interrompu</div>
+                            <div class="text-sm text-yellow-700 mb-2">
+                                Mode: <strong>${pauseState.resumeMode === 'split_then_extract' ? 'Split + Extract' : 'Extract Only'}</strong>
+                            </div>
+                            <div class="text-xs text-yellow-600 mb-2">
+                                Document en pause: ${pauseState.pausedPdfId}
+                            </div>
+                            <div class="text-xs text-yellow-600 font-mono bg-yellow-100 p-2 rounded">
+                                ${pauseState.errorMessage}
+                            </div>
+                        </div>
+                        <div class="mb-3 p-2 bg-blue-50 rounded text-sm text-blue-800">
+                            <div class="font-medium mb-1">📊 Progression:</div>
+                            <div>• Documents sélectionnés: ${pauseState.selectedPdfIds.length}</div>
+                            <div>• Index de pause: ${pauseState.pausedAtIndex}</div>
+                            <div>• Documents restants: ${pauseState.selectedPdfIds.length - pauseState.pausedAtIndex}</div>
+                        </div>
+                        <div class="p-2 bg-gray-50 rounded text-xs text-gray-600">
+                            💡 Voulez-vous reprendre le traitement là où il s'est arrêté ?
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: '🔄 Reprendre',
+                cancelButtonText: '❌ Annuler',
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#6b7280',
+                allowOutsideClick: false,
+                width: '600px'
+            });
+            
+            if (result.isConfirmed) {
+                // Reprendre: NE PAS supprimer localStorage tout de suite (le succès le fera)
+                setPaused(false);
+                
+                // Reprendre depuis pausedAtIndex (INCLUS pour réessayer le document échoué)
+                const remainingPdfIds = pauseState.selectedPdfIds.slice(pauseState.pausedAtIndex);
+                if (remainingPdfIds.length === 0) {
+                    toast.success('Plus aucun document à traiter.');
+                    clearPauseState();
+                    return;
+                }
+                
+                setSelectedPdfIds(remainingPdfIds);
+                
+                // Relancer en fonction du mode avec isResuming=true pour accumuler les résultats
+                if (pauseState.resumeMode === 'split_then_extract') {
+                    await handleProcessPdfs(
+                        remainingPdfIds,
+                        pauseState.entreprise_id,
+                        pdfInfos,
+                        setProcessingSplitThenExtract,
+                        setResumeMode,
+                        setProcessingResults,
+                        setShowReview,
+                        setPaused,
+                        setPausedPdfId,
+                        setPausedAtIndex,
+                        setShowExtractModal,
+                        setSelectedPdfIds,
+                        handleRefreshData,
+                        true // isResuming = true
+                    );
+                } else if (pauseState.resumeMode === 'extract_only') {
+                    await handleExtractOnly(
+                        remainingPdfIds,
+                        pauseState.entreprise_id,
+                        pdfInfos,
+                        setProcessingExtractOnly,
+                        setResumeMode,
+                        setProcessingResults,
+                        setShowReview,
+                        setPaused,
+                        setPausedPdfId,
+                        setPausedAtIndex,
+                        setShowExtractModal,
+                        setSelectedPdfIds,
+                        handleRefreshData,
+                        true // isResuming = true
+                    );
+                }
+            } else {
+                // Annuler: supprimer localStorage
+                clearPauseState();
+                setPaused(false);
+                setPausedPdfId(null);
+                setPausedAtIndex(null);
+                setResumeMode(null);
+            }
+        };
+        
+        // Ne se déclenche qu'une fois que loading passe à false ET que le modal est ouvert
+        if (isOpen && !loading && !pauseCheckDone) {
+            checkForPausedState();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, entreprise_id, loading, pauseCheckDone]);
 
     // Évaluer un filtre de pourcentage (seuil minimum, ex: "80" signifie "≥80%")
     const evaluatePercentageFilter = useCallback((value: number | undefined, filter: string): boolean => {
@@ -401,6 +551,46 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                 if (!evaluatePercentageFilter(coverage.percentage, filters.coveragePercent)) return false;
             }
 
+            // Filtre statut de linkage
+            if (filters.linkageStatuses && filters.linkageStatuses.length > 0) {
+                const bsdLinked = pdf.bsd_linked as Array<{
+                    index_dechet: number;
+                    status: 'created' | 'linked' | 'pushed' | 'check_by_user' | 'to_check_by_user';
+                    bsd_id?: string;
+                }> | null | undefined;
+                
+                // Si le filtre "none" est sélectionné
+                if (filters.linkageStatuses.includes('none')) {
+                    // Si aucun lien n'existe et que 'none' est sélectionné, on garde
+                    if (!bsdLinked || !Array.isArray(bsdLinked) || bsdLinked.length === 0) {
+                        // Ne rien faire, on garde le PDF
+                    } else if (filters.linkageStatuses.length === 1) {
+                        // Si seulement 'none' est sélectionné et qu'il y a des liens, on filtre
+                        return false;
+                    }
+                }
+                
+                // Si des liens existent, vérifier les statuts
+                if (bsdLinked && Array.isArray(bsdLinked) && bsdLinked.length > 0) {
+                    // Vérifier si au moins un lien a un statut correspondant
+                    const hasMatchingStatus = bsdLinked.some(link => 
+                        filters.linkageStatuses.includes(link.status)
+                    );
+                    
+                    if (!hasMatchingStatus) {
+                        // Si 'none' n'est pas dans les filtres et qu'aucun statut ne correspond
+                        if (!filters.linkageStatuses.includes('none')) {
+                            return false;
+                        }
+                    }
+                } else {
+                    // Pas de liens, garder seulement si 'none' est dans les filtres
+                    if (!filters.linkageStatuses.includes('none')) {
+                        return false;
+                    }
+                }
+            }
+
             return true;
         });
     }, [pdfInfos, filters, searchName, evaluatePercentageFilter]);
@@ -446,7 +636,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             handwrittenPercent: '',
             coveragePercent: '',
             importTimeValue: '',
-            importTimeUnit: 'h'
+            importTimeUnit: 'h',
+            linkageStatuses: []
         });
         setSearchName('');
     };
@@ -704,6 +895,13 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         </th>
                                         <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[120px]" style={{ display: shouldShowColumn(17) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Linkage</div>
+                            <MultiSelect
+                                options={filterOptions.linkageStatuses}
+                                selectedValues={filters.linkageStatuses}
+                                onChange={(values) => setFilters(prev => ({ ...prev, linkageStatuses: values }))}
+                                                placeholder="Tous"
+                                                label=""
+                            />
                                         </th>
                                         <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(18) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Actions</div>

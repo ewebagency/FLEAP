@@ -96,18 +96,63 @@ export const extractMetaOcr = async (params: MetaOcrParams): Promise<ExtractMeta
 
         // Appeler l'API backend Python
         const url = `${process.env.NEXT_PUBLIC_SERVER_PYTHON}/meta-ocr`;
-        const response = await fetch(url, {
-            method: 'POST',
-            body: formData,
-        });
-
-        if (!response.ok) {
-            throw new Error(`Erreur HTTP: ${response.status} ${response.statusText}`);
+        
+        // Détecter les erreurs réseau/backend
+        let response;
+        try {
+            response = await fetch(url, {
+                method: 'POST',
+                body: formData,
+            });
+        } catch (fetchError) {
+            // Erreur réseau (failed to fetch, network error, etc.)
+            const errorMessage = fetchError instanceof Error ? fetchError.message : 'Network error';
+            return {
+                success: false,
+                message: `Erreur réseau lors de l'appel au backend: ${errorMessage}`,
+                error: 'BACKEND_ERROR'
+            };
         }
 
-        // Parser la réponse JSON
-        const result: MetaOcrResponse = await response.json();
-        console.log('🔍 Debug extractMetaOcr - réponse:', result);
+        // Vérifier le statut HTTP
+        if (!response.ok) {
+            const statusText = response.statusText || 'Unknown error';
+            return {
+                success: false,
+                message: `Erreur backend HTTP ${response.status}: ${statusText}`,
+                error: 'BACKEND_ERROR'
+            };
+        }
+
+    // Parser la réponse JSON
+    let result: MetaOcrResponse;
+    try {
+        result = await response.json();
+    } catch (parseError) {
+        return {
+            success: false,
+            message: 'Erreur lors du parsing de la réponse JSON du backend',
+            error: 'BACKEND_ERROR'
+        };
+    }
+    console.log('🔍 Debug extractMetaOcr - réponse:', result);
+    
+    // Vérifier si la réponse contient une erreur (ex: Gemini overloaded)
+    // IMPORTANT : on vérifie que c'est UNIQUEMENT un objet error, pas une réponse valide avec structured_response
+    if (result && typeof result === 'object' && 'error' in result) {
+        const errorObj = result as { error?: unknown; structured_response?: unknown };
+        // Si on a une erreur MAIS PAS de structured_response, c'est une vraie erreur
+        if (errorObj.error && !errorObj.structured_response) {
+            const errorMessage = typeof errorObj.error === 'string' 
+                ? errorObj.error 
+                : JSON.stringify(errorObj.error);
+            return {
+                success: false,
+                message: `Erreur du backend: ${errorMessage}`,
+                error: 'BACKEND_ERROR'
+            };
+        }
+    }
 
         // Écraser site_raw / presta_raw avec les valeurs utilisateur si présentes dans pdf_infos
         try {
@@ -266,11 +311,59 @@ export const runMetaOcrForPdf = async (
     console.log('🔍 Debug runMetaOcrForPdf - entreprise_id envoyé:', entrepriseId, 'type:', typeof entrepriseId);
 
     const url = `${process.env.NEXT_PUBLIC_SERVER_PYTHON}/meta-ocr`;
-    const response = await fetch(url, { method: 'POST', body: formData });
-    if (!response.ok) {
-        return { success: false, message: 'Erreur appel meta-ocr', error: `${response.status} ${response.statusText}` };
+    
+    // Détecter les erreurs réseau/backend
+    let response;
+    try {
+        response = await fetch(url, { method: 'POST', body: formData });
+    } catch (fetchError) {
+        // Erreur réseau (failed to fetch, network error, etc.)
+        const errorMessage = fetchError instanceof Error ? fetchError.message : 'Network error';
+        return { 
+            success: false, 
+            message: `Erreur réseau lors de l'appel au backend: ${errorMessage}`, 
+            error: 'BACKEND_ERROR' 
+        };
     }
-        const result: MetaOcrResponse = await response.json();
+    
+    // Vérifier le statut HTTP
+    if (!response.ok) {
+        const statusText = response.statusText || 'Unknown error';
+        return { 
+            success: false, 
+            message: `Erreur backend HTTP ${response.status}: ${statusText}`, 
+            error: 'BACKEND_ERROR' 
+        };
+    }
+    
+    // Parser la réponse JSON
+    let result: MetaOcrResponse;
+    try {
+        result = await response.json();
+    } catch (parseError) {
+        return { 
+            success: false, 
+            message: 'Erreur lors du parsing de la réponse JSON du backend', 
+            error: 'BACKEND_ERROR' 
+        };
+    }
+    
+    // Vérifier si la réponse contient une erreur (ex: Gemini overloaded)
+    // IMPORTANT : on vérifie que c'est UNIQUEMENT un objet error, pas une réponse valide avec structured_response
+    if (result && typeof result === 'object' && 'error' in result) {
+        const errorObj = result as { error?: unknown; structured_response?: unknown };
+        // Si on a une erreur MAIS PAS de structured_response, c'est une vraie erreur
+        if (errorObj.error && !errorObj.structured_response) {
+            const errorMessage = typeof errorObj.error === 'string' 
+                ? errorObj.error 
+                : JSON.stringify(errorObj.error);
+            return {
+                success: false,
+                message: `Erreur du backend: ${errorMessage}`,
+                error: 'BACKEND_ERROR'
+            };
+        }
+    }
 
         // Écraser site_raw / presta_raw avec les valeurs utilisateur si présentes dans pdf_infos
         try {

@@ -81,9 +81,9 @@ async def extract_text_with_grid_for_llm(file, spacing_factor: float = 0.02, for
         numeric_merged = merge_close_numbers(numeric_words, h_gap_threshold=0.01)
         print(f"🔗 {len(numeric_merged)} nombres après fusion des milliers")
         
-        # Détecter les tableaux par convolution
-        tables = detect_tables_by_convolution(numeric_merged)
-        tables = filter_tables_with_text(tables, all_words)
+        # Détecter les tableaux par croissance d'alignements + proximité + filtre progressif (nouvelle méthode)
+        # Paramètres : align=1.5%, proximité H=25%/V=6.25%, max_text=0% (unités acceptées), min=4 nombres, 2 lignes, 2 colonnes
+        tables = detect_tables_by_alignment_growing(numeric_merged, all_words)
         
         print(f"✅ {len(tables)} tableau(x) détecté(s) et validé(s)")
         
@@ -842,17 +842,9 @@ async def visualize_ocr_boxes_comparison(file, force_ocr: bool = False) -> bytes
             except:
                 pass
         
-        # Détecter les tableaux par convolution sur les nombres fusionnés
-        tables = detect_tables_by_convolution(
-            all_numeric_merged,
-            window_width=0.25,   # 1/4 de page
-            window_height=0.125,  # 1/8 de page
-            step=0.05,           # Pas de 5%
-            min_numbers=4        # Au moins 4 chiffres
-        )
-        
-        # Filtrer les tableaux qui contiennent trop de texte non-numérique
-        tables = filter_tables_with_text(tables, all_words)
+        # Détecter les tableaux par croissance d'alignements + proximité + filtre progressif (nouvelle méthode)
+        # Paramètres : align=1.5%, proximité H=25%/V=6.25%, max_text=0% (unités acceptées), min=4 nombres, 2 lignes, 2 colonnes
+        tables = detect_tables_by_alignment_growing(all_numeric_merged, all_words)
         
         if tables:
             # Dessiner chaque tableau
@@ -1168,7 +1160,17 @@ def merge_close_words_horizontally(words: List[Dict], distance_threshold: float 
                 containments += 1
                 continue
             
-            # RÈGLE 2 : Vérifier si proches (même ligne, petit gap)
+            # RÈGLE 2 : NE PAS fusionner si un des mots est une unité seule (T, U, M3, etc.)
+            # Car les unités doivent rester dans leurs propres colonnes !
+            w1_text_upper = w1["text"].upper().strip()
+            w2_text_upper = w2["text"].upper().strip()
+            units_alone = ["T", "U", "M3", "M²", "M2", "KG", "L", "ML", "CL", "G", "MG", "KM", "M", "CM", "MM"]
+            
+            # Si l'un des deux mots est une unité seule, NE PAS fusionner
+            if w1_text_upper in units_alone or w2_text_upper in units_alone:
+                continue  # ❌ Ne pas fusionner les unités avec leurs voisins !
+            
+            # RÈGLE 3 : Vérifier si proches (même ligne, petit gap)
             x_center1 = (w1["x0"] + w1["x1"]) / 2
             x_center2 = (w2["x0"] + w2["x1"]) / 2
             
@@ -1354,7 +1356,7 @@ def is_numeric_value(text: str) -> bool:
     Vérifie si un texte est un vrai nombre (prix, quantité) et pas un ID/date/code.
     
     Règles strictes :
-    - PAS de lettres (sauf dans € à la fin)
+    - PAS de lettres (sauf € à la fin, ou unités comme T, U, M3, KG, etc.)
     - PAS de slash "/" (dates)
     - Doit être convertible en nombre
     - Si > 100 et sans virgule → ID
@@ -1363,20 +1365,32 @@ def is_numeric_value(text: str) -> bool:
         text: Texte à vérifier
         
     Returns:
-        True si c'est un vrai nombre (prix/quantité)
+        True si c'est un vrai nombre (prix/quantité) ou une unité
     """
     if not text:
         return False
+    
+    # RÈGLE SPÉCIALE : Unités seules (T, U, M3, KG, L, etc.)
+    # Ces mots sont considérés comme des "nombres" car font partie des tableaux numériques
+    text_upper = text.upper().strip()
+    units_alone = ["T", "U", "M3", "M²", "M2", "KG", "L", "ML", "CL", "G", "MG", "KM", "M", "CM", "MM"]
+    if text_upper in units_alone:
+        return True
     
     # RÈGLE 1 : Exclure les slashes (dates comme "31/07/2025", "1/1")
     if "/" in text:
         return False
     
     # RÈGLE 2 : Vérifier les lettres
-    # Enlever les symboles autorisés
+    # Enlever les symboles autorisés ET les unités
     text_clean = text.replace("€", "").replace("%", "").replace(" ", "").replace(",", "").replace(".", "").strip()
     
-    # S'il reste des lettres, ce n'est pas un nombre pur
+    # Enlever aussi les unités courantes à la fin
+    for unit in ["T", "U", "M3", "M²", "M2", "KG", "L", "ML", "CL", "G", "MG", "KM", "M", "CM", "MM"]:
+        if text_clean.upper().endswith(unit):
+            text_clean = text_clean[:-len(unit)]
+    
+    # S'il reste des lettres APRÈS avoir enlevé les unités, ce n'est pas un nombre
     if any(c.isalpha() for c in text_clean):
         return False
     
@@ -1389,22 +1403,25 @@ def is_numeric_value(text: str) -> bool:
     if text_clean.startswith("0") and len(text_clean) > 1 and "," not in text and "." not in text:
         return False
     
-    # RÈGLE 5 : Doit être convertible en nombre
-    try:
-        # Nettoyer pour conversion
-        value_str = text.replace("€", "").replace("%", "").replace(" ", "").strip()
-        value_str = value_str.replace(",", ".")  # Format français → format Python
-        
-        value = float(value_str)
-        
-        # RÈGLE 6 : Si > 100 sans virgule/point, c'est probablement un ID
-        if value > 100 and "," not in text and "." not in text:
+    # RÈGLE 5 : Doit être convertible en nombre (après suppression des unités)
+    if text_clean:  # S'il reste quelque chose après nettoyage
+        try:
+            # Nettoyer pour conversion
+            value_str = text_clean.replace(",", ".")  # Format français → format Python
+            
+            value = float(value_str)
+            
+            # RÈGLE 6 : Si > 100 sans virgule/point, c'est probablement un ID
+            if value > 100 and "," not in text and "." not in text:
+                return False
+            
+            return True
+            
+        except ValueError:
             return False
-        
-        return True
-        
-    except ValueError:
-        return False
+    
+    # Si text_clean est vide, c'était juste une unité
+    return True
 
 
 def detect_table_grid_lines(numeric_words: List[Dict], align_tolerance: float = 0.01) -> Dict:
@@ -1477,14 +1494,313 @@ def detect_table_grid_lines(numeric_words: List[Dict], align_tolerance: float = 
     }
 
 
+def remove_overlapping_tables(tables: List[Dict]) -> List[Dict]:
+    """
+    Élimine les tableaux qui s'intersectent en gardant le plus grand en surface.
+    
+    Si deux tableaux se chevauchent, on calcule leur surface et on garde uniquement
+    le plus grand. Cela évite d'avoir des sous-tableaux redondants.
+    
+    Args:
+        tables: Liste des tableaux détectés
+        
+    Returns:
+        Liste des tableaux filtrés (sans chevauchements)
+    """
+    if len(tables) <= 1:
+        return tables
+    
+    # Calculer la surface de chaque tableau
+    for table in tables:
+        bbox = table["bbox"]
+        width = bbox["x_max"] - bbox["x_min"]
+        height = bbox["y_max"] - bbox["y_min"]
+        table["surface"] = width * height
+    
+    # Trier par surface décroissante
+    tables_sorted = sorted(tables, key=lambda t: t["surface"], reverse=True)
+    
+    # Garder les tableaux qui ne s'intersectent pas avec des plus grands
+    tables_kept = []
+    
+    for i, table1 in enumerate(tables_sorted):
+        bbox1 = table1["bbox"]
+        is_overlapping = False
+        
+        # Vérifier si ce tableau chevauche un tableau plus grand (déjà gardé)
+        for table2 in tables_kept:
+            bbox2 = table2["bbox"]
+            
+            # Calculer l'intersection
+            x_overlap = min(bbox1["x_max"], bbox2["x_max"]) - max(bbox1["x_min"], bbox2["x_min"])
+            y_overlap = min(bbox1["y_max"], bbox2["y_max"]) - max(bbox1["y_min"], bbox2["y_min"])
+            
+            # S'il y a une intersection (chevauchement)
+            if x_overlap > 0 and y_overlap > 0:
+                is_overlapping = True
+                print(f"         ❌ Tableau #{i+1} supprimé (chevauche un tableau plus grand)")
+                break
+        
+        # Garder seulement si ne chevauche pas un plus grand
+        if not is_overlapping:
+            tables_kept.append(table1)
+    
+    if len(tables_kept) < len(tables):
+        print(f"      🧹 {len(tables)} → {len(tables_kept)} tableau(x) après élimination des chevauchements")
+    
+    # Retirer le champ temporaire "surface"
+    for table in tables_kept:
+        table.pop("surface", None)
+    
+    return tables_kept
+
+
+def detect_tables_by_alignment_growing(numeric_words: List[Dict],
+                                       all_words: List[Dict],
+                                       align_tolerance: float = 0.015,
+                                       proximity_tolerance_h: float = 0.25,
+                                       proximity_tolerance_v: float = 0.0625,
+                                       max_text_ratio: float = 0.0,
+                                       min_numbers: int = 4,
+                                       min_rows: int = 2,
+                                       min_cols: int = 2) -> List[Dict]:
+    """
+    Détecte les tableaux par croissance organique basée sur les alignements ET la proximité.
+    AVEC filtre progressif de texte à chaque ajout.
+    
+    Principe : 
+    1. Partir d'un nombre "seed"
+    2. Pour chaque nombre candidat ALIGNÉ + PROCHE :
+       a) Simuler son ajout au tableau
+       b) Vérifier le ratio texte/nombres dans la zone résultante
+       c) Si trop de texte → REJETER ce candidat (mais continuer avec autres)
+       d) Sinon → ACCEPTER et ajouter au tableau
+    3. Le tableau grandit récursivement jusqu'à épuisement
+    
+    Args:
+        numeric_words: Liste des nombres fusionnés
+        all_words: TOUS les mots de la page (pour calculer le ratio texte)
+        align_tolerance: Tolérance pour considérer deux bords alignés (défaut 1.5%)
+        proximity_tolerance_h: Distance max HORIZONTALE pour être voisin direct (défaut 25%)
+        proximity_tolerance_v: Distance max VERTICALE pour être voisin direct (défaut 6.25% = H/4)
+        max_text_ratio: Ratio max de texte accepté (défaut 0% - seules les unités sont acceptées)
+        min_numbers: Nombre minimum de chiffres pour valider un tableau (défaut 4)
+        min_rows: Nombre minimum de lignes pour valider un tableau (défaut 2)
+        min_cols: Nombre minimum de colonnes pour valider un tableau (défaut 2)
+        
+    Returns:
+        Liste des tableaux détectés avec leurs bounding boxes et nombres
+    """
+    if len(numeric_words) < min_numbers:
+        return []
+    
+    print(f"      🌱 Détection par croissance d'alignements + proximité + filtre progressif texte")
+    print(f"         Alignement={align_tolerance:.1%}, proximité H={proximity_tolerance_h:.1%} / V={proximity_tolerance_v:.1%}, max_texte={max_text_ratio:.1%}")
+    
+    # Créer un index pour chaque nombre (pour tracking)
+    indexed_numbers = [(i, word) for i, word in enumerate(numeric_words)]
+    used_indices = set()
+    tables = []
+    rejected_additions = 0  # Compteur pour debug
+    
+    for seed_idx, seed_word in indexed_numbers:
+        if seed_idx in used_indices:
+            continue
+        
+        # Créer un nouveau tableau potentiel à partir de ce seed
+        table_indices = {seed_idx}
+        table_numbers = [seed_word]
+        to_explore = [seed_word]
+        
+        # Exploration récursive (BFS)
+        while to_explore:
+            current = to_explore.pop(0)
+            
+            # Chercher tous les nombres alignés ET PROCHES avec current
+            for candidate_idx, candidate in indexed_numbers:
+                if candidate_idx in table_indices:
+                    continue
+                
+                # ====== VÉRIFICATION 1 : ALIGNEMENT ======
+                aligned_left = abs(candidate["x0"] - current["x0"]) < align_tolerance
+                aligned_right = abs(candidate["x1"] - current["x1"]) < align_tolerance
+                aligned_top = abs(candidate["y0"] - current["y0"]) < align_tolerance
+                aligned_bottom = abs(candidate["y1"] - current["y1"]) < align_tolerance
+                
+                is_aligned = aligned_left or aligned_right or aligned_top or aligned_bottom
+                
+                if not is_aligned:
+                    continue
+                
+                # ====== VÉRIFICATION 2 : PROXIMITÉ (voisin direct) ======
+                # Calculer les distances horizontale et verticale séparément
+                current_x_center = (current["x0"] + current["x1"]) / 2
+                current_y_center = (current["y0"] + current["y1"]) / 2
+                candidate_x_center = (candidate["x0"] + candidate["x1"]) / 2
+                candidate_y_center = (candidate["y0"] + candidate["y1"]) / 2
+                
+                # Distances séparées (pas euclidienne, mais comparaison directe)
+                h_distance = abs(candidate_x_center - current_x_center)
+                v_distance = abs(candidate_y_center - current_y_center)
+                
+                # Le candidat doit être PROCHE selon les deux axes
+                # Plus permissif horizontalement (tableaux larges) que verticalement (lignes serrées)
+                is_close_h = h_distance < proximity_tolerance_h
+                is_close_v = v_distance < proximity_tolerance_v
+                
+                if not (is_close_h and is_close_v):
+                    continue  # ❌ Trop loin, même si aligné !
+                
+                # ====== VÉRIFICATION 3 : FILTRE PROGRESSIF TEXTE (NOUVEAU !) ======
+                # Simuler l'ajout du candidat pour calculer la nouvelle bbox
+                temp_numbers = table_numbers + [candidate]
+                temp_x_min = min(w["x0"] for w in temp_numbers)
+                temp_x_max = max(w["x1"] for w in temp_numbers)
+                temp_y_min = min(w["y0"] for w in temp_numbers)
+                temp_y_max = max(w["y1"] for w in temp_numbers)
+                
+                # Compter les mots dans cette zone simulée
+                words_in_simulated_zone = []
+                numeric_in_simulated_zone = 0
+                
+                for word in all_words:
+                    word_x_center = (word["x0"] + word["x1"]) / 2
+                    word_y_center = (word["y0"] + word["y1"]) / 2
+                    
+                    if (temp_x_min <= word_x_center <= temp_x_max and
+                        temp_y_min <= word_y_center <= temp_y_max):
+                        words_in_simulated_zone.append(word)
+                        
+                        if is_numeric_value(word["text"]):
+                            numeric_in_simulated_zone += 1
+                
+                # Calculer le ratio de texte
+                total_in_zone = len(words_in_simulated_zone)
+                
+                if total_in_zone > 0:
+                    text_ratio = (total_in_zone - numeric_in_simulated_zone) / total_in_zone
+                    
+                    if text_ratio > max_text_ratio:
+                        # ❌ Trop de texte si on ajoutait ce candidat → REJETER uniquement ce candidat
+                        rejected_additions += 1
+                        continue  # Ne PAS ajouter ce candidat, mais continuer avec les autres !
+                
+                # ✅ ALIGNÉ + PROCHE + RATIO TEXTE OK → Ajouter au tableau
+                table_indices.add(candidate_idx)
+                table_numbers.append(candidate)
+                to_explore.append(candidate)
+        
+        # Marquer tous ces nombres comme utilisés
+        used_indices.update(table_indices)
+        
+        # Valider le tableau avant de l'ajouter
+        if len(table_numbers) >= min_numbers:
+            # Vérifier qu'on a bien au moins min_rows lignes ET min_cols colonnes
+            validation_result = validate_table_structure(table_numbers, align_tolerance, min_rows, min_cols)
+            
+            if validation_result["is_valid"]:
+                # Calculer la bounding box englobante
+                x_min = min(w["x0"] for w in table_numbers)
+                x_max = max(w["x1"] for w in table_numbers)
+                y_min = min(w["y0"] for w in table_numbers)
+                y_max = max(w["y1"] for w in table_numbers)
+                
+                # Ajouter une petite marge
+                margin = 0.02
+                
+                tables.append({
+                    "bbox": {
+                        "x_min": x_min - margin,
+                        "x_max": x_max + margin,
+                        "y_min": y_min - margin,
+                        "y_max": y_max + margin
+                    },
+                    "numbers": table_numbers,
+                    "count": len(table_numbers),
+                    "rows": validation_result["rows"],
+                    "cols": validation_result["cols"]
+                })
+                
+                print(f"         ✅ Tableau trouvé: {len(table_numbers)} nombres, {validation_result['rows']} lignes × {validation_result['cols']} colonnes")
+    
+    print(f"      📊 {len(tables)} tableau(x) détecté(s) ({rejected_additions} ajouts rejetés pour excès de texte)")
+    
+    # Éliminer les tableaux qui s'intersectent (garder le plus grand)
+    tables = remove_overlapping_tables(tables)
+    
+    return tables
+
+
+def validate_table_structure(numbers: List[Dict], 
+                             tolerance: float,
+                             min_rows: int = 2,
+                             min_cols: int = 2) -> Dict:
+    """
+    Valide qu'un groupe de nombres forme bien une structure de tableau.
+    
+    Vérifie qu'il y a au moins min_rows lignes distinctes ET min_cols colonnes distinctes.
+    
+    Args:
+        numbers: Liste des nombres du tableau potentiel
+        tolerance: Tolérance pour regrouper les positions
+        min_rows: Nombre minimum de lignes requises
+        min_cols: Nombre minimum de colonnes requises
+        
+    Returns:
+        Dict avec is_valid, rows, cols
+    """
+    if len(numbers) < 2:
+        return {"is_valid": False, "rows": 0, "cols": 0}
+    
+    # Collecter toutes les positions Y (pour les lignes)
+    y_positions = [(w["y0"] + w["y1"]) / 2 for w in numbers]
+    
+    # Collecter toutes les positions X (pour les colonnes)
+    x_positions = [(w["x0"] + w["x1"]) / 2 for w in numbers]
+    
+    # Regrouper les positions similaires (clustering)
+    def cluster_positions(positions: List[float], tol: float) -> int:
+        if not positions:
+            return 0
+        
+        sorted_pos = sorted(positions)
+        clusters = []
+        current_cluster = [sorted_pos[0]]
+        
+        for pos in sorted_pos[1:]:
+            if pos - current_cluster[-1] <= tol:
+                current_cluster.append(pos)
+            else:
+                clusters.append(current_cluster)
+                current_cluster = [pos]
+        
+        if current_cluster:
+            clusters.append(current_cluster)
+        
+        return len(clusters)
+    
+    num_rows = cluster_positions(y_positions, tolerance * 2)  # Tolérance plus large pour les lignes
+    num_cols = cluster_positions(x_positions, tolerance * 2)
+    
+    is_valid = num_rows >= min_rows and num_cols >= min_cols
+    
+    return {
+        "is_valid": is_valid,
+        "rows": num_rows,
+        "cols": num_cols
+    }
+
+
 def detect_tables_by_convolution(numeric_words: List[Dict], 
                                   window_width: float = 0.25,  # 1/4 de page
                                   window_height: float = 0.125,  # 1/8 de page
                                   step: float = 0.05,  # Pas de convolution
                                   min_numbers: int = 4) -> List[Dict]:
     """
-    Détecte les tableaux par convolution : fait glisser une fenêtre sur la page
-    et compte les chiffres dans chaque fenêtre.
+    ANCIENNE MÉTHODE - Détecte les tableaux par convolution (fenêtre glissante).
+    
+    ⚠️ Remplacée par detect_tables_by_alignment_growing() qui est plus adaptative.
+    Gardée pour référence/fallback.
     
     Args:
         numeric_words: Liste des nombres fusionnés
@@ -1640,14 +1956,14 @@ def merge_overlapping_tables(candidates: List[Dict]) -> List[Dict]:
     return merged
 
 
-def filter_tables_with_text(tables: List[Dict], all_words: List[Dict], max_text_ratio: float = 0.3) -> List[Dict]:
+def filter_tables_with_text(tables: List[Dict], all_words: List[Dict], max_text_ratio: float = 0.0) -> List[Dict]:
     """
     Filtre les tableaux qui contiennent trop de mots textuels (non-numériques).
     
     Args:
         tables: Liste des tableaux détectés
         all_words: Tous les mots originaux de la page
-        max_text_ratio: Ratio maximal de mots non-numériques autorisé (défaut 30%)
+        max_text_ratio: Ratio maximal de mots non-numériques autorisé (défaut 0% - seules unités)
         
     Returns:
         Liste des tableaux filtrés

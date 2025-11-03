@@ -37,4 +37,4 @@ yarn-error.log*
 next-env.d.ts
 
 # python311
-backend-python/env_py311_ocr
+backend-python/venv_311_doctr

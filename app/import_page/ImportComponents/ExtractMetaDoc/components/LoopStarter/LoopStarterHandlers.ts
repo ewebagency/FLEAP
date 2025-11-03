@@ -9,8 +9,66 @@ import { getParamsMappingByEntreprise } from '../../utils/bdd';
 import { smart_split_loop, apply_smart_split } from '../../utils/split';
 import { LinkConfig } from '../../utils/default_auto_link_params';
 import { PdfInfo, ProcessingResult, SiteInfo, FilterOptions } from './LoopStarterTypes';
-import { getAllPossibleAlerteFlags } from './LoopStarterFilters';
+import { getAllPossibleAlerteFlags, getAllPossibleLinkageStatuses } from './LoopStarterFilters';
 import { invalidateCache } from '@/app/utils/invalidateCache';
+
+// Interface pour l'état de pause sauvegardé dans localStorage
+interface PauseState {
+    selectedPdfIds: string[];
+    pausedAtIndex: number;
+    pausedPdfId: string;
+    resumeMode: 'split_then_extract' | 'extract_only';
+    entreprise_id: string;
+    errorMessage: string;
+    timestamp: number;
+}
+
+// Clé localStorage
+const PAUSE_STATE_KEY = 'loopStarter:pauseState';
+
+// Durée d'expiration: 24h en millisecondes
+const EXPIRATION_MS = 24 * 60 * 60 * 1000;
+
+// Sauvegarder l'état de pause dans localStorage
+export const savePauseState = (state: PauseState): void => {
+    try {
+        localStorage.setItem(PAUSE_STATE_KEY, JSON.stringify(state));
+    } catch (error) {
+        console.error('Erreur sauvegarde état de pause:', error);
+    }
+};
+
+// Charger l'état de pause depuis localStorage
+export const loadPauseState = (): PauseState | null => {
+    try {
+        const saved = localStorage.getItem(PAUSE_STATE_KEY);
+        if (!saved) return null;
+        
+        const state: PauseState = JSON.parse(saved);
+        
+        // Vérifier l'expiration (24h)
+        const now = Date.now();
+        if (now - state.timestamp > EXPIRATION_MS) {
+            // Expiré, supprimer
+            clearPauseState();
+            return null;
+        }
+        
+        return state;
+    } catch (error) {
+        console.error('Erreur chargement état de pause:', error);
+        return null;
+    }
+};
+
+// Supprimer l'état de pause du localStorage
+export const clearPauseState = (): void => {
+    try {
+        localStorage.removeItem(PAUSE_STATE_KEY);
+    } catch (error) {
+        console.error('Erreur suppression état de pause:', error);
+    }
+};
 
 // Fonction pour rafraîchir les données depuis la BDD
 export const refreshData = async (
@@ -128,7 +186,8 @@ export const refreshData = async (
                        status === 'processed' ? 'Traité' :
                        status === 'error' ? 'Erreur' : status
             })),
-            alerteFlags: getAllPossibleAlerteFlags()
+            alerteFlags: getAllPossibleAlerteFlags(),
+            linkageStatuses: getAllPossibleLinkageStatuses()
         });
 
     } catch (error) {
@@ -148,14 +207,15 @@ export const handleProcessPdfs = async (
     pdfInfos: PdfInfo[],
     setProcessingSplitThenExtract: (value: boolean) => void,
     setResumeMode: (mode: 'split_then_extract' | 'extract_only' | null) => void,
-    setProcessingResults: (results: ProcessingResult[]) => void,
+    setProcessingResults: (results: ProcessingResult[] | ((prev: ProcessingResult[]) => ProcessingResult[])) => void,
     setShowReview: (value: boolean) => void,
     setPaused: (value: boolean) => void,
     setPausedPdfId: (id: string | null) => void,
     setPausedAtIndex: (index: number | null) => void,
     setShowExtractModal: (value: boolean) => void,
     setSelectedPdfIds: (ids: string[]) => void,
-    onRefreshData: () => Promise<void>
+    onRefreshData: () => Promise<void>,
+    isResuming: boolean = false
 ) => {
     if (selectedPdfIds.length === 0) {
         toast.error('Veuillez sélectionner au moins un PDF');
@@ -169,7 +229,10 @@ export const handleProcessPdfs = async (
 
     setProcessingSplitThenExtract(true);
     setResumeMode('split_then_extract');
-    setProcessingResults([]);
+    // Si ce n'est pas une reprise, on réinitialise les résultats
+    if (!isResuming) {
+        setProcessingResults([]);
+    }
     setShowReview(false);
     
     try {
@@ -203,10 +266,18 @@ export const handleProcessPdfs = async (
             });
         });
         
-        setProcessingResults(detailedResults);
+        // Si c'est une reprise, accumuler les résultats, sinon les écraser
+        if (isResuming) {
+            setProcessingResults(prev => [...prev, ...detailedResults]);
+        } else {
+            setProcessingResults(detailedResults);
+        }
         setShowReview(true);
         
         if (result.success) {
+            // Nettoyer le localStorage si succès
+            clearPauseState();
+            
             toast.success(`Traitement terminé : ${result.processedCount} PDFs traités avec succès`);
             // Rafraîchir les données
             toast.loading('Rafraîchissement des données...', { id: 'refresh-split-extract' });
@@ -254,9 +325,102 @@ export const handleProcessPdfs = async (
                 } catch {}
                 setShowExtractModal(true);
             } else {
-                toast.error(`Traitement terminé avec des erreurs : ${result.message}`);
-                if (result.errors.length > 0) {
-                    console.error('Erreurs détaillées:', result.errors);
+                // Si pause pour erreur backend, sauvegarder l'état et afficher Swal
+                const backendErr = result.errors.find(e => e.error && e.error.toLowerCase && e.error.toLowerCase().includes('backend'));
+                if (backendErr && typeof backendErr.pdfId === 'string') {
+                    const blockingPdf = pdfInfos.find(p => p.id === backendErr.pdfId);
+                    const errorMessage = backendErr.error || 'Erreur backend inconnue';
+                    
+                    setPaused(true);
+                    setPausedPdfId(backendErr.pdfId);
+                    setPausedAtIndex(result.pausedAtIndex ?? null);
+                    
+                    // Sauvegarder l'état dans localStorage
+                    savePauseState({
+                        selectedPdfIds,
+                        pausedAtIndex: result.pausedAtIndex ?? 0,
+                        pausedPdfId: backendErr.pdfId,
+                        resumeMode: 'split_then_extract',
+                        entreprise_id,
+                        errorMessage,
+                        timestamp: Date.now()
+                    });
+                    
+                    // Afficher Swal avec option de reprise
+                    Swal.fire({
+                        title: '⚠️ Erreur Backend',
+                        html: `
+                            <div class="text-left">
+                                <div class="mb-3 p-3 bg-red-50 rounded border-l-4 border-red-400">
+                                    <div class="font-medium text-red-800 mb-2">Le backend a rencontré une erreur</div>
+                                    <div class="text-sm text-red-700 mb-2">
+                                        Document: <strong>${blockingPdf?.name_pdf || backendErr.pdfId}</strong>
+                                    </div>
+                                    <div class="text-xs text-red-600 font-mono bg-red-100 p-2 rounded">
+                                        ${errorMessage}
+                                    </div>
+                                </div>
+                                <div class="mb-3 p-2 bg-blue-50 rounded text-sm text-blue-800">
+                                    <div class="font-medium mb-1">📊 Progression:</div>
+                                    <div>• Documents traités: ${result.processedCount}/${selectedPdfIds.length}</div>
+                                    <div>• Documents restants: ${selectedPdfIds.length - (result.pausedAtIndex ?? 0)}</div>
+                                </div>
+                                <div class="p-2 bg-gray-50 rounded text-xs text-gray-600">
+                                    💡 L'état est sauvegardé pendant 24h. Vous pouvez reprendre plus tard en ouvrant ce menu.
+                                </div>
+                            </div>
+                        `,
+                        showCancelButton: true,
+                        confirmButtonText: '🔄 Reprendre maintenant',
+                        cancelButtonText: '❌ Annuler',
+                        confirmButtonColor: '#3b82f6',
+                        cancelButtonColor: '#6b7280',
+                        allowOutsideClick: false,
+                        width: '600px'
+                    }).then(async (swalResult) => {
+                        if (swalResult.isConfirmed) {
+                            // Reprendre: NE PAS supprimer localStorage tout de suite (le succès le fera)
+                            setPaused(false);
+                            
+                            // Reprendre depuis pausedAtIndex (INCLUS pour réessayer le document échoué)
+                            const remainingPdfIds = selectedPdfIds.slice(result.pausedAtIndex ?? 0);
+                            if (remainingPdfIds.length === 0) {
+                                toast.success('Plus aucun document à traiter.');
+                                clearPauseState();
+                                return;
+                            }
+                            
+                            // Relancer le traitement en mode reprise pour accumuler les résultats
+                            await handleProcessPdfs(
+                                remainingPdfIds,
+                                entreprise_id,
+                                pdfInfos,
+                                setProcessingSplitThenExtract,
+                                setResumeMode,
+                                setProcessingResults,
+                                setShowReview,
+                                setPaused,
+                                setPausedPdfId,
+                                setPausedAtIndex,
+                                setShowExtractModal,
+                                setSelectedPdfIds,
+                                onRefreshData,
+                                true // isResuming = true
+                            );
+                        } else {
+                            // Annuler: supprimer localStorage et état de pause
+                            clearPauseState();
+                            setPaused(false);
+                            setPausedPdfId(null);
+                            setPausedAtIndex(null);
+                            setResumeMode(null);
+                        }
+                    });
+                } else {
+                    toast.error(`Traitement terminé avec des erreurs : ${result.message}`);
+                    if (result.errors.length > 0) {
+                        console.error('Erreurs détaillées:', result.errors);
+                    }
                 }
             }
         }
@@ -574,14 +738,15 @@ export const handleExtractOnly = async (
     pdfInfos: PdfInfo[],
     setProcessingExtractOnly: (value: boolean) => void,
     setResumeMode: (mode: 'split_then_extract' | 'extract_only' | null) => void,
-    setProcessingResults: (results: ProcessingResult[]) => void,
+    setProcessingResults: (results: ProcessingResult[] | ((prev: ProcessingResult[]) => ProcessingResult[])) => void,
     setShowReview: (value: boolean) => void,
     setPaused: (value: boolean) => void,
     setPausedPdfId: (id: string | null) => void,
     setPausedAtIndex: (index: number | null) => void,
     setShowExtractModal: (value: boolean) => void,
     setSelectedPdfIds: (ids: string[]) => void,
-    onRefreshData: () => Promise<void>
+    onRefreshData: () => Promise<void>,
+    isResuming: boolean = false
 ) => {
     if (selectedPdfIds.length === 0) {
         toast.error('Veuillez sélectionner au moins un PDF');
@@ -595,7 +760,10 @@ export const handleExtractOnly = async (
 
     setProcessingExtractOnly(true);
     setResumeMode('extract_only');
-    setProcessingResults([]);
+    // Si ce n'est pas une reprise, on réinitialise les résultats
+    if (!isResuming) {
+        setProcessingResults([]);
+    }
     setShowReview(false);
 
     try {
@@ -631,10 +799,18 @@ export const handleExtractOnly = async (
             });
         });
 
-        setProcessingResults(detailedResults);
+        // Si c'est une reprise, accumuler les résultats, sinon les écraser
+        if (isResuming) {
+            setProcessingResults(prev => [...prev, ...detailedResults]);
+        } else {
+            setProcessingResults(detailedResults);
+        }
         setShowReview(true);
 
         if (result.success) {
+            // Nettoyer le localStorage si succès
+            clearPauseState();
+            
             toast.success(`Extraction terminée : ${result.processedCount} PDFs extraits avec succès`);
             toast.loading('Rafraîchissement des données...', { id: 'refresh-extract' });
             await onRefreshData();
@@ -677,7 +853,100 @@ export const handleExtractOnly = async (
                 } catch {}
                 setShowExtractModal(true);
             } else {
-                toast.error(`Extraction terminée avec des erreurs : ${result.message}`);
+                // Si pause pour erreur backend, sauvegarder l'état et afficher Swal
+                const backendErr = result.errors.find(e => e.error && e.error.toLowerCase && e.error.toLowerCase().includes('backend'));
+                if (backendErr && typeof backendErr.pdfId === 'string') {
+                    const blockingPdf = pdfInfos.find(p => p.id === backendErr.pdfId);
+                    const errorMessage = backendErr.error || 'Erreur backend inconnue';
+                    
+                    setPaused(true);
+                    setPausedPdfId(backendErr.pdfId);
+                    setPausedAtIndex(result.pausedAtIndex ?? null);
+                    
+                    // Sauvegarder l'état dans localStorage
+                    savePauseState({
+                        selectedPdfIds,
+                        pausedAtIndex: result.pausedAtIndex ?? 0,
+                        pausedPdfId: backendErr.pdfId,
+                        resumeMode: 'extract_only',
+                        entreprise_id,
+                        errorMessage,
+                        timestamp: Date.now()
+                    });
+                    
+                    // Afficher Swal avec option de reprise
+                    Swal.fire({
+                        title: '⚠️ Erreur Backend',
+                        html: `
+                            <div class="text-left">
+                                <div class="mb-3 p-3 bg-red-50 rounded border-l-4 border-red-400">
+                                    <div class="font-medium text-red-800 mb-2">Le backend a rencontré une erreur</div>
+                                    <div class="text-sm text-red-700 mb-2">
+                                        Document: <strong>${blockingPdf?.name_pdf || backendErr.pdfId}</strong>
+                                    </div>
+                                    <div class="text-xs text-red-600 font-mono bg-red-100 p-2 rounded">
+                                        ${errorMessage}
+                                    </div>
+                                </div>
+                                <div class="mb-3 p-2 bg-blue-50 rounded text-sm text-blue-800">
+                                    <div class="font-medium mb-1">📊 Progression:</div>
+                                    <div>• Documents traités: ${result.processedCount}/${selectedPdfIds.length}</div>
+                                    <div>• Documents restants: ${selectedPdfIds.length - (result.pausedAtIndex ?? 0)}</div>
+                                </div>
+                                <div class="p-2 bg-gray-50 rounded text-xs text-gray-600">
+                                    💡 L'état est sauvegardé pendant 24h. Vous pouvez reprendre plus tard en ouvrant ce menu.
+                                </div>
+                            </div>
+                        `,
+                        showCancelButton: true,
+                        confirmButtonText: '🔄 Reprendre maintenant',
+                        cancelButtonText: '❌ Annuler',
+                        confirmButtonColor: '#3b82f6',
+                        cancelButtonColor: '#6b7280',
+                        allowOutsideClick: false,
+                        width: '600px'
+                    }).then(async (swalResult) => {
+                        if (swalResult.isConfirmed) {
+                            // Reprendre: NE PAS supprimer localStorage tout de suite (le succès le fera)
+                            setPaused(false);
+                            
+                            // Reprendre depuis pausedAtIndex (INCLUS pour réessayer le document échoué)
+                            const remainingPdfIds = selectedPdfIds.slice(result.pausedAtIndex ?? 0);
+                            if (remainingPdfIds.length === 0) {
+                                toast.success('Plus aucun document à traiter.');
+                                clearPauseState();
+                                return;
+                            }
+                            
+                            // Relancer le traitement en mode reprise pour accumuler les résultats
+                            await handleExtractOnly(
+                                remainingPdfIds,
+                                entreprise_id,
+                                pdfInfos,
+                                setProcessingExtractOnly,
+                                setResumeMode,
+                                setProcessingResults,
+                                setShowReview,
+                                setPaused,
+                                setPausedPdfId,
+                                setPausedAtIndex,
+                                setShowExtractModal,
+                                setSelectedPdfIds,
+                                onRefreshData,
+                                true // isResuming = true
+                            );
+                        } else {
+                            // Annuler: supprimer localStorage et état de pause
+                            clearPauseState();
+                            setPaused(false);
+                            setPausedPdfId(null);
+                            setPausedAtIndex(null);
+                            setResumeMode(null);
+                        }
+                    });
+                } else {
+                    toast.error(`Extraction terminée avec des erreurs : ${result.message}`);
+                }
             }
         }
     } catch (error) {

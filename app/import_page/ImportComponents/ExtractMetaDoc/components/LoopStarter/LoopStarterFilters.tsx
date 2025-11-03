@@ -168,6 +168,18 @@ export const getAllPossibleAlerteFlags = (): Array<{value: string, label: string
     ];
 };
 
+// Obtenir tous les statuts de linkage possibles pour le filtre
+export const getAllPossibleLinkageStatuses = (): Array<{value: string, label: string}> => {
+    return [
+        { value: 'created', label: 'Créé' },
+        { value: 'linked', label: 'Lié' },
+        { value: 'pushed', label: 'Poussé' },
+        { value: 'check_by_user', label: 'À vérifier' },
+        { value: 'to_check_by_user', label: 'À vérifier (auto)' },
+        { value: 'none', label: 'Aucun lien' }
+    ];
+};
+
 // Mapper un label de flag vers sa value
 export const getFlagValueFromLabel = (label: string): string => {
     const mapping: Record<string, string> = {

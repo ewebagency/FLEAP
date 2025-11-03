@@ -95,6 +95,20 @@ export const processPdfList = async (
                         };
                     }
 
+                    // Si une des pages a échoué pour une erreur backend, stopper immédiatement
+                    const backendError = extractionResults.find(r => r.success === false && r.error === 'BACKEND_ERROR');
+                    if (backendError) {
+                        errors.push({ pdfId, error: backendError.message || 'BACKEND_ERROR' });
+                        return {
+                            success: false,
+                            message: 'Arrêt: erreur backend',
+                            processedCount,
+                            errors,
+                            results,
+                            pausedAtIndex: i
+                        };
+                    }
+
                     if (failedExtractions.length > 0) {
                         errors.push({
                             pdfId,
@@ -131,6 +145,18 @@ export const processPdfList = async (
                                     pausedAtIndex: i
                                 };
                             }
+                            // Stopper immédiatement si BACKEND_ERROR
+                            if (extractionResult.error === 'BACKEND_ERROR') {
+                                errors.push({ pdfId, error: extractionResult.message });
+                                return {
+                                    success: false,
+                                    message: 'Arrêt: erreur backend',
+                                    processedCount,
+                                    errors,
+                                    results,
+                                    pausedAtIndex: i
+                                };
+                            }
                             errors.push({
                                 pdfId,
                                 error: extractionResult.error || extractionResult.message
@@ -152,6 +178,17 @@ export const processPdfList = async (
                         return {
                             success: false,
                             message: 'Arrêt: exemple RAG manquant',
+                            processedCount,
+                            errors,
+                            results,
+                            pausedAtIndex: i
+                        };
+                    }
+                    if (extractionResult.error === 'BACKEND_ERROR') {
+                        errors.push({ pdfId, error: extractionResult.message });
+                        return {
+                            success: false,
+                            message: 'Arrêt: erreur backend',
                             processedCount,
                             errors,
                             results,

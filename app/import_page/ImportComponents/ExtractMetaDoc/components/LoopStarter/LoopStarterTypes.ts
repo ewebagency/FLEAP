@@ -44,6 +44,7 @@ export interface FilterState {
     coveragePercent: string;  // Filtre pour taux de couverture
     importTimeValue: string;  // Valeur numérique pour le filtre temps depuis import
     importTimeUnit: 'h' | 'd';  // Unité: heures (h) ou jours (d)
+    linkageStatuses: string[];  // Filtre pour les statuts de linkage BSD
 }
 
 export interface FilterOptions {
@@ -52,6 +53,7 @@ export interface FilterOptions {
     documentTypes: Array<{value: string, label: string}>;
     statuses: Array<{value: string, label: string}>;
     alerteFlags: Array<{value: string, label: string}>;
+    linkageStatuses: Array<{value: string, label: string}>;
 }
 
 export interface ProcessingResult {
