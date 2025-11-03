@@ -33,6 +33,7 @@ from new.new_alerte import alerte_function
 from new.new_similarity.new_find_best_proxy import create_best_prompt_example
 import time
 from new.extract_text_layout_v2 import extract_text_with_grid_for_llm
+from new.extract_multi_page_gemini import extract_gemini_multi_page
 from fastapi.responses import Response
 
 # Compteur global de pages traitées pour reset du modèle OCR
@@ -437,9 +438,10 @@ async def meta_ocr(
         else:
             rag_found_example = False
         
-        # Extract data with Gemini
-        gemini_response = await extract_gemini(raw_text, prompt)
-        print("🧠 Gemini_response:", gemini_response)
+        print("🧠"*9, "Extract data with Gemini (multi-page if needed)", "🧠"*9)
+        # Extract data with Gemini (multi-page if needed)
+        gemini_response = await extract_gemini_multi_page(raw_text, potential_json_from_ocr, prompt)
+        print("🧠 Gemini_response:", "\nSuccess:", gemini_response["success"], "\nExtracted data:", gemini_response["extracted_data"])
         
         if "error" in gemini_response:
             return {"error": gemini_response["error"]}
