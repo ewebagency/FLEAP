@@ -7,6 +7,7 @@ import time
 import json
 import io
 from typing import List, Dict, Any
+from typing import Literal
 from fastapi import UploadFile
 import fitz  # PyMuPDF (déjà installé dans le projet)
 from new.new_extract_raw import get_raw_text_from_pdf
@@ -21,32 +22,32 @@ def get_smart_split_prompt():
     """
     return """Tu analyses un PDF découpé page par page.
 
-ENTRÉE: [{"idx_page": 0, "raw_text": "..."}, {"idx_page": 1, "raw_text": "..."}, ...]
+    ENTRÉE: [{"idx_page": 0, "raw_text": "..."}, {"idx_page": 1, "raw_text": "..."}, ...]
 
-TYPES DE DOCUMENTS:
-- "facture": Facture avec montants, TVA, prix
-- "bon": Bon de commande/pesée/livraison, BL, note de livraison avec poids (brut, tare, net)
-- "bsd": Bordereau de Suivi de Déchets (CERFA)
-- "autre": Autre type
+    TYPES DE DOCUMENTS:
+    - "facture": Facture avec montants, TVA, prix
+    - "bon": Bon de commande/pesée/livraison, BL, note de livraison avec poids (brut, tare, net)
+    - "bsd": Bordereau de Suivi de Déchets (CERFA)
+    - "autre": Autre type
 
-RÈGLE CRITIQUE DE SEGMENTATION:
-→ Pages avec le MÊME identifiant (numéro de bon, numéro de facture, numéro de BSD) = 1 segment
-→ Pages avec des identifiants DIFFÉRENTS = segments SÉPARÉS
+    RÈGLE CRITIQUE DE SEGMENTATION:
+    → Pages avec le MÊME identifiant (numéro de bon, numéro de facture, numéro de BSD) = 1 segment
+    → Pages avec des identifiants DIFFÉRENTS = segments SÉPARÉS
 
-EXEMPLES CONCRETS:
-✅ Facture n°123 sur 3 pages → [{"type": "facture", "pages": [0, 1, 2]}]
-✅ 3 bons différents (n°A, n°B, n°C) sur 3 pages → [{"type": "bon", "pages": [0]}, {"type": "bon", "pages": [1]}, {"type": "bon", "pages": [2]}]
-✅ Facture n°123 (2 pages) + Bon n°456 (1 page) → [{"type": "facture", "pages": [0, 1]}, {"type": "bon", "pages": [2]}]
-✅ BSD n°789 (2 pages) + Bon n°A + Bon n°B → [{"type": "bsd", "pages": [0, 1]}, {"type": "bon", "pages": [2]}, {"type": "bon", "pages": [3]}]
+    EXEMPLES CONCRETS:
+    ✅ Facture n°123 sur 3 pages → [{"type": "facture", "pages": [0, 1, 2]}]
+    ✅ 3 bons différents (n°A, n°B, n°C) sur 3 pages → [{"type": "bon", "pages": [0]}, {"type": "bon", "pages": [1]}, {"type": "bon", "pages": [2]}]
+    ✅ Facture n°123 (2 pages) + Bon n°456 (1 page) → [{"type": "facture", "pages": [0, 1]}, {"type": "bon", "pages": [2]}]
+    ✅ BSD n°789 (2 pages) + Bon n°A + Bon n°B → [{"type": "bsd", "pages": [0, 1]}, {"type": "bon", "pages": [2]}, {"type": "bon", "pages": [3]}]
 
-CONSIGNES:
-- Toutes les pages doivent être assignées
-- Pages consécutives uniquement dans un segment
-- Si un numéro n'est pas clair, considère chaque page comme un segment séparé par sécurité
+    CONSIGNES:
+    - Toutes les pages doivent être assignées
+    - Pages consécutives uniquement dans un segment
+    - Si un numéro n'est pas clair, considère chaque page comme un segment séparé par sécurité
 
-SORTIE (JSON uniquement, aucun texte):
-[{"type": "facture", "pages": [0, 1]}, {"type": "bon", "pages": [2]}]
-"""
+    SORTIE (JSON uniquement, aucun texte):
+    [{"type": "facture", "pages": [0, 1]}, {"type": "bon", "pages": [2]}]
+    """
 
 
 class FakeUploadFile:
@@ -321,4 +322,47 @@ async def smart_split_pdf(file: UploadFile, check_logique: bool = True):
                 "check_logique_enabled": check_logique
             }
         }
+
+
+# =============================
+# ONE-PAGE LLM TYPE RECOGNITION
+# =============================
+
+DocumentType = Literal["facture", "bon", "bsd", "autre"]
+
+def _build_one_page_prompt(raw_text: str) -> str:
+    return (
+        'Tu es un classificateur de type de document pour UNE SEULE PAGE, à partir de son texte OCR/parse.\n\n'
+        'TYPES AUTORISÉS (exactement ces 4 chaînes):\n'
+        '- "facture": Facture avec montants, TVA, prix\n'
+        '- "bon": Bon (commande/pesée/livraison), BL, note de livraison avec poids (brut, tare, net)\n'
+        '- "bsd": Bordereau de Suivi de Déchets (CERFA)\n'
+        '- "autre": Si aucun des trois ci-dessus n’est clairement identifiable\n\n'
+        'CONSIGNES:\n'
+        '- Analyse uniquement le texte fourni.\n'
+        '- Si ambigu, réponds "autre".\n'
+        '- Pas d’explication, pas de prose.\n\n'
+        'ENTRÉE:\n'
+        f'{raw_text}\n\n'
+        'SORTIE (JSON STRICT, une seule ligne, une seule clé):\n'
+        '{"type": "<facture|bon|bsd|autre>"}'
+    )
+
+async def recognize_type_one_page_llm(raw_text: str) -> DocumentType:
+    try:
+        prompt = _build_one_page_prompt(raw_text)
+        resp: Dict[str, object] = await extract_gemini(raw_text, prompt)
+        if "error" in resp:
+            # Fallback déterministe
+            return str(recognize_type_one_page(raw_text).get("type", "autre"))  
+        data_str = str(resp.get("extracted_data", "")).strip()
+        if not data_str:
+            return str(recognize_type_one_page(raw_text).get("type", "autre"))
+        obj = json.loads(data_str)
+        t = str(obj.get("type", "")).lower()
+        if t in ("facture", "bon", "bsd", "autre"):
+            return t  
+        return "autre"
+    except Exception:
+        return str(recognize_type_one_page(raw_text).get("type", "autre"))
 

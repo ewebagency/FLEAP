@@ -11,7 +11,7 @@ from utils.utils_gemini import extract_gemini
 
 from utils.utils_parse import parse_pdf, parse_pdf_file
 from prompts import prompt_bsd, prompt_bon
-from new.new_smart_split import smart_split_pdf
+from new.new_smart_split import smart_split_pdf, recognize_type_one_page_llm
 
 
 import json
@@ -403,7 +403,8 @@ async def meta_ocr(
             print(f"🔍 Raw text avec layout: {raw_text}")
         else:
             raw_text, potential_json_from_ocr, parse_or_ocr = await get_raw_text_from_pdf(file)
-        type_lu = recognize_type_one_page(raw_text)["type"]
+        # type_lu = recognize_type_one_page(raw_text)["type"]
+        type_lu = await recognize_type_one_page_llm(raw_text)
         
         # Count pages for OCR model reset (estimate based on text length)
         estimated_pages = max(1, len(raw_text) // 2000)  # ~2000 chars per page
