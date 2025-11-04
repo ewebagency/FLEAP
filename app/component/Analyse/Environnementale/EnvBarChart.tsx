@@ -671,7 +671,7 @@ const EnvBarChart = () => {
     return (
         <div className="space-y-4">
             <div className="w-full h-[300px] bg-white rounded-lg p-2 relative">
-                <div className="absolute top-3 right-6 z-10 flex items-center space-x-2">
+                <div className="absolute top-3 right-6 z-10 flex items-center space-x-2 hidden">
                 <div className="flex items-center space-x-2">
                     <button
                         onClick={() => {

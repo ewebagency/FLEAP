@@ -27,6 +27,13 @@ export function GraphConfigurator({ denominators, charts, onAddChart, onUpdateCh
 
   (Object.keys(allValuesByFamily) as Family[]).forEach(k => { allValuesByFamily[k] = [...allValuesByFamily[k]].sort(); });
 
+  const getFamilyLabel = (family: Family): string => {
+    if (family === 'contenant') return 'contenant - coming soon';
+    if (family === 'rep') return 'rep - coming soon';
+    if (family === 'source') return 'source - coming soon';
+    return family;
+  };
+
   return (
     <div className="border rounded p-3 space-y-3">
       <div className="flex items-center justify-between">
@@ -71,7 +78,7 @@ export function GraphConfigurator({ denominators, charts, onAddChart, onUpdateCh
                     onChange={e => onUpdateChart(chart.id, c => ({ ...c, xFamily: e.target.value as Family }))}
                   >
                     {(['site','exutoire','transport','filiere','mois_annee','contenant','code_dr','valorisation','tri','rep','source'] as Family[]).map(f => (
-                      <option key={f} value={f}>{f}</option>
+                      <option key={f} value={f}>{getFamilyLabel(f)}</option>
                     ))}
                   </select>
                 </div>
@@ -83,7 +90,7 @@ export function GraphConfigurator({ denominators, charts, onAddChart, onUpdateCh
                     onChange={e => onUpdateChart(chart.id, c => ({ ...c, yFamily: e.target.value as Family }))}
                   >
                     {(['site','exutoire','transport','filiere','mois_annee','contenant','code_dr','valorisation','tri','rep','source'] as Family[]).map(f => (
-                      <option key={f} value={f}>{f}</option>
+                      <option key={f} value={f}>{getFamilyLabel(f)}</option>
                     ))}
                   </select>
                 </div>
@@ -98,7 +105,7 @@ export function GraphConfigurator({ denominators, charts, onAddChart, onUpdateCh
                     onChange={e => onUpdateChart(chart.id, c => ({ ...c, segmentFamily: e.target.value as Family }))}
                   >
                     {(['site','exutoire','transport','filiere','mois_annee','contenant','code_dr','valorisation','tri','rep','source'] as Family[]).map(f => (
-                      <option key={f} value={f}>{f}</option>
+                      <option key={f} value={f}>{getFamilyLabel(f)}</option>
                     ))}
                   </select>
                 </div>
@@ -112,7 +119,7 @@ export function GraphConfigurator({ denominators, charts, onAddChart, onUpdateCh
                       onChange={e => onUpdateChart(chart.id, c => ({ ...c, xFamily: e.target.value as Family }))}
                     >
                       {(['site','exutoire','transport','filiere','mois_annee','contenant','code_dr','valorisation','tri','rep','source'] as Family[]).map(f => (
-                        <option key={f} value={f}>{f}</option>
+                        <option key={f} value={f}>{getFamilyLabel(f)}</option>
                       ))}
                     </select>
                   </div>

@@ -20,8 +20,8 @@ type BSD_Export_Interface = {
     "Point de collecte": string | number | null,
     "Adresse de collecte": string | number | null,
     
-    "N° Siret du Producteur": string | number | null,
-    "Raison sociale du Producteur": string | number | null,
+    "N° d'Identification du Site (Code chantier ou Siret)": string | number | null,
+    "Nom du Site": string | number | null,
 
     "N° SIRET du transporteur": string | number | null,
     "Raison sociale du transporteur": string | number | null,
@@ -32,7 +32,7 @@ type BSD_Export_Interface = {
     "Adresse du prestataire final": string | number | null,
     "N° de récipissé du prestataire final": string | number | null,
     "Code de traitement Principal": string | number | null,
-    "Valorisation éclatée si besoin": string | number | null,
+    "Répartition de valorisation par tonnage": string | number | null,
 
     "Date de collecte": string | number | null,
     "Poids (tonne)": string | number | null,
@@ -339,8 +339,8 @@ const formatBSDData = (data: {
                 return `${workSite.address ?? ''} ${workSite.postalCode ?? ''} ${workSite.city ?? ''}`.trim() || 'Non renseigné';
             }),
             
-            "N° Siret du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.siret),
-            "Raison sociale du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.name),
+            "N° d'Identification du Site (Code chantier ou Siret)": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.siret),
+            "Nom du Site": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.name),
 
             "N° SIRET du transporteur": getValue(() => item.infos_json.formAPI.createFormInput.transporter.company.siret),
             "Raison sociale du transporteur": getValue(() => item.infos_json.formAPI.createFormInput.transporter.company.name),
@@ -356,7 +356,7 @@ const formatBSDData = (data: {
             "Contenant": getValue(() => item.other_infos?.containerDescription ?? ''),
             "Nombre de contenants": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.packagingInfos.map(packaging => packaging.quantity===0 ? 1 : packaging.quantity).join(', ')),
             "Code de traitement Principal": getValue(() => null, item.infos_json.formAPI.createFormInput.recipient.processingOperation?.toString() ?? ''),
-            "Valorisation éclatée si besoin": getValue(() => item.infos_json.formAPI.createFormInput.recipient.valoParts? item.infos_json.formAPI.createFormInput.recipient.valoParts.map(part => `${part.code_valo} : ${part.tonnage}t`).join('  |  ') : ''),
+            "Répartition de valorisation par tonnage": getValue(() => item.infos_json.formAPI.createFormInput.recipient.valoParts? item.infos_json.formAPI.createFormInput.recipient.valoParts.map(part => `${part.code_valo} : ${part.tonnage}t`).join('  |  ') : ''),
 
             "Code ONU": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.onuCode),
             "ADR": getValue(() => item.other_infos?.mentionAdr ?? ''),
@@ -412,7 +412,7 @@ const formatBSDData = (data: {
                 const valoPartsStr = recipient.valoParts.map(part => 
                     `${part.code_valo} : ${part.tonnage}t`
                 ).join('  |  ');
-                baseObject[`Valorisation éclatée si besoin ${recipientNum}`] = getValue(() => null, valoPartsStr);
+                baseObject[`Répartition de valorisation par tonnage ${recipientNum}`] = getValue(() => null, valoPartsStr);
             }
         }
         

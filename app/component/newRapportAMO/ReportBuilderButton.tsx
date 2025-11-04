@@ -14,7 +14,7 @@ import { ReportConfigManager } from './components/ReportConfigManager';
 // Removed dependency on AnalysisProvider; all data comes from API + FilterContext
 
 export default function ReportBuilderButton() {
-  const { entreprise_id } = useSession();
+  const { entreprise_id, display_features } = useSession();
   const { sites, segmentDates } = useFilterContext();
   // filterType comes from aggregated data semantics; no context usage here
   const [step, setStep] = useState<'closed' | 'config' | 'sites' | 'builder'>('closed');
@@ -27,7 +27,7 @@ export default function ReportBuilderButton() {
       includeTable: true, 
       includeCharts: true, 
       includeLinePdfs: false,
-      tableColumns: ['doc','nBon','nFacture','date','site','waste','ced','qty','treatment','exutoire','exutoire_siret','exutoire_address','receipt','numberPlate','containerDescription']
+      tableColumns: ['nBSD','nBon','nFacture','date','site','waste','ced','qty','treatment','exutoire','exutoire_siret','exutoire_address','receipt','numberPlate','containerDescription']
     },
     charts: [],
     reportTitle: 'Paramètres perso',
@@ -277,14 +277,18 @@ export default function ReportBuilderButton() {
                     onLoadConfig={onConfigSelected}
                     compact={true}
                   />
-                </div>                
-                <div className="text-center text-gray-400">ou</div>
-                <button
-                  onClick={() => onConfigSelected(null)}
-                  className="w-full p-4 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
-                >
-                  <div className="text-blue-600 font-medium">Créer un nouveau type de rapport</div>
-                </button>
+                </div>
+                {display_features?.params_rapport_amo === true && (
+                  <>
+                    <div className="text-center text-gray-400">ou</div>
+                    <button
+                      onClick={() => onConfigSelected(null)}
+                      className="w-full p-4 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                    >
+                      <div className="text-blue-600 font-medium">Créer un nouveau type de rapport</div>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -308,12 +312,14 @@ export default function ReportBuilderButton() {
                 onChange={e => setState(s => ({ ...s, reportTitle: e.target.value }))}
               />
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowConfigParams(!showConfigParams)}
-                  className="px-3 py-1 rounded border text-sm hover:bg-gray-50 w-[200px]"
-                >
-                  {showConfigParams ? 'Masquer paramètres' : 'Afficher paramètres'}
-                </button>
+                {display_features?.params_rapport_amo === true && (
+                  <button
+                    onClick={() => setShowConfigParams(!showConfigParams)}
+                    className="px-3 py-1 rounded border text-sm hover:bg-gray-50 w-[200px]"
+                  >
+                    {showConfigParams ? 'Masquer paramètres' : 'Afficher paramètres'}
+                  </button>
+                )}
                 <button onClick={onClose} className="px-3 py-1 rounded border">Fermer</button>
               </div>
             </div>

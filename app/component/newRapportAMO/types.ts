@@ -101,7 +101,9 @@ export interface ReportConfigsResponse {
 
 // Columns available for the BSD register table in PDF
 export type TableColumnKey =
-  | 'doc'          // N°BSD ou N°Bon
+  | 'nBSD'         // N°BSD (readable_id_track_dechets)
+  | 'nBon'         // Numéro de bon
+  | 'nFacture'     // Numéro de facture
   | 'date'         // Date BSD ou de création
   | 'site'         // Nom du site (affiché seulement si plusieurs sites dans les données)
   | 'waste'        // Nom du déchet
@@ -114,8 +116,6 @@ export type TableColumnKey =
   | 'receipt'      // N° récépissé (transporteur)
   | 'numberPlate'  // Immatriculation transporteur
   | 'containerDescription' // Description contenant
-  | 'nBon'         // Numéro de bon
-  | 'nFacture'     // Numéro de facture
   | 'site_siret'   // SIRET du site
   | 'transport_name' // Nom du transporteur
   | 'transport_siret' // SIRET du transporteur

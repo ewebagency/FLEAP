@@ -441,12 +441,12 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
                   {(() => {
                     const cols: TableColumnKey[] = (state.exportOptions.tableColumns && state.exportOptions.tableColumns.length > 0)
                       ? state.exportOptions.tableColumns
-                      : ['doc','date','site','waste','ced','qty','treatment','exutoire'];
+                      : ['nBSD','nBon','nFacture','date','site','waste','ced','qty','treatment','exutoire'];
                     return cols.map((col, idx) => {
                       if (col === 'site' && !hasMultipleSitesValue) return null;
                       if (col === 'attachments' && !state.exportOptions.includeLinePdfs) return null;
                       const label = (
-                        col === 'doc' ? 'BSD/Bon' :
+                        col === 'nBSD' ? 'N° BSD' :
                         col === 'nBon' ? 'N° Bon' :
                         col === 'nFacture' ? 'N° Facture' :
                         col === 'date' ? 'Date' :
@@ -479,27 +479,16 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
                   const qty = Number(ci.quantityReceived || ci.wasteDetails.quantity || 0) || 0;
                   const digitsInReadable = (b.readable_id_track_dechets || '').replace(/\D/g, '').length;
                   const hasReadableId = digitsInReadable > 4;
-                  const numeroBon = b.other_infos?.numeroBon || b.facture_infos?.numeroFacture;
                   
-                  let docId = '-';
-                  let docType = '';
-                  
-                  if (hasReadableId) {
-                    docId = b.readable_id_track_dechets;
-                    docType = 'N°BSD';
-                  } else if (numeroBon) {
-                    docId = numeroBon;
-                    docType = 'N°Bon';
-                  }
                   const cols: TableColumnKey[] = (state.exportOptions.tableColumns && state.exportOptions.tableColumns.length > 0)
                     ? state.exportOptions.tableColumns
-                    : ['doc','date','site','waste','ced','qty','treatment','exutoire'];
+                    : ['nBSD','nBon','nFacture','date','site','waste','ced','qty','treatment','exutoire'];
                   return (
                     <tr key={i}>
                       {cols.map((col, idx2) => {
                         if (col === 'site' && !hasMultipleSitesValue) return null;
                         if (col === 'attachments' && !state.exportOptions.includeLinePdfs) return null;
-                        if (col === 'doc') return <td key={`c_${idx2}`}>{docId}{docType ? ` (${docType})` : ''}</td>;
+                        if (col === 'nBSD') return <td key={`c_${idx2}`}>{hasReadableId ? b.readable_id_track_dechets : ''}</td>;
                         if (col === 'nBon') return <td key={`c_${idx2}`}>{b.other_infos?.numeroBon || ''}</td>;
                         if (col === 'nFacture') return <td key={`c_${idx2}`}>{b.facture_infos?.numeroFacture || ''}</td>;
                         if (col === 'date') return <td key={`c_${idx2}`}>{dateStr}</td>;
@@ -561,20 +550,17 @@ export function PDFPreview({ title, data, state, onExportComplete, startLoadingB
               if (correspondingRow) {
                 const digitsInReadable = (correspondingRow.readable_id_track_dechets || '').replace(/\D/g, '').length;
                 const hasReadableId = digitsInReadable > 4;
-                const numeroBon = correspondingRow.other_infos?.numeroBon || correspondingRow.facture_infos?.numeroFacture;
+                const numeroBSD = hasReadableId ? correspondingRow.readable_id_track_dechets : '';
+                const numeroBon = correspondingRow.other_infos?.numeroBon || '';
+                const numeroFacture = correspondingRow.facture_infos?.numeroFacture || '';
                 
-                let docId = '-';
-                let docType = '';
+                // Construire le titre avec les identifiants disponibles
+                const parts: string[] = [];
+                if (numeroBSD) parts.push(`BSD: ${numeroBSD}`);
+                if (numeroBon) parts.push(`Bon: ${numeroBon}`);
+                if (numeroFacture) parts.push(`Facture: ${numeroFacture}`);
                 
-                if (hasReadableId) {
-                  docId = correspondingRow.readable_id_track_dechets;
-                  docType = 'N°BSD';
-                } else if (numeroBon) {
-                  docId = numeroBon;
-                  docType = 'N°Bon';
-                }
-                
-                attachmentTitle = `${docId}${docType ? ` (${docType})` : ''}`;
+                attachmentTitle = parts.length > 0 ? parts.join(' · ') : 'Pièce jointe';
                 attachmentId = `pdf-${correspondingRow.id}`;
               }
               

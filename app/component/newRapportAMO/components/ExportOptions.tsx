@@ -14,7 +14,7 @@ export function ExportOptions({ value, onChange }: Props) {
   };
 
   const allColumns = useMemo<Array<{ key: TableColumnKey; label: string }>>(() => [
-    { key: 'doc', label: 'N° (BSD/Bon)' },
+    { key: 'nBSD', label: 'N° BSD' },
     { key: 'nBon', label: 'N° Bon' },
     { key: 'nFacture', label: 'N° Facture' },
     { key: 'date', label: 'Date' },
@@ -36,7 +36,7 @@ export function ExportOptions({ value, onChange }: Props) {
   ], []);
 
   const defaultOrder = useMemo(() => (
-    ['doc','nBon','nFacture','date','site','site_siret','waste','ced','qty','treatment','exutoire','exutoire_siret','exutoire_address','transport_name','transport_siret','receipt','numberPlate','containerDescription'] as TableColumnKey[]
+    ['nBSD','nBon','nFacture','date','site','site_siret','waste','ced','qty','treatment','exutoire','exutoire_siret','exutoire_address','transport_name','transport_siret','receipt','numberPlate','containerDescription'] as TableColumnKey[]
   ), []);
 
   const selected = useMemo(() => (

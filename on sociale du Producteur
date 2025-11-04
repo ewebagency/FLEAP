@@ -1,0 +1,290 @@
+[1mdiff --git a/app/api/demande_collecte/export_register/route.ts b/app/api/demande_collecte/export_register/route.ts[m
+[1mindex f238966..8f302b6 100644[m
+[1m--- a/app/api/demande_collecte/export_register/route.ts[m
+[1m+++ b/app/api/demande_collecte/export_register/route.ts[m
+[36m@@ -20,8 +20,8 @@[m [mtype BSD_Export_Interface = {[m
+     "Point de collecte": string | number | null,[m
+     "Adresse de collecte": string | number | null,[m
+     [m
+[31m-    "N° Siret du Producteur": string | number | null,[m
+[31m-    "Raison sociale du Producteur": string | number | null,[m
+[32m+[m[32m    "N° d'Identification du Site (Code chantier ou Siret)": string | number | null,[m
+[32m+[m[32m    "Nom du Site": string | number | null,[m
+ [m
+     "N° SIRET du transporteur": string | number | null,[m
+     "Raison sociale du transporteur": string | number | null,[m
+[36m@@ -32,7 +32,7 @@[m [mtype BSD_Export_Interface = {[m
+     "Adresse du prestataire final": string | number | null,[m
+     "N° de récipissé du prestataire final": string | number | null,[m
+     "Code de traitement Principal": string | number | null,[m
+[31m-    "Valorisation éclatée si besoin": string | number | null,[m
+[32m+[m[32m    "Répartition de valorisation par tonnage": string | number | null,[m
+ [m
+     "Date de collecte": string | number | null,[m
+     "Poids (tonne)": string | number | null,[m
+[36m@@ -339,8 +339,8 @@[m [mconst formatBSDData = (data: {[m
+                 return `${workSite.address ?? ''} ${workSite.postalCode ?? ''} ${workSite.city ?? ''}`.trim() || 'Non renseigné';[m
+             }),[m
+             [m
+[31m-            "N° Siret du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.siret),[m
+[31m-            "Raison sociale du Producteur": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.name),[m
+[32m+[m[32m            "N° d'Identification du Site (Code chantier ou Siret)": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.siret),[m
+[32m+[m[32m            "Nom du Site": getValue(() => item.infos_json.formAPI.createFormInput.emitter.company.name),[m
+ [m
+             "N° SIRET du transporteur": getValue(() => item.infos_json.formAPI.createFormInput.transporter.company.siret),[m
+             "Raison sociale du transporteur": getValue(() => item.infos_json.formAPI.createFormInput.transporter.company.name),[m
+[36m@@ -356,7 +356,7 @@[m [mconst formatBSDData = (data: {[m
+             "Contenant": getValue(() => item.other_infos?.containerDescription ?? ''),[m
+             "Nombre de contenants": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.packagingInfos.map(packaging => packaging.quantity===0 ? 1 : packaging.quantity).join(', ')),[m
+             "Code de traitement Principal": getValue(() => null, item.infos_json.formAPI.createFormInput.recipient.processingOperation?.toString() ?? ''),[m
+[31m-            "Valorisation éclatée si besoin": getValue(() => item.infos_json.formAPI.createFormInput.recipient.valoParts? item.infos_json.formAPI.createFormInput.recipient.valoParts.map(part => `${part.code_valo} : ${part.tonnage}t`).join('  |  ') : ''),[m
+[32m+[m[32m            "Répartition de valorisation par tonnage": getValue(() => item.infos_json.formAPI.createFormInput.recipient.valoParts? item.infos_json.formAPI.createFormInput.recipient.valoParts.map(part => `${part.code_valo} : ${part.tonnage}t`).join('  |  ') : ''),[m
+ [m
+             "Code ONU": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.onuCode),[m
+             "ADR": getValue(() => item.other_infos?.mentionAdr ?? ''),[m
+[36m@@ -412,7 +412,7 @@[m [mconst formatBSDData = (data: {[m
+                 const valoPartsStr = recipient.valoParts.map(part => [m
+                     `${part.code_valo} : ${part.tonnage}t`[m
+                 ).join('  |  ');[m
+[31m-                baseObject[`Valorisation éclatée si besoin ${recipientNum}`] = getValue(() => null, valoPartsStr);[m
+[32m+[m[32m                baseObject[`Répartition de valorisation par tonnage ${recipientNum}`] = getValue(() => null, valoPartsStr);[m
+             }[m
+         }[m
+         [m
+[1mdiff --git a/app/component/Analyse/Environnementale/EnvBarChart.tsx b/app/component/Analyse/Environnementale/EnvBarChart.tsx[m
+[1mindex e1fc836..c2ca343 100644[m
+[1m--- a/app/component/Analyse/Environnementale/EnvBarChart.tsx[m
+[1m+++ b/app/component/Analyse/Environnementale/EnvBarChart.tsx[m
+[36m@@ -671,7 +671,7 @@[m [mconst EnvBarChart = () => {[m
+     return ([m
+         <div className="space-y-4">[m
+             <div className="w-full h-[300px] bg-white rounded-lg p-2 relative">[m
+[31m-                <div className="absolute top-3 right-6 z-10 flex items-center space-x-2">[m
+[32m+[m[32m                <div className="absolute top-3 right-6 z-10 flex items-center space-x-2 hidden">[m
+                 <div className="flex items-center space-x-2">[m
+                     <button[m
+                         onClick={() => {[m
+[1mdiff --git a/app/component/Analyse/Financiere/New/NewMainFinancialChart.tsx b/app/component/Analyse/Financiere/New/NewMainFinancialChart.tsx[m
+[1mindex 926f606..8742d30 100644[m
+[1m--- a/app/component/Analyse/Financiere/New/NewMainFinancialChart.tsx[m
+[1m+++ b/app/component/Analyse/Financiere/New/NewMainFinancialChart.tsx[m
+[36m@@ -540,7 +540,7 @@[m [mconst NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {[m
+                     </div>[m
+                 )}[m
+ [m
+[31m-                <div className="absolute top-2 right-6 z-10 flex items-center space-x-2">[m
+[32m+[m[32m                <div className="absolute top-2 right-6 z-10 flex items-center space-x-2 hidden">[m
+                     <div className="flex items-center space-x-2">[m
+                         <button[m
+                             onClick={() => {[m
+[1mdiff --git a/app/component/Analyse/Operationelle/AnalOpMainChart.tsx b/app/component/Analyse/Operationelle/AnalOpMainChart.tsx[m
+[1mindex 9f00f2b..d6ebd27 100644[m
+[1m--- a/app/component/Analyse/Operationelle/AnalOpMainChart.tsx[m
+[1m+++ b/app/component/Analyse/Operationelle/AnalOpMainChart.tsx[m
+[36m@@ -359,7 +359,7 @@[m [mconst AnalOpMainChart = () => {[m
+           </div>[m
+         )}[m
+ [m
+[31m-        <div className="absolute top-2 right-6 z-10 flex items-center space-x-2">[m
+[32m+[m[32m        <div className="absolute top-2 right-6 z-10 flex items-center space-x-2 hidden">[m
+           <div className="flex items-center space-x-2">[m
+             <button[m
+               onClick={() => {[m
+[1mdiff --git a/app/component/newRapportAMO/ReportBuilderButton.tsx b/app/component/newRapportAMO/ReportBuilderButton.tsx[m
+[1mindex 1333d75..d18b6a8 100644[m
+[1m--- a/app/component/newRapportAMO/ReportBuilderButton.tsx[m
+[1m+++ b/app/component/newRapportAMO/ReportBuilderButton.tsx[m
+[36m@@ -14,7 +14,7 @@[m [mimport { ReportConfigManager } from './components/ReportConfigManager';[m
+ // Removed dependency on AnalysisProvider; all data comes from API + FilterContext[m
+ [m
+ export default function ReportBuilderButton() {[m
+[31m-  const { entreprise_id } = useSession();[m
+[32m+[m[32m  const { entreprise_id, display_features } = useSession();[m
+   const { sites, segmentDates } = useFilterContext();[m
+   // filterType comes from aggregated data semantics; no context usage here[m
+   const [step, setStep] = useState<'closed' | 'config' | 'sites' | 'builder'>('closed');[m
+[36m@@ -27,7 +27,7 @@[m [mexport default function ReportBuilderButton() {[m
+       includeTable: true, [m
+       includeCharts: true, [m
+       includeLinePdfs: false,[m
+[31m-      tableColumns: ['doc','nBon','nFacture','date','site','waste','ced','qty','treatment','exutoire','exutoire_siret','exutoire_address','receipt','numberPlate','containerDescription'][m
+[32m+[m[32m      tableColumns: ['nBSD','nBon','nFacture','date','site','waste','ced','qty','treatment','exutoire','exutoire_siret','exutoire_address','receipt','numberPlate','containerDescription'][m
+     },[m
+     charts: [],[m
+     reportTitle: 'Paramètres perso',[m
+[36m@@ -277,14 +277,18 @@[m [mexport default function ReportBuilderButton() {[m
+                     onLoadConfig={onConfigSelected}[m
+                     compact={true}[m
+                   />[m
+[31m-                </div>                [m
+[31m-                <div className="text-center text-gray-400">ou</div>[m
+[31m-                <button[m
+[31m-                  onClick={() => onConfigSelected(null)}[m
+[31m-                  className="w-full p-4 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"[m
+[31m-                >[m
+[31m-                  <div className="text-blue-600 font-medium">Créer un nouveau type de rapport</div>[m
+[31m-                </button>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m                {display_features?.params_rapport_amo === true && ([m
+[32m+[m[32m                  <>[m
+[32m+[m[32m                    <div className="text-center text-gray-400">ou</div>[m
+[32m+[m[32m                    <button[m
+[32m+[m[32m                      onClick={() => onConfigSelected(null)}[m
+[32m+[m[32m                      className="w-full p-4 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"[m
+[32m+[m[32m                    >[m
+[32m+[m[32m                      <div className="text-blue-600 font-medium">Créer un nouveau type de rapport</div>[m
+[32m+[m[32m                    </button>[m
+[32m+[m[32m                  </>[m
+[32m+[m[32m                )}[m
+               </div>[m
+             </div>[m
+           </div>[m
+[36m@@ -308,12 +312,14 @@[m [mexport default function ReportBuilderButton() {[m
+                 onChange={e => setState(s => ({ ...s, reportTitle: e.target.value }))}[m
+               />[m
+               <div className="flex items-center gap-3">[m
+[31m-                <button[m
+[31m-                  onClick={() => setShowConfigParams(!showConfigParams)}[m
+[31m-                  className="px-3 py-1 rounded border text-sm hover:bg-gray-50 w-[200px]"[m
+[31m-                >[m
+[31m-                  {showConfigParams ? 'Masquer paramètres' : 'Afficher paramètres'}[m
+[31m-                </button>[m
+[32m+[m[32m                {display_features?.params_rapport_amo === true && ([m
+[32m+[m[32m                  <button[m
+[32m+[m[32m                    onClick={() => setShowConfigParams(!showConfigParams)}[m
+[32m+[m[32m                    className="px-3 py-1 rounded border text-sm hover:bg-gray-50 w-[200px]"[m
+[32m+[m[32m                  >[m
+[32m+[m[32m                    {showConfigParams ? 'Masquer paramètres' : 'Afficher paramètres'}[m
+[32m+[m[32m                  </button>[m
+[32m+[m[32m                )}[m
+                 <button onClick={onClose} className="px-3 py-1 rounded border">Fermer</button>[m
+               </div>[m
+             </div>[m
+[1mdiff --git a/app/component/newRapportAMO/components/ExportOptions.tsx b/app/component/newRapportAMO/components/ExportOptions.tsx[m
+[1mindex dda301c..68ffc98 100644[m
+[1m--- a/app/component/newRapportAMO/components/ExportOptions.tsx[m
+[1m+++ b/app/component/newRapportAMO/components/ExportOptions.tsx[m
+[36m@@ -14,7 +14,7 @@[m [mexport function ExportOptions({ value, onChange }: Props) {[m
+   };[m
+ [m
+   const allColumns = useMemo<Array<{ key: TableColumnKey; label: string }>>(() => [[m
+[31m-    { key: 'doc', label: 'N° (BSD/Bon)' },[m
+[32m+[m[32m    { key: 'nBSD', label: 'N° BSD' },[m
+     { key: 'nBon', label: 'N° Bon' },[m
+     { key: 'nFacture', label: 'N° Facture' },[m
+     { key: 'date', label: 'Date' },[m
+[36m@@ -36,7 +36,7 @@[m [mexport function ExportOptions({ value, onChange }: Props) {[m
+   ], []);[m
+ [m
+   const defaultOrder = useMemo(() => ([m
+[31m-    ['doc','nBon','nFacture','date','site','site_siret','waste','ced','qty','treatment','exutoire','exutoire_siret','exutoire_address','transport_name','transport_siret','receipt','numberPlate','containerDescription'] as TableColumnKey[][m
+[32m+[m[32m    ['nBSD','nBon','nFacture','date','site','site_siret','waste','ced','qty','treatment','exutoire','exutoire_siret','exutoire_address','transport_name','transport_siret','receipt','numberPlate','containerDescription'] as TableColumnKey[][m
+   ), []);[m
+ [m
+   const selected = useMemo(() => ([m
+[1mdiff --git a/app/component/newRapportAMO/components/GraphConfigurator.tsx b/app/component/newRapportAMO/components/GraphConfigurator.tsx[m
+[1mindex 95c4cb1..444c329 100644[m
+[1m--- a/app/component/newRapportAMO/components/GraphConfigurator.tsx[m
+[1m+++ b/app/component/newRapportAMO/components/GraphConfigurator.tsx[m
+[36m@@ -27,6 +27,13 @@[m [mexport function GraphConfigurator({ denominators, charts, onAddChart, onUpdateCh[m
+ [m
+   (Object.keys(allValuesByFamily) as Family[]).forEach(k => { allValuesByFamily[k] = [...allValuesByFamily[k]].sort(); });[m
+ [m
+[32m+[m[32m  const getFamilyLabel = (family: Family): string => {[m
+[32m+[m[32m    if (family === 'contenant') return 'contenant - coming soon';[m
+[32m+[m[32m    if (family === 'rep') return 'rep - coming soon';[m
+[32m+[m[32m    if (family === 'source') return 'source - coming soon';[m
+[32m+[m[32m    return family;[m
+[32m+[m[32m  };[m
+[32m+[m
+   return ([m
+     <div className="border rounded p-3 space-y-3">[m
+       <div className="flex items-center justify-between">[m
+[36m@@ -71,7 +78,7 @@[m [mexport function GraphConfigurator({ denominators, charts, onAddChart, onUpdateCh[m
+                     onChange={e => onUpdateChart(chart.id, c => ({ ...c, xFamily: e.target.value as Family }))}[m
+                   >[m
+                     {(['site','exutoire','transport','filiere','mois_annee','contenant','code_dr','valorisation','tri','rep','source'] as Family[]).map(f => ([m
+[31m-                      <option key={f} value={f}>{f}</option>[m
+[32m+[m[32m                      <option key={f} value={f}>{getFamilyLabel(f)}</option>[m
+                     ))}[m
+                   </select>[m
+                 </div>[m
+[36m@@ -83,7 +90,7 @@[m [mexport function GraphConfigurator({ denominators, charts, onAddChart, onUpdateCh[m
+                     onChange={e => onUpdateChart(chart.id, c => ({ ...c, yFamily: e.target.value as Family }))}[m
+                   >[m
+                     {(['site','exutoire','transport','filiere','mois_annee','contenant','code_dr','valorisation','tri','rep','source'] as Family[]).map(f => ([m
+[31m-                      <option key={f} value={f}>{f}</option>[m
+[32m+[m[32m                      <option key={f} value={f}>{getFamilyLabel(f)}</option>[m
+                     ))}[m
+                   </select>[m
+                 </div>[m
+[36m@@ -98,7 +105,7 @@[m [mexport function GraphConfigurator({ denominators, charts, onAddChart, onUpdateCh[m
+                     onChange={e => onUpdateChart(chart.id, c => ({ ...c, segmentFamily: e.target.value as Family }))}[m
+                   >[m
+                     {(['site','exutoire','transport','filiere','mois_annee','contenant','code_dr','valorisation','tri','rep','source'] as Family[]).map(f => ([m
+[31m-                      <option key={f} value={f}>{f}</option>[m
+[32m+[m[32m                      <option key={f} value={f}>{getFamilyLabel(f)}</option>[m
+                     ))}[m
+                   </select>[m
+                 </div>[m
+[36m@@ -112,7 +119,7 @@[m [mexport function GraphConfigurator({ denominators, charts, onAddChart, onUpdateCh[m
+                       onChange={e => onUpdateChart(chart.id, c => ({ ...c, xFamily: e.target.value as Family }))}[m
+                     >[m
+                       {(['site','exutoire','transport','filiere','mois_annee','contenant','code_dr','valorisation','tri','rep','source'] as Family[]).map(f => ([m
+[31m-                        <option key={f} value={f}>{f}</option>[m
+[32m+[m[32m                        <option key={f} value={f}>{getFamilyLabel(f)}</option>[m
+                       ))}[m
+                     </select>[m
+                   </div>[m
+[1mdiff --git a/app/component/newRapportAMO/components/PDFPreview.tsx b/app/component/newRapportAMO/components/PDFPreview.tsx[m
+[1mindex 74f1592..425a493 100644[m
+[1m--- a/app/component/newRapportAMO/components/PDFPreview.tsx[m
+[1m+++ b/app/component/newRapportAMO/components/PDFPreview.tsx[m
+[36m@@ -441,12 +441,12 @@[m [mexport function PDFPreview({ title, data, state, onExportComplete, startLoadingB[m
+                   {(() => {[m
+                     const cols: TableColumnKey[] = (state.exportOptions.tableColumns && state.exportOptions.tableColumns.length > 0)[m
+                       ? state.exportOptions.tableColumns[m
+[31m-                      : ['doc','date','site','waste','ced','qty','treatment','exutoire'];[m
+[32m+[m[32m                      : ['nBSD','nBon','nFacture','date','site','waste','ced','qty','treatment','exutoire'];[m
+                     return cols.map((col, idx) => {[m
+                       if (col === 'site' && !hasMultipleSitesValue) return null;[m
+                       if (col === 'attachments' && !state.exportOptions.includeLinePdfs) return null;[m
+                       const label = ([m
+[31m-                        col === 'doc' ? 'BSD/Bon' :[m
+[32m+[m[32m                        col === 'nBSD' ? 'N° BSD' :[m
+                         col === 'nBon' ? 'N° Bon' :[m
+                         col === 'nFacture' ? 'N° Facture' :[m
+                         col === 'date' ? 'Date' :[m
+[36m@@ -479,27 +479,16 @@[m [mexport function PDFPreview({ title, data, state, onExportComplete, startLoadingB[m
+                   const qty = Number(ci.quantityReceived || ci.wasteDetails.quantity || 0) || 0;[m
+                   const digitsInReadable = (b.readable_id_track_dechets || '').replace(/\D/g, '').length;[m
+                   const hasReadableId = digitsInReadable > 4;[m
+[31m-                  const numeroBon = b.other_infos?.numeroBon || b.facture_infos?.numeroFacture;[m
+                   [m
+[31m-                  let docId = '-';[m
+[31m-                  let docType = '';[m
+[31m-                  [m
+[31m-                  if (hasReadableId) {[m
+[31m-                    docId = b.readable_id_track_dechets;[m
+[31m-                    docType = 'N°BSD';[m
+[31m-                  } else if (numeroBon) {[m
+[31m-                    docId = numeroBon;[m
+[31m-                    docType = 'N°Bon';[m
+[31m-                  }[m
+                   const cols: TableColumnKey[] = (state.exportOptions.tableColumns && state.exportOptions.tableColumns.length > 0)[m
+                     ? state.exportOptions.tableColumns[m
+[31m-                    : ['doc','date','site','waste','ced','qty','treatment','exutoire'];[m
+[32m+[m[32m                    : ['nBSD','nBon','nFacture','date','site','waste','ced','qty','treatment','exutoire'];[m
+                   return ([m
+                     <tr key={i}>[m
+                       {cols.map((col, idx2) => {[m
+                         if (col === 'site' && !hasMultipleSitesValue) return null;[m
+                         if (col === 'attachments' && !state.exportOptions.includeLinePdfs) return null;[m
+[31m-                        if (col === 'doc') return <td key={`c_${idx2}`}>{docId}{docType ? ` (${docType})` : ''}</td>;[m
+[32m+[m[32m                        if (col === 'nBSD') return <td key={`c_${idx2}`}>{hasReadableId ? b.readable_id_track_dechets : ''}</td>;[m
+                         if (col === 'nBon') return <td key={`c_${idx2}`}>{b.other_infos?.numeroBon || ''}</td>;[m
+                         if (col === 'nFacture') return <td key={`c_${idx2}`}>{b.facture_infos?.numeroFacture || ''}</td>;[m
+                         if (col === 'date') return <td key={`c_${idx2}`}>{dateStr}</td>;[m
+[36m@@ -561,20 +550,17 @@[m [mexport function PDFPreview({ title, data, state, onExportComplete, startLoadingB[m
+               if (correspondingRow) {[m
+                 const d

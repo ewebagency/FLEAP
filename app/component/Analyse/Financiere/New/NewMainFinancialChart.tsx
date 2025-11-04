@@ -540,7 +540,7 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                     </div>
                 )}
 
-                <div className="absolute top-2 right-6 z-10 flex items-center space-x-2">
+                <div className="absolute top-2 right-6 z-10 flex items-center space-x-2 hidden">
                     <div className="flex items-center space-x-2">
                         <button
                             onClick={() => {

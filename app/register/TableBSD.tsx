@@ -1088,40 +1088,40 @@ const TableBSD = () => {
         };
     }, [openMenuId]);
 
-    const getStatusStyle = (status: string): { mainText: string, subText?: string, color: string } => {
-        const baseStatus: Record<string, { mainText: string, subText?: string, color: string }> = {
-            "DRAFT": { mainText: "Brouillon", subText: "en attente de finalisation", color: "text-[var(--green-light)]" },
-            "Brouillon": { mainText: "Brouillon", subText: "en attente de finalisation", color: "text-[var(--green-light)]" },
-            "Brouillon Local": { mainText: "Brouillon", subText: "en attente d'envoi", color: "text-[var(--green-light)]" },
+    const getStatusStyle = (status: string): { mainText: string, subText?: string, color: string, display?: boolean } => {
+        const baseStatus: Record<string, { mainText: string, subText?: string, color: string, display?: boolean }> = {
+            "DRAFT": { display: false, mainText: "Brouillon", subText: "en attente de finalisation", color: "text-[var(--green-light)]" },
+            "Brouillon": { display: false, mainText: "Brouillon", subText: "en attente de finalisation", color: "text-[var(--green-light)]" },
+            "Brouillon Local": { display: false, mainText: "Brouillon", subText: "en attente d'envoi", color: "text-[var(--green-light)]" },
             
             // En cours
-            "SEALED": { mainText: "Finalisé", subText: "en attente de signature", color: "text-blue-600" },
-            "SIGNED_BY_PRODUCER": { mainText: "Signé", subText: "en attente d'enlèvement", color: "text-blue-600" },
-            "SENT": { mainText: "Envoyé", subText: "en cours de transport", color: "text-blue-600" },
-            "Collecte demandée": { mainText: "Collecte demandée", subText: "en attente d'enlèvement", color: "text-blue-600" },
-            "Collecté": { mainText: "Collecté", subText: "en cours de transport", color: "text-blue-600" },
+            "SEALED": { display: false, mainText: "Finalisé", subText: "en attente de signature", color: "text-blue-600" },
+            "SIGNED_BY_PRODUCER": { display: false, mainText: "Signé", subText: "en attente d'enlèvement", color: "text-blue-600" },
+            "SENT": { display: false, mainText: "Envoyé", subText: "en cours de transport", color: "text-blue-600" },
+            "Collecte demandée": { display: false, mainText: "Collecte demandée", subText: "en attente d'enlèvement", color: "text-blue-600" },
+            "Collecté": { display: false, mainText: "Collecté", subText: "en cours de transport", color: "text-blue-600" },
             
             // Réception/Traitement
-            "RECEIVED": { mainText: "Reçu", subText: "en attente d'acceptation", color: "text-orange-600" },
-            "ACCEPTED": { mainText: "Accepté", subText: "en attente de traitement", color: "text-orange-600" },
-            "Accepté": { mainText: "Accepté", subText: "en attente de traitement", color: "text-orange-600" },
+            "RECEIVED": { display: false, mainText: "Reçu", subText: "en attente d'acceptation", color: "text-orange-600" },
+            "ACCEPTED": { display: false, mainText: "Accepté", subText: "en attente de traitement", color: "text-orange-600" },
+            "Accepté": { display: false, mainText: "Accepté", subText: "en attente de traitement", color: "text-orange-600" },
             
-            'GROUPED': { mainText: "Groupé", color: "text-green-600" },
-            'AWAITING_GROUP': { mainText: "Regroupement", subText: "en attente", color: "text-orange-600" },
+            'GROUPED': { display: false, mainText: "Groupé", color: "text-green-600" },
+            'AWAITING_GROUP': { display: false, mainText: "Regroupement", subText: "en attente", color: "text-orange-600" },
 
             // Terminé
-            "PROCESSED": { mainText: "Traité", color: "text-[var(--green-light)]" },
-            "Traité": { mainText: "Traité", color: "text-[var(--green-light)]" },
+            "PROCESSED": { display: false, mainText: "Traité", color: "text-[var(--green-light)]" },
+            "Traité": { display: false, mainText: "Traité", color: "text-[var(--green-light)]" },
             
             // Autres cas
-            "REFUSED": { mainText: "Refusé", color: "text-red-600" },
-            "NO_TRACEABILITY": { mainText: "Rupture de traçabilité", color: "text-red-600" },
-            "CANCELED": { mainText: "Annulé", color: "text-red-600" },
-            "IMPORTED": { mainText: "Importé", subText: "dans FLEAP", color: "text-gray-600" },
+            "REFUSED": { display: false, mainText: "Refusé", color: "text-red-600" },
+            "NO_TRACEABILITY": { display: false, mainText: "Rupture de traçabilité", color: "text-red-600" },
+            "CANCELED": { display: false, mainText: "Annulé", color: "text-red-600" },
+            "IMPORTED": { display: false, mainText: "Importé", subText: "dans FLEAP", color: "text-gray-600" },
             
-            "Ligne créée": { mainText: "Ligne créée", color: "text-gray-600" },
-            "Ligne validée": { mainText: "Collecté", subText: "en cours de transport", color: "text-blue-600" },
-            "Ligne demandée": { mainText: "Collecte demandée", subText: "en attente de collecte", color: "text-red-600" },
+            "Ligne créée": { display: false, mainText: "Ligne créée", color: "text-gray-600" },
+            "Ligne validée": { display: false, mainText: "Collecté", subText: "en cours de transport", color: "text-blue-600" },
+            "Ligne demandée": { display: true, mainText: "Collecte demandée", subText: "en attente de collecte", color: "text-red-600" },
 
         };
 
@@ -1485,38 +1485,50 @@ const TableBSD = () => {
                                             </div>
                                         </div>
                                     ) : (
-                                        // Mode demande collecte : affichage statut + date en haut
+                                        // Mode demande collecte : affichage conditionnel selon display
                                         <>
-                                            <div className="absolute top-1 left-1.5 w-full">
-                                                <div className="text-[13px] text-gray-600 ml-4 flex justify-start gap-2">
-                                                    <DateToDisplay status={bsd.status_track_dechets} created_at={bsd.created_at} takenOverAt={bsd.infos_json.formAPI.createFormInput.takenOverAt || ""} />
-                                                    {/* {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p><span className="md:inline hidden">Collecté le </span>{new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>{bsd.status_track_dechets === "Ligne demandée" ? <p><span className="md:inline hidden">Attendu le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p> : <p><span className="md:inline hidden">Créé le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}</p>}
-                                                    {/*<p>CREE le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>*/}
-                                                    {/* {bsd.infos_json.formAPI.createFormInput.emittedAt} */}
-                                                    {/* {bsd.infos_json.formAPI.createFormInput.createdAt} */}
-                                                    {/* {bsd.infos_json.formAPI.createFormInput.processedAt} */}
-                                                    {/* {bsd.infos_json.formAPI.createFormInput.receivedAt} */}
-                                                    {/* {bsd.infos_json.formAPI.createFormInput.signedAt} */}  
-                                                    {/* {bsd.infos_json.formAPI.createFormInput.takenOverAt} */}
-                                                    {/* {bsd.infos_json.formAPI.createFormInput.updatedAt} */}
+                                            {getStatusStyle(bsd.status_track_dechets).display === false ? (
+                                                // Si display est false : afficher la date
+                                                <div className="h-full flex flex-col justify-center ml-4">
+                                                    <div className="text-sm text-gray-700">
+                                                        <DateToDisplay status={bsd.status_track_dechets} created_at={bsd.created_at} takenOverAt={bsd.infos_json.formAPI.createFormInput.takenOverAt || ""} multiline={true} />
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="h-full flex flex-col justify-center ml-4 mt-0">
-                                                {bsd.status_track_dechets !== null ? (
-                                                    <>
-                                                        <div className={`text-md md:text-md font-semibold ${getStatusStyle(bsd.status_track_dechets).color} text-[13px] md:text-base`}>
-                                                            {getStatusStyle(bsd.status_track_dechets).mainText}
+                                            ) : (
+                                                // Si display n'est pas false : afficher le statut + date en haut
+                                                <>
+                                                    <div className="absolute top-1 left-1.5 w-full">
+                                                        <div className="text-[13px] text-gray-600 ml-4 flex justify-start gap-2">
+                                                            <DateToDisplay status={bsd.status_track_dechets} created_at={bsd.created_at} takenOverAt={bsd.infos_json.formAPI.createFormInput.takenOverAt || ""} />
+                                                            {/* {bsd.infos_json.formAPI.createFormInput.takenOverAt ? <p><span className="md:inline hidden">Collecté le </span>{new Date(bsd.infos_json.formAPI.createFormInput.takenOverAt as string).toLocaleDateString('fr-FR')}</p> : <p>{bsd.status_track_dechets === "Ligne demandée" ? <p><span className="md:inline hidden">Attendu le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p> : <p><span className="md:inline hidden">Créé le </span>{new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>}</p>}
+                                                            {/*<p>CREE le {new Date(bsd.created_at).toLocaleDateString('fr-FR')}</p>*/}
+                                                            {/* {bsd.infos_json.formAPI.createFormInput.emittedAt} */}
+                                                            {/* {bsd.infos_json.formAPI.createFormInput.createdAt} */}
+                                                            {/* {bsd.infos_json.formAPI.createFormInput.processedAt} */}
+                                                            {/* {bsd.infos_json.formAPI.createFormInput.receivedAt} */}
+                                                            {/* {bsd.infos_json.formAPI.createFormInput.signedAt} */}  
+                                                            {/* {bsd.infos_json.formAPI.createFormInput.takenOverAt} */}
+                                                            {/* {bsd.infos_json.formAPI.createFormInput.updatedAt} */}
                                                         </div>
-                                                        {getStatusStyle(bsd.status_track_dechets).subText && (
-                                                            <div className={`text-xs ${getStatusStyle(bsd.status_track_dechets).color} mt-[-4px] hidden md:block`}>
-                                                                {getStatusStyle(bsd.status_track_dechets).subText}
-                                                            </div>
+                                                    </div>
+                                                    <div className="h-full flex flex-col justify-center ml-4 mt-0">
+                                                        {bsd.status_track_dechets !== null ? (
+                                                            <>
+                                                                <div className={`text-md md:text-md font-semibold ${getStatusStyle(bsd.status_track_dechets).color} text-[13px] md:text-base`}>
+                                                                    {getStatusStyle(bsd.status_track_dechets).mainText}
+                                                                </div>
+                                                                {getStatusStyle(bsd.status_track_dechets).subText && (
+                                                                    <div className={`text-xs ${getStatusStyle(bsd.status_track_dechets).color} mt-[-4px] hidden md:block`}>
+                                                                        {getStatusStyle(bsd.status_track_dechets).subText}
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        ) : (
+                                                            <div className="text-md">...</div>
                                                         )}
-                                                    </>
-                                                ) : (
-                                                    <div className="text-md">...</div>
-                                                )}
-                                            </div>
+                                                    </div>
+                                                </>
+                                            )}
                                         </>
                                     )}
                                 </td>
@@ -1628,7 +1640,7 @@ const TableBSD = () => {
                                             )}
                                             {bsd.status_track_dechets === "DRAFT" && (
                                                 <button 
-                                                    className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
+                                                    className="hidden px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
                                                     hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
                                                     onClick={() => handleSeal(bsd.id)}
                                                 >
@@ -1637,7 +1649,7 @@ const TableBSD = () => {
                                             )}
                                             {bsd.status_track_dechets === "SEALED" && (
                                                 <button 
-                                                    className="px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
+                                                    className="hidden px-3 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs 
                                                     hover:bg-[var(--green-dark)] transition-colors whitespace-nowrap" 
                                                     onClick={() => handleSign(bsd.id)}
                                                 >
@@ -1654,7 +1666,7 @@ const TableBSD = () => {
                                                 </button>
                                             )}
                                             {nonDangerousStatut(bsd.status_track_dechets) && (
-                                                <div className="relative">
+                                                <div className="relative hidden">
                                                     <select 
                                                         className="appearance-none px-2 py-1 bg-[var(--green-medium)] text-white rounded-md text-xs
                                                         hover:bg-[var(--green-dark)] transition-colors w-[60px] cursor-pointer"
