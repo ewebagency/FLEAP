@@ -41,6 +41,7 @@ type BSD_Export_Interface = {
     
     "ADR": string | number | null,
     "Code ONU": string | number | null,
+    "CAP": string | number | null,
 
     "N° SIRET du courtier": string | number | null,
     "Raison sociale du courtier": string | number | null,
@@ -359,6 +360,7 @@ const formatBSDData = (data: {
             "Répartition de valorisation par tonnage": getValue(() => item.infos_json.formAPI.createFormInput.recipient.valoParts? item.infos_json.formAPI.createFormInput.recipient.valoParts.map(part => `${part.code_valo} : ${part.tonnage}t`).join('  |  ') : ''),
 
             "Code ONU": getValue(() => item.infos_json.formAPI.createFormInput.wasteDetails.onuCode),
+            "CAP": getValue(() => null, item.infos_json.formAPI.createFormInput.recipient.cap),
             "ADR": getValue(() => item.other_infos?.mentionAdr ?? ''),
             "Convention de Bâle": getValue(() => item.other_infos?.codeBale ?? ''),
 

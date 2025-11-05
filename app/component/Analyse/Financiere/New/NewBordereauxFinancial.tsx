@@ -2,12 +2,14 @@ import React, { useMemo } from "react";
 import { Facture } from "../types";
 import NewObjectifFinancier from "./NewObjectifFinancier";
 import { useSession } from "@/app/component/SessionProvider";
+import { isRevenue } from "./NewFinancialSource";
 
 interface Props {
     factures: Facture[];
+    params_mapping_operation: Record<string, string[]> | null;
 }
 
-const NewBordereauxFinancial = ({ factures }: Props) => {
+const NewBordereauxFinancial = ({ factures, params_mapping_operation }: Props) => {
     const { display_features } = useSession();
     const stats = useMemo(() => {
         const { costs, revenues } = factures.reduce((acc: { 
@@ -17,10 +19,10 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
             // Calculer la somme des montants des sous-factures
             facture.infos_json.departs.forEach(depart => {
                 depart.line_body.forEach(line => {
-                    const montant = line.montant_ht;
+                    const montant = Math.abs(line.montant_ht);
                     
-                    if (montant < 0) {
-                        acc.revenues += Math.abs(montant);
+                    if (isRevenue(line, params_mapping_operation)) {
+                        acc.revenues += montant;
                     } else {
                         acc.costs += montant;
                     }
@@ -39,7 +41,7 @@ const NewBordereauxFinancial = ({ factures }: Props) => {
             profit: Math.abs(profit),
             profitPercentage
         };
-    }, [factures]);
+    }, [factures, params_mapping_operation]);
 
     return (
         <div className="flex justify-between p-4 rounded-lg bg-gray-200">

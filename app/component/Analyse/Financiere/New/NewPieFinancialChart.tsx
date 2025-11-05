@@ -7,13 +7,15 @@ import { getMappingTableFiliere } from "@/app/register/RegisterComponents/Modal/
 import { tailwindToRgb } from '../../MetaComponent/Colours';
 import { useFilterContext } from '@/app/FilterContext';
 import { useAnalysis } from '@/app/analysis/AnalysisProvider';
+import { isRevenue } from './NewFinancialSource';
 
 interface Props {
     factures: Facture[];
     entreprise_id: string;
+    params_mapping_operation: Record<string, string[]> | null;
 }
 
-const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
+const NewPieFinancialChart = ({ factures, entreprise_id, params_mapping_operation }: Props) => {
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
     const [mappingNomFiliere, setMappingNomFiliere] = useState<{ nom: string; filiere: string }[]>([]);
     const {filieres} = useFilterContext();
@@ -63,21 +65,21 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
 
                 // Traiter chaque ligne du body individuellement (comme dans NewTableFinancial)
                 depart.line_body.forEach(line => {
-                    const montant = line.montant_ht;
+                    const montant = Math.abs(line.montant_ht);
                     
-                    if (montant < 0) {
-                        if (!acc.costs[filiere]) acc.costs[filiere] = 0;
-                        acc.costs[filiere] += Math.abs(montant);
-                    } else {
+                    if (isRevenue(line, params_mapping_operation)) {
                         if (!acc.revenues[filiere]) acc.revenues[filiere] = 0;
                         acc.revenues[filiere] += montant;
+                    } else {
+                        if (!acc.costs[filiere]) acc.costs[filiere] = 0;
+                        acc.costs[filiere] += montant;
                     }
                 });
             });
             
             return acc;
         }, { costs: {}, revenues: {} });
-    }, [factures, mappingTable, mappingNomFiliere, filieres_ou_prestataires]);
+    }, [factures, mappingTable, mappingNomFiliere, filieres_ou_prestataires, params_mapping_operation]);
 
     // Memoize the chart data generation
     const chartData = useMemo(() => {
@@ -192,21 +194,21 @@ const NewPieFinancialChart = ({ factures, entreprise_id }: Props) => {
 
     return (
         <div className="w-full grid grid-cols-2 gap-4">
-            {/* Couts inversé */}
+            {/* Coûts */}
             <div className="flex flex-col">
                 <div className="h-[200px] relative">
                     <Doughnut 
-                        data={chartData.revenues}
+                        data={chartData.costs}
                         options={getOptions('Coûts')}
                         plugins={[centerTextPlugin('Coûts')]}
                     />
                 </div>
             </div>
-            {/* Revenus (inversé) */}
+            {/* Revenus */}
             <div className="flex flex-col">
                 <div className="h-[200px] relative">
                     <Doughnut 
-                        data={chartData.costs}
+                        data={chartData.revenues}
                         options={getOptions('Revenus')}
                         plugins={[centerTextPlugin('Revenus')]}
                     />

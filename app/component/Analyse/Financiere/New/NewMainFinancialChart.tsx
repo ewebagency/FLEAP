@@ -13,6 +13,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { Chart } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Context } from 'chartjs-plugin-datalabels';
+import { isRevenue } from './NewFinancialSource';
 
 // Flag pour activer/désactiver l'échelle fixe
 const ENABLE_FIXED_SCALE = false;
@@ -20,9 +21,10 @@ const ENABLE_FIXED_SCALE = false;
 interface Props {
     factures: Facture[];
     entreprise_id: string;
+    params_mapping_operation: Record<string, string[]> | null;
 }
 
-const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
+const NewMainFinancialChart = ({ factures, entreprise_id, params_mapping_operation }: Props) => {
     const [mappingTable, setMappingTable] = useState<{ ced: string, filiere: string }[]>([]);
     const [mappingNomFiliere, setMappingNomFiliere] = useState<{ nom: string; filiere: string }[]>([]);
     const { filieres, segmentDates, setSegmentDates } = useFilterContext();
@@ -31,16 +33,6 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
     const [minScale, setMinScale] = useState<number | null>(null);
     const [viewType, setViewType] = useState<'chart' | 'table'>('chart');
     const [aggregation, setAggregation] = useState<'month' | 'year'>('month');
-    
-    // Fonction pour normaliser les types d'opérations
-    const normalizeOperationType = (type: string): string => {
-        const normalized = type.toLowerCase().replace(/ /g, '_');
-        if (normalized === 'gestion_global') return 'gestion_globale';
-        if (normalized === 'préparation') return 'preparation';
-        if (normalized === 'non_expliqués') return 'non_expliques';
-        if (normalized.includes('contenant')) return 'autres_contenant';
-        return normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    };
 
     const handleDateChange = (date: Date | null, type: 'debut' | 'fin') => {
         if (date) {
@@ -140,7 +132,7 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
 
                 // Calcul des montants ligne par ligne
                 depart.line_body.forEach(line => {
-                    const montant = line.montant_ht || 0;
+                    const montant = Math.abs(line.montant_ht || 0);
                     const dateDepart = new Date(header?.date_depart);
                     // Extraire les composants de la date en UTC
                     const utcYear = dateDepart.getUTCFullYear();
@@ -152,10 +144,9 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
                     // Vérifier si la date est dans l'intervalle
                     if (dateDepart >= normalizedStartDate && dateDepart <= normalizedEndDate) {
                         const monthKey = dateDepart.toISOString().slice(0, 7); // Format YYYY-MM
-                        const normalizedType = normalizeOperationType(line.type_operation);
 
-                        // Les rachats sont considérés comme négatifs
-                        if (normalizedType === 'rachat') {
+                        // Utiliser la fonction isRevenue pour déterminer si c'est un revenu
+                        if (isRevenue(line, params_mapping_operation)) {
                             if (!negativeAmountsByFiliere[filiere]) {
                                 negativeAmountsByFiliere[filiere] = {};
                             }
@@ -278,7 +269,7 @@ const NewMainFinancialChart = ({ factures, entreprise_id }: Props) => {
             labels: monthLabels,
             datasets: datasets
         };
-    }, [factures, mappingTable, mappingNomFiliere, filieres_ou_prestataires, filieres, segmentDates, maxScale, minScale]);
+    }, [factures, mappingTable, mappingNomFiliere, filieres_ou_prestataires, filieres, segmentDates, maxScale, minScale, params_mapping_operation]);
 
     const aggregatedData = useMemo(() => {
         if (!filteredChartData?.labels.length) return filteredChartData;

@@ -375,7 +375,7 @@ export const create_in_bdd = async (
                 recipient: { company: { name: prestaRole === 'destinataire' || !prestaRole ? prestaTranslated.name : '', siret: prestaRole === 'destinataire' || !prestaRole ? prestaTranslated.siret : '' }, processingOperation: processingOperationDR, cap: pdf_type === 'bsd' ? capVal : '' },
                 transporter: { company: { name: prestaRole === 'transporteur' ? prestaTranslated.name : '', siret: prestaRole === 'transporteur' ? prestaTranslated.siret : '', address: transporterAddress, phone: transporterPhone, mail: transporterMail }, isExemptedOfReceipt: false, receipt: pdf_type === 'bsd' ? receiptVal : '', customInfo: transporterCustomInfo },
                 wasteDetails: { code: wasteCode, name: wasteName, quantity: tonnage, quantityType: 'REAL', consistence: 'SOLIDE', 
-                    isSubjectToADR: false, onuCode: capVal, packagingInfos: [{ type: 'AUTRE', quantity: 1, other: dechet.contenant || '' }], pop: false, isDangerous: wasteCode.includes('*') },
+                    isSubjectToADR: false, onuCode: '', packagingInfos: [{ type: 'AUTRE', quantity: 1, other: dechet.contenant || '' }], pop: false, isDangerous: wasteCode.includes('*') },
                 takenOverAt: takenOverAt
             }
         }
