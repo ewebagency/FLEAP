@@ -10,6 +10,7 @@ import BoxIcon from "../component/BoxIconWrapper";
 import { OtherInfos } from "./interface/BSD_Interface";
 import { mapToFactureFormat } from "../import_page/FactureImport/ButtonImportFacture";
 import { FactureJSON } from "../import_page/FactureImport/ButtonImportFacture";
+import { invalidateCache } from "../utils/invalidateCache";
 
 // Types pour les transporteurs et destinataires supplémentaires
 type AdditionalTransporter = {
@@ -692,6 +693,9 @@ const ImportRegisterButton = () => {
             
             setMessage(`Import terminé : ${importedCount} importés, ${skippedCount} doublons ignorés`);
             setMessageType('success');
+            
+            // Invalider tous les caches (API Redis + localStorage des filtres)
+            await invalidateCache(entreprise_id, user_id);
             
             setTimeout(() => {
                 setModalReload(!modalReload);

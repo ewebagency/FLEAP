@@ -1,5 +1,4 @@
 import { supabase } from '@/app/database/supabaseClient';
-import { redis } from '@/app/database/redisClient';
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { cookies } from 'next/headers';
@@ -501,12 +500,18 @@ const HandleBSD_Supabase = async (action: string, id: string, token_track: strin
 
 const invalidateCache = async (user_id: string, entreprise_id: string) => {
     try {
-        const cacheKey = `bsds:${user_id}:${entreprise_id}`;
-        const exists = await redis.exists(cacheKey);
+        // Appelle l'API centralisée d'invalidation pour garantir la cohérence
+        const url = `${process.env.NEXT_PUBLIC_APP_URL}/api/invalidate_bsd_cache`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entreprise_id, user_id })
+        });
         
-        if (exists) {
-            await redis.del(cacheKey);
-            console.log(`[Cache] INVALIDATED - ${cacheKey}`);
+        if (response.ok) {
+            console.log(`[Cache] INVALIDATED via API - entreprise_id: ${entreprise_id}, user_id: ${user_id}`);
+        } else {
+            console.error(`[Cache] Error invalidating via API - Status: ${response.status}`);
         }
     } catch (error) {
         console.error('[Cache] Error invalidating:', error);

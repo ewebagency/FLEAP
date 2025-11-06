@@ -10,6 +10,7 @@ import Cookies from 'js-cookie';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 // import { RowBSD } from '../register/interface/BSD_Interface';
 import useSWR from 'swr';
+import { isCacheUpToDate, saveCacheVersion } from '../utils/cacheVersionChecker';
 
 interface AdditionalSite {
     siret: string;
@@ -36,16 +37,93 @@ interface EmitterInfo {
     } | null;
 }
 
-// Fonction fetcher pour SWR
+// Constantes pour le cache
+const CACHE_VERSION = '1.0'; // Incrémenter si structure des données change
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 heures en millisecondes
+
+interface CachedSitesData {
+    sites: AdditionalSite[];
+    timestamp: number;
+    version: string;
+}
+
+// Fonction pour récupérer les sites depuis le cache localStorage
+const getSitesFromCache = (entreprise_id: string): AdditionalSite[] | null => {
+    try {
+        const cacheKey = `sites-processed-${entreprise_id}`;
+        const cached = localStorage.getItem(cacheKey);
+        
+        if (!cached) {
+            console.log('📦 Aucun cache trouvé pour les sites');
+            return null;
+        }
+        
+        const parsedCache: CachedSitesData = JSON.parse(cached);
+        
+        // Vérifier la version du cache
+        if (parsedCache.version !== CACHE_VERSION) {
+            console.log('⚠️ Version du cache obsolète, invalidation');
+            localStorage.removeItem(cacheKey);
+            return null;
+        }
+        
+        // Vérifier l'expiration du cache
+        const now = Date.now();
+        if (now - parsedCache.timestamp > CACHE_DURATION) {
+            console.log('⏰ Cache expiré, invalidation');
+            localStorage.removeItem(cacheKey);
+            return null;
+        }
+        
+        console.log(`✅ Cache valide trouvé avec ${parsedCache.sites.length} sites`);
+        return parsedCache.sites;
+    } catch (error) {
+        console.error('❌ Erreur lecture cache sites:', error);
+        return null;
+    }
+};
+
+// Fonction pour sauvegarder les sites dans le cache localStorage
+const saveSitesToCache = (entreprise_id: string, sites: AdditionalSite[]): void => {
+    try {
+        const cacheKey = `sites-processed-${entreprise_id}`;
+        const cacheData: CachedSitesData = {
+            sites,
+            timestamp: Date.now(),
+            version: CACHE_VERSION
+        };
+        
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        console.log(`💾 Cache sauvegardé avec ${sites.length} sites`);
+    } catch (error) {
+        console.error('❌ Erreur sauvegarde cache sites:', error);
+    }
+};
+
+// Fonction fetcher pour SWR avec cache persistant + vérification de version
 const fetcherSites = async (entreprise_id: string) => {
-    //console.log('Début du fetch pour entreprise_id:', entreprise_id);
+    // 1. Vérifier si le cache local est à jour (comparaison avec version Redis)
+    const isUpToDate = await isCacheUpToDate(entreprise_id, 'sites');
+    
+    // 2. Si à jour, utiliser le cache localStorage
+    if (isUpToDate) {
+        const cachedSites = getSitesFromCache(entreprise_id);
+        if (cachedSites) {
+            console.log('⚡ Utilisation cache sites (version validée par serveur)');
+            return cachedSites;
+        }
+    } else {
+        console.log('🔄 Cache sites obsolète ou inexistant, rechargement...');
+    }
+    
+    console.log('🔄 Chargement sites depuis la BDD pour entreprise_id:', entreprise_id);
     const pageSize = 1000;
     let allData: EmitterInfo[] = [];
     let hasMore = true;
     let page = 0;
 
+    // 2. Si pas de cache, charger depuis la BDD
     while (hasMore) {
-        //console.log(`Chargement de la page ${page}`);
         const { data, error, count } = await supabase
             .from('bsd')
             .select('infos_json', { count: 'exact' })
@@ -58,7 +136,6 @@ const fetcherSites = async (entreprise_id: string) => {
         }
         
         if (data && data.length > 0) {
-            //console.log(`${data.length} enregistrements trouvés dans la page ${page}`);
             const validData = data
                 .filter(row => {
                     const company = row.infos_json?.formAPI?.createFormInput?.emitter?.company;
@@ -71,19 +148,55 @@ const fetcherSites = async (entreprise_id: string) => {
                     }
                 }));
             
-            //console.log(`Données valides trouvées: ${validData.length}`);
             allData = [...allData, ...validData];
             
             hasMore = count ? allData.length < count : false;
             page++;
         } else {
-            //console.log('Aucune donnée trouvée ou fin des données');
             hasMore = false;
         }
     }
 
-    //console.log(`Total des sites trouvés: ${allData.length}`);
-    return allData;
+    // 3. Traiter les données (créer Map, unifier les noms, etc.)
+    const siteMap = new Map();
+    allData.forEach((emitter) => {
+        if (!emitter.company?.siret || !emitter.company?.name) return;
+        
+        if (!siteMap.has(emitter.company.siret)) {
+            siteMap.set(emitter.company.siret, new Map());
+        }
+        
+        const nameCount = siteMap.get(emitter.company.siret);
+        nameCount.set(emitter.company.name, (nameCount.get(emitter.company.name) || 0) + 1);
+    });
+
+    // Convertir en tableau de sites uniques avec le nom le plus fréquent
+    const processedSites = Array.from(siteMap.entries()).map(([siret, nameCount]) => {
+        let mostFrequentName = '';
+        let maxCount = 0;
+        
+        nameCount.forEach((count: number, name: string) => {
+            if (count > maxCount) {
+                maxCount = count;
+                mostFrequentName = name;
+            }
+        });
+
+        return {
+            siret: siret,
+            name: mostFrequentName
+        };
+    });
+
+    console.log(`✅ ${processedSites.length} sites traités depuis la BDD`);
+    
+    // 4. Sauvegarder dans le cache localStorage
+    saveSitesToCache(entreprise_id, processedSites);
+    
+    // 5. Sauvegarder la version du cache (synchronisation multi-utilisateurs)
+    await saveCacheVersion(entreprise_id, 'sites');
+    
+    return processedSites;
 };
 
 const FiltreSiteEtablissement = () => {
@@ -125,6 +238,7 @@ const FiltreSiteEtablissement = () => {
     const hasInitializedSites = useRef(false);
 
     // Utilisation de SWR pour récupérer les données des émetteurs
+    // Le fetcher gère le cache localStorage en interne
     const { data: emitterData, error: swrError, isLoading: isLoadingSWR } = useSWR(
         entreprise_id ? ['sites', entreprise_id] : null,
         () => fetcherSites(entreprise_id!),
@@ -132,8 +246,8 @@ const FiltreSiteEtablissement = () => {
             revalidateOnFocus: false,
             revalidateOnReconnect: false,
             refreshInterval: 0,
-            dedupingInterval: 60000,
-            focusThrottleInterval: 60000
+            dedupingInterval: 24 * 60 * 60 * 1000, // 24 heures (les données sont déjà en cache localStorage)
+            focusThrottleInterval: 24 * 60 * 60 * 1000
         }
     );
 
@@ -239,54 +353,16 @@ const FiltreSiteEtablissement = () => {
         }
     }, [siteFilterMode, setSites, sites, userSiteAccess, entreprise_id, additionnalSites, etablissementsWithStatus, isLoadingSWR, isLoadingTrack, swrError]);
 
-    // Effet pour traiter les données des émetteurs avec logs de débogage
+    // Effet pour traiter les données des émetteurs (déjà traitées par le fetcher)
     useEffect(() => {
-        //console.log('État du chargement:', {
-        //    isLoadingSWR,
-        //    isLoadingTrack,
-        //    hasEmitterData: !!emitterData,
-        //    emitterDataLength: emitterData?.length,
-        //    additionalSitesLength: additionnalSites.length,
-        //    etablissementsLength: etablissementsWithStatus.length
-        //});
-
         if (emitterData) {
-            // Créer un Map pour regrouper les sites par SIRET
-            const siteMap = new Map();
-            emitterData.forEach((emitter) => {
-                if (!emitter.company?.siret || !emitter.company?.name) return;
-                
-                if (!siteMap.has(emitter.company.siret)) {
-                    siteMap.set(emitter.company.siret, new Map());
-                }
-                
-                const nameCount = siteMap.get(emitter.company.siret);
-                nameCount.set(emitter.company.name, (nameCount.get(emitter.company.name) || 0) + 1);
-            });
-
-            // Convertir le Map en tableau de sites uniques avec le nom le plus fréquent
-            const uniqueSites = Array.from(siteMap.entries()).map(([siret, nameCount]) => {
-                let mostFrequentName = '';
-                let maxCount = 0;
-                
-                nameCount.forEach((count: number, name: string) => {
-                    if (count > maxCount) {
-                        maxCount = count;
-                        mostFrequentName = name;
-                    }
-                });
-
-                return {
-                    siret: siret,
-                    name: mostFrequentName
-                };
-            });
-
-            //console.log('Sites uniques trouvés:', uniqueSites.length);
-            setAdditionnalSites(uniqueSites);
+            // Les données sont déjà traitées par le fetcher (avec cache localStorage)
+            // On les assigne directement
+            console.log(`📊 Sites chargés (depuis cache ou BDD): ${emitterData.length}`);
+            setAdditionnalSites(emitterData);
             setIsInitialLoad(false);
         }
-    }, [emitterData, isLoadingSWR]);
+    }, [emitterData]);
 
     //On va chercher les webhook du compte track en parallèle
     useEffect(() => {

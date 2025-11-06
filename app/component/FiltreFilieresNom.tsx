@@ -6,19 +6,97 @@ import { supabase } from "../database/supabaseClient";
 import { getColors } from "./Analyse/MetaComponent/Colours";
 import { useModalContextNew } from "../register/RegisterComponents/Modal/ContextModal";
 import useSWR from 'swr';
+import { isCacheUpToDate, saveCacheVersion } from '../utils/cacheVersionChecker';
 
 // Type pour les données de nom BSD
 interface BSDName {
     name: string | null;
 }
 
-// Fonction fetcher pour SWR
+// Constantes pour le cache des noms
+const CACHE_VERSION_NAMES = '1.0';
+const CACHE_DURATION_NAMES = 24 * 60 * 60 * 1000; // 24 heures
+
+interface CachedNamesData {
+    names: string[];
+    timestamp: number;
+    version: string;
+}
+
+// Fonction pour récupérer les noms depuis le cache
+const getNamesFromCache = (entreprise_id: string): string[] | null => {
+    try {
+        const cacheKey = `waste-names-processed-${entreprise_id}`;
+        const cached = localStorage.getItem(cacheKey);
+        
+        if (!cached) {
+            console.log('📦 Aucun cache trouvé pour les noms de déchets');
+            return null;
+        }
+        
+        const parsedCache: CachedNamesData = JSON.parse(cached);
+        
+        if (parsedCache.version !== CACHE_VERSION_NAMES) {
+            console.log('⚠️ Version du cache noms obsolète');
+            localStorage.removeItem(cacheKey);
+            return null;
+        }
+        
+        const now = Date.now();
+        if (now - parsedCache.timestamp > CACHE_DURATION_NAMES) {
+            console.log('⏰ Cache noms expiré');
+            localStorage.removeItem(cacheKey);
+            return null;
+        }
+        
+        console.log(`✅ Cache noms valide trouvé avec ${parsedCache.names.length} noms uniques`);
+        return parsedCache.names;
+    } catch (error) {
+        console.error('❌ Erreur lecture cache noms:', error);
+        return null;
+    }
+};
+
+// Fonction pour sauvegarder les noms dans le cache
+const saveNamesToCache = (entreprise_id: string, names: string[]): void => {
+    try {
+        const cacheKey = `waste-names-processed-${entreprise_id}`;
+        const cacheData: CachedNamesData = {
+            names,
+            timestamp: Date.now(),
+            version: CACHE_VERSION_NAMES
+        };
+        
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        console.log(`💾 Cache noms sauvegardé avec ${names.length} noms uniques`);
+    } catch (error) {
+        console.error('❌ Erreur sauvegarde cache noms:', error);
+    }
+};
+
+// Fonction fetcher pour SWR avec cache persistant + vérification de version
 const fetcher = async (entreprise_id: string) => {
+    // 1. Vérifier si le cache local est à jour (comparaison avec version Redis)
+    const isUpToDate = await isCacheUpToDate(entreprise_id, 'waste-names');
+    
+    // 2. Si à jour, utiliser le cache localStorage
+    if (isUpToDate) {
+        const cachedNames = getNamesFromCache(entreprise_id);
+        if (cachedNames) {
+            console.log('⚡ Utilisation cache noms (version validée par serveur)');
+            return cachedNames;
+        }
+    } else {
+        console.log('🔄 Cache noms obsolète ou inexistant, rechargement...');
+    }
+    
+    console.log('🔄 Chargement noms de déchets depuis la BDD');
     const pageSize = 1000;
     let allData: BSDName[] = [];
     let hasMore = true;
     let page = 0;
 
+    // 2. Charger depuis la BDD si pas de cache
     while (hasMore) {
         const { data, error, count } = await supabase
             .from('bsd')
@@ -40,7 +118,23 @@ const fetcher = async (entreprise_id: string) => {
             hasMore = false;
         }
     }
-    return allData;
+    
+    // 3. Traiter les données : extraire noms uniques
+    const names = allData
+        .map((bsd: BSDName) => bsd.name)
+        .filter((name): name is string => !!name && name.trim() !== "");
+    const set_names_clean = new Set(names.map(n => n.trim()));
+    const names_uniques = Array.from(set_names_clean);
+    
+    console.log(`✅ ${names_uniques.length} noms uniques traités depuis la BDD`);
+    
+    // 4. Sauvegarder dans le cache localStorage
+    saveNamesToCache(entreprise_id, names_uniques);
+    
+    // 5. Sauvegarder la version du cache (synchronisation multi-utilisateurs)
+    await saveCacheVersion(entreprise_id, 'waste-names');
+    
+    return names_uniques;
 };
 
 const FiltreFilieresNom = () => {
@@ -50,7 +144,8 @@ const FiltreFilieresNom = () => {
     const {modalReload, setFilterPendingBSDs} = useModalContextNew();
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-    // Utilisation de SWR pour récupérer les BSDs avec un temps de cache plus long
+    // Utilisation de SWR pour récupérer les noms de déchets
+    // Le fetcher gère le cache localStorage en interne
     const { data: bsds, error } = useSWR(
         entreprise_id ? [entreprise_id + '-nom', entreprise_id] : null,
         ([_, entreprise_id]) => fetcher(entreprise_id),
@@ -58,20 +153,17 @@ const FiltreFilieresNom = () => {
             revalidateOnFocus: false,
             revalidateOnReconnect: false,
             refreshInterval: 0,
-            dedupingInterval: 60000,
-            focusThrottleInterval: 60000
+            dedupingInterval: 24 * 60 * 60 * 1000, // 24 heures (données en cache localStorage)
+            focusThrottleInterval: 24 * 60 * 60 * 1000
         }
     );
 
     const getFilieresFromEntreprise = async (forceReload = false) => {
         if (!bsds) return;
         try {
-            // Extraire les noms des BSDs
-            const names = bsds
-                .map((bsd: BSDName) => bsd.name)
-                .filter((name): name is string => !!name && name.trim() !== "");
-            const set_names_clean = new Set(names.map(n => n.trim()));
-            const names_uniques = Array.from(set_names_clean) as string[];
+            // Les noms sont déjà extraits et unifiés par le fetcher
+            const names_uniques = bsds;
+            console.log(`📊 Traitement de ${names_uniques.length} noms uniques (depuis cache ou BDD)`);
 
             // Récupérer le mapping depuis l'API avec forceReload
             const mappingData = await fetch(`/api/get_mapping_nom_filiere?entreprise_id=${entreprise_id}&forceReload=${forceReload}`);

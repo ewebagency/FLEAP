@@ -31,7 +31,13 @@ export async function POST(request: Request) {
             console.log(`[Cache] NOT_FOUND ❓ - No keys for pattern ${basePattern}`);
         }
 
-        return NextResponse.json({ success: true, deleted, pattern: basePattern });
+        // Incrémenter la version du cache pour synchroniser tous les clients
+        const versionKey = `cache_version:${entreprise_id}`;
+        const newVersion = Date.now();
+        await redis.set(versionKey, newVersion);
+        console.log(`[Cache] VERSION UPDATED ⬆️ - ${versionKey} = ${newVersion}`);
+
+        return NextResponse.json({ success: true, deleted, pattern: basePattern, version: newVersion });
     } catch (error) {
         console.error('[Error]', error);
         return NextResponse.json({ error: 'Failed to invalidate cache' }, { status: 500 });

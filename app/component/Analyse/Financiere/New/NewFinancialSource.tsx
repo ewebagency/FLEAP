@@ -14,6 +14,7 @@ import RepComponent from "./RepComponent";
 import { cofounders_user_id } from "@/app/component/SideBar";
 import { useAnalysis } from "@/app/analysis/AnalysisProvider";
 import useSWR from 'swr';
+import LoadingState from '@/app/component/LoadingState';
 
 // Fonction pour déterminer si une ligne est un revenu
 export const isRevenue = (
@@ -274,16 +275,17 @@ const NewFinancialSource = () => {
         setOptiFactures(optimizedFactures);
     };
 
-    if (isLoading) {
-        return <div className="flex justify-center items-center p-4">
-            <div className="text-gray-500">Chargement des données...</div>
-        </div>;
-    }
-
     const displayFactures = isOptiActive ? optiFactures : validFactures;
 
     return (
         <div>
+            <LoadingState
+                isLoading={isLoading}
+                isEmpty={!isLoading && validFactures.length === 0}
+                loadingMessage="Chargement des données financières..."
+                emptyMessage="Aucune facture disponible"
+                height="400px"
+            >
             {entreprise_id && <div className="space-y-4 p-2">
                 <div className="flex justify-between items-center">
                     <div className="flex-grow">
@@ -344,6 +346,7 @@ const NewFinancialSource = () => {
                     </div>
                 </div>
             </div>}
+            </LoadingState>
         </div>
     );
 };

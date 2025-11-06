@@ -8,8 +8,238 @@ import { useFiltresPerso } from '../component/FiltresPerso/FiltresPersoProvider'
 import { filterBSDs, CommonBSD } from '../register/FiltreFunctionnal';
 import useSWR from 'swr';
 import { applyFilterType, FilterType as SharedFilterType } from './filterType';
+import LZString from 'lz-string';
+import { isCacheUpToDate, saveCacheVersion } from '../utils/cacheVersionChecker';
+
 // Utiliser l'interface commune
 export type BSD = CommonBSD;
+
+// Constantes pour le cache des BSDs d'analyse
+const CACHE_VERSION_ANALYSIS = '1.1'; // Incrémenter pour invalider les anciens caches lourds
+const CACHE_DURATION_ANALYSIS = 24 * 60 * 60 * 1000; // 24 heures
+
+// Version LIGHT des BSDs pour le cache (seulement les champs nécessaires à l'analyse)
+// 
+// ⚠️ IMPORTANT - MAINTENANCE :
+// Cette interface contient UNIQUEMENT les champs utilisés par les graphiques/tableaux d'analyse.
+// Si vous créez un nouveau graphique qui nécessite un champ supplémentaire :
+//   1. Ajouter le champ à cette interface LightBSD
+//   2. Modifier bsdToLight() pour extraire ce champ
+//   3. Modifier lightToBsd() pour reconstruire ce champ
+//   4. Incrémenter CACHE_VERSION_ANALYSIS pour invalider les anciens caches
+// 
+// Champs actuellement stockés :
+// - Identifiants : id, entreprise_id, readable_id, id_track_dechets
+// - Dates : created_at, takenOverAt
+// - Statuts : status_track_dechets, created_on_fleap, on_track_dechets, facture_treated
+// - Déchet : wasteCode, wasteName, quantity, quantityReceived, isDangerous
+// - Financier : total_ht
+// - Autres : emitterSiret, fillRate, tri, declassement_boolean
+//
+interface LightBSD {
+    id: string;
+    entreprise_id: string;
+    created_at: string;
+    status_track_dechets: string;
+    readable_id_track_dechets: string;
+    created_on_fleap?: boolean;
+    on_track_dechets: boolean;
+    facture_treated: boolean;
+    id_track_dechets: string;
+    total_ht: string;
+    quantityReceived?: string;
+    quantity: string;
+    wasteCode: string;
+    wasteName?: string;
+    isDangerous?: boolean;
+    emitterSiret: string;
+    takenOverAt?: string;
+    fillRate?: string;
+    tri?: boolean;
+    declassement_boolean?: boolean;
+}
+
+interface CachedAnalysisBSDsData {
+    bsds: LightBSD[];
+    timestamp: number;
+    version: string;
+}
+
+// Fonction pour convertir un BSD complet en version LIGHT pour le cache
+const bsdToLight = (bsd: CommonBSD): LightBSD => {
+    return {
+        id: bsd.id,
+        entreprise_id: String(bsd.entreprise_id || ''),
+        created_at: bsd.created_at,
+        status_track_dechets: bsd.status_track_dechets,
+        readable_id_track_dechets: bsd.readable_id_track_dechets,
+        created_on_fleap: bsd.created_on_fleap as boolean | undefined,
+        on_track_dechets: bsd.on_track_dechets,
+        facture_treated: bsd.facture_treated,
+        id_track_dechets: bsd.id_track_dechets,
+        total_ht: String(bsd.facture_infos?.footer?.total_ht || '0'),
+        quantityReceived: bsd.infos_json?.formAPI?.createFormInput?.quantityReceived as string | undefined,
+        quantity: String(bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.quantity || '0'),
+        wasteCode: bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '',
+        wasteName: bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.name,
+        isDangerous: bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.isDangerous,
+        emitterSiret: bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret || '',
+        takenOverAt: bsd.infos_json?.formAPI?.createFormInput?.takenOverAt as string | undefined,
+        fillRate: bsd.other_infos?.fillRate,
+        tri: bsd.other_infos?.tri,
+        declassement_boolean: bsd.other_infos?.declassement?.declassement_boolean
+    };
+};
+
+// Fonction pour convertir un BSD LIGHT en BSD complet pour React
+const lightToBsd = (light: LightBSD): CommonBSD => {
+    // Reconstruire la structure minimale nécessaire pour les graphiques/tableaux
+    const wasteDetails = {
+        code: light.wasteCode,
+        name: light.wasteName || '',
+        quantity: parseFloat(light.quantity) || 0,
+        isDangerous: light.isDangerous
+    };
+    
+    return {
+        id: light.id,
+        entreprise_id: light.entreprise_id,
+        user_id: '',
+        created_at: light.created_at,
+        status_track_dechets: light.status_track_dechets,
+        readable_id_track_dechets: light.readable_id_track_dechets,
+        created_on_fleap: light.created_on_fleap,
+        on_track_dechets: light.on_track_dechets,
+        facture_treated: light.facture_treated,
+        id_track_dechets: light.id_track_dechets,
+        facture_infos: {
+            footer: { total_ht: light.total_ht }
+        },
+        infos_json: {
+            formAPI: {
+                createFormInput: {
+                    id: light.id,
+                    readableId: light.readable_id_track_dechets,
+                    customId: light.id,
+                    status: light.status_track_dechets,
+                    quantityReceived: light.quantityReceived ? parseFloat(light.quantityReceived) : undefined,
+                    takenOverAt: light.takenOverAt,
+                    emitter: {
+                        company: {
+                            siret: light.emitterSiret,
+                            name: '',
+                            orgId: light.emitterSiret
+                        }
+                    },
+                    recipient: {
+                        company: { siret: '', name: '', orgId: '' },
+                        processingOperation: ''
+                    },
+                    transporter: {
+                        company: { siret: '', name: '', orgId: '' }
+                    },
+                    wasteDetails: wasteDetails
+                }
+            }
+        },
+        other_infos: {
+            fillRate: light.fillRate || '',
+            tri: light.tri,
+            volume: '',
+            volumeUnit: '',
+            containerDescription: '',
+            declassement: light.declassement_boolean ? { declassement_boolean: light.declassement_boolean } : undefined
+        }
+    } as unknown as CommonBSD;
+};
+
+// Fonction pour récupérer les BSDs d'analyse depuis le cache (avec décompression)
+const getAnalysisBSDsFromCache = (entreprise_id: string): CommonBSD[] | null => {
+    try {
+        const cacheKey = `analysis-bsds-${entreprise_id}`;
+        const compressed = localStorage.getItem(cacheKey);
+        
+        if (!compressed) {
+            console.log('📦 Aucun cache trouvé pour les BSDs d\'analyse');
+            return null;
+        }
+        
+        // Décompresser les données
+        const decompressed = LZString.decompress(compressed);
+        if (!decompressed) {
+            console.log('❌ Erreur de décompression du cache');
+            localStorage.removeItem(cacheKey);
+            return null;
+        }
+        
+        const parsedCache: CachedAnalysisBSDsData = JSON.parse(decompressed);
+        
+        if (parsedCache.version !== CACHE_VERSION_ANALYSIS) {
+            console.log('⚠️ Version du cache BSDs obsolète');
+            localStorage.removeItem(cacheKey);
+            return null;
+        }
+        
+        const now = Date.now();
+        if (now - parsedCache.timestamp > CACHE_DURATION_ANALYSIS) {
+            console.log('⏰ Cache BSDs expiré');
+            localStorage.removeItem(cacheKey);
+            return null;
+        }
+        
+        console.log(`✅ Cache BSDs d'analyse trouvé avec ${parsedCache.bsds.length} BSDs (décompressé)`);
+        
+        // Convertir les LightBSD en CommonBSD
+        return parsedCache.bsds.map(lightToBsd);
+    } catch (error) {
+        console.error('❌ Erreur lecture cache BSDs:', error);
+        localStorage.removeItem(`analysis-bsds-${entreprise_id}`);
+        return null;
+    }
+};
+
+// Fonction pour sauvegarder les BSDs d'analyse dans le cache (avec compression)
+const saveAnalysisBSDsToCache = (entreprise_id: string, bsds: CommonBSD[]): void => {
+    try {
+        const cacheKey = `analysis-bsds-${entreprise_id}`;
+        
+        // Convertir les BSDs en version LIGHT (beaucoup plus léger)
+        const lightBSDs = bsds.map(bsdToLight);
+        
+        const cacheData: CachedAnalysisBSDsData = {
+            bsds: lightBSDs,
+            timestamp: Date.now(),
+            version: CACHE_VERSION_ANALYSIS
+        };
+        
+        const jsonString = JSON.stringify(cacheData);
+        const uncompressedSize = (new Blob([jsonString]).size / 1024 / 1024).toFixed(2);
+        
+        // Compresser avec LZ-String
+        const compressed = LZString.compress(jsonString);
+        const compressedSize = (new Blob([compressed]).size / 1024 / 1024).toFixed(2);
+        const ratio = ((1 - parseFloat(compressedSize) / parseFloat(uncompressedSize)) * 100).toFixed(1);
+        
+        console.log(`🗜️ Compression: ${uncompressedSize} MB → ${compressedSize} MB (${ratio}% de réduction)`);
+        
+        // Vérifier la taille compressée
+        if (new Blob([compressed]).size > 8 * 1024 * 1024) {
+            console.warn(`⚠️ Cache compressé encore trop gros (${compressedSize} MB)`);
+            console.warn('💡 Limite: 8 MB - Réduisez le nombre de BSDs ou utilisez IndexedDB');
+            return;
+        }
+        
+        localStorage.setItem(cacheKey, compressed);
+        console.log(`💾 Cache COMPRESSÉ sauvegardé: ${bsds.length} BSDs → ${compressedSize} MB`);
+    } catch (error) {
+        if (error instanceof Error && error.name === 'QuotaExceededError') {
+            console.error('❌ Quota localStorage dépassé!');
+            console.error('💡 Videz le cache : localStorage.clear() dans la console');
+        } else {
+            console.error('❌ Erreur sauvegarde cache BSDs:', error);
+        }
+    }
+};
 
 type FilterType = SharedFilterType;
 
@@ -161,15 +391,37 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
     }, [sites]);
 
     const fetchBSDs = useCallback(async () => {
-        if (!entreprise_id) return;
+        if (!entreprise_id) {
+            console.log('⚠️ Pas d\'entreprise_id, skip fetchBSDs');
+            return;
+        }
 
         try {
             setLoading(true);
+            console.log('🔍 fetchBSDs appelé pour entreprise:', entreprise_id);
+            
+            // 1. Vérifier si le cache local est à jour (comparaison avec version Redis)
+            const isUpToDate = await isCacheUpToDate(entreprise_id, 'analysis-bsds');
+            
+            // 2. Si à jour, utiliser le cache localStorage
+            if (isUpToDate) {
+                const cachedBSDs = getAnalysisBSDsFromCache(entreprise_id);
+                if (cachedBSDs && cachedBSDs.length > 0) {
+                    console.log(`⚡ Utilisation cache BSDs analyse (version validée par serveur) - ${cachedBSDs.length} BSDs`);
+                    setRawBSDs(cachedBSDs);
+                    setLoading(false);
+                    return;
+                }
+            } else {
+                console.log('🔄 Cache BSDs analyse obsolète ou inexistant, rechargement...');
+            }
+            
+            console.log('🔄 Chargement des BSDs d\'analyse depuis la BDD...');
             let allBSDs: BSD[] = [];
             let hasMore = true;
             let lastId: string | null = null;
 
-            // Récupérer tous les BSDs en paginant
+            // 2. Si pas de cache, récupérer tous les BSDs en paginant
             while (hasMore) {
                 let query = supabase
                     .from('bsd')
@@ -287,7 +539,15 @@ export const AnalysisProvider = ({ children }: { children: React.ReactNode }) =>
                 hasMore = count ? count > 0 : false;
             }
 
-            console.log('Total BSDs loaded:', allBSDs.length);
+            console.log(`✅ ${allBSDs.length} BSDs d'analyse chargés depuis la BDD`);
+            
+            // 3. Sauvegarder dans le cache localStorage AVANT de mettre à jour l'état
+            console.log('💾 Tentative de sauvegarde dans localStorage...');
+            saveAnalysisBSDsToCache(entreprise_id, allBSDs);
+            
+            // 4. Sauvegarder la version du cache (synchronisation multi-utilisateurs)
+            await saveCacheVersion(entreprise_id, 'analysis-bsds');
+            
             setRawBSDs(allBSDs);
 
         } catch (error) {

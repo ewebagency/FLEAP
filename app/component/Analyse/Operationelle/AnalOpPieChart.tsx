@@ -10,6 +10,7 @@ import { FormInput } from '@/app/register/interface/BSD_Interface';
 import { BSD } from '@/app/analysis/AnalysisProvider';
 import { LegendItem, ChartData } from 'chart.js';
 import { Doughnut } from "react-chartjs-2";
+import LoadingState from '@/app/component/LoadingState';
 
 const { Pie } = DynamicCharts;
 
@@ -138,8 +139,16 @@ const AnalOpPieChart = () => {
             <div className="text-gray-500 text-xs mb-2">
                 Répartition par filière
             </div>
-            <div className="h-[200px]"> {/* Hauteur augmentée à 250px */}
-                <Doughnut data={pieData} options={options} />
+            <div className="h-[200px]">
+                <LoadingState
+                    isLoading={loading === true || mappingTable.length === 0}
+                    isEmpty={loading === false && mappingTable.length > 0 && bsds.length === 0}
+                    loadingMessage="Chargement..."
+                    emptyMessage="Aucune donnée"
+                    height="200px"
+                >
+                    <Doughnut data={pieData} options={options} />
+                </LoadingState>
             </div>
         </div>
     );

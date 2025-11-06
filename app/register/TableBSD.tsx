@@ -22,6 +22,7 @@ import { useBSDs } from './BSDsProvider';
 // import { handleDeleteLinkBon_PDF } from './RegisterComponents/Modal/DisplayModifyOnTable/deleteLinkBon_PDF';
 import { handleDeleteLinkMetaDoc } from '@/app/import_page/ImportComponents/ExtractMetaDoc/utils/link_or_create_bdd';
 import { applyFilterType, FilterType } from '../analysis/filterType';
+import { invalidateCache } from '../utils/invalidateCache';
 
 
 const cleanCED = (ced: string): string => {
@@ -286,30 +287,7 @@ const TableBSD = () => {
         }
     };
 
-    const invalidateCache = async () => {
-        if (!entreprise_id || !user_id) return;
-        
-        try {
-            const response = await fetch('/api/invalidate_bsd_cache', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    entreprise_id,
-                    user_id,
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to invalidate cache');
-            }
-
-            console.log('Cache invalidated successfully');
-        } catch (error) {
-            console.error('Error invalidating cache:', error);
-        }
-    };
+    // Utilise maintenant la fonction centralisée importée de utils/invalidateCache
 
     // Fonction pour charger toutes les données en arrière-plan
     const fetchFullData = async () => {
@@ -350,7 +328,7 @@ const TableBSD = () => {
             const forceReload = prevModalReload.current !== modalReload;
             
             if (forceReload) {
-                await invalidateCache();
+                await invalidateCache(entreprise_id, user_id);
             }
             
             const siteParam = ''  // En mode cumulative, on charge les sites un par un, pas via ce paramètre
@@ -763,7 +741,7 @@ const TableBSD = () => {
                     setAllFilteredBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     setDisplayedBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     
-                    await invalidateCache();
+                    await invalidateCache(entreprise_id, user_id);
                     //setModalReload(prev => !prev);
                 }
             } else {
@@ -919,7 +897,7 @@ const TableBSD = () => {
                     setAllBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     setAllFilteredBSDs(prev => prev.filter(bsd => bsd.id !== id));
                     setDisplayedBSDs(prev => prev.filter(bsd => bsd.id !== id));
-                    await invalidateCache();
+                    await invalidateCache(entreprise_id, user_id);
                     //setModalReload(prev => !prev);
                 }
             }
@@ -965,7 +943,7 @@ const TableBSD = () => {
                 } else {
                     //Swal.fire('Scellé !', 'Le BSD a été scellé avec succès.', 'success');
                     toast.success("BSD scellé avec succès");
-                    await invalidateCache();
+                    await invalidateCache(entreprise_id, user_id);
                     //setModalReload(!modalReload);
                     setAllBSDs(prev => prev.map(bsd => bsd.id === id ? {...bsd, status: 'SEALED'} : bsd));
                     setAllFilteredBSDs(prev => prev.map(bsd => bsd.id === id ? {...bsd, status: 'SEALED'} : bsd));
@@ -986,7 +964,7 @@ const TableBSD = () => {
             toast.error(data.error);
         } else {
             toast.success("BSD signé avec succès");
-            await invalidateCache();
+            await invalidateCache(entreprise_id, user_id);
             //setModalReload(!modalReload);
             setAllBSDs(prev => prev.map(bsd => bsd.id === id ? {...bsd, status: 'SIGNED_BY_PRODUCER'} : bsd));
             setAllFilteredBSDs(prev => prev.map(bsd => bsd.id === id ? {...bsd, status: 'SIGNED_BY_PRODUCER'} : bsd));
@@ -1015,7 +993,7 @@ const TableBSD = () => {
             ));
             setAllFilteredBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: value} : prevbsd));
             setDisplayedBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: value} : prevbsd));
-            await invalidateCache();
+            await invalidateCache(entreprise_id, user_id);
         }
     };
 
@@ -1068,7 +1046,7 @@ const TableBSD = () => {
             setAllFilteredBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: 'Collecté', infos_json: {...prevbsd.infos_json, formAPI: {...prevbsd.infos_json.formAPI, createFormInput: updatedFormInput}}} : prevbsd));
             setDisplayedBSDs(prev => prev.map(prevbsd => prevbsd.id === bsd.id ? {...prevbsd, status_track_dechets: 'Collecté', infos_json: {...prevbsd.infos_json, formAPI: {...prevbsd.infos_json.formAPI, createFormInput: updatedFormInput}}} : prevbsd));
             toast.success("BSD mis à jour avec succès");
-            await invalidateCache();
+            await invalidateCache(entreprise_id, user_id);
             //setModalReload(!modalReload);
         } else {
             toast.error("Erreur lors de la mise à jour du BSD");
@@ -1189,7 +1167,7 @@ const TableBSD = () => {
             setAllFilteredBSDs(prev => prev.map(prevBsd => prevBsd.id === bsd.id ? { ...prevBsd, other_infos: updatedOtherInfos } : prevBsd));
             setDisplayedBSDs(prev => prev.map(prevBsd => prevBsd.id === bsd.id ? { ...prevBsd, other_infos: updatedOtherInfos } : prevBsd));
 
-            await invalidateCache();
+            await invalidateCache(entreprise_id, user_id);
 
         } catch (e) {
             console.error('Exception mise à jour checked:', e);
@@ -1264,7 +1242,7 @@ const TableBSD = () => {
                 }
 
                 toast.success("Récurrence supprimée avec succès");
-                await invalidateCache();
+                await invalidateCache(entreprise_id, user_id);
                 setModalReload(!modalReload);
             }
         } catch (error) {
@@ -1792,7 +1770,7 @@ const TableBSD = () => {
                                                                 const result = await handleCancelCollecte(bsd);
                                                                 if (result) {
                                                                         setModalReload(!modalReload);
-                                                                        invalidateCache();
+                                                                        invalidateCache(entreprise_id, user_id);
                                                                         setAllBSDs(prev => prev.filter(prevBsd => prevBsd.id !== bsd.id));
                                                                         setAllFilteredBSDs(prev => prev.filter(prevBsd => prevBsd.id !== bsd.id));
                                                                         setDisplayedBSDs(prev => prev.filter(prevBsd => prevBsd.id !== bsd.id));

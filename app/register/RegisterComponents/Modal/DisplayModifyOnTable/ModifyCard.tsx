@@ -15,6 +15,7 @@ import { handleDeleteLinkBSD_PDF } from "./deleteLinkBSD_PDF";
 import { handleDeleteLinkBon_PDF } from "./deleteLinkBon_PDF";
 import { cofounders_user_id } from "@/app/component/SideBar";
 import { handleDeleteLinkMetaDoc } from "@/app/import_page/ImportComponents/ExtractMetaDoc/utils/link_or_create_bdd";
+import { invalidateCache } from "@/app/utils/invalidateCache";
 
 interface PdfInfo {
     id: number;
@@ -134,30 +135,8 @@ const ModifyCard = () => {
     const [showOtherTransporters, setShowOtherTransporters] = useState(false);
     const [showOtherRecipients, setShowOtherRecipients] = useState(false);
 
-    const invalidateCache = async () => {
-        if (!entreprise_id || !user_id) return;
-        
-        try {
-            const response = await fetch('/api/invalidate_bsd_cache', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    entreprise_id,
-                    user_id,
-                }),
-            });
+    // Utilise maintenant la fonction centralisée importée de utils/invalidateCache
 
-            if (!response.ok) {
-                throw new Error('Failed to invalidate cache');
-            }
-
-            console.log('Cache invalidated successfully');
-        } catch (error) {
-            console.error('Error invalidating cache:', error);
-        }
-    };    
 
     const handleOpenPdf = async (pdf: PdfInfo) => {
         if (pdfUrls[pdf.id]) {
@@ -588,7 +567,7 @@ const ModifyCard = () => {
                         other_infos: dataToSendJSON.other_infos,
                         readable_id_track_dechets: dataToSendJSON.readable_id_track_dechets
                     } as unknown as BSD : bsd));
-                    await invalidateCache();
+                    await invalidateCache(entreprise_id, user_id);
                 }, 100);
 
                 setModalReload(!modalReload);

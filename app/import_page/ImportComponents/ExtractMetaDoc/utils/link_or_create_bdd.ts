@@ -8,6 +8,7 @@ import {
     push_in_facture_bdd,
     normalizePdfData
 } from './link';
+import { invalidateCache as invalidateCacheCentral } from '@/app/utils/invalidateCache';
 
 type BsdLinkedItem = { bsd_id: string; index_dechet: number; status?: 'linked' | 'created' | 'check_by_user' };
 
@@ -661,17 +662,7 @@ export const handleDeleteLinkMetaDoc = async (pdfId: number, bsdId: string, inde
     }
 };
 
-const invalidateCache = async (entrepriseId: number, userId?: string): Promise<void> => {
-    try {
-        const res = await fetch('/api/invalidate_bsd_cache', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ entreprise_id: String(entrepriseId), user_id: userId || '' })
-        });
-        if (!res.ok) {
-            console.warn('[invalidateCache] failed with status', res.status);
-        }
-    } catch (e) {
-        console.warn('[invalidateCache] error', e);
-    }
+// Wrapper pour la fonction centralisée (adapter la signature)
+const invalidateCache = async (entrepriseId: number | string, userId?: string): Promise<void> => {
+    await invalidateCacheCentral(String(entrepriseId), userId || null);
 };

@@ -10,6 +10,7 @@ import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Context } from 'chartjs-plugin-datalabels';
+import LoadingState from '@/app/component/LoadingState';
 
 const { Bar } = DynamicCharts;
 
@@ -36,15 +37,17 @@ const AnalOpMainChart = () => {
   const [viewType, setViewType] = useState<'chart' | 'table'>('chart');
   const [aggregation, setAggregation] = useState<'month' | 'year'>('month');
 
-  // Vérifier si toutes les dépendances sont initialisées
-  const isDataReady = useMemo(() => {
-    return bsds.length > 0 && 
-           mappingTable.length > 0 && 
-           filieres.length > 0 && 
-           filieres_ou_prestataires?.nom && 
-           segmentDates?.debut && 
-           segmentDates?.fin;
-  }, [bsds, mappingTable, filieres, filieres_ou_prestataires, segmentDates]);
+  // Vérifier si les filtres et métadonnées sont initialisés (pas les BSDs)
+  const areFiltersReady = useMemo(() => {
+    // Ne vérifier que les dépendances CRITIQUES pour le rendu du graphique
+    // Les filières peuvent être vides (c'est un filtre actif par l'utilisateur)
+    return Boolean(
+      mappingTable.length > 0 && 
+      filieres_ou_prestataires?.nom && 
+      segmentDates?.debut && 
+      segmentDates?.fin
+    );
+  }, [mappingTable, filieres_ou_prestataires, segmentDates]);
 
   const handleDateChange = (date: Date | null, type: 'debut' | 'fin') => {
     if (date) {
@@ -56,7 +59,7 @@ const AnalOpMainChart = () => {
   };
 
   const filteredChartData = useMemo(() => {
-    if (!isDataReady) {
+    if (!areFiltersReady) {
       return {
         labels: [],
         datasets: []
@@ -447,8 +450,14 @@ const AnalOpMainChart = () => {
           </div>
         </div>
         <div className="pt-1">
-          {bsds.length > 0 ? (
-            viewType === 'chart' ? (
+          <LoadingState
+            isLoading={loading === true || !areFiltersReady}
+            isEmpty={loading === false && areFiltersReady && bsds.length === 0}
+            loadingMessage="Chargement des données d'analyse..."
+            emptyMessage="Aucune donnée disponible pour cette période"
+            height="300px"
+          >
+            {viewType === 'chart' ? (
               <Bar 
                 data={filteredChartData} 
                 options={options} 
@@ -510,10 +519,8 @@ const AnalOpMainChart = () => {
                   </tbody>
                 </table>
               </div>
-            )
-          ) : (
-            <div className="text-center text-gray-500">Aucune donnée disponible</div>
-          )}
+            )}
+          </LoadingState>
         </div>
       </div>
     </div>
