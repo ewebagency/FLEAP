@@ -86,7 +86,7 @@ export const extractMetaOcr = async (params: MetaOcrParams): Promise<ExtractMeta
         // Préparer les données pour l'API
         const formData = new FormData();
         formData.append('file', params.file);
-        formData.append('type', params.type);
+        formData.append('doc_type', params.type);
         formData.append('liste_nom_eviter', JSON.stringify(params.liste_nom_eviter));
         formData.append('pdfInfos', JSON.stringify(params.infos_pdf));
         formData.append('clusterParams', JSON.stringify(params.cluster_params));
@@ -302,7 +302,7 @@ export const runMetaOcrForPdf = async (
     // 6) Appel extraction
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('type', docType);
+    formData.append('doc_type', docType);
     formData.append('liste_nom_eviter', JSON.stringify([ent.name]));
     formData.append('pdfInfos', JSON.stringify(pdfInfo));
     formData.append('clusterParams', JSON.stringify(clusterParams));

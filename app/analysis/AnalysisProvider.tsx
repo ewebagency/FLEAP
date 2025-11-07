@@ -15,7 +15,7 @@ import { isCacheUpToDate, saveCacheVersion } from '../utils/cacheVersionChecker'
 export type BSD = CommonBSD;
 
 // Constantes pour le cache des BSDs d'analyse
-const CACHE_VERSION_ANALYSIS = '1.1'; // Incrémenter pour invalider les anciens caches lourds
+const CACHE_VERSION_ANALYSIS = '1.3'; // Incrémenter pour invalider les anciens caches lourds
 const CACHE_DURATION_ANALYSIS = 24 * 60 * 60 * 1000; // 24 heures
 
 // Version LIGHT des BSDs pour le cache (seulement les champs nécessaires à l'analyse)
@@ -34,7 +34,9 @@ const CACHE_DURATION_ANALYSIS = 24 * 60 * 60 * 1000; // 24 heures
 // - Statuts : status_track_dechets, created_on_fleap, on_track_dechets, facture_treated
 // - Déchet : wasteCode, wasteName, quantity, quantityReceived, isDangerous
 // - Financier : total_ht
-// - Autres : emitterSiret, fillRate, tri, declassement_boolean
+// - Valorisation : valoParts, processingOperation
+// - Acteurs : emitterSiret, recipientSiret, recipientName, transporterSiret, transporterName
+// - Autres : fillRate, tri, declassement_boolean
 //
 interface LightBSD {
     id: string;
@@ -57,6 +59,12 @@ interface LightBSD {
     fillRate?: string;
     tri?: boolean;
     declassement_boolean?: boolean;
+    valoParts?: Array<{ code_valo: string; tonnage: string }>;
+    processingOperation?: string;
+    recipientSiret?: string;
+    recipientName?: string;
+    transporterSiret?: string;
+    transporterName?: string;
 }
 
 interface CachedAnalysisBSDsData {
@@ -87,7 +95,13 @@ const bsdToLight = (bsd: CommonBSD): LightBSD => {
         takenOverAt: bsd.infos_json?.formAPI?.createFormInput?.takenOverAt as string | undefined,
         fillRate: bsd.other_infos?.fillRate,
         tri: bsd.other_infos?.tri,
-        declassement_boolean: bsd.other_infos?.declassement?.declassement_boolean
+        declassement_boolean: bsd.other_infos?.declassement?.declassement_boolean,
+        valoParts: bsd.infos_json?.formAPI?.createFormInput?.recipient?.valoParts as Array<{ code_valo: string; tonnage: string }> | undefined,
+        processingOperation: bsd.infos_json?.formAPI?.createFormInput?.recipient?.processingOperation,
+        recipientSiret: bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.siret,
+        recipientName: bsd.infos_json?.formAPI?.createFormInput?.recipient?.company?.name,
+        transporterSiret: bsd.infos_json?.formAPI?.createFormInput?.transporter?.company?.siret,
+        transporterName: bsd.infos_json?.formAPI?.createFormInput?.transporter?.company?.name
     };
 };
 
@@ -132,11 +146,20 @@ const lightToBsd = (light: LightBSD): CommonBSD => {
                         }
                     },
                     recipient: {
-                        company: { siret: '', name: '', orgId: '' },
-                        processingOperation: ''
+                        company: { 
+                            siret: light.recipientSiret || '', 
+                            name: light.recipientName || '', 
+                            orgId: light.recipientSiret || '' 
+                        },
+                        processingOperation: light.processingOperation || '',
+                        valoParts: light.valoParts
                     },
                     transporter: {
-                        company: { siret: '', name: '', orgId: '' }
+                        company: { 
+                            siret: light.transporterSiret || '', 
+                            name: light.transporterName || '', 
+                            orgId: light.transporterSiret || '' 
+                        }
                     },
                     wasteDetails: wasteDetails
                 }

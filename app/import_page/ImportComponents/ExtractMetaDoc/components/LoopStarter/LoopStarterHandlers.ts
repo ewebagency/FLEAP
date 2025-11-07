@@ -371,9 +371,12 @@ export const handleProcessPdfs = async (
                             </div>
                         `,
                         showCancelButton: true,
+                        showDenyButton: true,
                         confirmButtonText: '🔄 Reprendre maintenant',
+                        denyButtonText: '⏭️ Sauter ce document',
                         cancelButtonText: '❌ Annuler',
                         confirmButtonColor: '#3b82f6',
+                        denyButtonColor: '#f59e0b',
                         cancelButtonColor: '#6b7280',
                         allowOutsideClick: false,
                         width: '600px'
@@ -406,6 +409,57 @@ export const handleProcessPdfs = async (
                                 setSelectedPdfIds,
                                 onRefreshData,
                                 true // isResuming = true
+                            );
+                        } else if (swalResult.isDenied) {
+                            const skipIndex = result.pausedAtIndex ?? 0;
+                            const skippedPdfId = selectedPdfIds[skipIndex];
+                            const remainingPdfIds = selectedPdfIds.slice(skipIndex + 1);
+
+                            clearPauseState();
+                            setPaused(false);
+                            setPausedPdfId(null);
+                            setPausedAtIndex(null);
+                            setResumeMode(null);
+
+                            if (skippedPdfId) {
+                                const skippedPdf = pdfInfos.find(pdf => pdf.id === skippedPdfId);
+                                setProcessingResults(prev => [
+                                    ...prev,
+                                    {
+                                        pdfId: skippedPdfId,
+                                        success: false,
+                                        message: 'Document sauté par l\'utilisateur',
+                                        error: 'Document sauté par l\'utilisateur',
+                                        originalPdfName: skippedPdf?.name_pdf || 'Inconnu'
+                                    }
+                                ]);
+                                setShowReview(true);
+                                toast('Document sauté, reprise en cours...', { icon: '⏭️' });
+                            }
+
+                            if (remainingPdfIds.length === 0) {
+                                toast.success('Plus aucun document à traiter.');
+                                setSelectedPdfIds([]);
+                                return;
+                            }
+
+                            setSelectedPdfIds(remainingPdfIds);
+
+                            await handleProcessPdfs(
+                                remainingPdfIds,
+                                entreprise_id,
+                                pdfInfos,
+                                setProcessingSplitThenExtract,
+                                setResumeMode,
+                                setProcessingResults,
+                                setShowReview,
+                                setPaused,
+                                setPausedPdfId,
+                                setPausedAtIndex,
+                                setShowExtractModal,
+                                setSelectedPdfIds,
+                                onRefreshData,
+                                true
                             );
                         } else {
                             // Annuler: supprimer localStorage et état de pause
@@ -899,9 +953,12 @@ export const handleExtractOnly = async (
                             </div>
                         `,
                         showCancelButton: true,
+                        showDenyButton: true,
                         confirmButtonText: '🔄 Reprendre maintenant',
+                        denyButtonText: '⏭️ Sauter ce document',
                         cancelButtonText: '❌ Annuler',
                         confirmButtonColor: '#3b82f6',
+                        denyButtonColor: '#f59e0b',
                         cancelButtonColor: '#6b7280',
                         allowOutsideClick: false,
                         width: '600px'
@@ -934,6 +991,57 @@ export const handleExtractOnly = async (
                                 setSelectedPdfIds,
                                 onRefreshData,
                                 true // isResuming = true
+                            );
+                        } else if (swalResult.isDenied) {
+                            const skipIndex = result.pausedAtIndex ?? 0;
+                            const skippedPdfId = selectedPdfIds[skipIndex];
+                            const remainingPdfIds = selectedPdfIds.slice(skipIndex + 1);
+
+                            clearPauseState();
+                            setPaused(false);
+                            setPausedPdfId(null);
+                            setPausedAtIndex(null);
+                            setResumeMode(null);
+
+                            if (skippedPdfId) {
+                                const skippedPdf = pdfInfos.find(pdf => pdf.id === skippedPdfId);
+                                setProcessingResults(prev => [
+                                    ...prev,
+                                    {
+                                        pdfId: skippedPdfId,
+                                        success: false,
+                                        message: 'Document sauté par l\'utilisateur',
+                                        error: 'Document sauté par l\'utilisateur',
+                                        originalPdfName: skippedPdf?.name_pdf || 'Inconnu'
+                                    }
+                                ]);
+                                setShowReview(true);
+                                toast('Document sauté, reprise en cours...', { icon: '⏭️' });
+                            }
+
+                            if (remainingPdfIds.length === 0) {
+                                toast.success('Plus aucun document à traiter.');
+                                setSelectedPdfIds([]);
+                                return;
+                            }
+
+                            setSelectedPdfIds(remainingPdfIds);
+
+                            await handleExtractOnly(
+                                remainingPdfIds,
+                                entreprise_id,
+                                pdfInfos,
+                                setProcessingExtractOnly,
+                                setResumeMode,
+                                setProcessingResults,
+                                setShowReview,
+                                setPaused,
+                                setPausedPdfId,
+                                setPausedAtIndex,
+                                setShowExtractModal,
+                                setSelectedPdfIds,
+                                onRefreshData,
+                                true
                             );
                         } else {
                             // Annuler: supprimer localStorage et état de pause

@@ -326,9 +326,12 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                     </div>
                 `,
                 showCancelButton: true,
+                showDenyButton: true,
                 confirmButtonText: '🔄 Reprendre',
+                denyButtonText: '⏭️ Sauter ce document',
                 cancelButtonText: '❌ Annuler',
                 confirmButtonColor: '#3b82f6',
+                denyButtonColor: '#f59e0b',
                 cancelButtonColor: '#6b7280',
                 allowOutsideClick: false,
                 width: '600px'
@@ -382,6 +385,76 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                         setSelectedPdfIds,
                         handleRefreshData,
                         true // isResuming = true
+                    );
+                }
+            } else if (result.isDenied) {
+                const skipIndex = pauseState.pausedAtIndex ?? 0;
+                const skippedPdfId = pauseState.selectedPdfIds[skipIndex];
+                const remainingPdfIds = pauseState.selectedPdfIds.slice(skipIndex + 1);
+
+                clearPauseState();
+                setPaused(false);
+                setPausedPdfId(null);
+                setPausedAtIndex(null);
+                setResumeMode(null);
+
+                if (skippedPdfId) {
+                    const skippedPdf = pdfInfos.find(p => p.id === skippedPdfId);
+                    setProcessingResults(prev => [
+                        ...prev,
+                        {
+                            pdfId: skippedPdfId,
+                            success: false,
+                            message: 'Document sauté par l\'utilisateur',
+                            error: 'Document sauté par l\'utilisateur',
+                            originalPdfName: skippedPdf?.name_pdf || 'Inconnu'
+                        }
+                    ]);
+                    setShowReview(true);
+                    toast('Document sauté, reprise en cours...', { icon: '⏭️' });
+                }
+
+                if (remainingPdfIds.length === 0) {
+                    toast.success('Plus aucun document à traiter.');
+                    setSelectedPdfIds([]);
+                    return;
+                }
+
+                setSelectedPdfIds(remainingPdfIds);
+
+                if (pauseState.resumeMode === 'split_then_extract') {
+                    await handleProcessPdfs(
+                        remainingPdfIds,
+                        pauseState.entreprise_id,
+                        pdfInfos,
+                        setProcessingSplitThenExtract,
+                        setResumeMode,
+                        setProcessingResults,
+                        setShowReview,
+                        setPaused,
+                        setPausedPdfId,
+                        setPausedAtIndex,
+                        setShowExtractModal,
+                        setSelectedPdfIds,
+                        handleRefreshData,
+                        true
+                    );
+                } else if (pauseState.resumeMode === 'extract_only') {
+                    await handleExtractOnly(
+                        remainingPdfIds,
+                        pauseState.entreprise_id,
+                        pdfInfos,
+                        setProcessingExtractOnly,
+                        setResumeMode,
+                        setProcessingResults,
+                        setShowReview,
+                        setPaused,
+                        setPausedPdfId,
+                        setPausedAtIndex,
+                        setShowExtractModal,
+                        setSelectedPdfIds,
+                        handleRefreshData,
+                        true
                     );
                 }
             } else {

@@ -415,9 +415,12 @@ async def meta_ocr(
         _pages_processed += estimated_pages
         
         # Determine document type and alert status
-        doc_type = "bon" if doc_type == "inconnu" else doc_type
-        if type_lu == "inconnu":
-            type_lu = doc_type if doc_type != "inconnu" else "bon"
+        doc_type = (doc_type or "").strip()
+        if not doc_type:
+            doc_type = "inconnu"
+
+        if doc_type in {"bon", "bsd", "facture"}:
+            type_lu = doc_type
         alerte_type = type_lu != doc_type if doc_type != "bon" else False
 
         if voir:
