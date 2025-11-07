@@ -37,6 +37,7 @@ interface InputMobileProps {
     onMobile?: boolean;
     popup?: boolean;
     hideIndicators?: boolean;
+    onFocus?: () => void;
 }
 
 const InputMobile: React.FC<InputMobileProps> = ({
@@ -56,6 +57,7 @@ const InputMobile: React.FC<InputMobileProps> = ({
     onMobile = false,
     popup = false,
     hideIndicators = false,
+    onFocus,
 }: InputMobileProps) => {
     const [isTextMode, setIsTextMode] = useState(false);
 
@@ -149,6 +151,7 @@ const InputMobile: React.FC<InputMobileProps> = ({
                                     options={selectOptions}
                                     value={currentValue}
                                     onChange={handleSelectChange}
+                                    onFocus={onFocus}
                                     placeholder={placeholder}
                                     className="text-xs"
                                     formatCreateLabel={(inputValue: string) => `Créer "${inputValue}"`}

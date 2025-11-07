@@ -36,6 +36,7 @@ interface InputFullProps {
     stylePrimary?: boolean;
     popup?: boolean;
     isCheckbox?: boolean;
+    onFocus?: () => void;
 }
 
 const InputFull: React.FC<InputFullProps> = ({
@@ -53,7 +54,8 @@ const InputFull: React.FC<InputFullProps> = ({
     display=true,
     stylePrimary=false,
     popup=false,
-    isCheckbox=false
+    isCheckbox=false,
+    onFocus
 }: InputFullProps) => {
     const [isTextMode, setIsTextMode] = useState(false);
 
@@ -176,6 +178,7 @@ const InputFull: React.FC<InputFullProps> = ({
                                                 }
                                             });
                                         }}
+                                        onFocus={onFocus}
                                         options={[
                                             ...options.filteredOptions.map(opt => ({
                                                 label: opt,

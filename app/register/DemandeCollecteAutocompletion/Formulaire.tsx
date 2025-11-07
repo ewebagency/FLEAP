@@ -327,6 +327,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                           const selectedSite = allOptions.sites.find(site => site.value.nom === e.target.value);
                           handleFieldChange(0, 'site', selectedSite || null);
                         }}
+                        onFocus={() => setAutocompletionEnabled(true)}
                         enableText={true}
                         stylePrimary={true}
                         onMobile={true}
@@ -348,6 +349,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                               const selectedPoint = selectedFieldsList[0]?.site?.value?.pointsCollecte?.find(p => p.nom === e.target.value);
                               handleFieldChange(0, 'pointCollecte', selectedPoint || null);
                             }}
+                            onFocus={() => setAutocompletionEnabled(false)}
                             enableText={selectedFieldsList[0]?.site?.value?.pointsCollecte?.length === 1}
                             stylePrimary={true}
                             onMobile={true}
@@ -398,6 +400,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                             const selectedSite = allOptions.sites.find(site => site.value.nom === e.target.value);
                             handleFieldChange(0, 'site', selectedSite || null);
                           }}
+                          onFocus={() => setAutocompletionEnabled(true)}
                           enableText={true}
                           stylePrimary={true}
                         />
@@ -418,6 +421,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                 const selectedPoint = selectedFieldsList[0]?.site?.value?.pointsCollecte?.find(p => p.nom === e.target.value);
                                 handleFieldChange(0, 'pointCollecte', selectedPoint || null);
                               }}
+                              onFocus={() => setAutocompletionEnabled(false)}
                               enableText={selectedFieldsList[0]?.site?.value?.pointsCollecte?.length === 1}
                               stylePrimary={true}
                             />
@@ -531,6 +535,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                               const selectedDechet = allOptions.dechets.find(d => d.value.nom === e.target.value);
                               handleFieldChange(index, 'dechet', selectedDechet || null);
                             }}
+                            onFocus={() => setAutocompletionEnabled(true)}
                             enableText={true}
                             stylePrimary={true}
                             onMobile={true}
@@ -552,6 +557,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                               const selectedContenant = allOptions.contenants.find(c => c.value.nom === e.target.value);
                               handleFieldChange(index, 'contenant', selectedContenant || null);
                             }}
+                            onFocus={() => setAutocompletionEnabled(false)}
                             enableText={true}
                             stylePrimary={true}
                             onMobile={true}
@@ -651,6 +657,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                               const selectedDechet = allOptions.dechets.find(d => d.value.nom === e.target.value);
                               handleFieldChange(index, 'dechet', selectedDechet || null);
                             }}
+                            onFocus={() => setAutocompletionEnabled(true)}
                             enableText={true}
                             stylePrimary={true}
                           />
@@ -672,6 +679,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                 const selectedContenant = allOptions.contenants.find(c => c.value.nom === e.target.value);
                                 handleFieldChange(index, 'contenant', selectedContenant || null);
                               }}
+                              onFocus={() => setAutocompletionEnabled(false)}
                               enableText={true}
                               stylePrimary={true}
                             />
@@ -794,6 +802,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedTransporteur = allOptions.transporteurs.find(t => t.value.nomBoite === e.target.value);
                                     handleFieldChange(index, 'transporteur', selectedTransporteur || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                   onMobile={true}
@@ -813,6 +822,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedDestinataire = allOptions.destinataires?.find(d => d.value.nomBoite === e.target.value);
                                     handleFieldChange(index, 'destinataire', selectedDestinataire || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                   onMobile={true}
@@ -852,6 +862,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedNegociant = allOptions.negociants?.find(nego => nego.value.nomBoite === e.target.value);
                                     handleFieldChange(index, 'negociant', selectedNegociant || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                   onMobile={true}
@@ -871,6 +882,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedCourtier = allOptions.courtiers?.find(court => court.value.nomBoite === e.target.value);
                                     handleFieldChange(index, 'courtier', selectedCourtier || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                   onMobile={true}
@@ -890,6 +902,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedEcoorganisme = allOptions.ecoorganismes?.find(eco => eco.value.nomBoite === e.target.value);
                                     handleFieldChange(index, 'ecoorganisme', selectedEcoorganisme || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                   onMobile={true}
@@ -913,6 +926,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedContrat = allOptions.contrats?.find(contrat => contrat.value.nom === e.target.value);
                                     handleFieldChange(index, 'contrat', selectedContrat || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                   onMobile={true}
@@ -932,6 +946,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedCodeTraitement = allOptions.codeTraitements?.find(code => `${code.value.code} - ${code.value.nom}` === e.target.value);
                                     handleFieldChange(index, 'codeTraitement', selectedCodeTraitement || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                   onMobile={true}
@@ -961,6 +976,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedTransporteur = allOptions.transporteurs.find(t => t.value.nomBoite === e.target.value);
                                     handleFieldChange(index, 'transporteur', selectedTransporteur || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                 />
@@ -979,6 +995,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedDestinataire = allOptions.destinataires?.find(d => d.value.nomBoite === e.target.value);
                                     handleFieldChange(index, 'destinataire', selectedDestinataire || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                 />
@@ -1017,6 +1034,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedNegociant = allOptions.negociants?.find(nego => nego.value.nomBoite === e.target.value);
                                     handleFieldChange(index, 'negociant', selectedNegociant || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                 />
@@ -1035,6 +1053,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedCourtier = allOptions.courtiers?.find(court => court.value.nomBoite === e.target.value);
                                     handleFieldChange(index, 'courtier', selectedCourtier || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                 />
@@ -1053,6 +1072,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedEcoorganisme = allOptions.ecoorganismes?.find(eco => eco.value.nomBoite === e.target.value);
                                     handleFieldChange(index, 'ecoorganisme', selectedEcoorganisme || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                 />
@@ -1075,6 +1095,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedContrat = allOptions.contrats?.find(contrat => contrat.value.nom === e.target.value);
                                     handleFieldChange(index, 'contrat', selectedContrat || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                 />
@@ -1093,6 +1114,7 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
                                     const selectedCodeTraitement = allOptions.codeTraitements?.find(code => `${code.value.code} - ${code.value.nom}` === e.target.value);
                                     handleFieldChange(index, 'codeTraitement', selectedCodeTraitement || null);
                                   }}
+                                  onFocus={() => setAutocompletionEnabled(false)}
                                   enableText={true}
                                   stylePrimary={true}
                                 />
