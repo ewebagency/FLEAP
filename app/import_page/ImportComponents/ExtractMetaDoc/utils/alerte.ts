@@ -48,6 +48,8 @@ interface VerificationResult {
     missingFields: {
         site_raw?: boolean;
         presta_raw?: boolean;
+        nom_prestataire_2?: boolean;  // V2
+        sites_facture: string[];  // V2: sites par déchet (factures)
         dechets: string[];
         operations: string[];
         unites: string[];
@@ -56,6 +58,8 @@ interface VerificationResult {
     details: {
         site_raw?: { value: string; hasMapping: boolean };
         presta_raw?: { value: string; hasMapping: boolean };
+        nom_prestataire_2?: { value: string; hasMapping: boolean };  // V2
+        sites_facture?: Array<{ value: string; hasMapping: boolean }>;  // V2: sites par déchet (factures)
         dechets?: Array<{ value: string; hasMapping: boolean }>;
         operations?: Array<{ value: string; hasMapping: boolean }>;
         unites?: Array<{ value: string; hasMapping: boolean }>;
@@ -330,11 +334,16 @@ export const verifierTraductionsPDF = async (
         const prestaRawValue = infosRaw.presta_raw;
         const prestaRawHasMapping = prestaRawValue ? hasMapping(prestaRawValue, paramsMapping.params_mapping_presta) : true;
 
+        // V2: Vérifier nom_prestataire_2
+        const nomPrestataire2Value = (infosRaw as { nom_prestataire_2?: string }).nom_prestataire_2;
+        const nomPrestataire2HasMapping = nomPrestataire2Value ? hasMapping(nomPrestataire2Value, paramsMapping.params_mapping_presta) : true;
+
         // Vérifier les déchets, opérations, unités et contenants
         const dechets: Array<{ value: string; hasMapping: boolean }> = [];
         const operations: Array<{ value: string; hasMapping: boolean }> = [];
         const unites: Array<{ value: string; hasMapping: boolean }> = [];
         const contenants: Array<{ value: string; hasMapping: boolean }> = [];
+        const sites_facture: Array<{ value: string; hasMapping: boolean }> = [];  // V2: sites par déchet (factures)
 
         if (infosRaw.dechet && Array.isArray(infosRaw.dechet)) {
             infosRaw.dechet.forEach(dechet => {
@@ -343,6 +352,14 @@ export const verifierTraductionsPDF = async (
                     const hasDechetMapping = hasMapping(dechet.nom, paramsMapping.params_mapping_nom_dechet);
                     dechets.push({ value: dechet.nom, hasMapping: hasDechetMapping });
                 }*/
+
+                // V2: Vérifier nom_site pour les factures (site par déchet)
+                const typeDoc = (infosRaw as { type_doc?: string }).type_doc;
+                if (typeDoc === 'facture' && (dechet as { nom_site?: string }).nom_site) {
+                    const nomSiteValue = (dechet as { nom_site: string }).nom_site;
+                    const hasNomSiteMapping = hasMapping(nomSiteValue, paramsMapping.params_mapping_site);
+                    sites_facture.push({ value: nomSiteValue, hasMapping: hasNomSiteMapping });
+                }
 
                 // Vérifier contenant
                 if (dechet.contenant) {
@@ -371,6 +388,8 @@ export const verifierTraductionsPDF = async (
         const missingFields = {
             site_raw: siteRawValue ? !siteRawHasMapping : false,
             presta_raw: prestaRawValue ? !prestaRawHasMapping : false,
+            nom_prestataire_2: nomPrestataire2Value ? !nomPrestataire2HasMapping : false,  // V2
+            sites_facture: sites_facture.filter(s => !s.hasMapping).map(s => s.value),  // V2
             dechets: dechets.filter(d => !d.hasMapping).map(d => d.value),
             operations: operations.filter(o => !o.hasMapping).map(o => o.value),
             unites: unites.filter(u => !u.hasMapping).map(u => u.value),
@@ -381,6 +400,8 @@ export const verifierTraductionsPDF = async (
         const hasTranslation = 
             siteRawHasMapping && 
             prestaRawHasMapping && 
+            nomPrestataire2HasMapping &&  // V2
+            sites_facture.every(s => s.hasMapping) &&  // V2
             dechets.every(d => d.hasMapping) &&
             operations.every(o => o.hasMapping) &&
             unites.every(u => u.hasMapping) &&
@@ -392,6 +413,8 @@ export const verifierTraductionsPDF = async (
             details: {
                 site_raw: siteRawValue ? { value: siteRawValue, hasMapping: siteRawHasMapping } : undefined,
                 presta_raw: prestaRawValue ? { value: prestaRawValue, hasMapping: prestaRawHasMapping } : undefined,
+                nom_prestataire_2: nomPrestataire2Value ? { value: nomPrestataire2Value, hasMapping: nomPrestataire2HasMapping } : undefined,  // V2
+                sites_facture: sites_facture.length > 0 ? sites_facture : undefined,  // V2
                 dechets: dechets.length > 0 ? dechets : undefined,
                 operations: operations.length > 0 ? operations : undefined,
                 unites: unites.length > 0 ? unites : undefined,

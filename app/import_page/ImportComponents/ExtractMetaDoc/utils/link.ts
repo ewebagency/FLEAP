@@ -1,7 +1,7 @@
 import { PdfInfo } from '../interface/pdf_interface';
 import { getParamsMappingByEntreprise, getBSDCandidates } from './bdd';
 import { supabase } from '@/app/database/supabaseClient';
-import { link_in_bdd, create_in_bdd } from './link_or_create_bdd';
+import { link_in_bdd, create_in_bdd, translateByMapping } from './link_or_create_bdd';
 // import { RowBSD } from '@/app/register/interface/BSD_Interface';
 
 // Types pour la logique de liaison
@@ -240,7 +240,10 @@ export const normalizePdfData = (
         normalized.num_bon = (dechet.num_bon as string) || '';
         normalized.num_bsd = (dechet.num_bsd as string) || '';
         normalized.tonnage = (dechet.tonnage as string) || '';
-        normalized.site = (rawData.site_raw as string) || '';
+        
+        // V2: Pour les factures, utiliser nom_site du déchet (sinon site_raw racine)
+        normalized.site = (dechet.nom_site as string) || (rawData.site_raw as string) || '';
+        
         normalized.prestataire = (rawData.presta_raw as string) || '';
         normalized.destinataire = (rawData.presta_raw as string) || ''; // Pour les factures aussi
         normalized.transporteur = (rawData.presta_raw as string) || '';
@@ -861,6 +864,10 @@ export interface FactureLineBodyItem {
     montant_ht: number;
     prix_unitaire: number;
     type_operation: string;
+    // V2 fields
+    tva_percent?: number;
+    avoir?: boolean;
+    declassement?: boolean;
 }
 
 export interface FactureLineHeader {
@@ -877,6 +884,9 @@ export interface FactureLineHeader {
     site_num_affaire: string;
     dechet_description: string;
     contenant?: string;
+    rep?: boolean;  // V2: flag REP
+    volume_m3?: string;  // V2: volume en m3
+    nombre_colis?: string;  // V2: nombre de colis
 }
 
 export interface FactureDepart {
@@ -887,6 +897,7 @@ export interface FactureDepart {
 export interface FactureJson {
     footer: {
         total_ht: number;
+        total_ttc?: number;  // V2
     };
     header: {
         num_facture: string;
@@ -895,6 +906,12 @@ export interface FactureJson {
         prestataire_siret: string;
         prestataire_num_client: string;
         prestataire_description: string;
+        // V2 fields
+        date_debut?: string;
+        num_contrat?: string;
+        num_compte?: string;
+        num_client?: string;
+        type_facture?: string;
     };
     departs: FactureDepart[];
 }
@@ -920,37 +937,69 @@ export const buildFactureFromNormalized = (
     params_mapping: ParamsMapping
 ): FactureJson => {
     const date = normalized.date || '';
-    const site = normalized.site || '';
     const ced = normalized.ced || '';
     const waste = normalized.waste_name || '';
     const prestataire = normalized.prestataire || '';
     const num_bon = normalized.num_bon || '';
 
-    // Extraire les données de facture depuis pdf_infos.infos_raw.dechet[dechetIndex].facture
+    // V2: Extraire les données de facture depuis pdf_infos.infos_raw.dechet[dechetIndex]
     const dechets = Array.isArray(pdf_infos.dechet) ? pdf_infos.dechet : [];
     const dechet = dechets[dechetIndex] as Record<string, unknown> | undefined;
+    
+    // V2: Utiliser nom_site depuis le déchet (après affiliation)
+    const site = (dechet?.nom_site as string) || normalized.site || '';
+    const flag_rep = (dechet?.flag_rep as string) === 'true';
+    
     const factureData = dechet?.facture as Record<string, unknown> | undefined;
     const factureLignes = Array.isArray(factureData?.ligne) ? factureData.ligne : [];
 
-    // Extraire num_facture depuis pdf_infos.infos_raw
+    // Extraire num_facture et champs V2 depuis pdf_infos
     const num_facture = (pdf_infos.num_facture as string) || '';
+    const date_fin_periode = (pdf_infos.date_fin_periode as string) || date;
+    const date_debut_periode = (pdf_infos.date_debut_periode as string) || '';
+    const num_contrat = (pdf_infos.num_contrat as string) || '';
+    const num_compte = (pdf_infos.num_compte as string) || '';
+    const num_client = (pdf_infos.num_client as string) || '';
+    const type_facture = (pdf_infos.type_facture as string) || '';
+    const total_ttc = parseFloat((pdf_infos.total_ttc as string) || '0');
+    
+    // V2: Déterminer si c'est un avoir/rachat global
+    const isAvoirOrRachat = type_facture.toLowerCase().includes('avoir') || type_facture.toLowerCase().includes('rachat');
 
-    // Trouver les SIRET via les mappings
-    const siteSiret = findSiretFromMapping(site, params_mapping.params_mapping_site || {});
-    const prestataireSiret = findSiretFromMapping(prestataire, params_mapping.params_mapping_presta || {});
-
+    // Trouver les SIRET et noms traduits via les mappings
+    const siteTranslated = translateByMapping(site, params_mapping.params_mapping_site || {});
+    const siteSiret = siteTranslated.siret || '';
+    const siteNormalized = siteTranslated.name || site;  // Nom traduit, fallback sur brut
+    
+    const prestaTranslated = translateByMapping(prestataire, params_mapping.params_mapping_presta || {});
+    const prestataireSiret = prestaTranslated.siret || '';
+    const prestataireNormalized = prestaTranslated.name || prestataire;  // Nom traduit, fallback sur brut
+    
     // Construire les line_body depuis les données de facture (avec mapping unite/operation)
     const line_body: FactureLineBodyItem[] = factureLignes.map((ligne: Record<string, unknown>) => {
         const uniteRaw = ((ligne.unite as string) || '').trim();
         const operationRaw = ((ligne.type_operation as string) || '').trim();
         
-        return {
+        const baseItem: FactureLineBodyItem = {
             unite: mapValueByParams(uniteRaw, params_mapping.params_mapping_unite),
             quantite: parseLocaleNumber((ligne.quantite as string) || '0'),
             montant_ht: parseLocaleNumber((ligne.montant_ht as string) || '0'),
             prix_unitaire: parseLocaleNumber((ligne.prix_unitaire as string) || '0'),
-            type_operation: mapValueByParams(operationRaw, params_mapping.params_mapping_operation)
+            type_operation: mapValueByParams(operationRaw, params_mapping.params_mapping_operation),
+            tva_percent: parseFloat((ligne.tva_pourcentage as string) || '0') || 0.2  // V2: défaut 0.2 (20%)
         };
+        
+        // V2: Si type_facture contient "avoir" ou "rachat", forcer avoir à true pour toutes les lignes
+        if (isAvoirOrRachat || (ligne.avoir as string) === 'true') {
+            baseItem.avoir = true;
+        }
+        
+        // V2: Ajouter declassement conditionnellement
+        if ((ligne.declassement as string) === 'true') {
+            baseItem.declassement = true;
+        }
+        
+        return baseItem;
     });
 
     // Calculer le total HT
@@ -960,7 +1009,7 @@ export const buildFactureFromNormalized = (
         line_body,
         line_header: {
             filiere: '',
-            site_nom: site,
+            site_nom: siteNormalized,  // V2: Nom traduit (après mapping)
             bon_pesee: num_bon,
             site_siret: siteSiret,
             code_dechet: formatCedForDisplay(ced),
@@ -968,27 +1017,37 @@ export const buildFactureFromNormalized = (
             num_dossier: '',
             type_dechet: waste,
             bon_intention: '',
-            site_description: site,
+            site_description: siteNormalized,  // V2: Nom traduit (après mapping)
             site_num_affaire: '',
             dechet_description: waste,
             contenant : mapValueByParams(
                 (((pdf_infos as { dechet?: Array<{ contenant?: string }> }).dechet?.[dechetIndex]?.contenant as string) || '').trim(),
                 params_mapping.params_mapping_contenant
-            )
+            ),
+            rep: flag_rep,  // V2: flag REP
+            volume_m3: (dechet?.volume_m3 as string) || undefined,  // V2: volume
+            nombre_colis: (dechet?.nombre_colis as string) || undefined  // V2: nombre de colis
         }
     };
 
     return {
         footer: {
-            total_ht
+            total_ht,
+            total_ttc: total_ttc || undefined  // V2: ne pas inclure si 0
         },
         header: {
             num_facture,
-            date_facture: date,
-            prestataire_nom: prestataire,
+            date_facture: date_fin_periode,  // V2: utiliser date_fin_periode
+            prestataire_nom: prestataireNormalized,  // V2: Nom traduit (après mapping)
             prestataire_siret: prestataireSiret,
             prestataire_num_client: '',
-            prestataire_description: ''
+            prestataire_description: '',
+            // V2: Nouveaux champs
+            date_debut: date_debut_periode || undefined,
+            num_contrat: num_contrat || undefined,
+            num_compte: num_compte || undefined,
+            num_client: num_client || undefined,
+            type_facture: type_facture || undefined
         },
         departs: [depart]
     };

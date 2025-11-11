@@ -4,6 +4,8 @@ export interface Operation {
     montant_ht: number;
     prix_unitaire: number;
     type_operation: string;
+    avoir?: boolean;  // V2: Indique si c'est un avoir (revenu)
+    declassement?: boolean;  // V2: Indique si c'est un déclassement
 }
 
 export interface DepartLineHeader {

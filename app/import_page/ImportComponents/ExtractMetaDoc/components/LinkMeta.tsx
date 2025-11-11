@@ -37,6 +37,8 @@ type DechetItem = {
 	contenant?: string;
 	volume_m3?: string;
 	declassement?: boolean;
+	nom_site?: string;
+	adresse_site?: string;
 };
 
 const isDateInRange = (date1: string, date2: string, ecartDays: number): boolean => {
@@ -460,8 +462,14 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	const applyFilters = (index: number, rawList: BSDCandidate[], d: DechetItem, overrideDays?: number): BSDCandidate[] => {
 		const active = filtersByIndex[index] || { site: false, presta: false, numBon: false, numBsd: false, ced: false, wasteName: false, date: false };
 		
-		// Calculer les traductions pour ce déchet spécifique (utiliser les valeurs globales du PDF)
-		const siteTranslated = translateByMapping(rawSite, mappings?.params_mapping_site || {});
+		// V2: Pour les factures, utiliser nom_site du déchet (sinon rawSite global)
+		const docType = (pdfInfo?.infos_raw as Record<string, unknown> | undefined)?.type_doc as string | undefined;
+		const siteForThisDechet = (docType === 'facture' && d.nom_site) 
+			? d.nom_site 
+			: rawSite;
+		
+		// Calculer les traductions pour ce déchet spécifique
+		const siteTranslated = translateByMapping(siteForThisDechet, mappings?.params_mapping_site || {});
 		const prestaTranslated = translateByMapping(rawPresta, mappings?.params_mapping_presta || {});
 		const translatedForThisDechet = { site: siteTranslated, presta: prestaTranslated };
 		
@@ -531,8 +539,14 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		const newFilters = { ...current, [key]: newValue };
 		const currentDays = daysByIndex[index] ?? LINK_RULES_DEFAULT.looseDays;
 		
-		// Calculer les traductions pour ce déchet spécifique (utiliser les valeurs globales du PDF)
-		const siteTranslated = translateByMapping(rawSite, mappings?.params_mapping_site || {});
+		// V2: Pour les factures, utiliser nom_site du déchet
+		const docType = (pdfInfo?.infos_raw as Record<string, unknown> | undefined)?.type_doc as string | undefined;
+		const siteForThisDechet = (docType === 'facture' && d.nom_site) 
+			? d.nom_site 
+			: rawSite;
+		
+		// Calculer les traductions pour ce déchet spécifique
+		const siteTranslated = translateByMapping(siteForThisDechet, mappings?.params_mapping_site || {});
 		const prestaTranslated = translateByMapping(rawPresta, mappings?.params_mapping_presta || {});
 		const translatedForThisDechet = { site: siteTranslated, presta: prestaTranslated };
 		
@@ -598,8 +612,14 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		const rawList = rawCandidatesByIndex[index] || [];
 		const currentFilters = filtersByIndex[index] || { site: true, presta: true, numBon: true, numBsd: true, ced: true, wasteName: true, date: true };
 		
-		// Calculer les traductions pour ce déchet spécifique (utiliser les valeurs globales du PDF)
-		const siteTranslated = translateByMapping(rawSite, mappings?.params_mapping_site || {});
+		// V2: Pour les factures, utiliser nom_site du déchet
+		const docType = (pdfInfo?.infos_raw as Record<string, unknown> | undefined)?.type_doc as string | undefined;
+		const siteForThisDechet = (docType === 'facture' && d.nom_site) 
+			? d.nom_site 
+			: rawSite;
+		
+		// Calculer les traductions pour ce déchet spécifique
+		const siteTranslated = translateByMapping(siteForThisDechet, mappings?.params_mapping_site || {});
 		const prestaTranslated = translateByMapping(rawPresta, mappings?.params_mapping_presta || {});
 		const translatedForThisDechet = { site: siteTranslated, presta: prestaTranslated };
 		
@@ -832,21 +852,30 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 					const date = d?.date || '';
 					const num_bon = d?.num_bon || '';
 					const num_bsd = d?.num_bsd || '';
-					const proposeResult = proposeActionResults[idx];
-					const cands = candidatesByIndex[idx] || [];
-					const dechetStatus = getDechetStatus(idx);
-					return (
-						<div key={idx} className="border-b">
-							{/* Row principale en grille */}
-							<div className={`grid grid-cols-[36px_52px_1.3fr_1.1fr_1.1fr_1fr_90px_100px_1fr_1fr_140px] items-center gap-2 px-3 py-2 hover:bg-blue-200 ${openIndex === idx ? 'bg-blue-100 ring-1 ring-blue-300' : 'bg-white'}`}>
-								<button onClick={() => openForIndex(idx)} className="text-gray-500 hover:text-gray-700 text-xs px-1 py-0.5 rounded hover:bg-gray-100" aria-label="toggle">
-									{openIndex === idx ? '▾' : '▸'}
-								</button>
-								<div className="text-xs font-semibold text-gray-700">{idx + 1}</div>
-								<div className="truncate text-[12px] text-gray-800">{nom}</div>
-								<div className="truncate text-[12px] text-gray-700">{/* Transporteur (inconnu côté PDF) */}</div>
-								<div className={`truncate text-[12px] ${prestaTranslatedOk ? 'bg-amber-50 text-amber-800 px-1 py-0.5 rounded' : 'text-gray-700'}`}>{translated.presta.name}</div>
-								<div className={`truncate text-[12px] ${siteTranslatedOk ? 'bg-amber-50 text-amber-800 px-1 py-0.5 rounded' : 'text-gray-700'}`}>{translated.site.name}</div>
+				const proposeResult = proposeActionResults[idx];
+				const cands = candidatesByIndex[idx] || [];
+				const dechetStatus = getDechetStatus(idx);
+				
+				// V2: Calculer le site spécifique pour ce déchet (factures)
+				const docType = (pdfInfo?.infos_raw as Record<string, unknown> | undefined)?.type_doc as string | undefined;
+				const siteForThisDechet = (docType === 'facture' && d.nom_site) 
+					? d.nom_site 
+					: rawSite;
+				const siteTranslatedForDechet = mappings ? translateByMapping(siteForThisDechet, mappings.params_mapping_site || {}) : { name: siteForThisDechet, siret: '' };
+				const siteTranslatedOkForDechet = !!(siteTranslatedForDechet?.siret && siteTranslatedForDechet.siret.trim() !== '');
+				
+				return (
+					<div key={idx} className="border-b">
+						{/* Row principale en grille */}
+						<div className={`grid grid-cols-[36px_52px_1.3fr_1.1fr_1.1fr_1fr_90px_100px_1fr_1fr_140px] items-center gap-2 px-3 py-2 hover:bg-blue-200 ${openIndex === idx ? 'bg-blue-100 ring-1 ring-blue-300' : 'bg-white'}`}>
+							<button onClick={() => openForIndex(idx)} className="text-gray-500 hover:text-gray-700 text-xs px-1 py-0.5 rounded hover:bg-gray-100" aria-label="toggle">
+								{openIndex === idx ? '▾' : '▸'}
+							</button>
+							<div className="text-xs font-semibold text-gray-700">{idx + 1}</div>
+							<div className="truncate text-[12px] text-gray-800">{nom}</div>
+							<div className="truncate text-[12px] text-gray-700">{/* Transporteur (inconnu côté PDF) */}</div>
+							<div className={`truncate text-[12px] ${prestaTranslatedOk ? 'bg-amber-50 text-amber-800 px-1 py-0.5 rounded' : 'text-gray-700'}`}>{translated.presta.name}</div>
+							<div className={`truncate text-[12px] ${siteTranslatedOkForDechet ? 'bg-amber-50 text-amber-800 px-1 py-0.5 rounded' : 'text-gray-700'}`}>{siteTranslatedForDechet.name}</div>
 								<div className="text-[12px] text-gray-800">{ced}</div>
 								<div className="text-[12px] text-gray-800">{date ? new Date(date).toLocaleDateString('fr-FR') : ''}</div>
 								<div className="text-[12px] text-gray-800">{num_bon}</div>

@@ -1,4 +1,3 @@
-from new.new_structure import reverse_structure
 from new.new_extract_raw import get_raw_text_from_pdf
 from fastapi import UploadFile
 import json
@@ -28,6 +27,17 @@ async def process_document_for_rag(
     
     try:
         print(f"🔄 Début du traitement RAG pour PDF {pdf_id}")
+        
+        # Importer reverse_structure selon la version V2 depuis main
+        try:
+            from main import V2
+        except ImportError:
+            V2 = False
+        
+        if V2:
+            from new.new_structure_v2 import reverse_structure
+        else:
+            from new.new_structure import reverse_structure
         
         # 1. Reconstruire gemini_data avec reverse_structure
         print("📋 Reconstruction des données Gemini...")

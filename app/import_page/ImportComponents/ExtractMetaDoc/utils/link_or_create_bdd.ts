@@ -319,9 +319,46 @@ export const create_in_bdd = async (
         contenant?: string;
         volume_m3?: string;
         facture?: { ligne?: FactureLigne[] };
+        // V2 fields
+        consistance?: string;
+        nombre_colis?: string;
+        nom_contenant?: string;
+        flag_rep?: string;
+        nom_site?: string;
+        adresse_site?: string;
     };
-    type AddPrestaRaw = { fax?: string; tel?: string; mail?: string; type?: string; adresse?: string; infos_transporteur?: { routier?: string; recepisse?: string; departement?: string; limite_validite?: string } };
-    type PdfInfosRaw = { dechet?: DechetItem[]; site_raw?: string; presta_raw?: string; type_doc?: string; num_facture?: string; conformite?: Record<string, unknown>; add_presta_raw?: AddPrestaRaw };
+    type AddPrestaRaw = { 
+        fax?: string; 
+        tel?: string; 
+        mail?: string; 
+        type?: string; 
+        adresse?: string; 
+        nom?: string;
+        infos_transporteur?: { 
+            routier?: string; 
+            recepisse?: string; 
+            departement?: string; 
+            limite_validite?: string;
+            multimodal?: string;
+        } 
+    };
+    type PdfInfosRaw = { 
+        dechet?: DechetItem[]; 
+        site_raw?: string; 
+        adresse_site?: string;
+        presta_raw?: string; 
+        type_doc?: string; 
+        num_facture?: string; 
+        conformite?: Record<string, unknown>; 
+        add_presta_raw?: AddPrestaRaw;
+        // V2 fields
+        type_emetteur?: string;
+        type_bon?: string;
+        immatriculation?: string;
+        recepisse?: string;
+        nom_prestataire_2?: string;
+        role_prestataire_2?: 'transporteur' | 'destinataire';
+    };
 
     const infos = (pdfInfo as PdfInfo).infos_raw as unknown as PdfInfosRaw;
     if (!infos || !Array.isArray(infos.dechet) || infos.dechet.length <= indexDechet) {
@@ -330,7 +367,9 @@ export const create_in_bdd = async (
 
     const dechet = infos.dechet[indexDechet] as DechetItem;
     const tonnage = parseFloat(String(dechet.tonnage?.replace(',', '.'))) || 0;
-    const rawSite: string = infos.site_raw || '';
+    
+    // V2: Pour les factures, utiliser nom_site du déchet (sinon site_raw racine)
+    const rawSite: string = dechet.nom_site || infos.site_raw || '';
     const rawPresta: string = infos.presta_raw || '';
 
     // Traductions
@@ -368,17 +407,177 @@ export const create_in_bdd = async (
         validityVal ? `valid:${validityVal}` : ''
     ].filter(Boolean).join(' | ');
 
+    // V2: Récupérer l'adresse du site depuis table_autocompletion si nécessaire
+    let siteAddress = infos.adresse_site || '';
+    if (!siteAddress && siteTranslated.siret) {
+        try {
+            const { data: autocompletionData } = await supabase
+                .from('table_autocompletion')
+                .select('site')
+                .eq('entreprise_id', entrepriseId);
+            
+            if (autocompletionData) {
+                for (const row of autocompletionData) {
+                    const site = row.site as { siret?: string; pointsCollecte?: Array<{ address?: string }> } | undefined;
+                    if (site?.siret?.replace(/\s/g, '') === siteTranslated.siret?.replace(/\s/g, '')) {
+                        siteAddress = site.pointsCollecte?.[0]?.address || '';
+                        break;
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('[create_in_bdd] Erreur lors de la récupération de l\'adresse site:', error);
+        }
+    }
+
+    // V2: Gérer le prestataire 2 si présent
+    const nom_prestataire_2 = infos.nom_prestataire_2 || '';
+    const role_prestataire_2 = infos.role_prestataire_2 || null;
+    let presta2Translated: {name: string, siret: string} | null = null;
+    let main_presta_siret = '';
+    
+    if (nom_prestataire_2 && role_prestataire_2) {
+        // Traduire le prestataire 2
+        presta2Translated = translateByMapping(nom_prestataire_2, mappings.params_mapping_presta || {});
+        main_presta_siret = prestaTranslated.siret; // Le presta 1 devient le main_presta
+    }
+
+    // V2: Champs spécifiques BON
+    const type_bon = infos.type_bon || '';
+    const immatriculation = infos.immatriculation || '';
+    const recepisse_v2 = infos.recepisse || ''; // V2 BON prioritaire
+    const type_emetteur = infos.type_emetteur || '';
+    
+    // V2: Champs déchet
+    const consistance = dechet.consistance || 'SOLIDE';
+    const nombre_colis = dechet.nombre_colis ? parseInt(dechet.nombre_colis) : 1;
+    const nom_contenant = dechet.nom_contenant || dechet.contenant || '';
+    const flag_rep = dechet.flag_rep === 'true';
+
+    // V2: Récupérer les données négociant
+    type NegociantRaw = {
+        type?: string;
+        nom?: string;
+        adresse?: string;
+        siren?: string;
+        recepisse?: string;
+        departement?: string;
+        validite?: string;
+    };
+    const negociant = (infos as unknown as { negociant_raw?: NegociantRaw }).negociant_raw;
+    
+    // V2: Récupérer les données exutoire
+    type ExutoireRaw = {
+        entreposage?: string;
+        lot_accepte?: string;
+        motif_refus?: string;
+    };
+    const exutoire = (infos as unknown as { exutoire?: ExutoireRaw }).exutoire;
+
     // Construction du payload minimal BSD
+    const createFormInput: Record<string, unknown> = {
+        emitter: { 
+            company: { 
+                name: siteTranslated.name, 
+                siret: siteTranslated.siret,
+                address: siteAddress  // V2: Adresse du site
+            } 
+        },
+        recipient: (() => {
+            const recipientBase: Record<string, unknown> = presta2Translated && role_prestataire_2 
+                ? {  // CAS 2 PRESTATAIRES
+                    company: { 
+                        name: role_prestataire_2 === 'destinataire' ? presta2Translated.name : prestaTranslated.name, 
+                        siret: role_prestataire_2 === 'destinataire' ? presta2Translated.siret : prestaTranslated.siret 
+                    }, 
+                    processingOperation: processingOperationDR, 
+                    cap: pdf_type === 'bsd' ? capVal : '' 
+                }
+                : {  // CAS 1 PRESTATAIRE (existant)
+                    company: { 
+                        name: prestaRole === 'destinataire' || !prestaRole ? prestaTranslated.name : '', 
+                        siret: prestaRole === 'destinataire' || !prestaRole ? prestaTranslated.siret : '' 
+                    }, 
+                    processingOperation: processingOperationDR, 
+                    cap: pdf_type === 'bsd' ? capVal : '' 
+                };
+            
+            // V2: Ajouter les champs exutoire si disponibles
+            if (exutoire?.entreposage) {
+                recipientBase.isTempStorage = exutoire.entreposage === 'true';
+            }
+            if (exutoire?.lot_accepte) {
+                recipientBase.acceptationStatus = exutoire.lot_accepte === 'true' ? 'ACCEPTED' : 'REFUSED';
+            }
+            if (exutoire?.motif_refus) {
+                recipientBase.refusalReason = exutoire.motif_refus;
+            }
+            
+            return recipientBase;
+        })(),
+        transporter: presta2Translated && role_prestataire_2
+            ? {  // CAS 2 PRESTATAIRES
+                company: { 
+                    name: role_prestataire_2 === 'transporteur' ? presta2Translated.name : prestaTranslated.name, 
+                    siret: role_prestataire_2 === 'transporteur' ? presta2Translated.siret : prestaTranslated.siret, 
+                    address: transporterAddress, 
+                    phone: transporterPhone, 
+                    mail: transporterMail 
+                }, 
+                isExemptedOfReceipt: false, 
+                receipt: recepisse_v2 || receiptVal,  // V2 BON prioritaire
+                numberPlate: immatriculation,  // V2 BON uniquement
+                customInfo: transporterCustomInfo 
+            }
+            : {  // CAS 1 PRESTATAIRE (existant)
+                company: { 
+                    name: prestaRole === 'transporteur' ? prestaTranslated.name : '', 
+                    siret: prestaRole === 'transporteur' ? prestaTranslated.siret : '', 
+                    address: transporterAddress, 
+                    phone: transporterPhone, 
+                    mail: transporterMail 
+                }, 
+                isExemptedOfReceipt: false, 
+                receipt: recepisse_v2 || receiptVal,  // V2 BON prioritaire
+                numberPlate: immatriculation,  // V2 BON uniquement
+                customInfo: transporterCustomInfo 
+            },
+        wasteDetails: { 
+            code: wasteCode, 
+            name: wasteName, 
+            quantity: tonnage, 
+            quantityType: 'REAL', 
+            consistence: consistance,  // V2: dynamique
+            isSubjectToADR: false, 
+            onuCode: '', 
+            packagingInfos: [{ 
+                type: 'AUTRE', 
+                quantity: nombre_colis,  // V2: dynamique
+                other: nom_contenant  // V2: prioriser nom_contenant
+            }], 
+            pop: false, 
+            isDangerous: wasteCode.includes('*') 
+        },
+        takenOverAt: takenOverAt
+    };
+    
+    // V2: Ajouter trader (négociant) si les données existent
+    if (negociant && (negociant.nom || negociant.siren)) {
+        createFormInput.trader = {
+            company: {
+                name: negociant.nom || '',
+                siret: negociant.siren || '',
+                address: negociant.adresse || '',
+                phone: '',
+                mail: ''
+            },
+            receipt: negociant.recepisse || ''
+        };
+    }
+    
     const infos_json = {
         formAPI: {
-            createFormInput: {
-                emitter: { company: { name: siteTranslated.name, siret: siteTranslated.siret } },
-                recipient: { company: { name: prestaRole === 'destinataire' || !prestaRole ? prestaTranslated.name : '', siret: prestaRole === 'destinataire' || !prestaRole ? prestaTranslated.siret : '' }, processingOperation: processingOperationDR, cap: pdf_type === 'bsd' ? capVal : '' },
-                transporter: { company: { name: prestaRole === 'transporteur' ? prestaTranslated.name : '', siret: prestaRole === 'transporteur' ? prestaTranslated.siret : '', address: transporterAddress, phone: transporterPhone, mail: transporterMail }, isExemptedOfReceipt: false, receipt: pdf_type === 'bsd' ? receiptVal : '', customInfo: transporterCustomInfo },
-                wasteDetails: { code: wasteCode, name: wasteName, quantity: tonnage, quantityType: 'REAL', consistence: 'SOLIDE', 
-                    isSubjectToADR: false, onuCode: '', packagingInfos: [{ type: 'AUTRE', quantity: 1, other: dechet.contenant || '' }], pop: false, isDangerous: wasteCode.includes('*') },
-                takenOverAt: takenOverAt
-            }
+            createFormInput
         }
     };
 
@@ -397,6 +596,10 @@ export const create_in_bdd = async (
         filiere?: string;
         mentionAdr?: string;
         comments?: string;
+        type_emetteur?: string;  // V2
+        type_bon?: string;  // V2 BON
+        rep?: { sent_to_rep: boolean };  // V2 BON
+        main_presta_siret?: string;  // V2 si 2 prestataires
     } = {
         numeroBon: num_bon || "",
         numeroFacture: infos.num_facture || "",
@@ -408,6 +611,20 @@ export const create_in_bdd = async (
             ? (infos.conformite as Record<string, string>).ADR
             : "",
     };
+
+    // V2: Ajouter les champs conditionnels
+    if (type_emetteur) {
+        other_infos.type_emetteur = type_emetteur;
+    }
+    if (type_bon) {
+        other_infos.type_bon = type_bon;
+    }
+    if (flag_rep) {
+        other_infos.rep = { sent_to_rep: true };
+    }
+    if (main_presta_siret) {
+        other_infos.main_presta_siret = main_presta_siret;
+    }
 
     // Suppression de la logique d'ajout des lignes de facture en commentaire
 

@@ -16,7 +16,7 @@ export const MAPPING_CONFIGS: MappingTypeConfig[] = [
     {
         key: 'params_mapping_site',
         label: 'Sites',
-        description: 'Associer les sites bruts aux sites métas',
+        description: 'Associer les sites bruts aux sites métas (incluant nom_site dans factures)',
         rawField: 'site_raw',
         rawFieldType: 'simple',
         metaSource: 'autocompletion',
@@ -26,7 +26,7 @@ export const MAPPING_CONFIGS: MappingTypeConfig[] = [
     {
         key: 'params_mapping_presta',
         label: 'Prestataires',
-        description: 'Associer les prestataires bruts aux prestataires métas (transporteurs et destinataires)',
+        description: 'Associer les prestataires bruts aux prestataires métas (transporteurs et destinataires, incluant prestataire 2)',
         rawField: 'presta_raw',
         rawFieldType: 'simple',
         metaSource: 'autocompletion',

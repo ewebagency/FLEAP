@@ -17,11 +17,13 @@ interface PrestaInfosAdd {
     tel: string;
     mail: string;
     fax: string;
+    nom?: string; // V2
     infos_transporteur?: {
         recepisse: string;
         departement: string;
         limite_validite: string;
         routier: string;
+        multimodal?: string; // V2
     };
 }
 
@@ -32,18 +34,22 @@ interface DechetMetaInterface {
     ced: string;
     d_r?: string;
     tour?: string;
+    // NOUVEAUX CHAMPS V2
+    consistance?: string; // BSD
 }
 
 interface FactureInterface {
     ligne: {
-        type_operation: string; // Changé de "type_presta" à "type_operation" pour correspondre au JSON
-        quantite: string; // Changé de number à string pour correspondre au JSON
+        type_operation: string;
+        quantite: string;
         unite: string;
-        prix_unitaire: string; // Changé de number à string pour correspondre au JSON
-        montant_ht: string; // Changé de number à string pour correspondre au JSON
-        tva_absolute: string | null; // Changé de number à string | null pour correspondre au JSON
+        prix_unitaire: string;
+        montant_ht: string;
+        // NOUVEAUX CHAMPS V2
+        tva_pourcentage?: string;
+        avoir?: string; // "true" | "false"
+        declassement?: string; // "true" | "false" - V2: déplacé de déchet vers ligne
     }[];
-    declassement?: string;
 }
 
 interface DocMetaInterface {
@@ -56,39 +62,91 @@ interface DocMetaInterface {
         add_presta2_raw?: PrestaInfosAdd
     ];
     dechet: DechetMetaInterface[];
+    // NOUVEAUX CHAMPS V2 - communs à tous les types
+    nom_prestataire_2?: string;
+    role_prestataire_2?: string; // "transporteur" | "destinataire"
 }
 
 interface DechetBonInterface extends DechetMetaInterface {
     num_bon: string;
+    // NOUVEAUX CHAMPS V2
+    nom_contenant?: string;
+    volume_m3?: string;
+    nombre_colis?: string;
+    flag_rep?: string; // "true" | "false"
 }
 
 interface DechetBsdInterface extends DechetMetaInterface {
-    num_bon: string; // Pour BSD, contient la valeur de num_bsd
-    num_bsd?: string; // Ajouté pour correspondre au JSON BSD
+    num_bon: string;
+    num_bsd?: string;
     contenant?: string;
     volume_m3?: string;
+    // NOUVEAUX CHAMPS V2
+    nombre_colis?: string;
+    flag_rep?: string; // "true" | "false"
 }
 
 interface DechetFactureInterface extends DechetBsdInterface {
-    num_bsd?: string; // Ajouté pour correspondre au JSON facture
+    num_bsd?: string;
     facture: FactureInterface;
+    // NOUVEAUX CHAMPS V2
+    nom_site?: string; // Site spécifique pour chaque collecte
+    adresse_site?: string; // Adresse du site
+    nombre_colis?: string;
+    flag_rep?: string; // "true" | "false" - V2
+}
+
+interface DocBonInterface extends DocMetaInterface {
+    type_doc: "bon";
+    dechet: DechetBonInterface[];
+    // NOUVEAUX CHAMPS V2
+    type_bon?: string; // Brut : "livraison", "transport", etc.
+    immatriculation?: string;
+    recepisse?: string;
+    adresse_site?: string;
 }
 
 interface DocBsdInterface extends DocMetaInterface {
     type_doc: "bsd";
-    num_bsd?: string; // Ajouté pour correspondre à Python
+    num_bsd?: string;
     conformite: {
         CAP: string;
         ADR: string;
     };
     dechet: DechetBsdInterface[];
+    // NOUVEAUX CHAMPS V2
+    adresse_site?: string; // V2: Adresse émetteur
+    type_emetteur?: string; // V2: Type émetteur
+    negociant_raw?: {
+        type: string;
+        nom: string;
+        adresse: string;
+        siren: string;
+        recepisse: string;
+        departement: string;
+        validite: string;
+    };
+    exutoire?: {
+        entreposage: string;
+        lot_accepte: string;
+        motif_refus: string;
+    };
 }
 
 interface DocFactureInterface extends DocMetaInterface {
     type_doc: "facture";
     num_facture: string;
-    num_bsd?: string; // Ajouté pour correspondre à Python
+    montant_total_ht: string; // V2
+    num_bsd?: string;
     dechet: DechetFactureInterface[];
+    // NOUVEAUX CHAMPS V2
+    type_facture?: string; // Brut : "Facture", "Avoir", "Rachat"
+    date_fin_periode?: string;
+    date_debut_periode?: string;
+    num_contrat?: string;
+    num_compte?: string;
+    num_client?: string;
+    total_ttc?: string;
 }
 
 interface DocInterface {
@@ -100,7 +158,11 @@ interface DocInterface {
     dechet: DechetMetaInterface[];
     conformite?: { CAP: string; ADR: string };
     num_facture?: string;
-    num_bsd?: string; // Ajouté pour correspondre à Python
+    montant_total_ht?: string; // V2 facture
+    num_bsd?: string;
+    // Champs V2 communs
+    nom_prestataire_2?: string;
+    role_prestataire_2?: string;
 }
 
 interface ExtractDocProps {
@@ -122,6 +184,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
     const [confidenceData, setConfidenceData] = useState<{brute?: number, spec?: number, handwritten?: [number, boolean]} | null>(null);
     const [alerteData, setAlerteData] = useState<{stop?: boolean, message?: string} | null>(null);
     const currentFormRef = useRef<Record<string, unknown> | null>(null);
+    const [showNegociant, setShowNegociant] = useState(false);
 
     // Clés de persistance
     const formStorageKey = `extractDoc:form:${String(pdf_id)}`;
@@ -447,7 +510,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                     return {
                         ...baseData,
                         type_doc: "facture",
-                        num_facture: ''
+                        num_facture: '',
+                        montant_total_ht: ''
                     } as DocInterface;
                 default:
                     return baseData as DocInterface;
@@ -497,17 +561,30 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
             // Ajouter les champs spécifiques selon le type
             if (documentType === "bon") {
                 (newDechet as { num_bon: string }).num_bon = '';
+                // Champs V2 BON
+                (newDechet as { nom_contenant: string }).nom_contenant = '';
+                (newDechet as { volume_m3: string }).volume_m3 = '';
+                (newDechet as { nombre_colis: string }).nombre_colis = '';
+                (newDechet as { flag_rep: string }).flag_rep = 'false';
             } else if (documentType === "bsd") {
                 (newDechet as { num_bon: string }).num_bon = '';
                 (newDechet as { contenant: string }).contenant = '';
                 (newDechet as { volume_m3: string }).volume_m3 = '';
+                // Champs V2 BSD
+                (newDechet as { nombre_colis: string }).nombre_colis = '';
+                (newDechet as { consistance: string }).consistance = '';
+                (newDechet as { flag_rep: string }).flag_rep = 'false';
             } else if (documentType === "facture") {
                 (newDechet as { num_bon: string }).num_bon = '';
                 (newDechet as { contenant: string }).contenant = '';
                 (newDechet as { volume_m3: string }).volume_m3 = '';
+                // Champs V2 FACTURE
+                (newDechet as { nom_site: string }).nom_site = '';
+                (newDechet as { adresse_site: string }).adresse_site = '';
+                (newDechet as { nombre_colis: string }).nombre_colis = '';
+                (newDechet as { flag_rep: string }).flag_rep = 'false';
                 (newDechet as { facture: FactureInterface }).facture = {
-                    ligne: [],
-                    declassement: ''
+                    ligne: []
                 };
             }
 
@@ -606,6 +683,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                         
                                                  {/* Champs spécifiques selon le type */}
                          {documentType === "bon" && (
+                             <>
                              <div>
                                  <label className="block text-xs font-medium text-gray-700 mb-1">Numéro bon</label>
                                  <input
@@ -615,9 +693,48 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                  />
                              </div>
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-700 mb-1">Contenant</label>
+                                     <input
+                                         type="text"
+                                         value={(dechet as DechetBonInterface).nom_contenant || ''}
+                                         onChange={(e) => handleDechetChange(index, 'nom_contenant', e.target.value)}
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                     />
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-700 mb-1">Volume (m³)</label>
+                                     <input
+                                         type="text"
+                                         value={(dechet as DechetBonInterface).volume_m3 || ''}
+                                         onChange={(e) => handleDechetChange(index, 'volume_m3', e.target.value)}
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                     />
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-700 mb-1">Nombre colis</label>
+                                     <input
+                                         type="text"
+                                         value={(dechet as DechetBonInterface).nombre_colis || ''}
+                                         onChange={(e) => handleDechetChange(index, 'nombre_colis', e.target.value)}
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                     />
+                                 </div>
+                                 <div>
+                                     <label className="flex items-center text-xs font-medium text-gray-700">
+                                         <input
+                                             type="checkbox"
+                                             checked={(dechet as DechetBonInterface).flag_rep === 'true'}
+                                             onChange={(e) => handleDechetChange(index, 'flag_rep', e.target.checked ? 'true' : 'false')}
+                                             className="mr-2"
+                                         />
+                                         Flag REP
+                                     </label>
+                                 </div>
+                             </>
                          )}
                          
-                         {(documentType === "bsd" || documentType === "facture") && (
+                         {documentType === "bsd" && (
                              <>
                                  <div>
                                      <label className="block text-xs font-medium text-gray-700 mb-1">Numéro bon</label>
@@ -628,7 +745,6 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                      />
                                  </div>
-                                 {(documentType === "bsd" || documentType === "facture") && (
                                      <div>
                                          <label className="block text-xs font-medium text-gray-700 mb-1">Numéro BSD</label>
                                          <input
@@ -638,7 +754,28 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                          />
                                      </div>
-                                 )}
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-700 mb-1">Consistance</label>
+                                     <select
+                                         value={(dechet as DechetBsdInterface).consistance || ''}
+                                         onChange={(e) => handleDechetChange(index, 'consistance', e.target.value)}
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                     >
+                                         <option value="">--</option>
+                                         <option value="solide">Solide</option>
+                                         <option value="liquide">Liquide</option>
+                                         <option value="gazeux">Gazeux</option>
+                                     </select>
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-700 mb-1">Nombre colis</label>
+                                     <input
+                                         type="text"
+                                         value={(dechet as DechetBsdInterface).nombre_colis || ''}
+                                         onChange={(e) => handleDechetChange(index, 'nombre_colis', e.target.value)}
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                     />
+                                 </div>
                                  <div>
                                      <label className="block text-xs font-medium text-gray-700 mb-1">Contenant</label>
                                      <input
@@ -657,24 +794,94 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                      />
                                  </div>
+                                <div className="flex items-center">
+                                    <label className="flex items-center text-xs font-medium text-gray-700">
+                                        <input
+                                            type="checkbox"
+                                            checked={(dechet as DechetBsdInterface).flag_rep === 'true'}
+                                            onChange={(e) => handleDechetChange(index, 'flag_rep', e.target.checked ? 'true' : 'false')}
+                                            className="mr-2"
+                                        />
+                                        Flag REP
+                                    </label>
+                                </div>
+                            </>
+                        )}
+                         
                                  {documentType === "facture" && (
+                             <>
                                      <div>
-                                         <label className="block text-xs font-medium text-gray-700 mb-1">Déclassement</label>
+                                     <label className="block text-xs font-medium text-gray-700 mb-1">Nom site</label>
                                          <input
                                              type="text"
-                                             value={(dechet as DechetFactureInterface).facture?.declassement || ''}
-                                             onChange={(e) => {
-                                                 const factureData = formData as DocFactureInterface;
-                                                 const updatedDechet = [...factureData.dechet];
-                                                 if (updatedDechet[index] && updatedDechet[index].facture) {
-                                                     updatedDechet[index].facture.declassement = e.target.value;
-                                                     handleInputChange('dechet', updatedDechet);
-                                                 }
-                                             }}
+                                         value={(dechet as DechetFactureInterface).nom_site || ''}
+                                         onChange={(e) => handleDechetChange(index, 'nom_site', e.target.value)}
                                              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                          />
+                                     <input
+                                         type="text"
+                                         value={(dechet as DechetFactureInterface).adresse_site || ''}
+                                         onChange={(e) => handleDechetChange(index, 'adresse_site', e.target.value)}
+                                         className="w-full px-2 py-0.5 text-[10px] border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 mt-1"
+                                         placeholder="Adresse du site"
+                                         />
                                      </div>
-                                 )}
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-700 mb-1">Numéro bon</label>
+                                     <input
+                                         type="text"
+                                         value={(dechet as DechetFactureInterface).num_bon || ''}
+                                         onChange={(e) => handleDechetChange(index, 'num_bon', e.target.value)}
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                     />
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-700 mb-1">Numéro BSD</label>
+                                     <input
+                                         type="text"
+                                         value={(dechet as DechetFactureInterface).num_bsd || ''}
+                                         onChange={(e) => handleDechetChange(index, 'num_bsd', e.target.value)}
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                     />
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-700 mb-1">Contenant</label>
+                                     <input
+                                         type="text"
+                                         value={(dechet as DechetFactureInterface).contenant || ''}
+                                         onChange={(e) => handleDechetChange(index, 'contenant', e.target.value)}
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                     />
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-700 mb-1">Volume (m³)</label>
+                                     <input
+                                         type="text"
+                                         value={(dechet as DechetFactureInterface).volume_m3 || ''}
+                                         onChange={(e) => handleDechetChange(index, 'volume_m3', e.target.value)}
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                     />
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-medium text-gray-700 mb-1">Nombre colis</label>
+                                     <input
+                                         type="text"
+                                         value={(dechet as DechetFactureInterface).nombre_colis || ''}
+                                         onChange={(e) => handleDechetChange(index, 'nombre_colis', e.target.value)}
+                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                     />
+                                 </div>
+                                <div>
+                                    <label className="flex items-center text-xs font-medium text-gray-700">
+                                        <input
+                                            type="checkbox"
+                                            checked={(dechet as DechetFactureInterface).flag_rep === 'true'}
+                                            onChange={(e) => handleDechetChange(index, 'flag_rep', e.target.checked ? 'true' : 'false')}
+                                            className="mr-2"
+                                        />
+                                        Flag REP
+                                    </label>
+                                </div>
                              </>
                          )}
                          
@@ -685,8 +892,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                  <div className="space-y-2">
                                      {(dechet as DechetFactureInterface).facture?.ligne?.map((ligne, ligneIndex) => (
                                          <div key={ligneIndex} className="bg-white p-2 rounded border">
-                                             <div className="grid grid-cols-7 gap-2">
-                                                 <div className="col-span-2">
+                                            <div className="flex gap-2 items-end">
+                                                 <div className="flex-[2]">
                                                      <label className="block text-xs font-medium text-gray-600 mb-1">Type opération</label>
                                                      <input
                                                          type="text"
@@ -704,7 +911,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
                                                      />
                                                  </div>
-                                                 <div>
+                                                 <div className="flex-1">
                                                      <label className="block text-xs font-medium text-gray-600 mb-1">Quantité</label>
                                                      <input
                                                          type="text"
@@ -722,7 +929,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
                                                      />
                                                  </div>
-                                                 <div>
+                                                 <div className="flex-1">
                                                      <label className="block text-xs font-medium text-gray-600 mb-1">Unité</label>
                                                      <input
                                                          type="text"
@@ -740,8 +947,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
                                                      />
                                                  </div>
-                                                 <div>
-                                                     <label className="block text-xs font-medium text-gray-600 mb-1">Prix Unitaire</label>
+                                                 <div className="flex-1">
+                                                     <label className="block text-xs font-medium text-gray-600 mb-1">PU</label>
                                                      <input
                                                          type="text"
                                                          value={ligne.prix_unitaire || ''}
@@ -758,8 +965,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
                                                      />
                                                  </div>
-                                                 <div>
-                                                     <label className="block text-xs font-medium text-gray-600 mb-1">Montant HT</label>
+                                                 <div className="flex-1">
+                                                     <label className="block text-xs font-medium text-gray-600 mb-1">Coût HT</label>
                                                      <input
                                                          type="text"
                                                          value={ligne.montant_ht || ''}
@@ -776,17 +983,18 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
                                                      />
                                                  </div>
-                                                 <div>
-                                                     <label className="block text-xs font-medium text-gray-600 mb-1">TVA</label>
+                                                {/* Champs V2 */}
+                                                 <div className="flex-1">
+                                                    <label className="block text-xs font-medium text-gray-600 mb-1">TVA %</label>
                                                      <input
                                                          type="text"
-                                                         value={ligne.tva_absolute || ''}
+                                                        value={ligne.tva_pourcentage || ''}
                                                          onChange={(e) => {
                                                              const factureData = formData as DocFactureInterface;
                                                              const updatedDechet = [...factureData.dechet];
                                                              if (updatedDechet[index] && updatedDechet[index].facture) {
                                                                  const updatedLignes = [...updatedDechet[index].facture.ligne];
-                                                                 updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], tva_absolute: e.target.value };
+                                                                updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], tva_pourcentage: e.target.value };
                                                                  updatedDechet[index].facture.ligne = updatedLignes;
                                                                  handleInputChange('dechet', updatedDechet);
                                                              }
@@ -794,6 +1002,63 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
                                                      />
                                                  </div>
+                                                <div className="w-14 flex flex-col items-center">
+                                                    <label className="block text-[10px] font-medium text-gray-600 mb-1 text-center">Avoir</label>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={ligne.avoir === 'true'}
+                                                        onChange={(e) => {
+                                                            const factureData = formData as DocFactureInterface;
+                                                            const updatedDechet = [...factureData.dechet];
+                                                            if (updatedDechet[index] && updatedDechet[index].facture) {
+                                                                const updatedLignes = [...updatedDechet[index].facture.ligne];
+                                                                updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], avoir: e.target.checked ? 'true' : 'false' };
+                                                                updatedDechet[index].facture.ligne = updatedLignes;
+                                                                handleInputChange('dechet', updatedDechet);
+                                                            }
+                                                        }}
+                                                        className="scale-90"
+                                                    />
+                                                </div>
+                                                <div className="w-14 flex flex-col items-center">
+                                                    <label className="block text-[10px] font-medium text-gray-600 mb-1 text-center">Décl.</label>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={ligne.declassement === 'true'}
+                                                        onChange={(e) => {
+                                                            const factureData = formData as DocFactureInterface;
+                                                            const updatedDechet = [...factureData.dechet];
+                                                            if (updatedDechet[index] && updatedDechet[index].facture) {
+                                                                const updatedLignes = [...updatedDechet[index].facture.ligne];
+                                                                updatedLignes[ligneIndex] = { ...updatedLignes[ligneIndex], declassement: e.target.checked ? 'true' : 'false' };
+                                                                updatedDechet[index].facture.ligne = updatedLignes;
+                                                                handleInputChange('dechet', updatedDechet);
+                                                            }
+                                                        }}
+                                                        className="scale-90"
+                                                    />
+                                                </div>
+                                                
+                                                {/* Bouton supprimer ligne */}
+                                                <div className="w-6">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const factureData = formData as DocFactureInterface;
+                                                            const updatedDechet = [...factureData.dechet];
+                                                            if (updatedDechet[index] && updatedDechet[index].facture) {
+                                                                const updatedLignes = [...updatedDechet[index].facture.ligne];
+                                                                updatedLignes.splice(ligneIndex, 1);
+                                                                updatedDechet[index].facture.ligne = updatedLignes;
+                                                                handleInputChange('dechet', updatedDechet);
+                                                            }
+                                                        }}
+                                                        className="bg-red-500 hover:bg-red-600 text-white px-1 py-0.5 rounded text-[10px] font-bold leading-tight"
+                                                        title="Supprimer cette ligne"
+                                                    >
+                                                        -
+                                                    </button>
+                                                </div>
                                              </div>
                                          </div>
                                      ))}
@@ -809,7 +1074,10 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                                      unite: '',
                                                      prix_unitaire: '',
                                                      montant_ht: '',
-                                                     tva_absolute: null
+                                                    // Champs V2
+                                                    tva_pourcentage: '',
+                                                    avoir: 'false',
+                                                    declassement: 'false'
                                                  });
                                                  handleInputChange('dechet', updatedDechet);
                                              } else if (updatedDechet[index]) {
@@ -821,9 +1089,11 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                                          unite: '',
                                                          prix_unitaire: '',
                                                          montant_ht: '',
-                                                         tva_absolute: null
-                                                     }],
-                                                     declassement: ''
+                                                        // Champs V2
+                                                        tva_pourcentage: '',
+                                                        avoir: 'false',
+                                                        declassement: 'false'
+                                                    }]
                                                  };
                                                  handleInputChange('dechet', updatedDechet);
                                              }
@@ -921,6 +1191,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                     <div className="bg-white rounded-lg p-2 mb-1 shadow-sm">
                         <h3 className="text-base font-semibold text-blue-600 mb-1">Informations générales</h3>
                         <div className="grid grid-cols-2 gap-2 mb-1">
+                            {/* Colonne 1 : Site */}
+                            {documentType !== "facture" && (
                             <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1">Site (texte brut)</label>
                                 <input
@@ -929,8 +1201,35 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                     onChange={(e) => handleInputChange('site_raw', e.target.value)}
                                     className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     placeholder="Coller ici le texte brut OCR du site"
+                                    />
+                                    {(documentType === "bon" || documentType === "bsd") && (
+                                        <div className="flex items-center gap-1 mt-1">
+                                            <label className="text-[10px] font-medium text-gray-600 whitespace-nowrap">Adresse:</label>
+                                            <input
+                                                type="text"
+                                                value={documentType === "bon" ? (formData as DocBonInterface).adresse_site || '' : (formData as DocBsdInterface).adresse_site || ''}
+                                                onChange={(e) => handleInputChange('adresse_site', e.target.value)}
+                                                className="flex-1 px-2 py-0.5 text-[10px] border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                placeholder="Adresse"
                                 />
                             </div>
+                                    )}
+                                    {documentType === "bsd" && (
+                                        <div className="flex items-center gap-1 mt-1">
+                                            <label className="text-[10px] font-medium text-gray-600 whitespace-nowrap">Type:</label>
+                                            <input
+                                                type="text"
+                                                value={(formData as DocBsdInterface).type_emetteur || ''}
+                                                onChange={(e) => handleInputChange('type_emetteur', e.target.value)}
+                                                className="flex-1 px-2 py-0.5 text-[10px] border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                placeholder="Producteur, Collecteur..."
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            
+                            {/* Colonne 2 : Prestataires */}
                             <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1">Prestataire (texte brut)</label>
                                 <input
@@ -940,64 +1239,297 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                     className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     placeholder="Coller ici le texte brut OCR du prestataire"
                                 />
+                                
+                                {/* Prestataire 2 et Rôle sur la même ligne */}
+                                <div className="grid grid-cols-2 gap-1 mt-2">
+                                    <div>
+                                        <label className="block text-[10px] font-medium text-gray-600 mb-1">Prestataire 2</label>
+                                        <input
+                                            type="text"
+                                            value={formData.nom_prestataire_2 || ''}
+                                            onChange={(e) => handleInputChange('nom_prestataire_2', e.target.value)}
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            placeholder="Nom du 2ème prestataire"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-medium text-gray-600 mb-1">Rôle</label>
+                                        <select
+                                            value={formData.role_prestataire_2 || ''}
+                                            onChange={(e) => handleInputChange('role_prestataire_2', e.target.value)}
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        >
+                                            <option value="">--</option>
+                                            <option value="transporteur">Transporteur</option>
+                                            <option value="destinataire">Destinataire</option>
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
-                        {/* Champs spécifiques selon le type - organisés sur 3 colonnes */}
-                        {documentType === "bsd" && (
-                            <div className="grid grid-cols-2 gap-2">
+                        
+                        {/* Champs V2 spécifiques BON */}
+                        {documentType === "bon" && (
+                            <div className="grid grid-cols-3 gap-2 mb-1 border-t border-gray-200 pt-1 mt-1">
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">CAP</label>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Type de bon</label>
                                     <input
                                         type="text"
-                                        value={(formData as unknown as DocBsdInterface).conformite?.CAP || ''}
-                                        onChange={(e) => {
-                                            const bsdData = formData as unknown as DocBsdInterface;
-                                            handleInputChange('conformite', {
-                                                ...bsdData.conformite,
-                                                CAP: e.target.value
-                                            });
-                                        }}
+                                        value={(formData as DocBonInterface).type_bon || ''}
+                                        onChange={(e) => handleInputChange('type_bon', e.target.value)}
+                                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        placeholder="livraison, transport, pesée..."
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Immatriculation</label>
+                                    <input
+                                        type="text"
+                                        value={(formData as DocBonInterface).immatriculation || ''}
+                                        onChange={(e) => handleInputChange('immatriculation', e.target.value)}
                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">ADR</label>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Récépissé</label>
                                     <input
                                         type="text"
-                                        value={(formData as unknown as DocBsdInterface).conformite?.ADR || ''}
-                                        onChange={(e) => {
-                                            const bsdData = formData as unknown as DocBsdInterface;
-                                            handleInputChange('conformite', {
-                                                ...bsdData.conformite,
-                                                ADR: e.target.value
-                                            });
-                                        }}
+                                        value={(formData as DocBonInterface).recepisse || ''}
+                                        onChange={(e) => handleInputChange('recepisse', e.target.value)}
                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
                             </div>
                         )}
                         
+                        {/* Champs V2 spécifiques FACTURE */}
                         {documentType === "facture" && (
-                            <div className="grid grid-cols-2 gap-2">
+                            <>
+                                <div className="grid grid-cols-3 gap-2 mb-1 border-t border-gray-200 pt-1 mt-1">
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">Numéro de facture</label>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">N° Facture</label>
                                     <input
                                         type="text"
-                                        value={(formData as unknown as DocFactureInterface).num_facture || ''}
+                                            value={(formData as DocFactureInterface).num_facture || ''}
                                         onChange={(e) => handleInputChange('num_facture', e.target.value)}
                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Montant Total HT</label>
+                                        <input
+                                            type="text"
+                                            value={(formData as DocFactureInterface).montant_total_ht || ''}
+                                            onChange={(e) => handleInputChange('montant_total_ht', e.target.value)}
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
                             </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Total TTC</label>
+                                        <input
+                                            type="text"
+                                            value={(formData as DocFactureInterface).total_ttc || ''}
+                                            onChange={(e) => handleInputChange('total_ttc', e.target.value)}
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 mb-1">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Type facture</label>
+                                        <input
+                                            type="text"
+                                            value={(formData as DocFactureInterface).type_facture || ''}
+                                            onChange={(e) => handleInputChange('type_facture', e.target.value)}
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            placeholder="Facture, Avoir, Rachat..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Date début période</label>
+                                        <input
+                                            type="date"
+                                            value={(formData as DocFactureInterface).date_debut_periode || ''}
+                                            onChange={(e) => handleInputChange('date_debut_periode', e.target.value)}
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Date fin période</label>
+                                        <input
+                                            type="date"
+                                            value={(formData as DocFactureInterface).date_fin_periode || ''}
+                                            onChange={(e) => handleInputChange('date_fin_periode', e.target.value)}
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 mb-1">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">N° Contrat</label>
+                                        <input
+                                            type="text"
+                                            value={(formData as DocFactureInterface).num_contrat || ''}
+                                            onChange={(e) => handleInputChange('num_contrat', e.target.value)}
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">N° Compte</label>
+                                        <input
+                                            type="text"
+                                            value={(formData as DocFactureInterface).num_compte || ''}
+                                            onChange={(e) => handleInputChange('num_compte', e.target.value)}
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">N° Client</label>
+                                        <input
+                                            type="text"
+                                            value={(formData as DocFactureInterface).num_client || ''}
+                                            onChange={(e) => handleInputChange('num_client', e.target.value)}
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                </div>
+                            </>
                         )}
                     </div>
+                        
+                    {/* Section BSD Acteurs */}
+                    {documentType === "bsd" && (
+                        <div className="bg-white rounded-lg p-2 mb-1 shadow-sm">
+                            <h3 className="text-base font-semibold text-blue-600 mb-2">Acteurs et Conformité</h3>
+                            
+                            {/* 1. Infos Transporteur - UNE LIGNE */}
+                            <div className="mb-2">
+                                <h4 className="text-xs font-semibold text-gray-700 mb-1">Transporteur</h4>
+                                <div className="grid grid-cols-5 gap-2">
+                                    <div>
+                                        <label className="block text-[10px] font-medium text-gray-600 mb-0.5">Récépissé</label>
+                                        <input type="text" placeholder="Récépissé" value={formData.add_presta_raw?.infos_transporteur?.recepisse || ''} onChange={(e) => { const c = formData.add_presta_raw || { type: "transporteur", adresse: "", tel: "", mail: "", fax: "" }; const i = c.infos_transporteur || { recepisse: "", departement: "", limite_validite: "", routier: "" }; handleInputChange('add_presta_raw', { ...c, type: "transporteur", infos_transporteur: { ...i, recepisse: e.target.value } }); }} className="w-full px-2 py-1 text-xs border border-gray-300 rounded" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-medium text-gray-600 mb-0.5">Département</label>
+                                        <input type="text" placeholder="Dépt" value={formData.add_presta_raw?.infos_transporteur?.departement || ''} onChange={(e) => { const c = formData.add_presta_raw || { type: "transporteur", adresse: "", tel: "", mail: "", fax: "" }; const i = c.infos_transporteur || { recepisse: "", departement: "", limite_validite: "", routier: "" }; handleInputChange('add_presta_raw', { ...c, type: "transporteur", infos_transporteur: { ...i, departement: e.target.value } }); }} className="w-full px-2 py-1 text-xs border border-gray-300 rounded" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-medium text-gray-600 mb-0.5">Validité</label>
+                                        <input type="date" value={formData.add_presta_raw?.infos_transporteur?.limite_validite || ''} onChange={(e) => { const c = formData.add_presta_raw || { type: "transporteur", adresse: "", tel: "", mail: "", fax: "" }; const i = c.infos_transporteur || { recepisse: "", departement: "", limite_validite: "", routier: "" }; handleInputChange('add_presta_raw', { ...c, type: "transporteur", infos_transporteur: { ...i, limite_validite: e.target.value } }); }} className="w-full px-2 py-1 text-xs border border-gray-300 rounded" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-medium text-gray-600 mb-0.5">Mode</label>
+                                        <input type="text" placeholder="Mode" value={formData.add_presta_raw?.infos_transporteur?.routier || ''} onChange={(e) => { const c = formData.add_presta_raw || { type: "transporteur", adresse: "", tel: "", mail: "", fax: "" }; const i = c.infos_transporteur || { recepisse: "", departement: "", limite_validite: "", routier: "" }; handleInputChange('add_presta_raw', { ...c, type: "transporteur", infos_transporteur: { ...i, routier: e.target.value } }); }} className="w-full px-2 py-1 text-xs border border-gray-300 rounded" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-medium text-gray-600 mb-0.5">Multimodal</label>
+                                        <input type="checkbox" checked={formData.add_presta_raw?.infos_transporteur?.multimodal === 'true'} onChange={(e) => { const c = formData.add_presta_raw || { type: "transporteur", adresse: "", tel: "", mail: "", fax: "" }; const i = c.infos_transporteur || { recepisse: "", departement: "", limite_validite: "", routier: "" }; handleInputChange('add_presta_raw', { ...c, type: "transporteur", infos_transporteur: { ...i, multimodal: e.target.checked ? 'true' : 'false' } }); }} className="mt-4" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 2. CAP / ADR */}
+                            <div className="mb-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">CAP</label>
+                                        <input type="text" value={(formData as unknown as DocBsdInterface).conformite?.CAP || ''} onChange={(e) => { const bsdData = formData as unknown as DocBsdInterface; handleInputChange('conformite', { ...bsdData.conformite, CAP: e.target.value }); }} className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">ADR</label>
+                                        <input type="text" value={(formData as unknown as DocBsdInterface).conformite?.ADR || ''} onChange={(e) => { const bsdData = formData as unknown as DocBsdInterface; handleInputChange('conformite', { ...bsdData.conformite, ADR: e.target.value }); }} className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 3. Exutoire */}
+                            <div className="mb-2">
+                                <h4 className="text-xs font-semibold text-gray-700 mb-1">Exutoire</h4>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <label className="flex items-center text-xs font-medium text-gray-700"><input type="checkbox" checked={(formData as DocBsdInterface).exutoire?.entreposage === 'true'} onChange={(e) => handleInputChange('exutoire', {...(formData as DocBsdInterface).exutoire, entreposage: e.target.checked ? 'true' : 'false'})} className="mr-2" />Entreposage</label>
+                                    <label className="flex items-center text-xs font-medium text-gray-700"><input type="checkbox" checked={(formData as DocBsdInterface).exutoire?.lot_accepte === 'true'} onChange={(e) => handleInputChange('exutoire', {...(formData as DocBsdInterface).exutoire, lot_accepte: e.target.checked ? 'true' : 'false'})} className="mr-2" />Lot accepté</label>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Motif refus</label>
+                                        <input type="text" placeholder="Motif refus" value={(formData as DocBsdInterface).exutoire?.motif_refus || ''} onChange={(e) => handleInputChange('exutoire', {...(formData as DocBsdInterface).exutoire, motif_refus: e.target.value})} className="w-full px-2 py-1 text-xs border border-gray-300 rounded" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 4. Négociant - TOGGLE */}
+                            <div className="border-t border-gray-200 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNegociant(!showNegociant)}
+                                    className="flex items-center justify-between w-full text-xs font-semibold text-gray-700 hover:text-blue-600 transition-colors"
+                                >
+                                    <span>Négociant</span>
+                                    <span>{showNegociant ? '▼' : '▶'}</span>
+                                </button>
+                                {showNegociant && (
+                                    <div className="grid grid-cols-3 gap-2 mt-2">
+                                        <div>
+                                            <label className="block text-[10px] font-medium text-gray-600 mb-0.5">Nom</label>
+                                            <input type="text" placeholder="Nom" value={(formData as DocBsdInterface).negociant_raw?.nom || ''} onChange={(e) => handleInputChange('negociant_raw', {...(formData as DocBsdInterface).negociant_raw, nom: e.target.value})} className="w-full px-2 py-1 text-xs border border-gray-300 rounded" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-medium text-gray-600 mb-0.5">SIREN</label>
+                                            <input type="text" placeholder="SIREN" value={(formData as DocBsdInterface).negociant_raw?.siren || ''} onChange={(e) => handleInputChange('negociant_raw', {...(formData as DocBsdInterface).negociant_raw, siren: e.target.value})} className="w-full px-2 py-1 text-xs border border-gray-300 rounded" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-medium text-gray-600 mb-0.5">Adresse</label>
+                                            <input type="text" placeholder="Adresse" value={(formData as DocBsdInterface).negociant_raw?.adresse || ''} onChange={(e) => handleInputChange('negociant_raw', {...(formData as DocBsdInterface).negociant_raw, adresse: e.target.value})} className="w-full px-2 py-1 text-xs border border-gray-300 rounded" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-medium text-gray-600 mb-0.5">Récépissé</label>
+                                            <input type="text" placeholder="Récépissé" value={(formData as DocBsdInterface).negociant_raw?.recepisse || ''} onChange={(e) => handleInputChange('negociant_raw', {...(formData as DocBsdInterface).negociant_raw, recepisse: e.target.value})} className="w-full px-2 py-1 text-xs border border-gray-300 rounded" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-medium text-gray-600 mb-0.5">Département</label>
+                                            <input type="text" placeholder="Département" value={(formData as DocBsdInterface).negociant_raw?.departement || ''} onChange={(e) => handleInputChange('negociant_raw', {...(formData as DocBsdInterface).negociant_raw, departement: e.target.value})} className="w-full px-2 py-1 text-xs border border-gray-300 rounded" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-medium text-gray-600 mb-0.5">Validité</label>
+                                            <input type="text" placeholder="Validité" value={(formData as DocBsdInterface).negociant_raw?.validite || ''} onChange={(e) => handleInputChange('negociant_raw', {...(formData as DocBsdInterface).negociant_raw, validite: e.target.value})} className="w-full px-2 py-1 text-xs border border-gray-300 rounded" />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Section Déchets */}
                     <div className="bg-white rounded-lg p-2 mb-1 shadow-sm">
                         <div className="flex justify-between items-center mb-2">
                             <h3 className="text-base font-semibold text-green-600">Déchets</h3>
+                            <div className="flex items-center gap-2">
+                                {documentType === "facture" && formData.dechet.length > 1 && (
+                                    <label className="flex items-center text-xs text-gray-700">
+                                        <input
+                                            type="checkbox"
+                                            onChange={(e) => {
+                                                if (e.target.checked && formData.dechet.length > 0) {
+                                                    const factureData = formData as DocFactureInterface;
+                                                    const firstDechet = factureData.dechet[0];
+                                                    const nom_site_ref = firstDechet.nom_site || '';
+                                                    const adresse_site_ref = firstDechet.adresse_site || '';
+                                                    
+                                                    const updatedDechet = factureData.dechet.map((d, i) => 
+                                                        i === 0 ? d : {
+                                                            ...d,
+                                                            nom_site: nom_site_ref,
+                                                            adresse_site: adresse_site_ref
+                                                        }
+                                                    );
+                                                    handleInputChange('dechet', updatedDechet);
+                                                }
+                                            }}
+                                            className="mr-1"
+                                        />
+                                        Même site pour tous
+                                    </label>
+                                )}
                             <button
                                 type="button"
                                 onClick={addDechet}
@@ -1005,6 +1537,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                             >
                                 Ajouter un déchet
                             </button>
+                            </div>
                         </div>
                         
                         {formData.dechet.length === 0 ? (

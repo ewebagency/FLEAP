@@ -106,6 +106,24 @@ const supabaseFetcher = async (key: string) => {
                             if (rawValue && typeof rawValue === 'string' && rawValue.trim()) {
                                 rawValues = [rawValue];
                             }
+                            
+                            // V2: Ajouter nom_prestataire_2 si le champ est presta_raw
+                            if (field === 'presta_raw') {
+                                const nomPrestataire2 = infosRaw.nom_prestataire_2;
+                                if (nomPrestataire2 && typeof nomPrestataire2 === 'string' && nomPrestataire2.trim()) {
+                                    rawValues.push(nomPrestataire2);
+                                }
+                            }
+                            
+                            // V2: Ajouter nom_site (par déchet) pour les factures si le champ est site_raw
+                            if (field === 'site_raw' && typeDoc === 'facture' && infosRaw.dechet && Array.isArray(infosRaw.dechet)) {
+                                const dechetArray = infosRaw.dechet as Array<Record<string, unknown>>;
+                                const nomsSites = dechetArray
+                                    .map(d => d.nom_site as string)
+                                    .filter(Boolean)
+                                    .filter(s => s.trim());
+                                rawValues.push(...nomsSites);
+                            }
                         }
                         
                         // Créer un objet pour chaque valeur trouvée

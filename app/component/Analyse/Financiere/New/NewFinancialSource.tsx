@@ -21,20 +21,26 @@ export const isRevenue = (
     line: Operation, 
     params_mapping_operation: Record<string, string[]> | null
 ): boolean => {
-    // Condition 1: Montant négatif
+    // Condition 1: Le champ "avoir" est présent et true (V2)
+    if ('avoir' in line && line.avoir === true) {
+        console.log('🟢 Revenue détecté (avoir=true):', line.montant_ht, line.type_operation);
+        return true;
+    }
+
+    // Condition 2: Montant négatif
     if (line.montant_ht < 0) {
         console.log('🟢 Revenue détecté (montant négatif):', line.montant_ht, line.type_operation);
         return true;
     }
 
-    // Condition 2: Type d'opération contient "rachat" (insensible à la casse)
+    // Condition 3: Type d'opération contient "rachat" (insensible à la casse)
     const normalizedType = line.type_operation.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (normalizedType.includes('rachat')) {
         console.log('🟢 Revenue détecté (type contient rachat):', line.type_operation, 'montant:', line.montant_ht);
         return true;
     }
 
-    // Condition 3: Type d'opération mappé vers une catégorie contenant "rachat"
+    // Condition 4: Type d'opération mappé vers une catégorie contenant "rachat"
     if (params_mapping_operation) {
         for (const [category, operations] of Object.entries(params_mapping_operation)) {
             if (category.toLowerCase().includes('rachat') && operations.includes(line.type_operation)) {

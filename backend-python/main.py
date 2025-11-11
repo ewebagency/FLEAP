@@ -24,10 +24,21 @@ from utils.document_types import get_prompt, transform_document_data
 from utils.utils_doctr import ocr_this_pdf_with_doctr, cleanup_model, initialize_model
 from utils.utils_manuscrit import classify_ocr_with_density, extract_handwritten_lines
 
+# ===== CONFIGURATION DE VERSION =====
+V2 = True  # Mettre à True pour utiliser les nouveaux prompts et structures v2
+
 from new.new_prompts import get_specific_prompt
 from new.new_extract_raw import get_raw_text_from_pdf
 from new.new_confidence import get_confidence, handwritten_confidence
-from new.new_structure import structure
+
+# Import conditionnel selon la version
+if V2:
+    from new.new_structure_v2 import structure, reverse_structure
+    print("✅ Mode V2 activé - Utilisation de new_structure_v2")
+else:
+    from new.new_structure import structure, reverse_structure
+    print("✅ Mode V1 activé - Utilisation de new_structure")
+
 from new.new_recognize_type import recognize_type_one_page
 from new.new_alerte import alerte_function
 from new.new_similarity.new_find_best_proxy import create_best_prompt_example
@@ -397,18 +408,29 @@ async def meta_ocr(
         clusterParams_dict = json.loads(clusterParams) if clusterParams else {"data": {"params_mapping_site": {}, "params_mapping_presta": {}}}
         liste_nom_a_eviter_list = json.loads(liste_nom_a_eviter) if liste_nom_a_eviter else []
         
-        # Extract text and detect type
-        if use_grid_detection:
-            raw_text, potential_json_from_ocr, parse_or_ocr = await extract_text_with_grid_for_llm(file, force_ocr=force_ocr)
-            print(f"🔍 Raw text avec layout: {raw_text}")
-        else:
-            raw_text, potential_json_from_ocr, parse_or_ocr = await get_raw_text_from_pdf(file)
-        # type_lu = recognize_type_one_page(raw_text)["type"] // Ce qu'on faisait avant
+        # Extraction initiale légère pour détecter le type
+        raw_text_initial, potential_json_initial, parse_or_ocr = await get_raw_text_from_pdf(file)
+        
+        # Détecter le type
         try:
-            type_lu = await recognize_type_one_page_llm(raw_text)
+            type_lu = await recognize_type_one_page_llm(raw_text_initial)
         except Exception:
             print("❌ Erreur dans recognize_type_one_page_llm -> fallback sans LLM")
-            type_lu = recognize_type_one_page(raw_text)["type"]
+            type_lu = recognize_type_one_page(raw_text_initial)["type"]
+        
+        # Décider si on a besoin de grid_detection
+        # Skip grid_detection pour BON parsable (optimisation)
+        needs_grid = use_grid_detection and not (parse_or_ocr == "parse" and type_lu == "bsd")
+        
+        if needs_grid:
+            print("🔍 Grid detection activée (non-BSD ou OCR nécessaire)")
+            # Réextraire avec grid_detection
+            await file.seek(0)  # Reset file
+            raw_text, potential_json_from_ocr, parse_or_ocr = await extract_text_with_grid_for_llm(file, force_ocr=force_ocr)
+        else:
+            print("⚡ Skip grid detection (BSD parsable - optimisation)")
+            # Garder l'extraction initiale
+            raw_text, potential_json_from_ocr = raw_text_initial, potential_json_initial
         
         # Count pages for OCR model reset (estimate based on text length)
         estimated_pages = max(1, len(raw_text) // 2000)  # ~2000 chars per page
@@ -444,13 +466,33 @@ async def meta_ocr(
         print("🧠"*9, "Extract data with Gemini (multi-page if needed)", "🧠"*9)
         # Extract data with Gemini (multi-page if needed)
         gemini_response = await extract_gemini_multi_page(raw_text, potential_json_from_ocr, prompt)
-        print("🧠 Gemini_response:", "\nSuccess:", gemini_response["success"], "\nExtracted data:", gemini_response["extracted_data"])
+        print(f"🧠 Gemini_response type: {type(gemini_response)}")
+        print(f"🧠 Gemini_response keys: {list(gemini_response.keys()) if isinstance(gemini_response, dict) else 'NOT A DICT'}")
+        print(f"🧠 Success: {gemini_response.get('success', 'NO SUCCESS KEY')}")
+        print(f"🧠 Extracted data (100 chars): {str(gemini_response.get('extracted_data', ''))[:100]}")
         
         if "error" in gemini_response:
             return {"error": gemini_response["error"]}
         
         # Process data inline
-        gemini_data = json.loads(gemini_response.get("extracted_data", "{}"))
+        try:
+            extracted_data_str = gemini_response.get("extracted_data", "{}")
+            #print(f"📝 Type de extracted_data: {type(extracted_data_str)}")
+            gemini_data = json.loads(extracted_data_str)
+            #print(f"✅ gemini_data parsé: {type(gemini_data)}, clés: {list(gemini_data.keys()) if isinstance(gemini_data, dict) else 'NOT A DICT'}")
+            
+            # Afficher le JSON complet formaté
+            print("\n" + "="*80)
+            print("📄 JSON COMPLET RENVOYÉ PAR GEMINI:")
+            print("="*80)
+            print(json.dumps(gemini_data, indent=2, ensure_ascii=False))
+            print("="*80 + "\n")
+            
+        except Exception as e:
+            print(f"❌ Erreur lors du parsing JSON: {e}")
+            print(f"❌ extracted_data brut: {gemini_response.get('extracted_data', '')[:500]}")
+            raise
+        
         structured_response = structure(type_lu, gemini_data)
         
         # Calculate confidence inline
