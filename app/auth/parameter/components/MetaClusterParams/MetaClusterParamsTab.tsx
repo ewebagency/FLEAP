@@ -7,7 +7,6 @@ import { supabase } from '@/app/database/supabaseClient';
 import { MAPPING_CONFIGS, MappingTypeConfig, Mapping } from './mappingConfig';
 import { useMappingData } from './useMappingData';
 import MappingSection from './MappingSection';
-import { verifierEtMettreAJourAlerte } from '@/app/import_page/ImportComponents/ExtractMetaDoc/utils/alerte';
 import { RAW_FIELD_CLASS, REFERENCE_ENTITY_CLASS } from './fieldStyles';
 
 export default function MetaClusterParamsTab() {
@@ -18,7 +17,6 @@ export default function MetaClusterParamsTab() {
     const [localMappings, setLocalMappings] = useState<Record<string, Mapping>>({});
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [updatingAlertes, setUpdatingAlertes] = useState(false);
 
     // Initialiser les mappings locaux avec les mappings existants
     React.useEffect(() => {
@@ -54,56 +52,6 @@ export default function MetaClusterParamsTab() {
             await Promise.all(savePromises);
             setHasUnsavedChanges(false);
             toast.success('Tous les mappings ont été sauvegardés avec succès');
-
-            // Mettre à jour les alertes sur tous les PDFs après la sauvegarde
-            if (entreprise_id) {
-                setUpdatingAlertes(true);
-                toast.loading('Mise à jour des alertes sur tous les PDFs...', { duration: 0 });
-                
-                try {
-                    // Récupérer tous les PDFs de l'entreprise
-                    const { data: pdfs, error: pdfError } = await supabase
-                        .from('pdf_infos')
-                        .select('id')
-                        .eq('entreprise_id', entreprise_id);
-
-                    if (pdfError) {
-                        throw new Error(`Erreur lors de la récupération des PDFs: ${pdfError.message}`);
-                    }
-
-                    if (pdfs && pdfs.length > 0) {
-                        let successCount = 0;
-                        let errorCount = 0;
-
-                        // Traiter chaque PDF individuellement
-                        for (const pdf of pdfs) {
-                            try {
-                                await verifierEtMettreAJourAlerte(pdf.id, entreprise_id);
-                                successCount++;
-                            } catch (error) {
-                                console.error(`Erreur lors de la vérification du PDF ${pdf.id}:`, error);
-                                errorCount++;
-                            }
-                        }
-
-                        toast.dismiss();
-                        if (errorCount === 0) {
-                            toast.success(`Alertes mises à jour avec succès sur ${successCount} PDFs`);
-                        } else {
-                            toast.error(`Mise à jour terminée : ${successCount} succès, ${errorCount} erreurs`);
-                        }
-                    } else {
-                        toast.dismiss();
-                        toast.success('Aucun PDF à traiter');
-                    }
-                } catch (error) {
-                    toast.dismiss();
-                    console.error('Erreur lors de la mise à jour des alertes:', error);
-                    toast.error('Erreur lors de la mise à jour des alertes');
-                } finally {
-                    setUpdatingAlertes(false);
-                }
-            }
         } catch (err) {
             console.error('Erreur lors de la sauvegarde:', err);
             toast.error('Erreur lors de la sauvegarde des mappings');
@@ -193,7 +141,7 @@ export default function MetaClusterParamsTab() {
                             
                             <button
                                 onClick={handleSaveAll}
-                                disabled={isSaving || updatingAlertes}
+                                disabled={isSaving}
                                 className="bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white px-6 py-3 rounded-md transition-all duration-200 flex items-center gap-3 text-lg font-medium shadow-lg"
                             >
                                 {isSaving ? (
@@ -203,14 +151,6 @@ export default function MetaClusterParamsTab() {
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                         </svg>
                                         Enregistrement...
-                                    </>
-                                ) : updatingAlertes ? (
-                                    <>
-                                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        Mise à jour des alertes...
                                     </>
                                 ) : (
                                     <>

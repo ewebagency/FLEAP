@@ -2031,13 +2031,15 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                             <button
                                 onClick={() => {
                                     setShowAssociationModal(false);
-                                    // Rafraîchir les données au cas où des associations auraient été modifiées
-                                    handleRefreshData();
+                                    toast('💡 Pensez à vérifier les alertes pour appliquer les nouveaux mappings', { 
+                                        duration: 2000,
+                                        icon: '⚠️'
+                                    });
                                 }}
                                 className="px-4 py-2 bg-blue-500 text-white rounded-sm hover:bg-blue-600 transition-colors flex items-center gap-2"
                             >
                                 <BoxIcon name="bx-check" size="16" />
-                                Fermer et rafraîchir
+                                Fermer
                             </button>
                         </div>
                     </div>
