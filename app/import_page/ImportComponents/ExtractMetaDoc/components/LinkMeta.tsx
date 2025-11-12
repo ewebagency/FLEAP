@@ -9,6 +9,7 @@ import PushFactureButton from './PushFactureButton';
 import { LINK_CONFIGS, getLinkConfigById } from '../utils/default_auto_link_params';
 import { create_in_bdd, create_in_bdd_preview, link_in_bdd, translateByMapping } from '../utils/link_or_create_bdd';
 import { useParamsMapping } from '../utils/extract';
+import { supabase } from '@/app/database/supabaseClient';
 
 interface LinkMetaProps {
 	pdfId: string;
@@ -108,6 +109,9 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	
     // Configuration de linkage sélectionnée
     const [selectedConfigId, setSelectedConfigId] = useState<string>('normal');
+	
+	// Rôle du prestataire (déterminé via table_autocompletion comme dans create_in_bdd)
+	const [prestaRole, setPrestaRole] = useState<'destinataire' | 'transporteur' | null>(null);
 	
 	// Obtenir la configuration actuelle
 	const currentConfig = useMemo(() => {
@@ -215,6 +219,67 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	// Indicateurs: si une traduction via mapping a abouti (siret non vide)
 	const siteTranslatedOk = useMemo(() => !!(translated.site?.siret && translated.site.siret.trim() !== ''), [translated]);
 	const prestaTranslatedOk = useMemo(() => !!(translated.presta?.siret && translated.presta.siret.trim() !== ''), [translated]);
+
+	// Déterminer le rôle du prestataire (même logique que create_in_bdd)
+	useEffect(() => {
+		const getPrestaRole = async () => {
+			if (!entrepriseIdNum || !translated.presta.name) {
+				setPrestaRole(null);
+				return;
+			}
+			
+			try {
+				const nameNorm = translated.presta.name.toLowerCase().trim();
+				const { data, error } = await supabase
+					.from('table_autocompletion')
+					.select('transporteur, destinataire')
+					.eq('entreprise_id', entrepriseIdNum);
+				
+				if (error || !data) {
+					setPrestaRole(null);
+					return;
+				}
+
+				const extractNomBoites = (node: unknown): string[] => {
+					const results: string[] = [];
+					if (!node) return results;
+					if (Array.isArray(node)) {
+						for (const item of node) {
+							results.push(...extractNomBoites(item));
+						}
+					} else if (typeof node === 'object') {
+						const obj = node as Record<string, unknown>;
+						if (typeof obj.nomBoite === 'string') {
+							results.push(obj.nomBoite);
+						}
+						for (const v of Object.values(obj)) {
+							results.push(...extractNomBoites(v));
+						}
+					}
+					return results;
+				};
+
+				let foundRole: 'destinataire' | 'transporteur' | null = null;
+				for (const row of data as Array<{ transporteur: unknown; destinataire: unknown }>) {
+					const transNames = extractNomBoites(row.transporteur).map(s => s.toLowerCase().trim());
+					if (transNames.includes(nameNorm)) {
+						foundRole = 'transporteur';
+						break;
+					}
+					const destNames = extractNomBoites(row.destinataire).map(s => s.toLowerCase().trim());
+					if (destNames.includes(nameNorm)) {
+						foundRole = 'destinataire';
+						break;
+					}
+				}
+				setPrestaRole(foundRole);
+			} catch {
+				setPrestaRole(null);
+			}
+		};
+		
+		getPrestaRole();
+	}, [entrepriseIdNum, translated.presta.name]);
 
 
 	const runProposeActionAuto = async (index: number) => {
@@ -873,8 +938,12 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 							</button>
 							<div className="text-xs font-semibold text-gray-700">{idx + 1}</div>
 							<div className="truncate text-[12px] text-gray-800">{nom}</div>
-							<div className="truncate text-[12px] text-gray-700">{/* Transporteur (inconnu côté PDF) */}</div>
-							<div className={`truncate text-[12px] ${prestaTranslatedOk ? 'bg-amber-50 text-amber-800 px-1 py-0.5 rounded' : 'text-gray-700'}`}>{translated.presta.name}</div>
+							<div className={`truncate text-[12px] ${prestaTranslatedOk && prestaRole === 'transporteur' ? 'bg-amber-50 text-amber-800 px-1 py-0.5 rounded' : 'text-gray-700'}`}>
+								{prestaRole === 'transporteur' ? translated.presta.name : ''}
+							</div>
+							<div className={`truncate text-[12px] ${prestaTranslatedOk && (prestaRole === 'destinataire' || !prestaRole) ? 'bg-amber-50 text-amber-800 px-1 py-0.5 rounded' : 'text-gray-700'}`}>
+								{prestaRole === 'destinataire' || !prestaRole ? translated.presta.name : ''}
+							</div>
 							<div className={`truncate text-[12px] ${siteTranslatedOkForDechet ? 'bg-amber-50 text-amber-800 px-1 py-0.5 rounded' : 'text-gray-700'}`}>{siteTranslatedForDechet.name}</div>
 								<div className="text-[12px] text-gray-800">{ced}</div>
 								<div className="text-[12px] text-gray-800">{date ? new Date(date).toLocaleDateString('fr-FR') : ''}</div>

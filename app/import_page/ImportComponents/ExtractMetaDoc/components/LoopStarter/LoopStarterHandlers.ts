@@ -2,7 +2,7 @@ import { toast } from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { supabase } from '@/app/database/supabaseClient';
 import { processPdfList } from '../../utils/loop';
-import { autoLinkDocs, BulkAutoLinkOutcome } from '../../utils/bulk_autolink';
+import { autoLinkDocs, applyPreComputedAutoLink, BulkAutoLinkOutcome } from '../../utils/bulk_autolink';
 import { verifierEtMettreAJourAlerte } from '../../utils/alerte';
 import { normalizePdfData, buildFactureFromNormalized, push_in_facture_bdd, ParamsMapping } from '../../utils/link';
 import { getParamsMappingByEntreprise } from '../../utils/bdd';
@@ -1301,10 +1301,17 @@ export const handleAutoLinkSelected = async (
             return;
         }
 
-        // Phase 2: Appliquer les changements en mode réel uniquement pour les PDFs cochés
+        // Phase 2: Appliquer les changements pré-calculés uniquement pour les PDFs cochés
+        // IMPORTANT: On applique directement les décisions de la simulation sans recalculer
+        // pour éviter des divergences si la BDD a changé entre la simulation et la confirmation
         setAutoLinkPhase('applying');
         toast(`Application de l'auto-link pour ${checkedPdfIds.length} document(s)...`, { icon: '⏳' });
-        const realOutcome: BulkAutoLinkOutcome = await autoLinkDocs(checkedPdfIds, parseInt(entreprise_id), user_id, false, currentConfig.params);
+        const realOutcome: BulkAutoLinkOutcome = await applyPreComputedAutoLink(
+            simulationOutcome,
+            checkedPdfIds,
+            parseInt(entreprise_id),
+            user_id
+        );
 
         // Mettre à jour les résultats avec les actions réelles
         const finalResults: ProcessingResult[] = [];
