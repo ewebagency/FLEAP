@@ -185,6 +185,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
     const [alerteData, setAlerteData] = useState<{stop?: boolean, message?: string} | null>(null);
     const currentFormRef = useRef<Record<string, unknown> | null>(null);
     const [showNegociant, setShowNegociant] = useState(false);
+    const [forceImage, setForceImage] = useState(false);
 
     // Clés de persistance
     const formStorageKey = `extractDoc:form:${String(pdf_id)}`;
@@ -485,7 +486,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         if (al) setAlerteData(al);
     };
 
-    const FormulaireExtractDoc = ({ onSave, onChange, showRagButton }: { onSave: (formData: DocInterface) => Promise<void>; onChange?: (formData: DocInterface) => void; showRagButton?: boolean }) => {
+    const FormulaireExtractDoc = ({ onSave, onChange, showRagButton, forceImage }: { onSave: (formData: DocInterface) => Promise<void>; onChange?: (formData: DocInterface) => void; showRagButton?: boolean; forceImage: boolean }) => {
         const [formData, setFormData] = useState<DocInterface>(() => {
             if (existingData) {
                 return existingData;
@@ -1556,6 +1557,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                 docData={formData as unknown as Record<string, unknown>}
                                 documentType={formData.type_doc}
                                 disabled={false}
+                                forceImage={forceImage}
                             />
                         )}
                         <button
@@ -1599,9 +1601,21 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
 
                     {/* Boutons d'action et Scores en haut */}
                     <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
+                            {/* Checkbox Force Image */}
+                            <label className="flex items-center gap-1.5 bg-white rounded-lg px-2 py-1 shadow-sm border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={forceImage}
+                                    onChange={(e) => setForceImage(e.target.checked)}
+                                    className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-1"
+                                />
+                                <span className="text-xs font-medium text-gray-700 whitespace-nowrap">Force Image</span>
+                            </label>
+                            
                             <BoutonExtractDoc 
                                 pdfId={String(pdf_id)}
+                                forceImage={forceImage}
                                 onExtractSuccess={(pdfId: string, data: MetaOcrResponse) => {
                                     console.log('[ExtractDoc] Extraction success log:', { pdfId, data });
                                     applyExtractionToForm(data);
@@ -1635,6 +1649,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                 docData={currentFormRef.current}
                                 documentType={documentType || 'inconnu'}
                                 disabled={!currentFormRef.current}
+                                forceImage={forceImage}
                             />
                             {/* PushFactureButton now rendered in LinkMeta.tsx */}
                         </div>
@@ -1691,7 +1706,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                             <DisplayDocPDF pdf_path={pdf_path}/>
                         </div>
                         <div className="w-1/2 h-full">
-                            <FormulaireExtractDoc onSave={handleSave} onChange={(fd) => { currentFormRef.current = fd as unknown as Record<string, unknown>; }} showRagButton={openedFromLoopStarter}/>
+                            <FormulaireExtractDoc onSave={handleSave} onChange={(fd) => { currentFormRef.current = fd as unknown as Record<string, unknown>; }} showRagButton={openedFromLoopStarter} forceImage={forceImage}/>
                         </div>
                     </div>
                 </div>

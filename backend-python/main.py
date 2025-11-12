@@ -45,6 +45,7 @@ from new.new_similarity.new_find_best_proxy import create_best_prompt_example
 import time
 from new.extract_text_layout_v2 import extract_text_with_grid_for_llm
 from new.extract_multi_page_gemini import extract_gemini_multi_page
+from new.extract_image_gemini import extract_gemini_with_images, should_use_image_mode, log_image_mode_decision
 from fastapi.responses import Response
 
 # Compteur global de pages traitées pour reset du modèle OCR
@@ -393,7 +394,8 @@ async def meta_ocr(
     voir: bool = Form(False), 
     entreprise_id: str = Form(None),
     use_grid_detection: bool = Form(True), ## On utilise toujours la détéction de tableau et le layout -> voir avec viusalizing bounding box pour comprendre ce qu'il se passe
-    force_ocr: bool = Form(False)
+    force_ocr: bool = Form(False),
+    force_image: bool = Form(False)
 ):
     
     global _pages_processed
@@ -452,24 +454,45 @@ async def meta_ocr(
         prompt = get_specific_prompt(type_lu, liste_nom_a_eviter_list, parse_or_ocr)
         
         # RAG processing inline
+        force_image_from_rag = False
         if entreprise_id and entreprise_id not in ("None", "") and entreprise_id.strip():
             try:
                 rag_result = create_best_prompt_example(int(entreprise_id), type_lu, raw_text)
                 prompt += rag_result["prompt"]
                 rag_found_example = rag_result["found_example"]
+                force_image_from_rag = rag_result.get("force_image", False)
             except ValueError:
                 print(f"❌ Erreur conversion entreprise_id: {entreprise_id}")
                 rag_found_example = False
         else:
             rag_found_example = False
         
-        print("🧠"*9, "Extract data with Gemini (multi-page if needed)", "🧠"*9)
-        # Extract data with Gemini (multi-page if needed)
-        gemini_response = await extract_gemini_multi_page(raw_text, potential_json_from_ocr, prompt)
-        print(f"🧠 Gemini_response type: {type(gemini_response)}")
-        print(f"🧠 Gemini_response keys: {list(gemini_response.keys()) if isinstance(gemini_response, dict) else 'NOT A DICT'}")
+        print("🧠", "Extract data with Gemini (multi-page if needed)", "🧠")
+        
+        # Décision : Mode Image (vision) ou Mode Texte (OCR) ?
+        # Conditions externalisées dans extract_image_gemini.py
+        use_image, ocr_score, num_pages, reason = should_use_image_mode(
+            potential_json_from_ocr, force_image, force_image_from_rag
+        )
+        log_image_mode_decision(use_image, ocr_score, num_pages, reason)
+        
+        if use_image:
+            # MODE IMAGE : Envoyer directement l'image du PDF à Gemini (multimodal)
+            # Utilisé si : score OCR < 85.7% OU force_image OU force_image_from_rag
+            # Limitation : uniquement pour les PDFs d'une seule page
+            await file.seek(0)
+            gemini_response = await extract_gemini_with_images(file, prompt)
+            gc.collect()  # Libérer mémoire après traitement image
+        else:
+            # MODE TEXTE : Extraction classique avec le texte OCR
+            # Pour les documents multi-pages : découpage intelligent par pages avec sliding window
+            # (voir extract_multi_page_gemini.py pour la logique de pagination)
+            gemini_response = await extract_gemini_multi_page(raw_text, potential_json_from_ocr, prompt)
+        
+        #print(f"🧠 Gemini_response type: {type(gemini_response)}")
+        #print(f"🧠 Gemini_response keys: {list(gemini_response.keys()) if isinstance(gemini_response, dict) else 'NOT A DICT'}")
         print(f"🧠 Success: {gemini_response.get('success', 'NO SUCCESS KEY')}")
-        print(f"🧠 Extracted data (100 chars): {str(gemini_response.get('extracted_data', ''))[:100]}")
+        #print(f"🧠 Extracted data (100 chars): {str(gemini_response.get('extracted_data', ''))[:100]}")
         
         if "error" in gemini_response:
             return {"error": gemini_response["error"]}
@@ -779,3 +802,5 @@ async def smart_split(file: UploadFile, check_logique: bool = Form(True)):
         gc.collect()
         print("=" * 60)
 #=============================================SMART SPLIT=============================================
+
+

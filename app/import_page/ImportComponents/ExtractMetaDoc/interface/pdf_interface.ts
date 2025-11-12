@@ -15,6 +15,7 @@ export interface PdfInfo {
     infos_raw?: Record<string, unknown> | null; // jsonb
     alerte?: Record<string, unknown> | null; // jsonb
     bsd_linked?: Record<string, unknown> | null; // jsonb
+    created_at: string; // timestamp
 }
 
 export interface NewPdfInfo {

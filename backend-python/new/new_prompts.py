@@ -176,7 +176,7 @@ def get_specific_prompt(doc_type, liste_nom_a_eviter, parse_or_ocr):
 new_prompt_bon = """
     Tu es un expert en bon de livraison de déchets. Tu es en charge d'extraire les informations de ce bon.
     Détecte :
-        La date
+        La date -> au format YYYY-MM-DD
         Le numéro de bon (si il y a 'ticket' c'est en le numero en dessous, ou Pesée n°:...)
         Le nom du prestataire qui a édité le bon (celui qui collecte le déchet, souvent en haut à gauche)
         Le nom du site (Origine, chantier, localisation - attention à ne pas confondre avec le nom du client). (L'adresse du site si tu le trouves)
@@ -194,6 +194,7 @@ new_prompt_bon = """
             le nom du contenant, le volume en m3 (converti en m3 si besoin), le nombre de colis
             Si possible : le code ced, le code de traitement (D1, R5..), le nombre de tour
             Le flag REP (true si tu trouves les mentions REP, PMCB ou Valobat sur le bon, false sinon)
+
 
     Utilise tous les stratèges de détection possible.
     N'invente pas d'informations, laisse "" si tu ne sais pas.

@@ -7,12 +7,14 @@ import { supabase } from '@/app/database/supabaseClient';
 
 interface BoutonExtractDocProps {
     pdfId: string;
+    forceImage?: boolean;
     onExtractSuccess?: (pdfId: string, data: MetaOcrResponse) => void;
     onExtractError?: (pdfId: string, error: string) => void;
 }
 
 const BoutonExtractDoc: React.FC<BoutonExtractDocProps> = ({ 
-    pdfId, 
+    pdfId,
+    forceImage = false,
     onExtractSuccess, 
     onExtractError 
 }) => {
@@ -31,7 +33,7 @@ const BoutonExtractDoc: React.FC<BoutonExtractDocProps> = ({
                 toast.error('Entreprise non identifiée');
                 return;
             }
-            const result = await runMetaOcrForPdf(pdfId.toString(), Number(entreprise_id));
+            const result = await runMetaOcrForPdf(pdfId.toString(), Number(entreprise_id), forceImage);
 
             if (result.success) {
                 toast.success('Extraction réussie !');

@@ -253,7 +253,8 @@ export const extractMetaOcrSimple = async (
  */
 export const runMetaOcrForPdf = async (
     pdfId: string,
-    entrepriseId: number
+    entrepriseId: number,
+    forceImage: boolean = false
 ): Promise<ExtractMetaOcrResult> => {
     // 1) Récupérer pdf_info
     const { data: pdfInfo, error: pdfErr } = await getPdfInfoById(pdfId, entrepriseId);
@@ -307,8 +308,10 @@ export const runMetaOcrForPdf = async (
     formData.append('pdfInfos', JSON.stringify(pdfInfo));
     formData.append('clusterParams', JSON.stringify(clusterParams));
     formData.append('entreprise_id', String(entrepriseId));
+    formData.append('force_image', String(forceImage));
     
     console.log('🔍 Debug runMetaOcrForPdf - entreprise_id envoyé:', entrepriseId, 'type:', typeof entrepriseId);
+    console.log('🔍 Debug runMetaOcrForPdf - force_image envoyé:', forceImage);
 
     const url = `${process.env.NEXT_PUBLIC_SERVER_PYTHON}/meta-ocr`;
     

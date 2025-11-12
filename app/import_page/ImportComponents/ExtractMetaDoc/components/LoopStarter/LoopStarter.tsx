@@ -119,7 +119,11 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             coveragePercent: '',
             importTimeValue: '',
             importTimeUnit: 'h',
-            linkageStatuses: []
+            linkageStatuses: [],
+            confidenceBruteMode: 'gte',
+            confidenceSpecMode: 'gte',
+            handwrittenPercentMode: 'gte',
+            coveragePercentMode: 'gte'
         };
         
         try {
@@ -474,8 +478,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, entreprise_id, loading, pauseCheckDone]);
 
-    // Évaluer un filtre de pourcentage (seuil minimum, ex: "80" signifie "≥80%")
-    const evaluatePercentageFilter = useCallback((value: number | undefined, filter: string): boolean => {
+    // Évaluer un filtre de pourcentage avec mode (gte = >=, lte = <=)
+    const evaluatePercentageFilter = useCallback((value: number | undefined, filter: string, mode: 'gte' | 'lte' = 'gte'): boolean => {
         // Si pas de filtre, laisser passer
         if (!filter) return true;
         
@@ -485,12 +489,12 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         // Si la valeur est undefined, la traiter comme 0
         const actualValue = value !== undefined ? value : 0;
 
-        // Parser le seuil minimum (nombre entier)
+        // Parser le seuil (nombre entier)
         const threshold = parseInt(trimmed, 10);
         
-        // Si c'est un nombre valide, vérifier que la valeur est >= au seuil
+        // Si c'est un nombre valide, vérifier selon le mode
         if (!isNaN(threshold)) {
-            return actualValue >= threshold;
+            return mode === 'gte' ? actualValue >= threshold : actualValue <= threshold;
         }
         
         return true;
@@ -601,13 +605,13 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             // Confiance brute : si pas de données, traiter comme 0
             if (filters.confidenceBrute) {
                 const brutePct = confidence?.brute !== undefined ? Math.round(confidence.brute) : undefined;
-                if (!evaluatePercentageFilter(brutePct, filters.confidenceBrute)) return false;
+                if (!evaluatePercentageFilter(brutePct, filters.confidenceBrute, filters.confidenceBruteMode || 'gte')) return false;
             }
             
             // Confiance spécifique : si pas de données, traiter comme 0
             if (filters.confidenceSpec) {
                 const specPct = confidence?.spec !== undefined ? Math.round(confidence.spec) : undefined;
-                if (!evaluatePercentageFilter(specPct, filters.confidenceSpec)) return false;
+                if (!evaluatePercentageFilter(specPct, filters.confidenceSpec, filters.confidenceSpecMode || 'gte')) return false;
             }
             
             // Manuscrit : si pas de données ou manuscrit non détecté, traiter comme 0
@@ -615,13 +619,13 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                 const handwrittenPct = (confidence?.handwritten && confidence.handwritten[1]) 
                     ? Math.round(confidence.handwritten[0]) 
                     : undefined;
-                if (!evaluatePercentageFilter(handwrittenPct, filters.handwrittenPercent)) return false;
+                if (!evaluatePercentageFilter(handwrittenPct, filters.handwrittenPercent, filters.handwrittenPercentMode || 'gte')) return false;
             }
             
             // Couverture : si pas de données, traiter comme 0
             if (filters.coveragePercent) {
                 const coverage = calculateCoverage(pdf.infos_raw, pdf.document_type);
-                if (!evaluatePercentageFilter(coverage.percentage, filters.coveragePercent)) return false;
+                if (!evaluatePercentageFilter(coverage.percentage, filters.coveragePercent, filters.coveragePercentMode || 'gte')) return false;
             }
 
             // Filtre statut de linkage
@@ -710,7 +714,11 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             coveragePercent: '',
             importTimeValue: '',
             importTimeUnit: 'h',
-            linkageStatuses: []
+            linkageStatuses: [],
+            confidenceBruteMode: 'gte',
+            confidenceSpecMode: 'gte',
+            handwrittenPercentMode: 'gte',
+            coveragePercentMode: 'gte'
         });
         setSearchName('');
     };
@@ -906,55 +914,111 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         </th>
                                         <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(12) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Brute</div>
-                                            <input
-                                                type="number"
-                                                placeholder="Min %"
-                                                value={filters.confidenceBrute}
-                                                onChange={(e) => setFilters(prev => ({ ...prev, confidenceBrute: e.target.value }))}
-                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
-                                                title="Seuil minimum (ex: 80 pour ≥80%)"
-                                                min="0"
-                                                max="100"
-                                            />
+                                            <div className="flex gap-1">
+                                                <input
+                                                    type="number"
+                                                    placeholder="%"
+                                                    value={filters.confidenceBrute}
+                                                    onChange={(e) => setFilters(prev => ({ ...prev, confidenceBrute: e.target.value }))}
+                                                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                    title={filters.confidenceBruteMode === 'gte' ? 'Seuil minimum (ex: 80 pour ≥80%)' : 'Seuil maximum (ex: 80 pour ≤80%)'}
+                                                    min="0"
+                                                    max="100"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFilters(prev => ({ ...prev, confidenceBruteMode: prev.confidenceBruteMode === 'gte' ? 'lte' : 'gte' }))}
+                                                    className={`p-1 text-xs border rounded-sm transition-colors ${
+                                                        filters.confidenceBruteMode === 'gte' 
+                                                            ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100' 
+                                                            : 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                                                    }`}
+                                                    title={filters.confidenceBruteMode === 'gte' ? 'Supérieur ou égal (≥)' : 'Inférieur ou égal (≤)'}
+                                                >
+                                                    {filters.confidenceBruteMode === 'gte' ? '≥' : '≤'}
+                                                </button>
+                                            </div>
                                         </th>
                                         <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(13) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Spec</div>
-                                            <input
-                                                type="number"
-                                                placeholder="Min %"
-                                                value={filters.confidenceSpec}
-                                                onChange={(e) => setFilters(prev => ({ ...prev, confidenceSpec: e.target.value }))}
-                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
-                                                title="Seuil minimum (ex: 80 pour ≥80%)"
-                                                min="0"
-                                                max="100"
-                                            />
+                                            <div className="flex gap-1">
+                                                <input
+                                                    type="number"
+                                                    placeholder="%"
+                                                    value={filters.confidenceSpec}
+                                                    onChange={(e) => setFilters(prev => ({ ...prev, confidenceSpec: e.target.value }))}
+                                                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                    title={filters.confidenceSpecMode === 'gte' ? 'Seuil minimum (ex: 80 pour ≥80%)' : 'Seuil maximum (ex: 80 pour ≤80%)'}
+                                                    min="0"
+                                                    max="100"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFilters(prev => ({ ...prev, confidenceSpecMode: prev.confidenceSpecMode === 'gte' ? 'lte' : 'gte' }))}
+                                                    className={`p-1 text-xs border rounded-sm transition-colors ${
+                                                        filters.confidenceSpecMode === 'gte' 
+                                                            ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100' 
+                                                            : 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                                                    }`}
+                                                    title={filters.confidenceSpecMode === 'gte' ? 'Supérieur ou égal (≥)' : 'Inférieur ou égal (≤)'}
+                                                >
+                                                    {filters.confidenceSpecMode === 'gte' ? '≥' : '≤'}
+                                                </button>
+                                            </div>
                                         </th>
                                         <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(14) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Manusc</div>
-                                            <input
-                                                type="number"
-                                                placeholder="Min %"
-                                                value={filters.handwrittenPercent}
-                                                onChange={(e) => setFilters(prev => ({ ...prev, handwrittenPercent: e.target.value }))}
-                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
-                                                title="Seuil minimum (ex: 50 pour ≥50%)"
-                                                min="0"
-                                                max="100"
-                                            />
+                                            <div className="flex gap-1">
+                                                <input
+                                                    type="number"
+                                                    placeholder="%"
+                                                    value={filters.handwrittenPercent}
+                                                    onChange={(e) => setFilters(prev => ({ ...prev, handwrittenPercent: e.target.value }))}
+                                                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                    title={filters.handwrittenPercentMode === 'gte' ? 'Seuil minimum (ex: 50 pour ≥50%)' : 'Seuil maximum (ex: 50 pour ≤50%)'}
+                                                    min="0"
+                                                    max="100"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFilters(prev => ({ ...prev, handwrittenPercentMode: prev.handwrittenPercentMode === 'gte' ? 'lte' : 'gte' }))}
+                                                    className={`p-1 text-xs border rounded-sm transition-colors ${
+                                                        filters.handwrittenPercentMode === 'gte' 
+                                                            ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100' 
+                                                            : 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                                                    }`}
+                                                    title={filters.handwrittenPercentMode === 'gte' ? 'Supérieur ou égal (≥)' : 'Inférieur ou égal (≤)'}
+                                                >
+                                                    {filters.handwrittenPercentMode === 'gte' ? '≥' : '≤'}
+                                                </button>
+                                            </div>
                                         </th>
                                         <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(15) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Couvert</div>
-                                            <input
-                                                type="number"
-                                                placeholder="Min %"
-                                                value={filters.coveragePercent}
-                                                onChange={(e) => setFilters(prev => ({ ...prev, coveragePercent: e.target.value }))}
-                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
-                                                title="Seuil minimum (ex: 70 pour ≥70%)"
-                                                min="0"
-                                                max="100"
-                                            />
+                                            <div className="flex gap-1">
+                                                <input
+                                                    type="number"
+                                                    placeholder="%"
+                                                    value={filters.coveragePercent}
+                                                    onChange={(e) => setFilters(prev => ({ ...prev, coveragePercent: e.target.value }))}
+                                                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                    title={filters.coveragePercentMode === 'gte' ? 'Seuil minimum (ex: 70 pour ≥70%)' : 'Seuil maximum (ex: 70 pour ≤70%)'}
+                                                    min="0"
+                                                    max="100"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFilters(prev => ({ ...prev, coveragePercentMode: prev.coveragePercentMode === 'gte' ? 'lte' : 'gte' }))}
+                                                    className={`p-1 text-xs border rounded-sm transition-colors ${
+                                                        filters.coveragePercentMode === 'gte' 
+                                                            ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100' 
+                                                            : 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                                                    }`}
+                                                    title={filters.coveragePercentMode === 'gte' ? 'Supérieur ou égal (≥)' : 'Inférieur ou égal (≤)'}
+                                                >
+                                                    {filters.coveragePercentMode === 'gte' ? '≥' : '≤'}
+                                                </button>
+                                            </div>
                                         </th>
                                         <th className="px-2 py-1.5 text-left min-w-[180px] bg-gray-50" style={{ display: shouldShowColumn(16) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Type d&apos;alerte</div>

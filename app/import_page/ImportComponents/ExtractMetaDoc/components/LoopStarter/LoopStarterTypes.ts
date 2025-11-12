@@ -38,10 +38,14 @@ export interface FilterState {
     documentTypes: string[];
     statuses: string[];
     pages: '' | 'one' | 'multi';
-    confidenceBrute: string;  // Filtre pour score brute (ex: ">80", "<60", "80-90")
+    confidenceBrute: string;  // Filtre pour score brute (valeur seuil)
     confidenceSpec: string;   // Filtre pour score spécifique
     handwrittenPercent: string;  // Filtre pour taux manuscrit
     coveragePercent: string;  // Filtre pour taux de couverture
+    confidenceBruteMode?: 'gte' | 'lte';  // Mode de comparaison pour confiance brute (≥ ou ≤)
+    confidenceSpecMode?: 'gte' | 'lte';   // Mode de comparaison pour confiance spécifique
+    handwrittenPercentMode?: 'gte' | 'lte';  // Mode de comparaison pour manuscrit
+    coveragePercentMode?: 'gte' | 'lte';  // Mode de comparaison pour couverture
     importTimeValue: string;  // Valeur numérique pour le filtre temps depuis import
     importTimeUnit: 'h' | 'd';  // Unité: heures (h) ou jours (d)
     linkageStatuses: string[];  // Filtre pour les statuts de linkage BSD

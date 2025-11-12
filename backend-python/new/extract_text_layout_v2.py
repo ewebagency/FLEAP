@@ -47,7 +47,6 @@ def remove_water_mark(json_data: Dict) -> Dict:
     
     word_heights.sort()
     median_height = word_heights[len(word_heights) // 2]
-    print(f"🧪 Watermark: median_height={median_height:.5f}, words_count={len(word_heights)}")
     if median_height <= 0:
         return json_data
     
@@ -69,7 +68,6 @@ def remove_water_mark(json_data: Dict) -> Dict:
 
         threshold = 5.0 * median_height
         removed_lines_on_page = 0
-        print(f"🧪 Watermark(Page {page_idx+1}): threshold={threshold:.5f}, words={len(all_words_bbox)}")
 
         # Filtrer au niveau MOT (pas ligne) pour ne supprimer que les mots géants
         for bi, block in enumerate(blocks):
@@ -89,9 +87,6 @@ def remove_water_mark(json_data: Dict) -> Dict:
                     # Ne JAMAIS supprimer dans la zone supérieure gauche (moitié gauche et 1er 1/8 en hauteur)
                     x_center = (float(x0) + float(x1)) / 2.0
                     if x_center <= 0.5 and float(y0) <= 0.125:
-                        # Debug léger pour traçabilité (limité à quelques occurrences via seuil de hauteur)
-                        if h >= threshold:
-                            print("   ↺ Skip watermark removal (top-left safe zone)")
                         kept_words.append(w)
                         continue
                     if h < threshold:
@@ -117,7 +112,8 @@ def remove_water_mark(json_data: Dict) -> Dict:
                 line["words"] = kept_words
         total_removed_lines += removed_lines_on_page
     
-    print(f"🧹 Watermark: removed_lines={total_removed_lines}, removed_words={total_removed_words}")
+    if total_removed_words > 0:
+        print(f"🧹 Watermark: {total_removed_words} mots supprimés")
     return json_data
 
 async def extract_text_with_grid_for_llm(file, spacing_factor: float = 0.02, force_ocr: bool = False) -> Tuple[str, Dict, str]:
@@ -144,24 +140,18 @@ async def extract_text_with_grid_for_llm(file, spacing_factor: float = 0.02, for
         if not force_ocr:
             # Tenter d'abord le parsing
             try:
-                print("🔄 Tentative de parsing...")
                 text, json_data = await parse_pdf_with_boxes(file)
                 method = "parse"
-                print(f"✅ Parsing réussi - {len(text)} caractères")
-            except Exception as e:
-                print(f"❌ Parsing échoué: {str(e)}, passage à l'OCR...")
+            except Exception:
                 await file.seek(0)
-                print("🔄 OCR en cours...")
                 text, json_data = await ocr_this(file)
                 json_data = remove_water_mark(json_data)
                 method = "ocr"
-                print(f"✅ OCR terminé - {len(text)} caractères")
         else:
             # Force OCR
-            print("🔄 OCR forcé...")
             text, json_data = await ocr_this(file)
             json_data = remove_water_mark(json_data)
-            print(f"✅ OCR terminé - {len(text)} caractères")
+            method = "ocr"
         
         # NOUVEAU: Traiter page par page puis concaténer séquentiellement
         page_texts: List[str] = []
@@ -178,14 +168,13 @@ async def extract_text_with_grid_for_llm(file, spacing_factor: float = 0.02, for
                         if geom and isinstance(geom, (list, tuple)) and len(geom) == 2:
                             pt1, pt2 = geom
                             if isinstance(pt1, (list, tuple)) and isinstance(pt2, (list, tuple)):
-                                page_all_words.append({
+                                    page_all_words.append({
                                     "text": word.get("value", ""),
                                     "x0": pt1[0],
                                     "y0": pt1[1],
                                     "x1": pt2[0],
                                     "y1": pt2[1]
                                 })
-            print(f"📄 Page {page_idx + 1}: {len(page_all_words)} mots extraits")
             total_words += len(page_all_words)
             
             if not page_all_words:
@@ -194,24 +183,19 @@ async def extract_text_with_grid_for_llm(file, spacing_factor: float = 0.02, for
             
             # Fusion par page
             merged_words_page = merge_close_words_horizontally(page_all_words, distance_threshold=0.015)
-            print(f"🔗 Page {page_idx + 1}: {len(merged_words_page)} mots après fusion")
             
             # Nombres par page
             numeric_words_page = [w for w in page_all_words if is_numeric_value(w["text"])]
-            print(f"🔢 Page {page_idx + 1}: {len(numeric_words_page)} mots numériques")
             numeric_merged_page = merge_close_numbers(numeric_words_page, h_gap_threshold=0.01)
-            print(f"🔗 Page {page_idx + 1}: {len(numeric_merged_page)} nombres après fusion des milliers")
             
             # Détection de tableaux par page
             tables_page = detect_tables_by_alignment_growing(numeric_merged_page, page_all_words)
             total_tables += len(tables_page)
-            print(f"✅ Page {page_idx + 1}: {len(tables_page)} tableau(x) détecté(s)")
             
             # Formatage par page
             page_text = format_text_with_table_grid(merged_words_page, page_all_words, tables_page, spacing_factor)
             
             if not page_text:
-                print(f"⚠️ Page {page_idx + 1}: texte vide, fallback formatage simple")
                 lines = []
                 for word in sorted(merged_words_page, key=lambda w: ((w["y0"] + w["y1"]) / 2, w["x0"])):
                     indent = int(word["x0"] / spacing_factor)
@@ -221,8 +205,8 @@ async def extract_text_with_grid_for_llm(file, spacing_factor: float = 0.02, for
             page_texts.append(page_text)
         
         final_text = "\n\n".join(page_texts)
-        print(f"📊 Total: {total_words} mots sur {len(json_data.get('pages', []))} page(s), {total_tables} tableau(x)")
-        print(f"📄 Texte final généré: {len(final_text)} caractères")
+        num_pages = len(json_data.get('pages', []))
+        print(f"📊 {method.upper()}: {num_pages} page(s), {total_tables} tableau(x), {len(final_text)} chars")
         
         # Retourner le même format que get_raw_text_from_pdf
         # (raw_text, potential_json_from_ocr, parse_or_ocr)
@@ -363,11 +347,6 @@ def group_words_into_blocks_simple(words: List[Dict], y_threshold: float = 0.02)
         current_line = [item]
         used_indices.add(i)
         
-        # Debug : log pour le premier mot de chaque ligne
-        first_word_text = item["word"].get("value", "")
-        if i < 10:  # Seulement les 10 premières lignes
-            print(f"      🆕 Nouvelle ligne #{len(lines)}: commence avec '{first_word_text}' (y_min={item['y_min']:.4f}, y_max={item['y_max']:.4f})")
-        
         # Trouver tous les autres mots qui se chevauchent verticalement
         for j, other in enumerate(words_with_y):
             if j in used_indices or j <= i:
@@ -381,11 +360,6 @@ def group_words_into_blocks_simple(words: List[Dict], y_threshold: float = 0.02)
                 overlap = min(line_item["y_max"], other["y_max"]) - max(line_item["y_min"], other["y_min"])
                 vertical_distance = abs(line_item["y"] - other["y"])
                 
-                # Debug pour comprendre pourquoi certains mots ne sont pas regroupés
-                if i == 0 and j < 5:  # Debug première ligne et premiers mots
-                    other_text = other["word"].get("value", "")
-                    print(f"         Comparaison avec '{other_text}': overlap={overlap:.4f}, dist={vertical_distance:.4f}, threshold={adaptive_threshold:.4f}")
-                
                 if overlap > 0 or vertical_distance <= adaptive_threshold:
                     has_overlap = True
                     break
@@ -393,16 +367,11 @@ def group_words_into_blocks_simple(words: List[Dict], y_threshold: float = 0.02)
             if has_overlap:
                 current_line.append(other)
                 used_indices.add(j)
-                if i < 3 and len(current_line) <= 5:  # Debug premières lignes
-                    added_word = other["word"].get("value", "")
-                    print(f"         ✓ Ajouté '{added_word}' à la ligne")
         
         # Trier les mots de la ligne par X et ajouter à la liste
         line_words = [item["word"] for item in current_line]
         line_words.sort(key=lambda w: w["geometry"][0][0])
         lines.append({"words": line_words, "geometry": []})
-    
-    print(f"      📄 {len(words)} mots regroupés en {len(lines)} ligne(s) (méthode chevauchement vertical)")
     
     # Pour simplifier, on met toutes les lignes dans un seul bloc
     return [{"lines": lines}]
@@ -423,9 +392,6 @@ def format_text_with_table_grid(merged_words: List[Dict], all_words: List[Dict],
     Returns:
         Texte formaté complet (tableaux + texte normal)
     """
-    print(f"      📝 Formatage du texte complet (tableaux + zones normales)...")
-    print(f"         Entrée: {len(merged_words)} mots fusionnés, {len(tables)} tableaux")
-    
     result_lines = []
     
     # Trier tous les mots fusionnés par Y puis X
@@ -433,15 +399,12 @@ def format_text_with_table_grid(merged_words: List[Dict], all_words: List[Dict],
     
     # Si pas de tableau, formatage simple pour toute la page
     if not tables:
-        print(f"      ⚠️ Aucun tableau détecté, formatage simple")
         for word in all_merged_sorted:
             # Format simple avec indentation proportionnelle
             indent = int(word["x0"] / spacing_factor)
             result_lines.append(" " * indent + word["text"])
         
-        final_text = "\n".join(result_lines)
-        print(f"      ✅ Texte simple généré: {len(final_text)} caractères")
-        return final_text
+        return "\n".join(result_lines)
     
     # Stocker les lignes avec leur position Y pour tri final
     all_lines_with_position = []
@@ -469,8 +432,6 @@ def format_text_with_table_grid(merged_words: List[Dict], all_words: List[Dict],
         h_lines_top = grid_lines["h_lines_top"]  # Lignes horizontales (hauts des cellules)
         h_lines_bottom = grid_lines["h_lines_bottom"]  # Lignes horizontales (bas des cellules)
         
-        print(f"      📐 Tableau #{table_idx + 1}: {len(v_lines)} colonnes, {len(h_lines_top)} lignes top, {len(h_lines_bottom)} lignes bottom")
-        
         if not h_lines_top or not v_lines:
             continue
         
@@ -496,8 +457,6 @@ def format_text_with_table_grid(merged_words: List[Dict], all_words: List[Dict],
             
             y_center = (h_top + matching_bottom) / 2
             h_zones.append((h_top, matching_bottom, y_center))
-        
-        print(f"      📏 {len(h_zones)} zones H créées (paires top-bottom)")
         
         # Créer un dictionnaire pour stocker les mots par zone
         words_by_zone = {i: [] for i in range(len(h_zones))}
@@ -535,8 +494,6 @@ def format_text_with_table_grid(merged_words: List[Dict], all_words: List[Dict],
                 # Mot orphelin : pas d'intersection avec aucune zone
                 orphan_words.append(word)
         
-        print(f"      👻 {len(orphan_words)} mots orphelins (sans intersection avec les zones H)")
-        
         # Grouper les mots orphelins par Y (mots proches verticalement = même ligne)
         orphan_groups = []
         if orphan_words:
@@ -569,8 +526,6 @@ def format_text_with_table_grid(merged_words: List[Dict], all_words: List[Dict],
                     "words": current_group,
                     "y_avg": current_y_avg
                 })
-        
-        print(f"      📦 {len(orphan_groups)} groupes orphelins créés")
         
         # Maintenant formater chaque zone qui a des mots
         for zone_idx, (h_top, h_bottom, y_center) in enumerate(h_zones):
@@ -700,8 +655,6 @@ def format_text_with_table_grid(merged_words: List[Dict], all_words: List[Dict],
                 # Stocker avec position Y (utiliser le y_avg du groupe)
                 all_lines_with_position.append((orphan_y_avg, line_text))
     
-    print(f"      ✅ {len(all_lines_with_position)} lignes générées pour les tableaux (incluant orphelins)")
-    
     # Maintenant ajouter le texte HORS des tableaux
     # Marquer les zones de tableau pour savoir quels mots ont été traités
     table_zones = []
@@ -723,8 +676,6 @@ def format_text_with_table_grid(merged_words: List[Dict], all_words: List[Dict],
         
         if not is_in_table:
             words_outside_tables.append(word)
-    
-    print(f"      📝 {len(words_outside_tables)} mots hors tableaux à formater")
     
     # Regrouper les mots hors tableaux en lignes avec CHEVAUCHEMENT VERTICAL (même algo que les tableaux)
     if words_outside_tables:
@@ -797,16 +748,11 @@ def format_text_with_table_grid(merged_words: List[Dict], all_words: List[Dict],
             line_y_avg = sum(w["y0"] + w["y1"] for w in line_words) / (2 * len(line_words))
             all_lines_with_position.append((line_y_avg, line_text))
     
-    print(f"      📝 {len(words_outside_tables)} mots hors tableaux → {len([l for l in all_lines_with_position if l[0] < 10])} lignes normales")
-    print(f"      📊 Total: {len(all_lines_with_position)} lignes (tableaux + normales)")
-    
     # Trier TOUTES les lignes par position Y pour reconstituer l'ordre naturel
     all_lines_with_position.sort(key=lambda x: x[0])
     
     # Extraire juste le texte (sans la position Y)
     final_text = "\n".join(line_text for y_pos, line_text in all_lines_with_position)
-    
-    print(f"      ✅ Texte final: {len(final_text)} caractères")
     
     return final_text
 
@@ -827,7 +773,6 @@ def merge_close_words_horizontally(words: List[Dict], distance_threshold: float 
         return []
     
     n = len(words)
-    print(f"      🔍 Clustering de {n} mots (distance < {distance_threshold}):")
     
     # Créer un graphe de mots connectés (Union-Find)
     parent = list(range(n))
@@ -893,8 +838,6 @@ def merge_close_words_horizontally(words: List[Dict], distance_threshold: float 
                 union(i, j)
                 merges += 1
     
-    print(f"      ✅ {containments} phagocytoses + {merges} fusions de proximité = {containments + merges} connexions")
-    
     # Regrouper les mots par cluster
     clusters = {}
     for i in range(n):
@@ -903,15 +846,11 @@ def merge_close_words_horizontally(words: List[Dict], distance_threshold: float 
             clusters[root] = []
         clusters[root].append(words[i])
     
-    print(f"      📦 {len(clusters)} cluster(s) formé(s) ({n} → {len(clusters)} groupes)")
-    
     # Créer les mots fusionnés
     merged = []
     for cluster_words in clusters.values():
         if cluster_words:
             merged.append(create_merged_word(cluster_words))
-    
-    print(f"      🔄 Vérification des mots isolés contenus dans les gros mots...")
     
     # DEUXIÈME PASSE : Phagocytose post-fusion
     # Vérifier si des mots isolés sont contenus OU ont une intersection avec des gros clusters
@@ -934,7 +873,6 @@ def merge_close_words_horizontally(words: List[Dict], distance_threshold: float 
             if is_contained:
                 should_remove = True
                 phagocyted_contained += 1
-                # print(f"         🔵 Phagocyté (contenu): '{word['text'][:20]}' ⊂ '{other['text'][:20]}'")
                 break
             
             # RÈGLE 2 : Vérifier si 'word' a une intersection avec 'other'
@@ -952,14 +890,10 @@ def merge_close_words_horizontally(words: List[Dict], distance_threshold: float 
                 if other_area > word_area * 1.5:  # Au moins 1.5x plus grand
                     should_remove = True
                     phagocyted_intersect += 1
-                    # print(f"         🟣 Phagocyté (intersection): '{word['text'][:20]}' ∩ '{other['text'][:20]}'")
                     break
         
         if not should_remove:
             final_merged.append(word)
-    
-    total_phagocyted = phagocyted_contained + phagocyted_intersect
-    print(f"      ✅ Phagocytose: {phagocyted_contained} contenus + {phagocyted_intersect} intersections = {total_phagocyted} supprimés → {len(final_merged)} mots finaux")
     
     # Trier par position Y puis X
     final_merged.sort(key=lambda w: ((w["y0"] + w["y1"]) / 2, w["x0"]))
@@ -1241,15 +1175,11 @@ def remove_overlapping_tables(tables: List[Dict]) -> List[Dict]:
             # S'il y a une intersection (chevauchement)
             if x_overlap > 0 and y_overlap > 0:
                 is_overlapping = True
-                print(f"         ❌ Tableau #{i+1} supprimé (chevauche un tableau plus grand)")
                 break
         
         # Garder seulement si ne chevauche pas un plus grand
         if not is_overlapping:
             tables_kept.append(table1)
-    
-    if len(tables_kept) < len(tables):
-        print(f"      🧹 {len(tables)} → {len(tables_kept)} tableau(x) après élimination des chevauchements")
     
     # Retirer le champ temporaire "surface"
     for table in tables_kept:
@@ -1296,9 +1226,6 @@ def detect_tables_by_alignment_growing(numeric_words: List[Dict],
     """
     if len(numeric_words) < min_numbers:
         return []
-    
-    print(f"      🌱 Détection par croissance d'alignements + proximité + filtre progressif texte")
-    print(f"         Alignement={align_tolerance:.1%}, proximité H={proximity_tolerance_h:.1%} / V={proximity_tolerance_v:.1%}, max_texte={max_text_ratio:.1%}")
     
     # Créer un index pour chaque nombre (pour tracking)
     indexed_numbers = [(i, word) for i, word in enumerate(numeric_words)]
@@ -1423,10 +1350,6 @@ def detect_tables_by_alignment_growing(numeric_words: List[Dict],
                     "rows": validation_result["rows"],
                     "cols": validation_result["cols"]
                 })
-                
-                print(f"         ✅ Tableau trouvé: {len(table_numbers)} nombres, {validation_result['rows']} lignes × {validation_result['cols']} colonnes")
-    
-    print(f"      📊 {len(tables)} tableau(x) détecté(s) ({rejected_additions} ajouts rejetés pour excès de texte)")
     
     # Éliminer les tableaux qui s'intersectent (garder le plus grand)
     tables = remove_overlapping_tables(tables)

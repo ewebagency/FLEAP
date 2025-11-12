@@ -10,9 +10,10 @@ interface Push2RAGButtonProps {
     docData: Record<string, unknown> | null; // Les données extraites/modifiées du document
     documentType?: string; // Type de document (bon, bsd, facture)
     disabled?: boolean;
+    forceImage?: boolean; // Indique si le mode image a été utilisé pour l'extraction
 }
 
-const Push2RAGButton = ({ pdfId, pdfPath, docData, documentType, disabled }: Push2RAGButtonProps) => {
+const Push2RAGButton = ({ pdfId, pdfPath, docData, documentType, disabled, forceImage = false }: Push2RAGButtonProps) => {
     const [isLoading, setIsLoading] = useState(false);
     const { entreprise_id, user_id } = useSession();
 
@@ -110,7 +111,8 @@ const Push2RAGButton = ({ pdfId, pdfPath, docData, documentType, disabled }: Pus
                         user_id: user_id,
                         raw_text: result.data.raw_text,
                         perfect_answer: result.data.gemini_answer,
-                        document_type: result.data.document_type
+                        document_type: result.data.document_type,
+                        force_image: forceImage
                     });
 
                 if (dbError) {
@@ -137,7 +139,7 @@ const Push2RAGButton = ({ pdfId, pdfPath, docData, documentType, disabled }: Pus
         } finally {
             setIsLoading(false);
         }
-    }, [pdfId, pdfPath, docData, documentType, entreprise_id, user_id]);
+    }, [pdfId, pdfPath, docData, documentType, entreprise_id, user_id, forceImage]);
 
     return (
         <button

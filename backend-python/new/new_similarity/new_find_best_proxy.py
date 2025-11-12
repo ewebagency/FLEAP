@@ -38,7 +38,7 @@ def find_best_proxy_from_rag(raw_text: str, entreprise_id: Optional[int] = None)
         supabase = get_supabase_client()
         
         # Construire la requête
-        query = supabase.table('bdd_rag').select('id, raw_text, perfect_answer, document_type, pdf_infos_id')
+        query = supabase.table('bdd_rag').select('id, raw_text, perfect_answer, document_type, pdf_infos_id, force_image')
         
         # Filtrer par entreprise si fournie
         if entreprise_id is not None:
@@ -90,7 +90,8 @@ def find_best_proxy_from_rag(raw_text: str, entreprise_id: Optional[int] = None)
                     'status': result['status'],
                     'neighbor_id': result['neighbor_id'],
                     'document_type': neighbor_data.get('document_type'),
-                    'pdf_infos_id': neighbor_data.get('pdf_infos_id')
+                    'pdf_infos_id': neighbor_data.get('pdf_infos_id'),
+                    'force_image': neighbor_data.get('force_image', False)
                 }
         
         # Retourner le résultat même si pas de voisin trouvé
@@ -100,7 +101,8 @@ def find_best_proxy_from_rag(raw_text: str, entreprise_id: Optional[int] = None)
             'perfect_answer': {},
             'similarity_score': result['similarity_score'],
             'status': result['status'],
-            'neighbor_id': result['neighbor_id']
+            'neighbor_id': result['neighbor_id'],
+            'force_image': False
         }
         
     except Exception as e:
@@ -110,11 +112,12 @@ def find_best_proxy_from_rag(raw_text: str, entreprise_id: Optional[int] = None)
             'perfect_answer': {},
             'similarity_score': 0.0,
             'status': f'Erreur lors de la recherche: {str(e)}',
-            'neighbor_id': None
+            'neighbor_id': None,
+            'force_image': False
         }
 
 
-def find_best_proxy_by_document_type(raw_text: str, document_type: str, entreprise_id: Optional[int] = None) :
+def find_best_proxy_by_document_type(raw_text: str, document_type: str, entreprise_id: Optional[int] = None) -> Dict[str, Any]:
     """
     Trouve le meilleur proxy dans la table bdd_rag filtré par type de document.
     
@@ -132,7 +135,7 @@ def find_best_proxy_by_document_type(raw_text: str, document_type: str, entrepri
         supabase = get_supabase_client()
         
         # Construire la requête avec filtre sur le type de document
-        query = supabase.table('bdd_rag').select('id, raw_text, perfect_answer, document_type, pdf_infos_id')
+        query = supabase.table('bdd_rag').select('id, raw_text, perfect_answer, document_type, pdf_infos_id, force_image')
         query = query.eq('document_type', document_type)
         
         # Filtrer par entreprise si fournie
@@ -185,7 +188,8 @@ def find_best_proxy_by_document_type(raw_text: str, document_type: str, entrepri
                     'status': result['status'],
                     'neighbor_id': result['neighbor_id'],
                     'document_type': neighbor_data.get('document_type'),
-                    'pdf_infos_id': neighbor_data.get('pdf_infos_id')
+                    'pdf_infos_id': neighbor_data.get('pdf_infos_id'),
+                    'force_image': neighbor_data.get('force_image', False)
                 }
         
         # Retourner le résultat même si pas de voisin trouvé
@@ -195,7 +199,8 @@ def find_best_proxy_by_document_type(raw_text: str, document_type: str, entrepri
             'perfect_answer': {},
             'similarity_score': result['similarity_score'],
             'status': result['status'],
-            'neighbor_id': result['neighbor_id']
+            'neighbor_id': result['neighbor_id'],
+            'force_image': False
         }
         
     except Exception as e:
@@ -205,11 +210,12 @@ def find_best_proxy_by_document_type(raw_text: str, document_type: str, entrepri
              'perfect_answer': {},
              'similarity_score': 0.0,
              'status': f'Erreur lors de la recherche par type: {str(e)}',
-             'neighbor_id': None
+             'neighbor_id': None,
+             'force_image': False
          }
 
 
-def create_best_prompt_example(entreprise_id: int, document_type: str, raw_text: str):
+def create_best_prompt_example(entreprise_id: int, document_type: str, raw_text: str) -> Dict[str, Any]:
     """
     Crée un prompt d'exemple basé sur le document le plus similaire trouvé dans la base RAG.
     
@@ -219,7 +225,7 @@ def create_best_prompt_example(entreprise_id: int, document_type: str, raw_text:
         raw_text: Le texte brut du document à traiter
     
     Returns:
-        dict: {"prompt": str, "found_example": bool}
+        dict: {"prompt": str, "found_example": bool, "force_image": bool}
     """
     
     try:
@@ -229,14 +235,21 @@ def create_best_prompt_example(entreprise_id: int, document_type: str, raw_text:
         if result['found'] and result['perfect_answer']:
             # Build prompt inline
             print(f"\n✅ Exemple trouvé - Similarité: {result['similarity_score']:.3f}")
+            
+            # Logger si force_image détecté depuis RAG
+            force_image_from_rag = result.get('force_image', False)
+            if force_image_from_rag:
+                print("🖼️ 🖼️ 🖼️ 📚 DÉTECTION RAG -> Force_Image, ID: {result.get('neighbor_id')}")
+            
             return {
                 "prompt": f"\n\n Voici un document similaire sur lequel te baser : {result['raw_text']} \n La réponse parfaite pour ce document est : {result['perfect_answer']}",
-                "found_example": True
+                "found_example": True,
+                "force_image": force_image_from_rag
             }
         else:
             print(f"⚠️ Aucun exemple trouvé pour le type {document_type}: {result['status']}")
-            return {"prompt": "Fait au mieux", "found_example": False}
+            return {"prompt": "Fait au mieux", "found_example": False, "force_image": False}
             
     except Exception as e:
         print(f"❌ Erreur lors de la création du prompt d'exemple: {str(e)}")
-        return {"prompt": f"Erreur lors de la recherche d'exemple: {str(e)}", "found_example": False}
+        return {"prompt": f"Erreur lors de la recherche d'exemple: {str(e)}", "found_example": False, "force_image": False}

@@ -180,7 +180,8 @@ export const splitPdfByPages = async (
                     document_type: pdfInfo.document_type,
                     provider: pdfInfo.provider,
                     entreprise_id: pdfInfo.entreprise_id,
-                    site_siret_plus: pdfInfo.site_siret_plus
+                    site_siret_plus: pdfInfo.site_siret_plus,
+                    created_at: pdfInfo.created_at // Conserver la date d'import du parent
                 })
                 .select()
                 .single();
@@ -437,7 +438,8 @@ export const apply_smart_split = async (
                     document_type: segment.type, // Type détecté par l'IA
                     provider: pdfInfo.provider,
                     entreprise_id: pdfInfo.entreprise_id,
-                    site_siret_plus: pdfInfo.site_siret_plus
+                    site_siret_plus: pdfInfo.site_siret_plus,
+                    created_at: pdfInfo.created_at // Conserver la date d'import du parent
                 })
                 .select()
                 .single();

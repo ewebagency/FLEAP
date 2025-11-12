@@ -22,20 +22,20 @@ def get_confidence(gemini_data, potential_json_from_ocr):
         for block in page["blocks"] :
             for line in block["lines"] :
                 for word in line["words"] :
-                    word_value = word["value"]
+                    word_value = str(word["value"]) if word.get("value") is not None else ""
                     confidence = word["confidence"]
-                    #print("="*43, "word_value : ", word_value, "="*4, "confidence :", confidence)
                     
                     score_brute += confidence
                     n += 1
                     for raw_g_value in raw_gemini_values :
-                        if raw_g_value and word_value and ((raw_g_value in word_value) or (word_value in raw_g_value)) and len(word_value) > 3 :
-                            #print("="*43, "raw_g_value : ", raw_g_value, "="*4, "word_value :", word_value)
+                        # Convertir en string pour éviter l'erreur si raw_g_value est un bool
+                        raw_g_value_str = str(raw_g_value) if raw_g_value is not None else ""
+                        if raw_g_value_str and word_value and ((raw_g_value_str in word_value) or (word_value in raw_g_value_str)) and len(word_value) > 3 :
                             score_spec += confidence
                             n_spec += 1
                             break
-    score_brute = (score_brute / n) * 100
-    score_spec = (score_spec / n_spec) * 100
+    score_brute = (score_brute / n) * 100 if n > 0 else 100.0
+    score_spec = (score_spec / n_spec) * 100 if n_spec > 0 else 100.0
 
     return {"brute": score_brute, "spec": score_spec}
 
