@@ -4,6 +4,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '../database/supabaseClient';
 import { Session } from '@supabase/supabase-js';
+import { identifyUser, resetUser } from '../utils/mixpanel';
 
 type SessionContextType = {
     session: Session | null;
@@ -53,6 +54,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         setUserEmail(session?.user.email ?? null);
     }, [session]);
+
+    // Identifier l'utilisateur dans Mixpanel quand toutes les infos sont disponibles
+    useEffect(() => {
+        if (user_id && entreprise_name && user_contact) {
+            // Identifier l'utilisateur dans Mixpanel
+            identifyUser(user_id, {
+                $name: user_contact,
+                entreprise_name: entreprise_name,
+                entreprise_id: entreprise_id || undefined,
+            });
+            console.log('👤 Utilisateur identifié dans Mixpanel:', user_contact, '@', entreprise_name);
+        } else if (!user_id) {
+            // Déconnexion : reset Mixpanel
+            resetUser();
+            console.log('👋 Utilisateur déconnecté de Mixpanel');
+        }
+    }, [user_id, entreprise_name, user_contact, user_email, entreprise_id, user_phone]);
 
     useEffect(() => {
         // Fonction pour récupérer les informations de l'entreprise et du profil utilisateur

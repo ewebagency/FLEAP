@@ -15,6 +15,7 @@ import { FiltresPersoProvider } from "./component/FiltresPerso/FiltresPersoProvi
 import { BSDsProvider } from "./register/BSDsProvider";
 //import { SSEHandler } from './component/SSEHandler';
 import { Analytics } from "@vercel/analytics/next"
+import { MixpanelProvider } from "./component/MixpanelProvider";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -97,30 +98,32 @@ export default function RootLayout({
         </style>
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white text-black`}>
-        <SessionProvider>
-          <FilterProvider>
-            <AccessOtherAccountProvider>
-              <ModalProviderNew>
-                <MailProvider>
-                  <NotificationPoller />
-                  <RecurrenceInitializer />
-                  {/*<SSEHandler />*/}
-                  <FiltresPersoProvider>
-                    <BSDsProvider>
-                      <div className="flex h-screen">
-                        {showSidebar && <SideBar className_props="min-h-full" />}
-                        <main className={`flex-1 overflow-y-auto ${!showSidebar ? 'w-full' : ''}`}>
-                          {children}
-                          <Analytics />
-                        </main>
-                      </div>
-                    </BSDsProvider>
-                  </FiltresPersoProvider>
-                </MailProvider>
-              </ModalProviderNew>
-            </AccessOtherAccountProvider>
-          </FilterProvider>
-        </SessionProvider>  
+        <MixpanelProvider>
+          <SessionProvider>
+            <FilterProvider>
+              <AccessOtherAccountProvider>
+                <ModalProviderNew>
+                  <MailProvider>
+                    <NotificationPoller />
+                    <RecurrenceInitializer />
+                    {/*<SSEHandler />*/}
+                    <FiltresPersoProvider>
+                      <BSDsProvider>
+                        <div className="flex h-screen">
+                          {showSidebar && <SideBar className_props="min-h-full" />}
+                          <main className={`flex-1 overflow-y-auto ${!showSidebar ? 'w-full' : ''}`}>
+                            {children}
+                            <Analytics />
+                          </main>
+                        </div>
+                      </BSDsProvider>
+                    </FiltresPersoProvider>
+                  </MailProvider>
+                </ModalProviderNew>
+              </AccessOtherAccountProvider>
+            </FilterProvider>
+          </SessionProvider>
+        </MixpanelProvider>  
       </body>
     </html>
   );

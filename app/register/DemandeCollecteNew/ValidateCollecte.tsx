@@ -9,6 +9,7 @@ import BoxIcon from "@/app/component/BoxIconWrapper";
 import { useFilterContext } from "@/app/FilterContext";
 import { OtherInfos, CompleteFormInput } from "@/app/register/interface/BSD_Interface";
 import { toast } from "react-hot-toast";
+import { trackEvent } from "@/app/utils/mixpanel";
 import { createRoot } from "react-dom/client";
 import { BSD } from "@/app/analysis/AnalysisProvider";
 import Image from "next/image";
@@ -708,6 +709,19 @@ const onValidate = async () => {
         }
 
         toast.success('BSD validé avec succès');
+
+        // Track la validation de demande de collecte dans Mixpanel
+        trackEvent('Collect Request Validated', {
+            waste_code: dataToogle.wasteDetails?.code || null,
+            waste_name: dataToogle.wasteDetails?.name || null,
+            container_type: other_infos.containerDescription || null,
+            volume: other_infos.volume ? `${other_infos.volume} ${other_infos.volumeUnit || ''}` : null,
+            has_photo: !!photoPublicUrl,
+            has_transporter: !!dataToogle.transporter?.company?.name,
+            has_recipient: !!dataToogle.recipient?.company?.name,
+            emitter_name: dataToogle.emitter?.company?.name || null,
+            work_site_name: dataToogle.emitter?.workSite?.name || null,
+        });
 
         
         setTimeout(() => {

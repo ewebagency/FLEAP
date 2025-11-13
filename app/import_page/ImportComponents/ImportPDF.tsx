@@ -7,6 +7,7 @@ import BoxIcon from '@/app/component/BoxIconWrapper';
 import { handleExcelUpload } from './ImportExcel';
 import {ExcelIcon} from './TableImportedFiles';
 import { cofounders_user_id } from '@/app/component/SideBar';
+import { trackEvent } from '@/app/utils/mixpanel';
 
 const sanitizeFileName = (fileName: string): string => {
     return fileName
@@ -484,6 +485,17 @@ const ImportPDF = () => {
                 if (insertError) {
                     return { success: false, file: file.name, error: insertError.message };
                 }
+
+                // Track document import dans Mixpanel
+                trackEvent('Document Imported', {
+                    document_type: metaSelections?.documentType === '' || !metaSelections?.documentType ? 'inconnu' : metaSelections.documentType,
+                    file_size_mb: parseFloat(fileSizeInMB),
+                    nb_pages: nb_pages || 0,
+                    has_site: !!(metaSelections?.site && metaSelections.site.value?.siret),
+                    has_provider: !!metaSelections?.presta,
+                    provider_type: metaSelections?.presta?.type || null,
+                    file_name: file.name
+                });
 
                 return { success: true, file: file.name };
             } catch (error: unknown) {

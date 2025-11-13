@@ -29,6 +29,7 @@ import {
 import { invalidateCache } from '@/app/utils/invalidateCache';
 import { useModalContextNew } from '../RegisterComponents/Modal/ContextModal';
 import PhotoCaptureModal from './PhotoCaptureModal';
+import { trackEvent } from '@/app/utils/mixpanel';
 
 interface FormulaireProps {
   setDisplayThis: (display: boolean) => void;
@@ -176,6 +177,18 @@ const Formulaire: React.FC<FormulaireProps> = ({ setDisplayThis }) => {
             setAllFilteredBSDs(prev => [...result.createdData as unknown as BSD[], ...prev]);
             setDisplayedBSDs(prev => [...result.createdData as unknown as BSD[], ...prev]);
           }, 100);
+
+          // Track la création de demande de collecte dans Mixpanel
+          trackEvent('Collect Request Created', {
+            nb_requests: selectedFieldsList.length,
+            waste_codes: selectedFieldsList.map(f => f.dechet?.value?.codeCED).filter(Boolean).join(', '),
+            waste_names: selectedFieldsList.map(f => f.dechet?.value?.nom).filter(Boolean).join(', '),
+            has_transporter: selectedFieldsList.some(f => !!f.transporteur),
+            has_recipient: selectedFieldsList.some(f => !!f.destinataire),
+            site_name: selectedFieldsList[0]?.site?.value?.nom || null,
+            transport_types: Array.from(new Set(selectedFieldsList.map(f => f.typePrestation))).join(', '),
+            has_photos: selectedFieldsList.some(f => !!f.photo),
+          });
 
           toast.success('Formulaire soumis avec succès');
           setModalReload(!modalReload)
