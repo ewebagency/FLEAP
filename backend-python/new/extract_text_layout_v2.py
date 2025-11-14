@@ -1,7 +1,7 @@
 import tempfile
 import os
 import pdfplumber
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from new.extract_utils.ocr import ocr_this
 from PIL import Image, ImageDraw, ImageFont
 import fitz  # PyMuPDF
@@ -116,7 +116,13 @@ def remove_water_mark(json_data: Dict) -> Dict:
         print(f"🧹 Watermark: {total_removed_words} mots supprimés")
     return json_data
 
-async def extract_text_with_grid_for_llm(file, spacing_factor: float = 0.02, force_ocr: bool = False) -> Tuple[str, Dict, str]:
+async def extract_text_with_grid_for_llm(
+    file,
+    spacing_factor: float = 0.02,
+    force_ocr: bool = False,
+    precomputed_ocr_text: Optional[str] = None,
+    precomputed_ocr_json: Optional[Dict] = None,
+) -> Tuple[str, Dict, str]:
     """
     Fonction principale pour extraire le texte formaté pour LLM.
     Détecte les tableaux et formate avec grille.
@@ -149,7 +155,10 @@ async def extract_text_with_grid_for_llm(file, spacing_factor: float = 0.02, for
                 method = "ocr"
         else:
             # Force OCR
-            text, json_data = await ocr_this(file)
+            if precomputed_ocr_text is not None and precomputed_ocr_json is not None:
+                text, json_data = precomputed_ocr_text, precomputed_ocr_json
+            else:
+                text, json_data = await ocr_this(file)
             json_data = remove_water_mark(json_data)
             method = "ocr"
         

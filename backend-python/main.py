@@ -47,6 +47,7 @@ from new.extract_text_layout_v2 import extract_text_with_grid_for_llm
 from new.extract_multi_page_gemini import extract_gemini_multi_page
 from new.extract_image_gemini import extract_gemini_with_images, should_use_image_mode, log_image_mode_decision
 from fastapi.responses import Response
+from new.parse_or_ocr import compare_parse_and_ocr
 
 # Compteur global de pages traitées pour reset du modèle OCR
 _pages_processed = 0
@@ -399,6 +400,9 @@ async def meta_ocr(
 ):
     
     global _pages_processed
+    auto_force_ocr = False
+    parse_vs_ocr_result = None
+    ocr_extra_chars = 0
     
     gc.collect()
     start_time = time.time()
@@ -420,19 +424,47 @@ async def meta_ocr(
             print("❌ Erreur dans recognize_type_one_page_llm -> fallback sans LLM")
             type_lu = recognize_type_one_page(raw_text_initial)["type"]
         
-        # Décider si on a besoin de grid_detection
-        # Skip grid_detection pour BON parsable (optimisation)
-        needs_grid = use_grid_detection and not (parse_or_ocr == "parse" and type_lu == "bsd")
+        if parse_or_ocr == "parse":
+            try:
+                parse_vs_ocr_result = await compare_parse_and_ocr(file, raw_text_initial)
+                ocr_extra_chars = parse_vs_ocr_result["extra_chars"]
+                auto_force_ocr = parse_vs_ocr_result["force_ocr"]
+                print(f"🔎 Comparaison Parse vs OCR: +{ocr_extra_chars} caractères (seuil 30)")
+                if auto_force_ocr:
+                    print("⚠️ OCR apporte significativement plus de contenu -> bascule OCR forcée")
+            except Exception as compare_error:
+                auto_force_ocr = False
+                parse_vs_ocr_result = None
+                print(f"❌ Impossible de comparer Parse vs OCR: {compare_error}")
         
+        # Décider si on a besoin de grid_detection
+        # Skip grid_detection pour BON parsable (optimisation) sauf si OCR forcé
+        needs_grid = use_grid_detection and not (parse_or_ocr == "parse" and type_lu == "bsd" and not auto_force_ocr)
+        
+        effective_force_ocr = force_ocr or auto_force_ocr
+
+        precomputed_ocr_text = parse_vs_ocr_result["ocr_text"] if auto_force_ocr and parse_vs_ocr_result else None
+        precomputed_ocr_json = parse_vs_ocr_result["ocr_json"] if auto_force_ocr and parse_vs_ocr_result else None
+
         if needs_grid:
             print("🔍 Grid detection activée (non-BSD ou OCR nécessaire)")
             # Réextraire avec grid_detection
             await file.seek(0)  # Reset file
-            raw_text, potential_json_from_ocr, parse_or_ocr = await extract_text_with_grid_for_llm(file, force_ocr=force_ocr)
+            raw_text, potential_json_from_ocr, parse_or_ocr = await extract_text_with_grid_for_llm(
+                file,
+                force_ocr=effective_force_ocr,
+                precomputed_ocr_text=precomputed_ocr_text,
+                precomputed_ocr_json=precomputed_ocr_json,
+            )
         else:
             print("⚡ Skip grid detection (BSD parsable - optimisation)")
             # Garder l'extraction initiale
-            raw_text, potential_json_from_ocr = raw_text_initial, potential_json_initial
+            if auto_force_ocr and parse_vs_ocr_result is not None:
+                raw_text = parse_vs_ocr_result["ocr_text"]
+                potential_json_from_ocr = parse_vs_ocr_result["ocr_json"]
+                parse_or_ocr = "ocr"
+            else:
+                raw_text, potential_json_from_ocr = raw_text_initial, potential_json_initial
         
         # Count pages for OCR model reset (estimate based on text length)
         estimated_pages = max(1, len(raw_text) // 2000)  # ~2000 chars per page
@@ -802,5 +834,308 @@ async def smart_split(file: UploadFile, check_logique: bool = Form(True)):
         gc.collect()
         print("=" * 60)
 #=============================================SMART SPLIT=============================================
+
+
+#=============================================ANALYZE PARSE VS OCR=============================================
+@app.post("/analyze-parse-vs-ocr")
+async def analyze_parse_vs_ocr(file: UploadFile):
+    """
+    Analyse un PDF en Parse ET OCR pour détecter s'il est hybride.
+    
+    Retourne une image avec 3 vues :
+    1. PDF avec bounding boxes du texte PARSABLE (vert)
+    2. PDF avec bounding boxes du texte OCÉRISÉ (bleu)
+    3. Résumé textuel + verdict OUI/NON si hybride
+    
+    Un PDF hybride = mix de texte natif parsable + zones scannées nécessitant OCR
+    """
+    print("=" * 60)
+    print(f"🔬 ANALYSE PARSE VS OCR: {file.filename}")
+    
+    try:
+        import io
+        import tempfile
+        import fitz  # PyMuPDF
+        from PIL import Image, ImageDraw, ImageFont
+        
+        # Sauvegarder le PDF temporairement
+        contents = await file.read()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+        
+        # === 1. PARSE : Extraire les bounding boxes du texte natif avec PyMuPDF ===
+        print("📖 Extraction PARSE (texte natif avec PyMuPDF)...")
+        parse_boxes = []
+        parse_text = ""
+        parse_chars_count = 0
+        
+        # Ouvrir avec PyMuPDF pour l'extraction
+        pdf_doc = fitz.open(tmp_path)
+        page_fitz = pdf_doc[0]  # Première page
+        
+        # Extraire le texte avec coordonnées
+        text_dict = page_fitz.get_text("dict")
+        parse_page_width = page_fitz.rect.width
+        parse_page_height = page_fitz.rect.height
+        
+        # Parcourir les blocs, lignes et spans pour extraire les caractères
+        for block in text_dict.get("blocks", []):
+            if block.get("type") == 0:  # Type texte (pas image)
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        # Récupérer les bounding box du span (groupe de caractères)
+                        bbox = span.get("bbox")  # (x0, y0, x1, y1)
+                        text = span.get("text", "")
+                        
+                        if bbox and text and text.strip():  # Ignorer les espaces vides
+                            # Calculer la taille de la box
+                            width = bbox[2] - bbox[0]
+                            height = bbox[3] - bbox[1]
+                            
+                            # Filtrer les boxes trop petites (probablement des artefacts)
+                            if width > 2 and height > 2:  # Au moins 2 points de large/haut
+                                parse_boxes.append({
+                                    'x0': bbox[0],
+                                    'y0': bbox[1],
+                                    'x1': bbox[2],
+                                    'y1': bbox[3],
+                                    'text': text
+                                })
+                                parse_text += text
+                                parse_chars_count += len(text)
+        
+        print(f"   ✅ Parse: {parse_chars_count} caractères, {len(parse_text)} chars de texte")
+        print(f"   📐 Dimensions page PyMuPDF: {parse_page_width}x{parse_page_height} points")
+        
+        # === 2. OCR : Extraire les bounding boxes du texte OCRisé ===
+        print("🔍 Extraction OCR (DocTR)...")
+        await file.seek(0)
+        ocr_result = await ocr_this_pdf_with_doctr(file)
+        ocr_text = ocr_result["text"]
+        raw_ocr = ocr_result["raw_result"]
+        
+        ocr_boxes = []
+        ocr_words_count = 0
+        
+        # Extraire les bounding boxes depuis le résultat DocTR
+        if raw_ocr and "pages" in raw_ocr and len(raw_ocr["pages"]) > 0:
+            page_data = raw_ocr["pages"][0]
+            page_height = page_data["dimensions"][0]
+            page_width = page_data["dimensions"][1]
+            
+            for block in page_data["blocks"]:
+                for line in block["lines"]:
+                    for word in line["words"]:
+                        # Coordonnées normalisées (0-1) → pixels
+                        geom = word["geometry"]
+                        x0 = geom[0][0] * page_width
+                        y0 = geom[0][1] * page_height
+                        x1 = geom[1][0] * page_width
+                        y1 = geom[1][1] * page_height
+                        
+                        ocr_boxes.append({
+                            'x0': x0,
+                            'y0': y0,
+                            'x1': x1,
+                            'y1': y1,
+                            'text': word["value"],
+                            'confidence': word.get("confidence", 0)
+                        })
+                        ocr_words_count += 1
+        
+        print(f"   ✅ OCR: {ocr_words_count} mots, {len(ocr_text)} chars de texte")
+        
+        # === 3. COMPARAISON : Détecter si hybride ===
+        print("🧮 Analyse et comparaison...")
+        
+        # Critères pour déterminer si hybride
+        parse_has_content = parse_chars_count > 50  # Au moins 50 caractères parsables
+        ocr_chars = len(ocr_text.strip())
+        parse_chars = len(parse_text.strip())
+        extra_chars = max(0, ocr_chars - parse_chars)
+        ocr_has_more_content = extra_chars > 30  # OCR trouve plus de 30 caractères supplémentaires
+        
+        # Si Parse trouve peu/rien mais OCR trouve beaucoup = PDF scanné pur
+        # Si Parse trouve beaucoup et OCR aussi avec différences = hybride
+        is_hybrid = parse_has_content and ocr_has_more_content
+        
+        # Calculer similarité textuelle (approximative)
+        parse_clean = parse_text.strip().lower()[:500]
+        ocr_clean = ocr_text.strip().lower()[:500]
+        similarity = sum(c1 == c2 for c1, c2 in zip(parse_clean, ocr_clean)) / max(len(parse_clean), len(ocr_clean), 1) * 100
+        
+        parse_loses_info = extra_chars > 30
+        force_ocr_needed = False
+        force_ocr_overkill = False
+        
+        if not parse_has_content:
+            verdict_label = "PDF SCANNÉ (OCR uniquement)"
+            verdict_reason = "Aucun texte natif fiable n'a été trouvé, seul l'OCR fournit du contenu exploitable."
+            parse_loses_info = True
+            force_ocr_needed = True
+        elif parse_has_content and not ocr_has_more_content and parse_chars_count > 100:
+            verdict_label = "PDF TEXTE NATIF"
+            verdict_reason = "Le parsing texte restitue déjà toutes les informations, l'OCR n'ajoute rien de significatif."
+            force_ocr_overkill = True
+        elif is_hybrid:
+            verdict_label = "PDF HYBRIDE"
+            verdict_reason = "Présence de texte natif, mais l'OCR récupère au moins 30 caractères supplémentaires (zones scannées)."
+            parse_loses_info = extra_chars > 30
+            force_ocr_needed = True
+        else:
+            verdict_label = "PDF MIXTE (différences faibles)"
+            verdict_reason = "Les deux méthodes donnent des volumes proches. Quelques variations existent mais restent limitées."
+            parse_loses_info = ocr_has_more_content
+            force_ocr_needed = parse_loses_info
+            force_ocr_overkill = not parse_loses_info
+        
+        verdict = f"{verdict_label} - {verdict_reason}"
+        
+        print(f"   📊 Verdict: {verdict_label}")
+        print(f"   📊 Similarité texte: {similarity:.1f}%")
+        
+        # === 4. CRÉATION IMAGE COMPOSITE ===
+        print("🎨 Création de l'image composite...")
+        
+        # Convertir en image (150 DPI pour performance)
+        # On réutilise page_fitz et pdf_doc déjà ouverts
+        zoom = 150 / 72  # 72 DPI par défaut, on veut 150 DPI
+        mat = fitz.Matrix(zoom, zoom)
+        pix = page_fitz.get_pixmap(matrix=mat)
+        
+        # Convertir pixmap en PIL Image
+        img_data = pix.tobytes("png")
+        base_image = Image.open(io.BytesIO(img_data))
+        img_width, img_height = base_image.size
+        
+        # Créer 3 copies de l'image
+        img_parse = base_image.copy()
+        img_ocr = base_image.copy()
+        img_summary = Image.new('RGB', (img_width, img_height), color='white')
+        
+        # Dessiner bounding boxes PARSE (vert)
+        # PyMuPDF et l'image utilisent le même référentiel, on applique juste le zoom
+        draw_parse = ImageDraw.Draw(img_parse)
+        for box in parse_boxes[:500]:  # Limiter pour performance
+            # Les coordonnées PyMuPDF sont en points, on applique le zoom
+            x0 = box['x0'] * zoom
+            y0 = box['y0'] * zoom
+            x1 = box['x1'] * zoom
+            y1 = box['y1'] * zoom
+            coords = [(x0, y0), (x1, y1)]
+            draw_parse.rectangle(coords, outline='green', width=2)
+        
+        # Dessiner bounding boxes OCR (bleu)
+        # Les coordonnées OCR sont déjà converties en pixels de l'image
+        draw_ocr = ImageDraw.Draw(img_ocr)
+        for box in ocr_boxes:
+            # Recalculer avec les dimensions de l'image réelle
+            x0 = (box['x0'] / page_width) * img_width
+            y0 = (box['y0'] / page_height) * img_height
+            x1 = (box['x1'] / page_width) * img_width
+            y1 = (box['y1'] / page_height) * img_height
+            coords = [(x0, y0), (x1, y1)]
+            draw_ocr.rectangle(coords, outline='blue', width=2)
+        
+        # Dessiner résumé textuel
+        draw_summary = ImageDraw.Draw(img_summary)
+        try:
+            font_title = ImageFont.truetype("arial.ttf", 32)
+            font_text = ImageFont.truetype("arial.ttf", 20)
+        except:
+            font_title = ImageFont.load_default()
+            font_text = ImageFont.load_default()
+        
+        # Texte du résumé
+        y_pos = 50
+        draw_summary.text((20, y_pos), "📊 ANALYSE PARSE VS OCR", fill='black', font=font_title)
+        y_pos += 80
+        
+        summary_lines = [
+            f"Fichier: {file.filename}",
+            "",
+            "🟢 PARSE (Texte natif):",
+            f"  • Caractères: {parse_chars_count}",
+            f"  • Longueur texte: {len(parse_text)} chars",
+            "",
+            "🔵 OCR (DocTR):",
+            f"  • Mots détectés: {ocr_words_count}",
+            f"  • Longueur texte: {len(ocr_text)} chars",
+            "",
+            "📈 COMPARAISON:",
+            f"  • Similarité: {similarity:.1f}%",
+            f"  • Différence: {extra_chars} chars (OCR vs Parse)",
+            "",
+            "🔍 VERDICT:",
+            f"  • Type: {verdict_label}",
+            f"  • Raison: {verdict_reason}",
+            "",
+            "⚖️ DÉCISION PARSABLE VS OCR:",
+            f"  • Perte si PARSE seul ? {'OUI' if parse_loses_info else 'NON'}",
+            f"  • Faut-il forcer OCR ? {'OUI' if force_ocr_needed else 'NON'}",
+            f"  • OCR superflu ? {'OUI' if force_ocr_overkill else 'NON'}",
+        ]
+        
+        for line in summary_lines:
+            draw_summary.text((20, y_pos), line, fill='black', font=font_text)
+            y_pos += 35
+        
+        # Combiner les 3 images côte à côte
+        margin = 20
+        total_width = img_width * 3 + margin * 4
+        total_height = img_height + margin * 2
+        
+        combined = Image.new('RGB', (total_width, total_height), color='lightgray')
+        
+        # Labels
+        draw_combined = ImageDraw.Draw(combined)
+        labels = ["1. PARSE (texte natif)", "2. OCR (DocTR)", "3. RÉSUMÉ"]
+        x_positions = [margin, img_width + margin * 2, img_width * 2 + margin * 3]
+        
+        for i, (label, x_pos) in enumerate(zip(labels, x_positions)):
+            draw_combined.text((x_pos + 10, 5), label, fill='black', font=font_text)
+        
+        # Coller les images
+        combined.paste(img_parse, (margin, margin))
+        combined.paste(img_ocr, (img_width + margin * 2, margin))
+        combined.paste(img_summary, (img_width * 2 + margin * 3, margin))
+        
+        # Convertir en bytes
+        out = io.BytesIO()
+        combined.save(out, format='PNG')
+        out.seek(0)
+        
+        # Nettoyage
+        pdf_doc.close()
+        os.unlink(tmp_path)
+        gc.collect()
+        
+        print(f"✅ Image composite créée: {total_width}x{total_height}px")
+        print("=" * 60)
+        
+        return Response(
+            content=out.getvalue(),
+            media_type="image/png",
+            headers={
+                "Content-Disposition": f"inline; filename=parse_vs_ocr_{file.filename}.png"
+            }
+        )
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de l'analyse: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": f"Erreur lors de l'analyse: {str(e)}"
+        }
+    
+    finally:
+        await file.close()
+        gc.collect()
+        print("=" * 60)
+
+#=============================================ANALYZE PARSE VS OCR=============================================
 
 
