@@ -4,11 +4,10 @@ import OperationalAnalyse from "./Operationelle/OperationalAnalyse";
 import FinancialAnalyse from "./Financiere/FinancialAnalyse";
 import FactureAnalyse from "./Factures/FacturesAnalyse";
 import EnvAnalyse from "./Environnementale/EnvAnalyse";
-import { SessionMore } from "../SessionProvider";
 import { useSession } from "../SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
-import { useEntrepriseId } from "@/app/interface_admin_2/InterfaceAdmin2/hooks/useEntrepriseId";
 import ExcelAnomaliesFinanciere from "./Financiere/New/ExcelAnomaliesFinanciere";
+import { trackEvent } from "@/app/utils/mixpanel";
 //import OptiTab from "./Optimisation/OptiTab";
 
 export interface Material { id: number, checked: boolean, color: string, label: string}
@@ -23,8 +22,31 @@ const TabBarAnalyses = () => {
     const [hasExcelAnomalies, setHasExcelAnomalies] = useState(false);
     const [entrepriseId, setEntrepriseId] = useState<string | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
-    const handleTabClick = (tab:string) => {
+    const handleTabClick = (tab: string) => {
         setActiveTab(tab);
+        const trackingConfig: Record<string, { event: string; label: string }> = {
+            tab_finance: {
+                event: "Analyse - Clic tab financière",
+                label: "Analyse financière",
+            },
+            tab_ops: {
+                event: "Analyse - Clic tab opérationnelle",
+                label: "Analyse opérationnelle",
+            },
+            tab_env: {
+                event: "Analyse - Clic tab environnementale",
+                label: "Analyse environnementale",
+            },
+        };
+        const config = trackingConfig[tab];
+        if (config) {
+            trackEvent(config.event, {
+                tabKey: tab,
+                tabLabel: config.label,
+                entrepriseId,
+                userId,
+            });
+        }
       };
 
     useEffect(() => {

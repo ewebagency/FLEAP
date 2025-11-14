@@ -11,6 +11,7 @@ import { GraphConfigurator } from './components/GraphConfigurator';
 import { ChartRenderer } from './components/ChartRenderer';
 import { PDFPreview } from './components/PDFPreview';
 import { ReportConfigManager } from './components/ReportConfigManager';
+import { trackEvent } from '@/app/utils/mixpanel';
 // Removed dependency on AnalysisProvider; all data comes from API + FilterContext
 
 export default function ReportBuilderButton() {
@@ -103,8 +104,12 @@ export default function ReportBuilderButton() {
 
   const onOpen = useCallback(async () => {
     if (!entreprise_id) return;
+    trackEvent("Environnement - Générer rapport", {
+      entrepriseId: entreprise_id,
+      filterType: state.filterType,
+    });
     setStep('config');
-  }, [entreprise_id]);
+  }, [entreprise_id, state.filterType]);
 
   const onClose = useCallback(() => {
     setStep('closed');
