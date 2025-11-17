@@ -6,6 +6,10 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Swal from 'sweetalert2';
 import { Session } from '@supabase/supabase-js';
+import { trackEvent } from '@/app/utils/mixpanel';
+
+type SignInMethod = 'credentials' | 'session-refresh';
+type SignInOutcome = 'success' | 'failure' | 'blocked';
 
 interface MFAModalProps {
   isOpen: boolean;
@@ -82,11 +86,67 @@ export default function SignIn() {
   const [isAutoLoggingIn, setIsAutoLoggingIn] = useState(false);
   const [sessionFound, setSessionFound] = useState(false);
   const [storedEmail, setStoredEmail] = useState('');
+  const [hasTrackedView, setHasTrackedView] = useState(false);
+
+  const getEmailDomain = () => {
+    if (!email.includes('@')) {
+      return null;
+    }
+    const [, domain] = email.split('@');
+    return domain || null;
+  };
+
+  const emitSignInAttempt = (method: SignInMethod) => {
+    trackEvent('Sign In - Attempt', {
+      method,
+      hasEmail: email.length > 0,
+      emailDomain: getEmailDomain(),
+      rememberMe,
+      sessionFound,
+      storedEmailMatch: storedEmail.length > 0 && storedEmail === email,
+    });
+  };
+
+  const emitSignInResult = (
+    method: SignInMethod,
+    outcome: SignInOutcome,
+    reason?: string,
+    attemptOverride?: number
+  ) => {
+    const attemptCount = typeof attemptOverride === 'number' ? attemptOverride : loginAttempts;
+    trackEvent('Sign In - Result', {
+      method,
+      outcome,
+      reason: reason || null,
+      hasEmail: email.length > 0,
+      emailDomain: getEmailDomain(),
+      rememberMe,
+      attempts: attemptCount,
+    });
+  };
   
   // Gestion de l'hydratation
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  useEffect(() => {
+    if (!isClient || hasTrackedView) {
+      return;
+    }
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const persistentSession = window.localStorage.getItem('fleap_session');
+    const temporarySession = window.sessionStorage.getItem('fleap_session');
+    trackEvent('Sign In - Page Viewed', {
+      hasStoredEmail: storedEmail.length > 0,
+      sessionFound,
+      persistentSession: Boolean(persistentSession),
+      temporarySession: Boolean(temporarySession),
+    });
+    setHasTrackedView(true);
+  }, [isClient, hasTrackedView, storedEmail, sessionFound]);
 
   const REMEMBER_ME_ENABLED = isClient ? process.env.NEXT_PUBLIC_REMEMBER_ME_ENABLED === 'true' : false;
 
@@ -158,8 +218,10 @@ export default function SignIn() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    const authMethod: SignInMethod = sessionFound && storedEmail === email ? 'session-refresh' : 'credentials';
     
     if (loginAttempts >= 5) {
+      emitSignInResult(authMethod, 'blocked', 'too_many_attempts');
       Swal.fire({
         title: 'Compte bloqué',
         text: 'Trop de tentatives de connexion. Veuillez réessayer plus tard.',
@@ -177,6 +239,7 @@ export default function SignIn() {
       return;
     }
 
+    emitSignInAttempt(authMethod);
     setLoading(true);
 
     // Si une session existe et qu'on a trouvé l'email, essayer de la restaurer
@@ -214,6 +277,7 @@ export default function SignIn() {
               
               // Continuer avec le processus normal (MFA, etc.)
               await processSuccessfulAuth(data.session);
+              emitSignInResult(authMethod, 'success', 'session_restored');
               setLoading(false);
               return;
             }
@@ -229,7 +293,9 @@ export default function SignIn() {
     
     if (authError) {
       setLoading(false);
-      setLoginAttempts(prev => prev + 1);
+      const nextAttempts = loginAttempts + 1;
+      setLoginAttempts(nextAttempts);
+      emitSignInResult(authMethod, 'failure', authError.message, nextAttempts);
       const remainingAttempts = 5 - loginAttempts - 1;
       
       Swal.fire({
@@ -273,6 +339,7 @@ export default function SignIn() {
     }
 
     await processSuccessfulAuth(authData.session);
+    emitSignInResult(authMethod, 'success', 'credentials_authenticated');
     setLoading(false);
   };
 
