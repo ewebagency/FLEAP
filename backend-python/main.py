@@ -29,7 +29,12 @@ V2 = True  # Mettre à True pour utiliser les nouveaux prompts et structures v2
 
 from new.new_prompts import get_specific_prompt
 from new.new_extract_raw import get_raw_text_from_pdf
-from new.new_confidence import get_confidence, handwritten_confidence
+from new.new_confidence import (
+    get_confidence,
+    handwritten_confidence,
+    analyze_large_word_misreads,
+)
+from new.new_large_word_alert import evaluate_large_word_legibility
 
 # Import conditionnel selon la version
 if V2:
@@ -43,7 +48,10 @@ from new.new_recognize_type import recognize_type_one_page
 from new.new_alerte import alerte_function
 from new.new_similarity.new_find_best_proxy import create_best_prompt_example
 import time
-from new.extract_text_layout_v2 import extract_text_with_grid_for_llm
+from new.extract_text_layout_v2 import (
+    extract_text_with_grid_for_llm,
+    render_large_word_confidence_preview,
+)
 from new.extract_multi_page_gemini import extract_gemini_multi_page
 from new.extract_image_gemini import extract_gemini_with_images, should_use_image_mode, log_image_mode_decision
 from fastapi.responses import Response
@@ -396,7 +404,8 @@ async def meta_ocr(
     entreprise_id: str = Form(None),
     use_grid_detection: bool = Form(True), ## On utilise toujours la détéction de tableau et le layout -> voir avec viusalizing bounding box pour comprendre ce qu'il se passe
     force_ocr: bool = Form(False),
-    force_image: bool = Form(False)
+    force_image: bool = Form(False),
+    run_large_word_review: bool = Form(True),
 ):
     
     global _pages_processed
@@ -551,9 +560,47 @@ async def meta_ocr(
         structured_response = structure(type_lu, gemini_data)
         
         # Calculate confidence inline
-        confidence = get_confidence(gemini_data, potential_json_from_ocr) if parse_or_ocr == "ocr" else {"brute": 100, "spec": 100, "handwritten": [0, False]}
+        default_confidence = {
+            "brute": 100.0,
+            "spec": 100.0,
+            "handwritten": [0, False],
+            "large_word_review_llm_can_understand": True,
+            "large_word_review_reason": "Évaluation non nécessaire (parse).",
+        }
+        confidence = (
+            get_confidence(gemini_data, potential_json_from_ocr)
+            if parse_or_ocr == "ocr"
+            else default_confidence.copy()
+        )
+        confidence.setdefault("large_word_review_llm_can_understand", True)
+        confidence.setdefault("large_word_review_reason", "Évaluation non réalisée.")
+
         if parse_or_ocr == "ocr":
             confidence["handwritten"] = handwritten_confidence(file, potential_json_from_ocr)
+            if run_large_word_review and not use_image:
+                print("🔍 Review de la confidence par LLM")
+                large_words = analyze_large_word_misreads(potential_json_from_ocr)
+                need_review = (
+                    large_words.get("misread_large_word_count", 0) > 0
+                    and confidence.get("brute", 0) < 88
+                )
+                if need_review and large_words.get("suspect_words"):
+                    review = await evaluate_large_word_legibility(
+                        type_lu, large_words["suspect_words"]
+                    )
+                    confidence["large_word_review_llm_can_understand"] = review.get(
+                        "llm_can_understand", True
+                    )
+                    confidence["large_word_review_reason"] = review.get(
+                        "reason", "Analyse Gemini indisponible."
+                    )
+                    print("🔍 Review de la confidence par LLM : ", confidence["large_word_review_reason"])
+                else:
+                    confidence["large_word_review_reason"] = "OCR suffisamment fiable."
+            elif use_image:
+                confidence["large_word_review_reason"] = "Évaluation ignorée (mode image)."
+            else:
+                confidence["large_word_review_reason"] = "Évaluation désactivée."
         
         # Generate alerts inline
         alerte = alerte_function(alerte_type, confidence, structured_response, pdfInfos_dict, clusterParams_dict)
@@ -720,6 +767,51 @@ async def visualize_bounding_boxes_route(file: UploadFile, force_ocr: bool = For
         print("=" * 60)
 
 #=============================================VISUALIZE BOUNDING BOXES=============================================
+
+
+@app.post("/highlight-large-ocr-words")
+async def highlight_large_ocr_words_route(
+    file: UploadFile,
+    height_ratio_threshold: float = Form(0.01),
+    confidence_threshold: float = Form(0.6),
+    page_index: int = Form(0),
+):
+    """
+    Génère une image PNG du PDF avec les mots volumineux encadrés.
+    Vert: bonne lecture (confiance >= seuil). Rouge: mauvaise lecture.
+    """
+    print("=" * 60)
+    print(f"🖼️ HIGHLIGHT LARGE OCR WORDS: {file.filename}")
+
+    try:
+        image_bytes = await render_large_word_confidence_preview(
+            file,
+            height_ratio_threshold=height_ratio_threshold,
+            confidence_threshold=confidence_threshold,
+            page_index=page_index,
+        )
+
+        return Response(
+            content=image_bytes,
+            media_type="image/png",
+            headers={
+                "Content-Disposition": f"inline; filename=large_words_{file.filename}_{page_index}.png"
+            },
+        )
+    except ValueError as err:
+        return {
+            "success": False,
+            "error": str(err),
+        }
+    except Exception as err:
+        print(f"❌ Erreur highlight_large_ocr_words: {str(err)}")
+        return {
+            "success": False,
+            "error": f"Erreur lors de la génération de l'image: {str(err)}",
+        }
+    finally:
+        await file.close()
+        print("=" * 60)
 
 
 #=============================================EXTRACT TEXT WITH TABLE GRID=============================================

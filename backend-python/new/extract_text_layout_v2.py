@@ -1798,3 +1798,109 @@ async def visualize_ocr_boxes_pages(file) -> List[bytes]:
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+
+
+async def render_large_word_confidence_preview(
+    file,
+    height_ratio_threshold: float = 0.01,
+    confidence_threshold: float = 0.6,
+    page_index: int = 0,
+) -> bytes:
+    """
+    Génère une image PNG (une page) avec les mots de grande taille encadrés selon leur
+    confiance OCR. Vert = mot bien lu, Rouge = mot mal lu.
+    """
+    if page_index < 0:
+        raise ValueError("L'index de page doit être positif.")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+    await file.seek(0)
+
+    try:
+        _, json_data = await ocr_this(file)
+        json_data = remove_water_mark(json_data)
+
+        pdf_document = fitz.open(tmp_path)
+        num_pages = len(pdf_document)
+        if num_pages == 0:
+            raise ValueError("PDF vide.")
+        if page_index >= num_pages:
+            raise ValueError(f"Page {page_index} inexistante (max {num_pages - 1}).")
+
+        page = pdf_document[page_index]
+        mat = fitz.Matrix(2, 2)
+        pix = page.get_pixmap(matrix=mat)
+        base_img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        img_width, img_height = base_img.size
+        draw = ImageDraw.Draw(base_img)
+
+        if not json_data or "pages" not in json_data:
+            raise ValueError("JSON OCR indisponible.")
+
+        pages = json_data.get("pages", [])
+        if page_index >= len(pages):
+            raise ValueError("Les données OCR ne contiennent pas cette page.")
+
+        page_data = pages[page_index]
+        highlighted = 0
+
+        for block in page_data.get("blocks", []):
+            for line in block.get("lines", []):
+                for word in line.get("words", []):
+                    geometry = word.get("geometry")
+                    if (
+                        geometry is None
+                        or not isinstance(geometry, (list, tuple))
+                        or len(geometry) != 2
+                    ):
+                        continue
+
+                    (x0, y0), (x1, y1) = geometry
+                    try:
+                        height_ratio = max(0.0, float(y1) - float(y0))
+                    except (TypeError, ValueError):
+                        continue
+
+                    if height_ratio < height_ratio_threshold:
+                        continue
+
+                    confidence_value = word.get("confidence")
+                    try:
+                        confidence_float = float(confidence_value)
+                    except (TypeError, ValueError):
+                        continue
+
+                    is_good = confidence_float >= confidence_threshold
+                    color = "green" if is_good else "red"
+                    highlighted += 1
+                    x0_px = int(float(x0) * img_width)
+                    y0_px = int(float(y0) * img_height)
+                    x1_px = int(float(x1) * img_width)
+                    y1_px = int(float(y1) * img_height)
+                    draw.rectangle([(x0_px, y0_px), (x1_px, y1_px)], outline=color, width=4)
+                    if not is_good:
+                        word_value = str(word.get("value") or "")
+                        if word_value:
+                            text_x = max(0, x0_px)
+                            text_y = max(0, y0_px - 20)
+                            draw.text((text_x, text_y), word_value[:25], fill="red")
+
+        label = (
+            f"Mots >= {height_ratio_threshold*100:.1f}% hauteur | "
+            f"Seuil confiance {confidence_threshold:.2f} | "
+            f"Surlignés: {highlighted}"
+        )
+        draw.text((20, 20), label, fill="black")
+
+        output = io.BytesIO()
+        base_img.save(output, format="PNG")
+        output.seek(0)
+        return output.getvalue()
+    finally:
+        if 'pdf_document' in locals():
+            pdf_document.close()
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)

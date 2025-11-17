@@ -164,7 +164,8 @@ export const getAllPossibleAlerteFlags = (): Array<{value: string, label: string
         { value: 'ced_non_lu', label: 'CED non lu' },
         { value: 'ced_invalide', label: 'CED invalide' },
         { value: 'calcul_errone', label: 'Calcul erroné' },
-        { value: 'somme_erronee', label: 'Somme erronée' }
+        { value: 'somme_erronee', label: 'Somme erronée' },
+        { value: 'large_word_review_llm_can_understand', label: 'Lecture OCR douteuse' }
     ];
 };
 
@@ -204,7 +205,8 @@ export const getFlagValueFromLabel = (label: string): string => {
         'CED non lu': 'ced_non_lu',
         'CED invalide': 'ced_invalide',
         'Calcul erroné': 'calcul_errone',
-        'Somme erronée': 'somme_erronee'
+        'Somme erronée': 'somme_erronee',
+        'Lecture OCR douteuse': 'large_word_review_llm_can_understand'
     };
     return mapping[label] || label.toLowerCase().replace(/\s+/g, '_');
 };
@@ -260,6 +262,10 @@ export const getAlerteFlags = (message: string): AlerteFlag[] => {
         else if (lowerMessage.includes('invalide')) flags.push({ label: 'CED invalide', color: 'bg-pink-100 text-pink-700' });
     }
     
+    if (lowerMessage.includes('lecture ocr douteuse')) {
+        flags.push({ label: 'Lecture OCR douteuse', color: 'bg-rose-100 text-rose-700' });
+    }
+
     // Calculs
     if (lowerMessage.includes('calcul incorrect')) {
         flags.push({ label: 'Calcul erroné', color: 'bg-blue-100 text-blue-700' });

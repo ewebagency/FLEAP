@@ -73,6 +73,14 @@ interface AlerteResult {
     message: string;
 }
 
+type ConfidenceData = {
+    brute?: number;
+    spec?: number;
+    handwritten?: [number, boolean];
+    large_word_review_llm_can_understand?: boolean;
+    large_word_review_reason?: string;
+} & Record<string, unknown>;
+
 // ===== FONCTIONS D'ALERTE MODULAIRES =====
 
 /**
@@ -483,7 +491,7 @@ export const mettreAJourAlerteTraductions = async (
         // Récupérer les données du PDF pour les validations supplémentaires
         const { data: pdfData, error: pdfError } = await supabase
             .from('pdf_infos')
-            .select('infos_raw')
+            .select('infos_raw, confidence')
             .eq('id', pdfId)
             .eq('entreprise_id', entrepriseId)
             .single();
@@ -493,6 +501,7 @@ export const mettreAJourAlerteTraductions = async (
         }
 
         const infosRaw = pdfData.infos_raw as InfosRaw;
+        const confidenceData = (pdfData.confidence as ConfidenceData | null | undefined) ?? null;
         
         // Construire le message d'alerte
         let message = "";
@@ -536,6 +545,14 @@ export const mettreAJourAlerteTraductions = async (
                 const contenantsNonReconnus = verificationResult.missingFields.contenants.map(c => `"${c}"`).join(', ');
                 missingMessages.push(`Contenant(s) non reconnu(s): ${contenantsNonReconnus}`);
             }
+        }
+
+        if (confidenceData?.large_word_review_llm_can_understand === false) {
+            stop = true;
+            const reason = typeof confidenceData.large_word_review_reason === 'string' && confidenceData.large_word_review_reason.trim().length > 0
+                ? confidenceData.large_word_review_reason
+                : 'Le document risque d\'être mal compris.';
+            missingMessages.push(`Lecture OCR douteuse: ${reason}`);
         }
 
         // === NOUVELLES ALERTES MODULAIRES ===

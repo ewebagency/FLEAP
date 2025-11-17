@@ -8,6 +8,7 @@ import CreatableSelect from 'react-select/creatable';
 // import { MultiValue } from 'react-select';
 import { useSWRConfig } from 'swr';
 import { RAW_FIELD_CLASS, ENTITY_CATEGORY_CLASS } from '../MetaClusterParams/fieldStyles';
+import Swal from 'sweetalert2';
 
 interface MappingNomFiliere {
     nom: string;
@@ -37,6 +38,9 @@ export default function FiliereNomTab() {
     const [mappingMode, setMappingMode] = useState<'mono' | 'multi_tri' | 'multi_non_tri'>('mono');
     const { mutate } = useSWRConfig();
     const [searchNom, setSearchNom] = useState<string>('');
+    const [renamingFiliere, setRenamingFiliere] = useState<string | null>(null);
+    const [renameValue, setRenameValue] = useState<string>('');
+    const [isRenamingSubmitting, setIsRenamingSubmitting] = useState<boolean>(false);
 
     // Récupérer les filières uniques
     const uniqueFilieres = Array.from(new Set(mappings.map(m => m.filiere))).sort();
@@ -282,7 +286,28 @@ export default function FiliereNomTab() {
         }
     };
 
+    const resetRenameState = () => {
+        setRenamingFiliere(null);
+        setRenameValue('');
+    };
+
     const handleDeleteFiliere = async (filiereToDelete: string) => {
+        const nomsCount = mappings.filter(m => m.filiere === filiereToDelete).length;
+        const result = await Swal.fire({
+            title: 'Confirmer la suppression',
+            text: `Êtes-vous sûr de vouloir supprimer la filière "${filiereToDelete}" et ses ${nomsCount} nom${nomsCount > 1 ? 's' : ''} associé${nomsCount > 1 ? 's' : ''} ?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Oui, supprimer',
+            cancelButtonText: 'Annuler'
+        });
+
+        if (!result.isConfirmed) {
+            return;
+        }
+
         const updatedMappings = mappings.filter(m => m.filiere !== filiereToDelete);
         try {
             const { error } = await supabase
@@ -297,9 +322,63 @@ export default function FiliereNomTab() {
                 await fetch(`/api/get_mapping_nom_filiere?entreprise_id=${session.entreprise_id}&clearCache=true`);
                 mutate(`/api/get_mapping_nom_filiere?entreprise_id=${session.entreprise_id}`, undefined, { revalidate: true });
             }
+            
+            Swal.fire('Supprimé !', 'La filière a été supprimée avec succès.', 'success');
         } catch (err) {
             setError('Erreur lors de la suppression de la filière');
             console.error(err);
+            Swal.fire('Erreur', 'Une erreur est survenue lors de la suppression.', 'error');
+        }
+    };
+
+    const handleStartRenameFiliere = (filiere: string) => {
+        setRenamingFiliere(filiere);
+        setRenameValue(filiere);
+        setError(null);
+    };
+
+    const handleRenameFiliere = async () => {
+        if (!renamingFiliere) return;
+        const trimmedName = renameValue.trim();
+        if (!trimmedName) {
+            setError('Le nom de filière ne peut pas être vide.');
+            return;
+        }
+        if (trimmedName === renamingFiliere) {
+            resetRenameState();
+            return;
+        }
+        const existingFiliere = uniqueFilieres.find(
+            filiere => filiere.toLowerCase() === trimmedName.toLowerCase() && filiere !== renamingFiliere
+        );
+        if (existingFiliere) {
+            setError('Une filière portant déjà ce nom existe.');
+            return;
+        }
+        setIsRenamingSubmitting(true);
+        try {
+            const updatedMappings = mappings.map(mapping =>
+                mapping.filiere === renamingFiliere
+                    ? { ...mapping, filiere: trimmedName }
+                    : mapping
+            );
+            const { error: updateError } = await supabase
+                .from('entreprise')
+                .update({ mapping_nom_filiere: updatedMappings })
+                .eq('id', session.entreprise_id);
+            if (updateError) throw updateError;
+            setMappings(updatedMappings);
+            if (session.entreprise_id) {
+                await fetch(`/api/get_mapping_nom_filiere?entreprise_id=${session.entreprise_id}&clearCache=true`);
+                mutate(`/api/get_mapping_nom_filiere?entreprise_id=${session.entreprise_id}`, undefined, { revalidate: true });
+            }
+            resetRenameState();
+            setError(null);
+        } catch (err) {
+            setError('Erreur lors du renommage de la filière.');
+            console.error(err);
+        } finally {
+            setIsRenamingSubmitting(false);
         }
     };
 
@@ -455,16 +534,60 @@ export default function FiliereNomTab() {
                                             <h3 className="text-sm font-semibold text-gray-800">
                                                 <span className={ENTITY_CATEGORY_CLASS}>{filiere}</span>
                                             </h3>
-                                            <button
-                                                onClick={() => handleDeleteFiliere(filiere)}
-                                                className="text-red-500 hover:text-red-700"
-                                                title="Supprimer tous les noms de cette filière"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 100 2h.278l.84 9.243A2 2 0 007.11 17h5.78a2 2 0 001.992-1.757L15.722 6H16a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0010 2H9zM8 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-                                                </svg>
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleStartRenameFiliere(filiere)}
+                                                    className="text-blue-500 hover:text-blue-700 disabled:text-gray-300"
+                                                    title="Renommer cette filière"
+                                                    disabled={!!renamingFiliere && renamingFiliere !== filiere}
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793z" />
+                                                        <path d="M12.379 5.207L4 13.586V16h2.414l8.379-8.379-2.414-2.414z" />
+                                                    </svg>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteFiliere(filiere)}
+                                                    className="text-red-500 hover:text-red-700"
+                                                    title="Supprimer tous les noms de cette filière"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 100 2h.278l.84 9.243A2 2 0 007.11 17h5.78a2 2 0 001.992-1.757L15.722 6H16a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0010 2H9zM8 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </div>
+                                        {renamingFiliere === filiere && (
+                                            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                                                <input
+                                                    type="text"
+                                                    value={renameValue}
+                                                    onChange={(e) => setRenameValue(e.target.value)}
+                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    placeholder="Nouveau nom de filière"
+                                                />
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleRenameFiliere}
+                                                        className="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+                                                        disabled={isRenamingSubmitting}
+                                                    >
+                                                        Valider
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={resetRenameState}
+                                                        className="px-3 py-2 border border-gray-300 rounded hover:bg-gray-100"
+                                                        disabled={isRenamingSubmitting}
+                                                    >
+                                                        Annuler
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="mt-2 flex flex-wrap gap-2 -ml-2">
                                             {noms.map((mapping) => {
                                                 const isMultiflux = mapping.multiflux ?? false;
@@ -502,7 +625,7 @@ export default function FiliereNomTab() {
                                                                 className="text-red-500 hover:text-red-700"
                                                                 title="Supprimer"
                                                             >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                                                                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                                                                 </svg>
                                                             </button>

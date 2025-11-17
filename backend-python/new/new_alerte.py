@@ -222,6 +222,12 @@ def alerte_function(alerte_type: bool, confidence: dict, structured_response, pd
         stop = True
         message.append("Le document contient trop de texte écrit à la main.")
 
+    large_word_ok = confidence.get("large_word_review_llm_can_understand", True)
+    if not large_word_ok:
+        reason = confidence.get("large_word_review_reason", "Le document risque d'être mal compris.")
+        stop = True
+        message.append(f"Lecture OCR douteuse: {reason}")
+
     # ===== NOUVELLES ALERTES MODULAIRES =====
     # Ces alertes peuvent être facilement activées/désactivées en modifiant les variables ci-dessous
     ENABLE_ALERTE_TONNAGE = True
