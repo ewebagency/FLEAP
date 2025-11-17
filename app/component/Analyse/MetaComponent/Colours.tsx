@@ -9,7 +9,12 @@ export const getColors = (nombre_couleurs: number) => {
         'bg-teal-400', 'bg-teal-700',
         'bg-cyan-400', 'bg-cyan-700',
         'bg-indigo-400', 'bg-indigo-700',
-        'bg-gray-400', 'bg-gray-700'
+        'bg-gray-400', 'bg-gray-700',
+        'bg-red-400', 'bg-red-700',
+        'bg-amber-400', 'bg-amber-700',
+        'bg-lime-400', 'bg-lime-700',
+        'bg-emerald-400', 'bg-emerald-700',
+        'bg-sky-400', 'bg-sky-700'
     ];
     return colours_fonda.slice(0, nombre_couleurs);
 }
@@ -46,6 +51,16 @@ export const tailwindToRgb = (tailwindColor: string): string => {
         'indigo-700': 'rgb(67, 56, 202)',
         'gray-400': 'rgb(156, 163, 175)',
         'gray-700': 'rgb(55, 65, 81)',
+        'red-400': 'rgb(248, 113, 113)',
+        'red-700': 'rgb(185, 28, 28)',
+        'amber-400': 'rgb(251, 191, 36)',
+        'amber-700': 'rgb(180, 83, 9)',
+        'lime-400': 'rgb(163, 230, 53)',
+        'lime-700': 'rgb(77, 124, 15)',
+        'emerald-400': 'rgb(52, 211, 153)',
+        'emerald-700': 'rgb(4, 120, 87)',
+        'sky-400': 'rgb(56, 189, 248)',
+        'sky-700': 'rgb(3, 105, 161)',
     };
     return colorMap[tailwindColor.replace('bg-', '')] || 'rgb(156, 163, 175)';
 };
