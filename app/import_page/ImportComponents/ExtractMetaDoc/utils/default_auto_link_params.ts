@@ -149,7 +149,13 @@ export const NORMAL_CONFIG: AutoLinkParams = {
 			nom_dechet_tresh: 80,
 			date: true,
 			date_tresh: 8
-		})        
+		}),  
+		completeRule({
+			num_bsd: true
+		}),
+		completeRule({
+			num_bon: true
+		})   			 		   
 	],
 	create: [
 		completeRule({
