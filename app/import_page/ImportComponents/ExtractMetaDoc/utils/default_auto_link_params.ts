@@ -41,13 +41,11 @@ export const LINK_CONFIG: AutoLinkParams = {
 	to_link: [
 		completeRule({
 			num_bsd: true,
-			presta: true,
 			date: true,
 			date_tresh: 5
 		}),
 		completeRule({
 			num_bon: true,
-			presta: true,
 			date: true,
 			date_tresh: 5
 		}),			
@@ -99,16 +97,26 @@ export const NORMAL_CONFIG: AutoLinkParams = {
 		completeRule({
 			num_bsd: true,
 			site: true,
-			presta: true,
 			date: true,
-			date_tresh: 10
+			date_tresh: 4
 		}),    
 		completeRule({
 			num_bon: true,
 			site: true,
+			date: true,
+			date_tresh: 4
+		}),	
+		completeRule({
+			num_bsd: true,
 			presta: true,
 			date: true,
-			date_tresh: 10
+			date_tresh: 4
+		}),    
+		completeRule({
+			num_bon: true,
+			presta: true,
+			date: true,
+			date_tresh: 4
 		}),	
 		completeRule({
 			site: true,
