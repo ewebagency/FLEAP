@@ -19,7 +19,7 @@ import {
     LoopStarterProps,
     FilterState as FilterStateType
 } from './LoopStarterTypes';
-import { MultiSelect, getAlerteFlags, getAllPossibleAlerteFlags, getFlagValueFromLabel, getAllPossibleLinkageStatuses } from './LoopStarterFilters';
+import { MultiSelect, getAlerteFlags, getAllPossibleAlerteFlags, getFlagValueFromLabel, getAllPossibleLinkageStatuses, getFlagsFromValues, getAllMustFlagValues, getAllNiceFlagValues } from './LoopStarterFilters';
 import { calculateCoverage, getCoverageColor } from '../../utils/coverage';
 import {
     refreshData,
@@ -83,6 +83,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     
     // Déterminer quelles colonnes afficher selon la vue
     const shouldShowColumn = (columnIndex: number): boolean => {
+        // Masquer les colonnes Spec (13), Manuscrit (14) et Taille (4) pour l'instant
+        if (columnIndex === 4 || columnIndex === 13 || columnIndex === 14) return false;
+        
         if (columnView === 'all') return true;
         
         // Vue Info : colonnes 1-7 (Checkbox, Temps, Nom, Taille, Type, Statut, Site, Provider)
@@ -522,13 +525,17 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
             // Filtre alertes par flags (multiselect granulaire)
             if (filters.alerteFlags && Array.isArray(filters.alerteFlags) && filters.alerteFlags.length > 0) {
-                const alerteMessage = pdf.alerte && typeof pdf.alerte === 'object' && 'message' in pdf.alerte 
-                    ? (pdf.alerte as { message?: string }).message || ''
-                    : '';
+                const alerteData = pdf.alerte && typeof pdf.alerte === 'object'
+                    ? pdf.alerte as { message?: string; flags?: string[] }
+                    : undefined;
+                const alerteMessage = alerteData?.message || '';
+                const explicitFlagValues = Array.isArray(alerteData?.flags)
+                    ? (alerteData.flags as string[]).filter(flag => typeof flag === 'string')
+                    : [];
                 
-                // Obtenir les flags de ce PDF
-                const pdfFlags = getAlerteFlags(alerteMessage);
-                const pdfFlagValues = pdfFlags.map(flag => getFlagValueFromLabel(flag.label));
+                const pdfFlagValues = explicitFlagValues.length > 0
+                    ? explicitFlagValues
+                    : getAlerteFlags(alerteMessage).map(flag => getFlagValueFromLabel(flag.label));
                 
                 // Vérifier si au moins un des flags sélectionnés est présent
                 const hasMatchingFlag = filters.alerteFlags.some(selectedFlag => 
@@ -740,9 +747,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-sm w-full h-full max-w-[95%] max-h-[95%] overflow-y-auto border border-gray-100">
-                <div className="p-3">
-                    <div className="flex items-center justify-between mb-3">
+            <div className="bg-white rounded-lg shadow-sm w-full h-full max-w-[99%] max-h-[99%] overflow-y-auto border border-gray-100">
+                <div className="p-2">
+                    <div className="flex items-center justify-between mb-1">
                         <h2 className="text-xl font-semibold text-gray-700">
                             Traitement des documents PDF
                         </h2>
@@ -760,7 +767,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                     <div className="bg-white border border-gray-100 rounded-md overflow-hidden">
                         <div className="bg-gray-50 px-3 py-2 border-b border-gray-100">
                             <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
+                                <div className="flex items-center space-x-3 hidden">
                                     <input
                                         type="checkbox"
                                         checked={selectedPdfIds.length === filteredPdfs.length && filteredPdfs.length > 0}
@@ -805,7 +812,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                             </div>
                         </div>
 
-                        <div className="max-h-[calc(95vh-350px)] overflow-y-auto">
+                        <div className="max-h-[calc(95vh-300px)] overflow-y-auto">
                             <table className="w-full">
                                 <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
                                     <tr>
@@ -817,15 +824,15 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 className="h-3.5 w-3.5 text-blue-500 focus:ring-0.5 focus:ring-blue-300 border-gray-200 rounded-sm"
                                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[110px]" style={{ display: shouldShowColumn(2) ? '' : 'none' }}>
-                                            <div className="text-xs font-medium text-gray-600 mb-1">Temps</div>
-                                            <div className="flex gap-1">
+                                        <th className="px-1 py-1.5 text-left bg-gray-50 w-[55px]" style={{ display: shouldShowColumn(2) ? '' : 'none' }}>
+                                            <div className="text-xs font-medium text-gray-600 mb-0.5">Temps</div>
+                                            <div className="flex gap-0.5">
                                                 <input
                                                     type="number"
                                                     placeholder="≤"
                                                     value={filters.importTimeValue}
                                                     onChange={(e) => setFilters(prev => ({ ...prev, importTimeValue: e.target.value }))}
-                                                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                    className="w-[28px] p-0.5 text-[10px] border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
                                                     title="Filtrer par temps depuis import (ex: 6)"
                                                     min="0"
                                                     step="0.5"
@@ -833,7 +840,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 <select
                                                     value={filters.importTimeUnit}
                                                     onChange={(e) => setFilters(prev => ({ ...prev, importTimeUnit: e.target.value as FilterStateType['importTimeUnit'] }))}
-                                                    className="p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                    className="w-[20px] p-0.5 text-[10px] border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
                                                     title="Unité de temps"
                                                 >
                                                     <option value="h">h</option>
@@ -841,7 +848,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 </select>
                                             </div>
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[200px]" style={{ display: shouldShowColumn(3) ? '' : 'none' }}>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[160px]" style={{ display: shouldShowColumn(3) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Nom</div>
                                             <input
                                                 type="text"
@@ -854,7 +861,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[60px]" style={{ display: shouldShowColumn(4) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Taille</div>
                                         </th>
-                                        <th className="px-2 py-1.5 text-left min-w-[50px] bg-gray-50" style={{ display: shouldShowColumn(5) ? '' : 'none' }}>
+                                        <th className="px-2 py-1.5 text-left w-[100px] bg-gray-50" style={{ display: shouldShowColumn(5) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Type</div>
                             <MultiSelect
                                 options={filterOptions.documentTypes}
@@ -864,7 +871,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 label=""
                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left min-w-[140px] bg-gray-50" style={{ display: shouldShowColumn(6) ? '' : 'none' }}>
+                                        <th className="px-2 py-1.5 text-left w-[100px] bg-gray-50" style={{ display: shouldShowColumn(6) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Statut</div>
                             <MultiSelect
                                 options={filterOptions.statuses}
@@ -874,7 +881,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 label=""
                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left min-w-[140px] bg-gray-50" style={{ display: shouldShowColumn(7) ? '' : 'none' }}>
+                                        <th className="px-2 py-1.5 text-left w-[80px] bg-gray-50" style={{ display: shouldShowColumn(7) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Site</div>
                             <MultiSelect
                                 options={filterOptions.sites}
@@ -884,7 +891,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 label=""
                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left min-w-[140px] bg-gray-50" style={{ display: shouldShowColumn(8) ? '' : 'none' }}>
+                                        <th className="px-2 py-1.5 text-left w-[80px] bg-gray-50" style={{ display: shouldShowColumn(8) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Presta</div>
                             <MultiSelect
                                 options={filterOptions.providers}
@@ -894,33 +901,33 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 label=""
                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50" style={{ display: shouldShowColumn(9) ? '' : 'none' }}>
-                                            <div className="text-xs font-medium text-gray-600 mb-1">Pages</div>
+                                        <th className="px-1 py-1.5 text-left bg-gray-50 w-[45px]" style={{ display: shouldShowColumn(9) ? '' : 'none' }}>
+                                            <div className="text-[10px] font-medium text-gray-600 mb-0.5">Pages</div>
                                             <select
                                                 value={filters.pages}
                                                 onChange={(e) => setFilters(prev => ({ ...prev, pages: e.target.value as FilterStateType['pages'] }))}
-                                                className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                className="w-full p-0.5 text-[10px] border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
                                             >
                                                 <option value="">Tous</option>
                                                 <option value="one">1</option>
                                                 <option value="multi">+</option>
                                             </select>
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[60px]" style={{ display: shouldShowColumn(10) ? '' : 'none' }}>
-                                            <div className="text-xs font-medium text-gray-600 mb-1">Déchets</div>
+                                        <th className="px-1 py-1.5 text-left bg-gray-50 w-[45px]" style={{ display: shouldShowColumn(10) ? '' : 'none' }}>
+                                            <div className="text-[10px] font-medium text-gray-600 mb-0.5">Déchets</div>
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[60px]" style={{ display: shouldShowColumn(11) ? '' : 'none' }}>
-                                            <div className="text-xs font-medium text-gray-600 mb-1">Lignes</div>
+                                        <th className="px-1 py-1.5 text-left bg-gray-50 w-[45px]" style={{ display: shouldShowColumn(11) ? '' : 'none' }}>
+                                            <div className="text-[10px] font-medium text-gray-600 mb-0.5">Lignes</div>
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(12) ? '' : 'none' }}>
-                                            <div className="text-xs font-medium text-gray-600 mb-1">Brute</div>
-                                            <div className="flex gap-1">
+                                        <th className="px-1 py-1.5 text-left bg-gray-50 w-[40px]" style={{ display: shouldShowColumn(12) ? '' : 'none' }}>
+                                            <div className="text-[10px] font-medium text-gray-600 mb-0.5">Brute</div>
+                                            <div className="flex gap-0.5">
                                                 <input
                                                     type="number"
                                                     placeholder="%"
                                                     value={filters.confidenceBrute}
                                                     onChange={(e) => setFilters(prev => ({ ...prev, confidenceBrute: e.target.value }))}
-                                                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                    className="w-[22px] p-0.5 text-[10px] border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
                                                     title={filters.confidenceBruteMode === 'gte' ? 'Seuil minimum (ex: 80 pour ≥80%)' : 'Seuil maximum (ex: 80 pour ≤80%)'}
                                                     min="0"
                                                     max="100"
@@ -928,7 +935,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 <button
                                                     type="button"
                                                     onClick={() => setFilters(prev => ({ ...prev, confidenceBruteMode: prev.confidenceBruteMode === 'gte' ? 'lte' : 'gte' }))}
-                                                    className={`p-1 text-xs border rounded-sm transition-colors ${
+                                                    className={`w-[14px] p-0.5 text-[10px] border rounded-sm transition-colors ${
                                                         filters.confidenceBruteMode === 'gte' 
                                                             ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100' 
                                                             : 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
@@ -993,15 +1000,15 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 </button>
                                             </div>
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(15) ? '' : 'none' }}>
-                                            <div className="text-xs font-medium text-gray-600 mb-1">Couvert</div>
-                                            <div className="flex gap-1">
+                                        <th className="px-1 py-1.5 text-left bg-gray-50 w-[40px]" style={{ display: shouldShowColumn(15) ? '' : 'none' }}>
+                                            <div className="text-[10px] font-medium text-gray-600 mb-0.5">Couvert</div>
+                                            <div className="flex gap-0.5">
                                                 <input
                                                     type="number"
                                                     placeholder="%"
                                                     value={filters.coveragePercent}
                                                     onChange={(e) => setFilters(prev => ({ ...prev, coveragePercent: e.target.value }))}
-                                                    className="w-full p-1 text-xs border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                    className="w-[22px] p-0.5 text-[10px] border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
                                                     title={filters.coveragePercentMode === 'gte' ? 'Seuil minimum (ex: 70 pour ≥70%)' : 'Seuil maximum (ex: 70 pour ≤70%)'}
                                                     min="0"
                                                     max="100"
@@ -1009,7 +1016,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 <button
                                                     type="button"
                                                     onClick={() => setFilters(prev => ({ ...prev, coveragePercentMode: prev.coveragePercentMode === 'gte' ? 'lte' : 'gte' }))}
-                                                    className={`p-1 text-xs border rounded-sm transition-colors ${
+                                                    className={`w-[14px] p-0.5 text-[10px] border rounded-sm transition-colors ${
                                                         filters.coveragePercentMode === 'gte' 
                                                             ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100' 
                                                             : 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
@@ -1022,13 +1029,81 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         </th>
                                         <th className="px-2 py-1.5 text-left min-w-[180px] bg-gray-50" style={{ display: shouldShowColumn(16) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Type d&apos;alerte</div>
-                            <MultiSelect
-                                options={filterOptions.alerteFlags}
-                                selectedValues={filters.alerteFlags}
-                                onChange={(values) => setFilters(prev => ({ ...prev, alerteFlags: values }))}
-                                                placeholder="Tous"
-                                                label=""
-                            />
+                                            <div className="flex gap-1 items-center">
+                                                <div className="flex-1">
+                                                    <MultiSelect
+                                                        options={filterOptions.alerteFlags}
+                                                        selectedValues={filters.alerteFlags}
+                                                        onChange={(values) => setFilters(prev => ({ ...prev, alerteFlags: values }))}
+                                                        placeholder="Tous"
+                                                        label=""
+                                                    />
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    {(() => {
+                                                        const mustFlags = getAllMustFlagValues();
+                                                        const niceFlags = getAllNiceFlagValues();
+                                                        const allFlags = mustFlags.concat(niceFlags);
+                                                        const currentFlags = new Set(filters.alerteFlags);
+                                                        const allMustSelected = mustFlags.every(flag => currentFlags.has(flag));
+                                                        const allNiceSelected = niceFlags.every(flag => currentFlags.has(flag)) && mustFlags.every(flag => currentFlags.has(flag));
+                                                        
+                                                        return (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (allMustSelected) {
+                                                                            // Retirer tous les flags MUST
+                                                                            setFilters(prev => ({
+                                                                                ...prev,
+                                                                                alerteFlags: prev.alerteFlags.filter(flag => !mustFlags.includes(flag))
+                                                                            }));
+                                                                        } else {
+                                                                            // Ajouter tous les flags MUST
+                                                                            const combinedFlags = filters.alerteFlags.concat(mustFlags);
+                                                                            const newFlagsSet = new Set(combinedFlags);
+                                                                            const newFlags = Array.from(newFlagsSet);
+                                                                            setFilters(prev => ({ ...prev, alerteFlags: newFlags }));
+                                                                        }
+                                                                    }}
+                                                                    className={`text-xs px-2 py-1 rounded-sm transition-colors border ${
+                                                                        allMustSelected
+                                                                            ? 'bg-red-500 text-white border-red-600 hover:bg-red-600'
+                                                                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                                                    }`}
+                                                                    title={allMustSelected ? "Désactiver tous les flags MUST" : "Activer tous les flags MUST"}
+                                                                >
+                                                                    MUST
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (allNiceSelected) {
+                                                                            // Retirer tous les flags (MUST + NICE)
+                                                                            setFilters(prev => ({
+                                                                                ...prev,
+                                                                                alerteFlags: []
+                                                                            }));
+                                                                        } else {
+                                                                            // Ajouter tous les flags (MUST + NICE)
+                                                                            setFilters(prev => ({ ...prev, alerteFlags: allFlags }));
+                                                                        }
+                                                                    }}
+                                                                    className={`text-xs px-2 py-1 rounded-sm transition-colors border ${
+                                                                        allNiceSelected
+                                                                            ? 'bg-gray-500 text-white border-gray-600 hover:bg-gray-600'
+                                                                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                                                    }`}
+                                                                    title={allNiceSelected ? "Désactiver tous les flags (MUST + NICE)" : "Activer tous les flags (MUST + NICE)"}
+                                                                >
+                                                                    NICE
+                                                                </button>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </div>
                                         </th>
                                         <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[120px]" style={{ display: shouldShowColumn(17) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Linkage</div>
@@ -1080,10 +1155,16 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 : null;
                                             
                                             // Message d'alerte
-                                            const alerteMessage = pdf.alerte && typeof pdf.alerte === 'object' && 'message' in pdf.alerte 
-                                                ? (pdf.alerte as { message?: string }).message || ''
-                                                : '';
-                                            const alerteFlags = getAlerteFlags(alerteMessage);
+                                            const alerteData = pdf.alerte && typeof pdf.alerte === 'object'
+                                                ? pdf.alerte as { message?: string; flags?: string[] }
+                                                : undefined;
+                                            const alerteMessage = alerteData?.message || '';
+                                            const explicitFlagValues = Array.isArray(alerteData?.flags)
+                                                ? (alerteData.flags as string[]).filter(flag => typeof flag === 'string')
+                                                : [];
+                                            const alerteFlags = explicitFlagValues.length > 0
+                                                ? getFlagsFromValues(explicitFlagValues)
+                                                : getAlerteFlags(alerteMessage);
                                             
                                             // Scores de confiance
                                             const confidence = pdf.confidence as { brute?: number; spec?: number; handwritten?: [number, boolean] } | null | undefined;
@@ -1097,7 +1178,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
                                             >
                                                     {/* 1. Checkbox */}
-                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(1) ? '' : 'none' }}>
+                                                    <td className="px-2 py-2 pt-3" style={{ display: shouldShowColumn(1) ? '' : 'none' }}>
                                                     <input
                                                         type="checkbox"
                                                         checked={selectedPdfIds.includes(pdf.id)}

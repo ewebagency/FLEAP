@@ -1,3 +1,4 @@
+const CODE_DR_PATTERN = /^[DER]\d+$/i;
 import { supabase } from '@/app/database/supabaseClient';
 
 // Types pour les paramètres de mapping
@@ -11,6 +12,15 @@ interface ParamsMapping {
 }
 
 // Types pour les données extraites du PDF
+interface FactureLigne {
+    type_operation?: string;
+    unite?: string;
+    quantite?: number | string;
+    prix_unitaire?: number | string;
+    montant_ht?: number | string;
+    type?: string;
+}
+
 interface DechetData {
     nom?: string;
     contenant?: string;
@@ -18,18 +28,11 @@ interface DechetData {
     date?: string;
     num_bsd?: string;
     num_bon?: string;
+    nom_site?: string;
     ced?: string;
+    d_r?: string;
     facture?: {
-        ligne?: {
-            type_operation?: string;
-            unite?: string;
-        } | Array<{
-            type_operation?: string;
-            unite?: string;
-            quantite?: number;
-            prix_unitaire?: number;
-            montant_ht?: number;
-        }>;
+        ligne?: FactureLigne | FactureLigne[];
     };
 }
 
@@ -37,33 +40,51 @@ interface InfosRaw {
     site_raw?: string;
     presta_raw?: string;
     type_doc?: string;
+    type_bon?: string;
+    type_facture?: string;
     num_facture?: string;
-    montant_total_ht?: number;
+    montant_total_ht?: number | string;
     dechet?: DechetData[];
 }
 
 // Interface pour le résultat de vérification
+type MappingMatchStatus = 'matched' | 'non_affilie' | 'inconnu';
+type OperationCategory = 'collecte' | 'rotation' | 'traitement' | 'penalite' | 'tgap' | 'location' | 'depot';
+
+interface MappingDetail {
+    value: string;
+    status: MappingMatchStatus;
+    parent?: string;
+    operationCategory?: OperationCategory;
+    meta?: {
+        dechetIndex?: number;
+        ligneIndex?: number;
+    };
+}
+
+interface MissingFields {
+    site_raw?: MappingDetail | null;
+    presta_raw?: MappingDetail | null;
+    nom_prestataire_2?: MappingDetail | null;  // V2
+    sites_facture: MappingDetail[];  // V2: sites par déchet (factures)
+    dechets: MappingDetail[];
+    operations: MappingDetail[];
+    unites: MappingDetail[];
+    contenants: MappingDetail[];
+}
+
 interface VerificationResult {
     hasTranslation: boolean;
-    missingFields: {
-        site_raw?: boolean;
-        presta_raw?: boolean;
-        nom_prestataire_2?: boolean;  // V2
-        sites_facture: string[];  // V2: sites par déchet (factures)
-        dechets: string[];
-        operations: string[];
-        unites: string[];
-        contenants: string[];
-    };
+    missingFields: MissingFields;
     details: {
-        site_raw?: { value: string; hasMapping: boolean };
-        presta_raw?: { value: string; hasMapping: boolean };
-        nom_prestataire_2?: { value: string; hasMapping: boolean };  // V2
-        sites_facture?: Array<{ value: string; hasMapping: boolean }>;  // V2: sites par déchet (factures)
-        dechets?: Array<{ value: string; hasMapping: boolean }>;
-        operations?: Array<{ value: string; hasMapping: boolean }>;
-        unites?: Array<{ value: string; hasMapping: boolean }>;
-        contenants?: Array<{ value: string; hasMapping: boolean }>;
+        site_raw?: MappingDetail;
+        presta_raw?: MappingDetail;
+        nom_prestataire_2?: MappingDetail;  // V2
+        sites_facture?: MappingDetail[];  // V2: sites par déchet (factures)
+        dechets?: MappingDetail[];
+        operations?: MappingDetail[];
+        unites?: MappingDetail[];
+        contenants?: MappingDetail[];
     };
 }
 
@@ -80,6 +101,254 @@ type ConfidenceData = {
     large_word_review_llm_can_understand?: boolean;
     large_word_review_reason?: string;
 } & Record<string, unknown>;
+
+const MIN_NEAR_MATCH_LENGTH = 5;
+const STOP_WORDS = new Set([
+    'site',
+    'chantier',
+    'de',
+    'la',
+    'le',
+    'les',
+    'des',
+    'du',
+    'd',
+    'l'
+]);
+const KNOWN_BON_KEYWORDS = ['pesee', 'pesée', 'livraison', 'collecte', 'enlevement', 'enlèvement', 'transport', 'pese'];
+const KNOWN_FACTURE_KEYWORDS = ['facture', 'avoir', 'rachat'];
+const OPERATION_CATEGORY_KEYWORDS: Record<OperationCategory, string[]> = {
+    collecte: ['collecte'],
+    rotation: ['rotation'],
+    traitement: ['traitement'],
+    penalite: ['penalite', 'pénalité', 'penalty'],
+    tgap: ['tgap', 't.g.a.p'],
+    location: ['location'],
+    depot: ['depot', 'dépôt']
+};
+const OPERATION_CATEGORY_LABELS: Record<OperationCategory, string> = {
+    collecte: 'collecte',
+    rotation: 'rotation',
+    traitement: 'traitement',
+    penalite: 'pénalité',
+    tgap: 'TGAP',
+    location: 'location',
+    depot: 'dépôt'
+};
+
+const LABEL_STATUS_FLAG_MAP: Record<string, { inconnu?: string; non_affilie?: string }> = {
+    'Site': { inconnu: 'site_inconnu', non_affilie: 'site_non_affilie' },
+    'Prestataire': { inconnu: 'presta_inconnu', non_affilie: 'presta_non_affilie' },
+    'Prestataire (V2)': { inconnu: 'presta_inconnu', non_affilie: 'presta_non_affilie' },
+    'Opération(s)': { inconnu: 'operation_inconnue', non_affilie: 'operation_non_affiliee' },
+    'Unité(s)': { inconnu: 'unite_inconnue', non_affilie: 'unite_non_affiliee' },
+    'Contenant(s)': { inconnu: 'contenant_inconnu', non_affilie: 'contenant_non_affilie' },
+    'Déchet(s)': { inconnu: 'dechet_inconnu', non_affilie: 'dechet_non_affilie' },
+    'Site(s) facture': { inconnu: 'site_inconnu', non_affilie: 'site_non_affilie' }
+};
+
+const normalizeText = (value: string): string => {
+    return value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+};
+
+const hasExactMapping = (value: string, mapping: Record<string, string[]>): boolean => {
+    if (!value || !mapping) return false;
+    const normalizedValue = normalizeText(value);
+    if (!normalizedValue) return false;
+
+    return Object.keys(mapping).some(key => {
+        const normalizedKey = normalizeText(key);
+        if (normalizedKey === normalizedValue) return true;
+
+        const synonyms = mapping[key] || [];
+        return synonyms.some(mappedValue => normalizeText(mappedValue) === normalizedValue);
+    });
+};
+
+const hasNearMatch = (value: string, mapping: Record<string, string[]>): boolean => {
+    if (!value || !mapping) return false;
+    const normalizedValue = normalizeText(value);
+    if (!normalizedValue) return false;
+
+    const tokens = normalizedValue
+        .split(' ')
+        .filter(token => token.length >= MIN_NEAR_MATCH_LENGTH && !STOP_WORDS.has(token));
+    if (tokens.length === 0) return false;
+
+    const candidates: string[] = [];
+    Object.entries(mapping).forEach(([key, synonyms]) => {
+        const normalizedKey = normalizeText(key);
+        if (normalizedKey) {
+            candidates.push(normalizedKey);
+        }
+        if (Array.isArray(synonyms)) {
+            synonyms.forEach(synonym => {
+                const normalizedSynonym = normalizeText(synonym);
+                if (normalizedSynonym) {
+                    candidates.push(normalizedSynonym);
+                }
+            });
+        }
+    });
+
+    for (const token of tokens) {
+        for (const candidate of candidates) {
+            if (candidate.includes(token)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+};
+
+const getMappingMatchStatus = (value: string | undefined, mapping: Record<string, string[]>): MappingMatchStatus => {
+    if (!value) return 'matched';
+    if (hasExactMapping(value, mapping)) {
+        return 'matched';
+    }
+    return hasNearMatch(value, mapping) ? 'non_affilie' : 'inconnu';
+};
+
+const normalizeSimple = (value: string): string => normalizeText(value);
+
+const matchesKnownKeyword = (value: string | undefined, keywords: string[]): boolean => {
+    if (!value) return false;
+    const normalizedValue = normalizeSimple(value);
+    if (!normalizedValue) return false;
+    return keywords.some(keyword => normalizedValue.includes(normalizeSimple(keyword)));
+};
+
+const matchesPattern = (value: string | undefined, pattern: RegExp): boolean => {
+    if (!value) return false;
+    return pattern.test(value.trim());
+};
+
+const parseNumericValue = (value: string | number | undefined): number | null => {
+    if (value === undefined || value === null) return null;
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
+    }
+
+    const normalized = value
+        .replace(/\s+/g, '')
+        .replace(',', '.')
+        .trim();
+
+    if (normalized.length === 0) return null;
+
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed)) {
+        console.warn('[alerte.ts] parseNumericValue: valeur non numérique', { value, normalized });
+    }
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getMappingParent = (value: string | undefined, mapping: Record<string, string[]>): string | undefined => {
+    if (!value) return undefined;
+    const normalizedValue = normalizeText(value);
+    if (!normalizedValue) return undefined;
+
+    for (const key of Object.keys(mapping)) {
+        const normalizedKey = normalizeText(key);
+        if (normalizedKey === normalizedValue) {
+            return key;
+        }
+        const synonyms = mapping[key] || [];
+        if (synonyms.some(mappedValue => normalizeText(mappedValue) === normalizedValue)) {
+            return key;
+        }
+    }
+    return undefined;
+};
+
+const detectOperationCategory = (parentValue: string | undefined): OperationCategory | undefined => {
+    if (!parentValue) return undefined;
+    const normalizedParent = normalizeText(parentValue);
+    if (!normalizedParent) return undefined;
+
+    for (const [category, keywords] of Object.entries(OPERATION_CATEGORY_KEYWORDS) as Array<[OperationCategory, string[]]>) {
+        if (keywords.some(keyword => normalizedParent.includes(normalizeText(keyword)))) {
+            return category;
+        }
+    }
+    return undefined;
+};
+
+const formatOperationCategoryLabel = (category: OperationCategory): string => {
+    return OPERATION_CATEGORY_LABELS[category] || category;
+};
+
+const getFlagKeyForLabel = (label: string, status: MappingMatchStatus | undefined): string | null => {
+    if (!status) return null;
+    const mapping = LABEL_STATUS_FLAG_MAP[label];
+    if (!mapping) return null;
+    if (status === 'inconnu' && mapping.inconnu) {
+        return mapping.inconnu;
+    }
+    if (status === 'non_affilie' && mapping.non_affilie) {
+        return mapping.non_affilie;
+    }
+    return null;
+};
+
+const hasNonEmptyString = (value: string | undefined | null): boolean => {
+    return typeof value === 'string' && value.trim().length > 0;
+};
+
+const hasValue = (value: unknown): boolean => {
+    if (value === undefined || value === null) return false;
+    if (typeof value === 'string') {
+        return value.trim().length > 0;
+    }
+    return String(value).trim().length > 0;
+};
+
+const mapTonnageMessageToFlag = (message: string): string | null => {
+    const lower = message.toLowerCase();
+    if (lower.includes('manquant')) return 'tonnage_non_lu';
+    if (lower.includes('non numérique')) return 'tonnage_invalide';
+    if (lower.includes('négatif')) return 'tonnage_negatif';
+    if (lower.includes('trop élevé')) return 'tonnage_eleve';
+    return null;
+};
+
+const mapDateMessageToFlag = (message: string): string | null => {
+    const lower = message.toLowerCase();
+    if (lower.includes('manquante')) return 'date_non_lue';
+    if (lower.includes('invalide')) return 'date_invalide';
+    return null;
+};
+
+const mapNumberMessageToFlag = (message: string, type: 'bsd' | 'bon' | 'facture'): string | null => {
+    const lower = message.toLowerCase();
+    const isMissing = lower.includes('manquant');
+    const isInvalid = lower.includes('insuffisant') || lower.includes('invalide');
+    if (type === 'bsd') {
+        if (isMissing) return 'num_bsd_non_lu';
+        if (isInvalid) return 'num_bsd_invalide';
+    } else if (type === 'bon') {
+        if (isMissing) return 'num_bon_non_lu';
+        if (isInvalid) return 'num_bon_invalide';
+    } else if (type === 'facture') {
+        if (isMissing) return 'num_facture_non_lu';
+        if (isInvalid) return 'num_facture_invalide';
+    }
+    return null;
+};
+
+const mapCedMessageToFlag = (message: string): string | null => {
+    const lower = message.toLowerCase();
+    if (lower.includes('manquant')) return 'ced_non_lu';
+    if (lower.includes('invalide')) return 'ced_invalide';
+    return null;
+};
 
 // ===== FONCTIONS D'ALERTE MODULAIRES =====
 
@@ -204,21 +473,32 @@ export const alerteCed = (cedCode: string | undefined): AlerteResult => {
  * Vérifie que quantité × prix_unitaire = montant (avec tolérance)
  */
 export const alerteCalculFacture = (
-    quantite: number | undefined,
-    prixUnitaire: number | undefined,
-    montant: number | undefined
+    quantite: number | string | undefined,
+    prixUnitaire: number | string | undefined,
+    montant: number | string | undefined
 ): AlerteResult => {
     if (quantite === undefined || prixUnitaire === undefined || montant === undefined) {
         return { hasError: false, message: "" };
     }
     
     try {
-        const calculAttendu = quantite * prixUnitaire;
+        const quantiteValue = parseNumericValue(quantite);
+        const prixValue = parseNumericValue(prixUnitaire);
+        const montantValue = parseNumericValue(montant);
+
+        if (quantiteValue === null || prixValue === null || montantValue === null) {
+            return {
+                hasError: true,
+                message: `Valeurs non numériques: qty=${quantite}, prix=${prixUnitaire}, montant=${montant}`
+            };
+        }
+
+        const calculAttendu = quantiteValue * prixValue;
         // Tolérance de 0.01 pour les erreurs d'arrondi
-        if (Math.abs(calculAttendu - montant) > 0.01) {
+        if (Math.abs(calculAttendu - montantValue) > 0.01) {
             return { 
                 hasError: true, 
-                message: `Calcul incorrect: ${quantite} × ${prixUnitaire} = ${calculAttendu} ≠ ${montant}` 
+                message: `Calcul incorrect: ${quantiteValue} × ${prixValue} = ${calculAttendu} ≠ ${montantValue}` 
             };
         }
         return { hasError: false, message: "" };
@@ -234,33 +514,57 @@ export const alerteCalculFacture = (
  * Vérifie que la somme des montants des prestations = montant_total
  */
 export const alerteSommeFacture = (
-    prestations: Array<{ montant_ht?: number }> | undefined,
-    montantTotal: number | undefined
+    prestations: Array<{ montant_ht?: number | string }> | undefined,
+    montantTotal: number | string | undefined
 ): AlerteResult => {
     if (!prestations || !montantTotal) {
         return { hasError: false, message: "" };
     }
     
     try {
+        const montantTotalValue = parseNumericValue(montantTotal);
+        if (montantTotalValue === null) {
+            return { hasError: true, message: `Montant total non numérique: ${montantTotal}` };
+        }
+
         let sommeCalculee = 0;
-        for (const presta of prestations) {
-            if (presta.montant_ht !== undefined) {
-                try {
-                    sommeCalculee += Number(presta.montant_ht);
-                } catch {
-                    continue;
-                }
+        const lignesSansMontant: number[] = [];
+
+        prestations.forEach((presta, index) => {
+            if (!hasValue(presta.montant_ht)) {
+                lignesSansMontant.push(index + 1);
+                return;
             }
-        }
+            const montantValue = parseNumericValue(presta.montant_ht);
+            if (montantValue === null) {
+                return;
+            }
+            sommeCalculee += montantValue;
+        });
+
+        console.info('[alerteSommeFacture] Vérification somme', {
+            prestations,
+            amountTotalRaw: montantTotal,
+            montantTotalValue,
+            sommeCalculee,
+            lignesSansMontant,
+            ecart: Math.abs(sommeCalculee - montantTotalValue)
+        });
         
-        // Tolérance de 0.01 pour les erreurs d'arrondi
-        if (Math.abs(sommeCalculee - montantTotal) > 0.01) {
-            return { 
-                hasError: true, 
-                message: `Somme incorrecte: ${sommeCalculee} ≠ ${montantTotal}` 
-            };
+        const messages: string[] = [];
+        const sommeIncorrecte = Math.abs(sommeCalculee - montantTotalValue) > 0.01;
+        
+        if (sommeIncorrecte) {
+            messages.push(`Somme incorrecte: ${sommeCalculee} ≠ ${montantTotalValue}`);
         }
-        return { hasError: false, message: "" };
+        if (lignesSansMontant.length > 0) {
+            messages.push(`Montant HT manquant pour ligne(s): ${lignesSansMontant.join(', ')}`);
+        }
+
+        // hasError = true uniquement si la somme est incorrecte (pas juste si des lignes n'ont pas de montant)
+        return sommeIncorrecte
+            ? { hasError: true, message: messages.join('; ') }
+            : { hasError: false, message: messages.length > 0 ? messages.join('; ') : "" };
     } catch {
         return { 
             hasError: true, 
@@ -324,37 +628,33 @@ export const verifierTraductionsPDF = async (
             params_mapping_contenant: entrepriseData.params_mapping_contenant || {}
         };
 
-        // Fonction utilitaire pour vérifier si une valeur a un mapping
-        const hasMapping = (value: string, mapping: Record<string, string[]>): boolean => {
-            if (!value || !mapping) return false;
-            const normalizedValue = value.trim().toLowerCase();
-            return Object.keys(mapping).some(key => 
-                key.toLowerCase() === normalizedValue || 
-                mapping[key].some(mappedValue => mappedValue.toLowerCase() === normalizedValue)
-            );
-        };
-
         // Vérifier site_raw
         const siteRawValue = infosRaw.site_raw;
-        const siteRawHasMapping = siteRawValue ? hasMapping(siteRawValue, paramsMapping.params_mapping_site) : true;
+        const siteRawDetail = siteRawValue
+            ? { value: siteRawValue, status: getMappingMatchStatus(siteRawValue, paramsMapping.params_mapping_site) }
+            : undefined;
 
         // Vérifier presta_raw
         const prestaRawValue = infosRaw.presta_raw;
-        const prestaRawHasMapping = prestaRawValue ? hasMapping(prestaRawValue, paramsMapping.params_mapping_presta) : true;
+        const prestaRawDetail = prestaRawValue
+            ? { value: prestaRawValue, status: getMappingMatchStatus(prestaRawValue, paramsMapping.params_mapping_presta) }
+            : undefined;
 
         // V2: Vérifier nom_prestataire_2
         const nomPrestataire2Value = (infosRaw as { nom_prestataire_2?: string }).nom_prestataire_2;
-        const nomPrestataire2HasMapping = nomPrestataire2Value ? hasMapping(nomPrestataire2Value, paramsMapping.params_mapping_presta) : true;
+        const nomPrestataire2Detail = nomPrestataire2Value
+            ? { value: nomPrestataire2Value, status: getMappingMatchStatus(nomPrestataire2Value, paramsMapping.params_mapping_presta) }
+            : undefined;
 
         // Vérifier les déchets, opérations, unités et contenants
-        const dechets: Array<{ value: string; hasMapping: boolean }> = [];
-        const operations: Array<{ value: string; hasMapping: boolean }> = [];
-        const unites: Array<{ value: string; hasMapping: boolean }> = [];
-        const contenants: Array<{ value: string; hasMapping: boolean }> = [];
-        const sites_facture: Array<{ value: string; hasMapping: boolean }> = [];  // V2: sites par déchet (factures)
+        const dechets: MappingDetail[] = [];
+        const operations: MappingDetail[] = [];
+        const unites: MappingDetail[] = [];
+        const contenants: MappingDetail[] = [];
+        const sitesFacture: MappingDetail[] = [];  // V2: sites par déchet (factures)
 
         if (infosRaw.dechet && Array.isArray(infosRaw.dechet)) {
-            infosRaw.dechet.forEach(dechet => {
+            infosRaw.dechet.forEach((dechet, dechetIndex) => {
                 // Vérifier nom du déchet
                 /*if (dechet.nom) {
                     const hasDechetMapping = hasMapping(dechet.nom, paramsMapping.params_mapping_nom_dechet);
@@ -365,64 +665,103 @@ export const verifierTraductionsPDF = async (
                 const typeDoc = (infosRaw as { type_doc?: string }).type_doc;
                 if (typeDoc === 'facture' && (dechet as { nom_site?: string }).nom_site) {
                     const nomSiteValue = (dechet as { nom_site: string }).nom_site;
-                    const hasNomSiteMapping = hasMapping(nomSiteValue, paramsMapping.params_mapping_site);
-                    sites_facture.push({ value: nomSiteValue, hasMapping: hasNomSiteMapping });
+                    const siteStatus = getMappingMatchStatus(nomSiteValue, paramsMapping.params_mapping_site);
+                    sitesFacture.push({ value: nomSiteValue, status: siteStatus });
                 }
 
                 // Vérifier contenant
                 if (dechet.contenant) {
-                    const hasContenantMapping = hasMapping(dechet.contenant, paramsMapping.params_mapping_contenant);
-                    contenants.push({ value: dechet.contenant, hasMapping: hasContenantMapping });
+                    const contenantStatus = getMappingMatchStatus(dechet.contenant, paramsMapping.params_mapping_contenant);
+                    contenants.push({ value: dechet.contenant, status: contenantStatus });
                 }
 
                 // Vérifier opération (dans facture.ligne.type_operation)
-                const ligne = dechet.facture?.ligne;
-                if (ligne && !Array.isArray(ligne)) {
-                    if (ligne.type_operation) {
-                        const hasOperationMapping = hasMapping(ligne.type_operation, paramsMapping.params_mapping_operation);
-                        operations.push({ value: ligne.type_operation, hasMapping: hasOperationMapping });
+                const lignes = dechet.facture?.ligne;
+                const lignesArray: FactureLigne[] = Array.isArray(lignes)
+                    ? lignes
+                    : lignes
+                        ? [lignes]
+                        : [];
+
+                lignesArray.forEach((ligneItem, ligneIndex) => {
+                    if (ligneItem.type_operation) {
+                        const operationStatus = getMappingMatchStatus(ligneItem.type_operation, paramsMapping.params_mapping_operation);
+                        const parent = operationStatus === 'matched'
+                            ? getMappingParent(ligneItem.type_operation, paramsMapping.params_mapping_operation)
+                            : undefined;
+                        const operationCategory = parent ? detectOperationCategory(parent) : undefined;
+                        const operationDetail: MappingDetail = {
+                            value: ligneItem.type_operation,
+                            status: operationStatus,
+                            parent,
+                            operationCategory,
+                            meta: { dechetIndex, ligneIndex }
+                        };
+                        console.info('[alerte.ts] Opération analysée', {
+                            type_operation: ligneItem.type_operation,
+                            status: operationStatus,
+                            parent,
+                            operationCategory,
+                            dechetIndex,
+                            ligneIndex
+                        });
+                        operations.push(operationDetail);
+                    } else {
+                        console.warn('[alerte.ts] Opération non reconnue', {
+                            type_operation: ligneItem.type_operation,
+                            dechetIndex,
+                            ligneIndex
+                        });
                     }
 
                     // Vérifier unité (dans facture.ligne.unite)
-                    if (ligne.unite) {
-                        const hasUniteMapping = hasMapping(ligne.unite, paramsMapping.params_mapping_unite);
-                        unites.push({ value: ligne.unite, hasMapping: hasUniteMapping });
+                    if (ligneItem.unite) {
+                        const uniteStatus = getMappingMatchStatus(ligneItem.unite, paramsMapping.params_mapping_unite);
+                        unites.push({ value: ligneItem.unite, status: uniteStatus });
                     }
-                }
+                });
             });
         }
 
         // Déterminer les champs manquants
-        const missingFields = {
-            site_raw: siteRawValue ? !siteRawHasMapping : false,
-            presta_raw: prestaRawValue ? !prestaRawHasMapping : false,
-            nom_prestataire_2: nomPrestataire2Value ? !nomPrestataire2HasMapping : false,  // V2
-            sites_facture: sites_facture.filter(s => !s.hasMapping).map(s => s.value),  // V2
-            dechets: dechets.filter(d => !d.hasMapping).map(d => d.value),
-            operations: operations.filter(o => !o.hasMapping).map(o => o.value),
-            unites: unites.filter(u => !u.hasMapping).map(u => u.value),
-            contenants: contenants.filter(c => !c.hasMapping).map(c => c.value)
+        const missingFields: MissingFields = {
+            site_raw: siteRawDetail && siteRawDetail.status !== 'matched' ? siteRawDetail : null,
+            presta_raw: prestaRawDetail && prestaRawDetail.status !== 'matched' ? prestaRawDetail : null,
+            nom_prestataire_2: nomPrestataire2Detail && nomPrestataire2Detail.status !== 'matched' ? nomPrestataire2Detail : null,  // V2
+            sites_facture: sitesFacture.filter(s => s.status !== 'matched'),  // V2
+            dechets: dechets.filter(d => d.status !== 'matched'),
+            operations: operations.filter(o => o.status !== 'matched'),
+            unites: unites.filter(u => u.status !== 'matched'),
+            contenants: contenants.filter(c => c.status !== 'matched')
         };
+
+        if (missingFields.operations.length > 0) {
+            missingFields.operations.forEach(missingOperation => {
+                console.warn('[alerte.ts] Opération sans mapping', missingOperation);
+            });
+        } else {
+            console.info('[alerte.ts] Toutes les opérations sont mappées');
+        }
 
         // Vérifier s'il y a au moins une traduction manquante
         const hasTranslation = 
-            siteRawHasMapping && 
-            prestaRawHasMapping && 
-            nomPrestataire2HasMapping &&  // V2
-            sites_facture.every(s => s.hasMapping) &&  // V2
-            dechets.every(d => d.hasMapping) &&
-            operations.every(o => o.hasMapping) &&
-            unites.every(u => u.hasMapping) &&
-            contenants.every(c => c.hasMapping);
+            (!siteRawDetail || siteRawDetail.status === 'matched') && 
+            (!prestaRawDetail || prestaRawDetail.status === 'matched') && 
+            (!nomPrestataire2Detail || nomPrestataire2Detail.status === 'matched') &&  // V2
+            sitesFacture.every(s => s.status === 'matched') &&  // V2
+            dechets.every(d => d.status === 'matched') &&
+            operations.every(o => o.status === 'matched') &&
+            unites.every(u => u.status === 'matched') &&
+            contenants.every(c => c.status === 'matched');
 
         return {
             hasTranslation,
             missingFields,
             details: {
-                site_raw: siteRawValue ? { value: siteRawValue, hasMapping: siteRawHasMapping } : undefined,
-                presta_raw: prestaRawValue ? { value: prestaRawValue, hasMapping: prestaRawHasMapping } : undefined,
-                nom_prestataire_2: nomPrestataire2Value ? { value: nomPrestataire2Value, hasMapping: nomPrestataire2HasMapping } : undefined,  // V2
-                sites_facture: sites_facture.length > 0 ? sites_facture : undefined,  // V2
+                site_raw: siteRawDetail,
+                presta_raw: prestaRawDetail,
+                nom_prestataire_2: nomPrestataire2Detail,  // V2
+                sites_facture: sitesFacture.length > 0 ? sitesFacture : undefined,  // V2
                 dechets: dechets.length > 0 ? dechets : undefined,
                 operations: operations.length > 0 ? operations : undefined,
                 unites: unites.length > 0 ? unites : undefined,
@@ -442,31 +781,34 @@ export const verifierTraductionsPDF = async (
  * @returns string - Résumé des traductions manquantes
  */
 export const getResumeTraductionsManquantes = (result: VerificationResult): string => {
-    const missing = [];
+    const missing: string[] = [];
+    const formatSingle = (detail: MappingDetail | null | undefined, label: string) => {
+        if (!detail) return;
+        const suffix = detail.status === 'non_affilie' ? 'non affilié' : 'non reconnu';
+        missing.push(`${label}: "${detail.value}" ${suffix}`);
+    };
+    const formatMultiple = (details: MappingDetail[], label: string) => {
+        if (details.length === 0) return;
+        const nonAffilie = details.filter(item => item.status === 'non_affilie');
+        const inconnus = details.filter(item => item.status === 'inconnu');
+
+        if (nonAffilie.length > 0) {
+            missing.push(`${label} non affilié(s): ${nonAffilie.map(item => `"${item.value}"`).join(', ')}`);
+        }
+        if (inconnus.length > 0) {
+            missing.push(`${label} non reconnu(s): ${inconnus.map(item => `"${item.value}"`).join(', ')}`);
+        }
+    };
     
-    if (result.missingFields.site_raw) {
-        missing.push(`Site: "${result.details.site_raw?.value}"`);
-    }
-    
-    if (result.missingFields.presta_raw) {
-        missing.push(`Prestataire: "${result.details.presta_raw?.value}"`);
-    }
-    
-    /*if (result.missingFields.dechets.length > 0) {
-        missing.push(`Déchets: ${result.missingFields.dechets.map(d => `"${d}"`).join(', ')}`);
-    }*/
-    
-    if (result.missingFields.operations.length > 0) {
-        missing.push(`Opérations: ${result.missingFields.operations.map(o => `"${o}"`).join(', ')}`);
-    }
-    
-    if (result.missingFields.unites.length > 0) {
-        missing.push(`Unités: ${result.missingFields.unites.map(u => `"${u}"`).join(', ')}`);
-    }
-    
-    if (result.missingFields.contenants.length > 0) {
-        missing.push(`Contenants: ${result.missingFields.contenants.map(c => `"${c}"`).join(', ')}`);
-    }
+    formatSingle(result.missingFields.site_raw, 'Site');
+    formatSingle(result.missingFields.presta_raw, 'Prestataire');
+    formatSingle(result.missingFields.nom_prestataire_2, 'Prestataire (V2)');
+
+    // formatMultiple(result.missingFields.dechets, 'Déchet(s)');
+    formatMultiple(result.missingFields.operations, 'Opération(s)');
+    formatMultiple(result.missingFields.unites, 'Unité(s)');
+    formatMultiple(result.missingFields.contenants, 'Contenant(s)');
+    formatMultiple(result.missingFields.sites_facture, 'Site(s) facture');
     
     if (missing.length === 0) {
         return "Toutes les traductions sont disponibles";
@@ -502,48 +844,113 @@ export const mettreAJourAlerteTraductions = async (
 
         const infosRaw = pdfData.infos_raw as InfosRaw;
         const confidenceData = (pdfData.confidence as ConfidenceData | null | undefined) ?? null;
+        const typeDocValue = (infosRaw.type_doc || '').toLowerCase();
+        const typeBonValue = (infosRaw as { type_bon?: string }).type_bon;
+        const typeFactureValue = (infosRaw as { type_facture?: string }).type_facture;
         
         // Construire le message d'alerte
         let message = "";
         let stop = false;
         const missingMessages: string[] = [];
+        const alerteFlags: string[] = [];
+        const addFlagValue = (flag: string | null | undefined) => {
+            if (!flag) return;
+            if (!alerteFlags.includes(flag)) {
+                alerteFlags.push(flag);
+            }
+        };
+
+        const pushSingleMappingMessage = (detail: MappingDetail | null | undefined, label: string) => {
+            if (!detail) return;
+            const qualifier = detail.status === 'non_affilie' ? 'non affilié' : 'non reconnu';
+            missingMessages.push(`${label} "${detail.value}" ${qualifier}`);
+            const flagKey = getFlagKeyForLabel(label, detail.status);
+            if (flagKey) {
+                addFlagValue(flagKey);
+            }
+        };
+
+        const pushArrayMappingMessage = (
+            details: MappingDetail[],
+            label: string,
+            feminine: boolean
+        ) => {
+            if (details.length === 0) return;
+            const nonAffilie = details.filter(item => item.status === 'non_affilie');
+            const inconnus = details.filter(item => item.status === 'inconnu');
+
+            const affSuffix = feminine ? 'non affiliée(s)' : 'non affilié(s)';
+            const incSuffix = feminine ? 'non reconnue(s)' : 'non reconnu(s)';
+
+            if (nonAffilie.length > 0) {
+                missingMessages.push(`${label} ${affSuffix}: ${nonAffilie.map(item => `"${item.value}"`).join(', ')}`);
+            }
+            if (inconnus.length > 0) {
+                missingMessages.push(`${label} ${incSuffix}: ${inconnus.map(item => `"${item.value}"`).join(', ')}`);
+            }
+
+            details.forEach(detail => {
+                const flagKey = getFlagKeyForLabel(label, detail.status);
+                if (flagKey) {
+                    addFlagValue(flagKey);
+                }
+            });
+        };
+
+        const pushDocumentTypeMessage = (label: string, value: string | undefined) => {
+            const formattedValue = value && value.trim().length > 0 ? `"${value}"` : 'non renseigné';
+            missingMessages.push(`${label} non reconnu: ${formattedValue}`);
+            stop = true;
+            if (label === 'Type de bon') {
+                addFlagValue('type_bon_inconnu');
+            } else if (label === 'Type de facture') {
+                addFlagValue('type_facture_inconnu');
+            }
+        };
 
         // === ALERTES DE TRADUCTION ===
         if (!verificationResult.hasTranslation) {
             stop = true;
 
-            // Site manquant
-            if (verificationResult.missingFields.site_raw) {
-                missingMessages.push(`Site "${verificationResult.details.site_raw?.value}" non reconnu`);
+            pushSingleMappingMessage(verificationResult.missingFields.site_raw, 'Site');
+            pushSingleMappingMessage(verificationResult.missingFields.presta_raw, 'Prestataire');
+            pushSingleMappingMessage(verificationResult.missingFields.nom_prestataire_2, 'Prestataire (V2)');
+
+            pushArrayMappingMessage(verificationResult.missingFields.operations, 'Opération(s)', true);
+            pushArrayMappingMessage(verificationResult.missingFields.unites, 'Unité(s)', true);
+            pushArrayMappingMessage(verificationResult.missingFields.contenants, 'Contenant(s)', false);
+            pushArrayMappingMessage(verificationResult.missingFields.sites_facture, 'Site(s) facture', false);
+        }
+
+        // Type de bon
+        if (typeDocValue === 'bon') {
+            if (!matchesKnownKeyword(typeBonValue, KNOWN_BON_KEYWORDS)) {
+                pushDocumentTypeMessage('Type de bon', typeBonValue);
             }
+        }
 
-            // Prestataire manquant
-            if (verificationResult.missingFields.presta_raw) {
-                missingMessages.push(`Prestataire "${verificationResult.details.presta_raw?.value}" non reconnu`);
+        if (typeDocValue === 'bsd') {
+            const dechetsArray = Array.isArray(infosRaw.dechet) ? infosRaw.dechet : [];
+            const invalidCodeDrIndexes: number[] = [];
+
+            dechetsArray.forEach((dechet, index) => {
+                const codeDrValue = (dechet as { d_r?: string }).d_r;
+                if (!hasNonEmptyString(codeDrValue) || !matchesPattern(codeDrValue, CODE_DR_PATTERN)) {
+                    invalidCodeDrIndexes.push(index + 1);
+                }
+            });
+
+            if (invalidCodeDrIndexes.length > 0) {
+                stop = true;
+                missingMessages.push(`Code DR invalide pour collecte(s): ${invalidCodeDrIndexes.join(', ')}`);
+                addFlagValue('code_dr_invalide');
             }
+        }
 
-            // Déchets manquants
-            /*if (verificationResult.missingFields.dechets.length > 0) {
-                const dechetsNonReconnus = verificationResult.missingFields.dechets.map(d => `"${d}"`).join(', ');
-                missingMessages.push(`Déchet(s) non reconnu(s): ${dechetsNonReconnus}`);
-            }*/
-
-            // Opérations manquantes
-            if (verificationResult.missingFields.operations.length > 0) {
-                const operationsNonReconnues = verificationResult.missingFields.operations.map(o => `"${o}"`).join(', ');
-                missingMessages.push(`Opération(s) non reconnue(s): ${operationsNonReconnues}`);
-            }
-
-            // Unités manquantes
-            if (verificationResult.missingFields.unites.length > 0) {
-                const unitesNonReconnues = verificationResult.missingFields.unites.map(u => `"${u}"`).join(', ');
-                missingMessages.push(`Unité(s) non reconnue(s): ${unitesNonReconnues}`);
-            }
-
-            // Contenants manquants
-            if (verificationResult.missingFields.contenants.length > 0) {
-                const contenantsNonReconnus = verificationResult.missingFields.contenants.map(c => `"${c}"`).join(', ');
-                missingMessages.push(`Contenant(s) non reconnu(s): ${contenantsNonReconnus}`);
+        // Type de facture
+        if (typeDocValue === 'facture') {
+            if (!matchesKnownKeyword(typeFactureValue, KNOWN_FACTURE_KEYWORDS)) {
+                pushDocumentTypeMessage('Type de facture', typeFactureValue);
             }
         }
 
@@ -553,6 +960,7 @@ export const mettreAJourAlerteTraductions = async (
                 ? confidenceData.large_word_review_reason
                 : 'Le document risque d\'être mal compris.';
             missingMessages.push(`Lecture OCR douteuse: ${reason}`);
+            addFlagValue('large_word_review_llm_can_understand');
         }
 
         // === NOUVELLES ALERTES MODULAIRES ===
@@ -578,6 +986,7 @@ export const mettreAJourAlerteTraductions = async (
                         if (result.hasError) {
                             stop = true;
                             missingMessages.push(`Tonnage: ${result.message}`);
+                            addFlagValue(mapTonnageMessageToFlag(result.message));
                         }
                     }
                 }
@@ -591,6 +1000,7 @@ export const mettreAJourAlerteTraductions = async (
                         if (result.hasError) {
                             stop = true;
                             missingMessages.push(`Date: ${result.message}`);
+                            addFlagValue(mapDateMessageToFlag(result.message));
                         }
                     }
                 }
@@ -604,6 +1014,7 @@ export const mettreAJourAlerteTraductions = async (
                         if (result.hasError) {
                             stop = true;
                             missingMessages.push(`Code CED: ${result.message}`);
+                            addFlagValue(mapCedMessageToFlag(result.message));
                         }
                     }
                 }
@@ -617,6 +1028,7 @@ export const mettreAJourAlerteTraductions = async (
                         if (result.hasError) {
                             stop = true;
                             missingMessages.push(`Numéro BSD: ${result.message}`);
+                            addFlagValue(mapNumberMessageToFlag(result.message, 'bsd'));
                         }
                     }
                 }
@@ -630,6 +1042,7 @@ export const mettreAJourAlerteTraductions = async (
                         if (result.hasError) {
                             stop = true;
                             missingMessages.push(`Numéro de bon: ${result.message}`);
+                            addFlagValue(mapNumberMessageToFlag(result.message, 'bon'));
                         }
                     }
                 }
@@ -641,42 +1054,106 @@ export const mettreAJourAlerteTraductions = async (
                 if (result.hasError) {
                     stop = true;
                     missingMessages.push(`Numéro de facture: ${result.message}`);
+                    addFlagValue(mapNumberMessageToFlag(result.message, 'facture'));
                 }
             }
 
             // Alertes spécifiques aux factures
             if (typeDoc === 'facture') {
-                for (const dechet of dechets) {
-                    if (dechet.facture?.ligne && Array.isArray(dechet.facture.ligne)) {
-                        const prestations = dechet.facture.ligne;
+                const toutesLesPrestations: FactureLigne[] = [];
 
-                        // Alerte calcul facture pour chaque prestation
-                        if (ENABLE_ALERTE_CALCUL_FACTURE) {
-                            for (const presta of prestations) {
-                                if (presta.quantite !== undefined && 
-                                    presta.prix_unitaire !== undefined && 
-                                    presta.montant_ht !== undefined) {
-                                    const result = alerteCalculFacture(
-                                        presta.quantite,
-                                        presta.prix_unitaire,
-                                        presta.montant_ht
-                                    );
-                                    if (result.hasError) {
-                                        stop = true;
-                                        missingMessages.push(`Calcul facture: ${result.message}`);
-                                    }
+                dechets.forEach((dechet, dechetIndex) => {
+                    const lignes = dechet.facture?.ligne;
+                    const prestations = Array.isArray(lignes)
+                        ? lignes
+                        : lignes
+                            ? [lignes]
+                            : [];
+
+                    if (prestations.length === 0) {
+                        return;
+                    }
+
+                    toutesLesPrestations.push(...prestations);
+
+                    if (ENABLE_ALERTE_CALCUL_FACTURE) {
+                        prestations.forEach(presta => {
+                            // Ne vérifier le calcul que si quantité, prix unitaire ET montant HT sont présents et non vides
+                            if (hasValue(presta.quantite) &&
+                                hasValue(presta.prix_unitaire) &&
+                                hasValue(presta.montant_ht)) {
+                                const result = alerteCalculFacture(
+                                    presta.quantite,
+                                    presta.prix_unitaire,
+                                    presta.montant_ht
+                                );
+                                if (result.hasError) {
+                                    stop = true;
+                                    missingMessages.push(`Calcul facture: ${result.message}`);
+                                    addFlagValue('calcul_errone');
                                 }
                             }
+                        });
+                    }
+
+                    const categoriesParCollecte: Partial<Record<OperationCategory, number>> = {};
+                    const matchedOperationDetails = verificationResult.details.operations ?? [];
+                    matchedOperationDetails
+                        .filter((detail): detail is MappingDetail & { operationCategory: OperationCategory; meta: { dechetIndex?: number } } =>
+                            detail.meta?.dechetIndex === dechetIndex && !!detail.operationCategory
+                        )
+                        .forEach(detail => {
+                            const category = detail.operationCategory;
+                            categoriesParCollecte[category] = (categoriesParCollecte[category] || 0) + 1;
+                        });
+
+                    Object.entries(categoriesParCollecte).forEach(([category, count]) => {
+                        if ((count ?? 0) > 1) {
+                            stop = true;
+                            const label = formatOperationCategoryLabel(category as OperationCategory);
+                            missingMessages.push(`Structure de collecte fausse: Trop d'opérations ${label} pour la collecte ${dechetIndex + 1} (${count} détectées, maximum 1)`);
+                            addFlagValue('structure_collecte_fausse');
+                        }
+                    });
+
+                    const hasPrestations = prestations.length > 0;
+                    if (hasPrestations) {
+                        const missingCollecteFields: string[] = [];
+                        if (!hasNonEmptyString(dechet.date)) {
+                            missingCollecteFields.push('date');
+                        }
+                        if (!hasNonEmptyString(dechet.nom)) {
+                            missingCollecteFields.push('déchet');
+                        }
+                        const hasDocumentNumber = hasNonEmptyString(dechet.num_bon) || hasNonEmptyString(dechet.num_bsd);
+                        if (!hasDocumentNumber) {
+                            missingCollecteFields.push('numéro de Bon/BSD');
+                        }
+                        /*if (!hasNonEmptyString(dechet.contenant)) {
+                            missingCollecteFields.push('contenant');
+                        }*/
+                        if (!hasValue(dechet.tonnage)) {
+                            missingCollecteFields.push('tonnage');
                         }
 
-                        // Alerte somme facture (une seule fois par document)
-                        if (ENABLE_ALERTE_SOMME_FACTURE && infosRaw.montant_total_ht !== undefined) {
-                            const result = alerteSommeFacture(prestations, infosRaw.montant_total_ht);
-                            if (result.hasError) {
-                                stop = true;
-                                missingMessages.push(`Somme facture: ${result.message}`);
-                            }
-                            break; // On vérifie seulement une fois pour le total
+                        if (missingCollecteFields.length > 0) {
+                            stop = true;
+                            missingMessages.push(`Structure de collecte fausse: Collecte ${dechetIndex + 1} incomplète (manque: ${missingCollecteFields.join(', ')})`);
+                            addFlagValue('structure_collecte_fausse');
+                        }
+                    }
+                });
+
+                if (ENABLE_ALERTE_SOMME_FACTURE &&
+                    infosRaw.montant_total_ht !== undefined &&
+                    toutesLesPrestations.length > 0) {
+                    const montantTotalValue = parseNumericValue(infosRaw.montant_total_ht);
+                    if (montantTotalValue !== null) {
+                        const result = alerteSommeFacture(toutesLesPrestations, montantTotalValue);
+                        if (result.hasError) {
+                            stop = true;
+                            missingMessages.push(`Somme facture: ${result.message}`);
+                            addFlagValue('somme_erronee');
                         }
                     }
                 }
@@ -692,7 +1169,8 @@ export const mettreAJourAlerteTraductions = async (
             .update({
                 alerte: {
                     stop,
-                    message
+                    message,
+                    flags: alerteFlags
                 }
             })
             .eq('id', pdfId)

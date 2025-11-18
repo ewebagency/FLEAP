@@ -71,7 +71,7 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValue
                 </button>
                 
                 {isOpen && (
-                    <div className="absolute z-50 w-full mt-0.5 bg-white border border-gray-200 rounded-md shadow-sm max-h-60 overflow-hidden">
+                    <div className="absolute z-50 min-w-[200px] w-full mt-0.5 bg-white border border-gray-200 rounded-md shadow-sm max-h-60 overflow-hidden">
                         {options.length >= 6 && (
                         <div className="p-1.5 border-b border-gray-100">
                             <input
@@ -140,33 +140,75 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValue
     );
 };
 
+type FlagDefinition = {
+    label: string;
+    color: string;
+};
+
+const FLAG_DEFINITIONS: Record<string, FlagDefinition> = {
+    site_inconnu: { label: 'Site inconnu', color: 'bg-red-100 text-red-700' },
+    site_non_affilie: { label: 'Site non affilié', color: 'bg-red-100 text-red-700' },
+    presta_inconnu: { label: 'Presta inconnu', color: 'bg-red-100 text-red-700' },
+    presta_non_affilie: { label: 'Presta non affilié', color: 'bg-red-100 text-red-700' },
+    operation_inconnue: { label: 'Opération inconnue', color: 'bg-red-100 text-red-700' },
+    operation_non_affiliee: { label: 'Opération non affiliée', color: 'bg-red-100 text-red-700' },
+    unite_inconnue: { label: 'Unité inconnue', color: 'bg-red-100 text-red-700' },
+    unite_non_affiliee: { label: 'Unité non affiliée', color: 'bg-red-100 text-red-700' },
+    contenant_inconnu: { label: 'Contenant inconnu', color: 'bg-red-100 text-red-700' },
+    contenant_non_affilie: { label: 'Contenant non affilié', color: 'bg-red-100 text-red-700' },
+    dechet_inconnu: { label: 'Déchet inconnu', color: 'bg-red-100 text-red-700' },
+    dechet_non_affilie: { label: 'Déchet non affilié', color: 'bg-red-100 text-red-700' },
+    tonnage_non_lu: { label: 'Tonnage non lu', color: 'bg-orange-100 text-orange-700' },
+    tonnage_invalide: { label: 'Tonnage invalide', color: 'bg-orange-100 text-orange-700' },
+    tonnage_negatif: { label: 'Tonnage négatif', color: 'bg-orange-100 text-orange-700' },
+    tonnage_eleve: { label: 'Tonnage >50t', color: 'bg-orange-100 text-orange-700' },
+    date_non_lue: { label: 'Date non lue', color: 'bg-yellow-100 text-yellow-700' },
+    date_invalide: { label: 'Date invalide', color: 'bg-yellow-100 text-yellow-700' },
+    num_bsd_non_lu: { label: 'N° BSD non lu', color: 'bg-purple-100 text-purple-700' },
+    num_bsd_invalide: { label: 'N° BSD invalide', color: 'bg-purple-100 text-purple-700' },
+    num_bon_non_lu: { label: 'N° Bon non lu', color: 'bg-purple-100 text-purple-700' },
+    num_bon_invalide: { label: 'N° Bon invalide', color: 'bg-purple-100 text-purple-700' },
+    num_facture_non_lu: { label: 'N° Facture non lu', color: 'bg-purple-100 text-purple-700' },
+    num_facture_invalide: { label: 'N° Facture invalide', color: 'bg-purple-100 text-purple-700' },
+    ced_non_lu: { label: 'CED non lu', color: 'bg-pink-100 text-pink-700' },
+    ced_invalide: { label: 'CED invalide', color: 'bg-pink-100 text-pink-700' },
+    type_bon_inconnu: { label: 'Type de bon inconnu', color: 'bg-indigo-100 text-indigo-700' },
+    type_facture_inconnu: { label: 'Type de facture inconnu', color: 'bg-indigo-100 text-indigo-700' },
+    code_dr_invalide: { label: 'Code DR invalide', color: 'bg-teal-100 text-teal-700' },
+    structure_collecte_fausse: { label: 'Structure de collecte fausse', color: 'bg-amber-100 text-amber-700' },
+    calcul_errone: { label: 'Calcul erroné', color: 'bg-blue-100 text-blue-700' },
+    somme_erronee: { label: 'Somme erronée', color: 'bg-blue-100 text-blue-700' },
+    large_word_review_llm_can_understand: { label: 'Lecture OCR douteuse', color: 'bg-rose-100 text-rose-700' }
+};
+
+const FLAG_DEFINITION_ENTRIES = Object.entries(FLAG_DEFINITIONS);
+
+const buildFlagFromValue = (value: string): AlerteFlag | null => {
+    const def = FLAG_DEFINITIONS[value];
+    if (!def) return null;
+    return { label: def.label, color: def.color };
+};
+
+export const getFlagsFromValues = (values: string[]): AlerteFlag[] => {
+    const seen = new Set<string>();
+    const result: AlerteFlag[] = [];
+    values.forEach(value => {
+        if (seen.has(value)) return;
+        const flag = buildFlagFromValue(value);
+        if (flag) {
+            seen.add(value);
+            result.push(flag);
+        }
+    });
+    return result;
+};
+
 // Obtenir tous les types de flags possibles pour le filtre
 export const getAllPossibleAlerteFlags = (): Array<{value: string, label: string}> => {
-    return [
-        { value: 'site_inconnu', label: 'Site inconnu' },
-        { value: 'presta_inconnu', label: 'Presta inconnu' },
-        { value: 'operation_inconnue', label: 'Opération inconnue' },
-        { value: 'unite_inconnue', label: 'Unité inconnue' },
-        { value: 'contenant_inconnu', label: 'Contenant inconnu' },
-        { value: 'dechet_inconnu', label: 'Déchet inconnu' },
-        { value: 'tonnage_non_lu', label: 'Tonnage non lu' },
-        { value: 'tonnage_invalide', label: 'Tonnage invalide' },
-        { value: 'tonnage_negatif', label: 'Tonnage négatif' },
-        { value: 'tonnage_eleve', label: 'Tonnage >50t' },
-        { value: 'date_non_lue', label: 'Date non lue' },
-        { value: 'date_invalide', label: 'Date invalide' },
-        { value: 'num_bsd_non_lu', label: 'N° BSD non lu' },
-        { value: 'num_bsd_invalide', label: 'N° BSD invalide' },
-        { value: 'num_bon_non_lu', label: 'N° Bon non lu' },
-        { value: 'num_bon_invalide', label: 'N° Bon invalide' },
-        { value: 'num_facture_non_lu', label: 'N° Facture non lu' },
-        { value: 'num_facture_invalide', label: 'N° Facture invalide' },
-        { value: 'ced_non_lu', label: 'CED non lu' },
-        { value: 'ced_invalide', label: 'CED invalide' },
-        { value: 'calcul_errone', label: 'Calcul erroné' },
-        { value: 'somme_erronee', label: 'Somme erronée' },
-        { value: 'large_word_review_llm_can_understand', label: 'Lecture OCR douteuse' }
-    ];
+    return FLAG_DEFINITION_ENTRIES.map(([value, def]) => ({
+        value,
+        label: def.label
+    }));
 };
 
 // Obtenir tous les statuts de linkage possibles pour le filtre
@@ -183,97 +225,257 @@ export const getAllPossibleLinkageStatuses = (): Array<{value: string, label: st
 
 // Mapper un label de flag vers sa value
 export const getFlagValueFromLabel = (label: string): string => {
-    const mapping: Record<string, string> = {
-        'Site inconnu': 'site_inconnu',
-        'Presta inconnu': 'presta_inconnu',
-        'Opération inconnue': 'operation_inconnue',
-        'Unité inconnue': 'unite_inconnue',
-        'Contenant inconnu': 'contenant_inconnu',
-        'Déchet inconnu': 'dechet_inconnu',
-        'Tonnage non lu': 'tonnage_non_lu',
-        'Tonnage invalide': 'tonnage_invalide',
-        'Tonnage négatif': 'tonnage_negatif',
-        'Tonnage >50t': 'tonnage_eleve',
-        'Date non lue': 'date_non_lue',
-        'Date invalide': 'date_invalide',
-        'N° BSD non lu': 'num_bsd_non_lu',
-        'N° BSD invalide': 'num_bsd_invalide',
-        'N° Bon non lu': 'num_bon_non_lu',
-        'N° Bon invalide': 'num_bon_invalide',
-        'N° Facture non lu': 'num_facture_non_lu',
-        'N° Facture invalide': 'num_facture_invalide',
-        'CED non lu': 'ced_non_lu',
-        'CED invalide': 'ced_invalide',
-        'Calcul erroné': 'calcul_errone',
-        'Somme erronée': 'somme_erronee',
-        'Lecture OCR douteuse': 'large_word_review_llm_can_understand'
-    };
-    return mapping[label] || label.toLowerCase().replace(/\s+/g, '_');
+    for (const [value, def] of FLAG_DEFINITION_ENTRIES) {
+        if (def.label === label) {
+            return value;
+        }
+    }
+    return label.toLowerCase().replace(/\s+/g, '_');
 };
 
-// Générer les flags d'alertes basés sur le message
 export const getAlerteFlags = (message: string): AlerteFlag[] => {
     if (!message) return [];
     
     const flags: AlerteFlag[] = [];
     const lowerMessage = message.toLowerCase();
+    const addFlagValue = (value: string) => {
+        const flag = buildFlagFromValue(value);
+        if (!flag) return;
+        if (!flags.some(existing => existing.label === flag.label)) {
+            flags.push(flag);
+        }
+    };
+    const hasFlagValue = (value: string) => flags.some(flag => getFlagValueFromLabel(flag.label) === value);
+    const removeFlagValue = (value: string) => {
+        const label = FLAG_DEFINITIONS[value]?.label;
+        if (!label) return;
+        const index = flags.findIndex(flag => flag.label === label);
+        if (index !== -1) {
+            flags.splice(index, 1);
+        }
+    };
+    const fieldFlagValues: Record<string, { inconnu: string; non_affilie: string }> = {
+        site: { inconnu: 'site_inconnu', non_affilie: 'site_non_affilie' },
+        presta: { inconnu: 'presta_inconnu', non_affilie: 'presta_non_affilie' },
+        operation: { inconnu: 'operation_inconnue', non_affilie: 'operation_non_affiliee' },
+        unite: { inconnu: 'unite_inconnue', non_affilie: 'unite_non_affiliee' },
+        contenant: { inconnu: 'contenant_inconnu', non_affilie: 'contenant_non_affilie' },
+        dechet: { inconnu: 'dechet_inconnu', non_affilie: 'dechet_non_affilie' }
+    };
+    const addFieldFlag = (field: keyof typeof fieldFlagValues, status: 'inconnu' | 'non_affilie') => {
+        const values = fieldFlagValues[field];
+        if (!values) return;
+        const value = values[status];
+        if (!value) return;
+        if (status === 'inconnu' && hasFlagValue(values.non_affilie)) {
+            removeFlagValue(values.non_affilie);
+        }
+        if (status === 'non_affilie' && hasFlagValue(values.inconnu)) {
+            return;
+        }
+        addFlagValue(value);
+    };
+    const mentionsSiteFacture = lowerMessage.includes('site(s) facture') || lowerMessage.includes('site facture') || lowerMessage.includes('sites facture');
+    const mentionsSite = lowerMessage.includes('site');
+    const mentionsAnySite = mentionsSiteFacture || mentionsSite;
+    const mentionsPrestataire = lowerMessage.includes('prestataire');
+    const mentionsOperation = lowerMessage.includes('opération') || lowerMessage.includes('operation');
+    const mentionsUnite = lowerMessage.includes('unité') || lowerMessage.includes('unite');
+    const mentionsContenant = lowerMessage.includes('contenant');
+    const mentionsDechet = lowerMessage.includes('déchet') || lowerMessage.includes('dechet');
+    const mentionsTypeBon = lowerMessage.includes('type de bon');
+    const mentionsTypeFacture = lowerMessage.includes('type de facture');
+    const mentionsCodeDr = lowerMessage.includes('code dr');
+    const mentionsStructureCollecte = lowerMessage.includes('structure de collecte fausse');
     
     // Associations manquantes (non reconnu = lu mais pas de mapping)
     if (lowerMessage.includes('non reconnu')) {
-        if (lowerMessage.includes('site')) flags.push({ label: 'Site inconnu', color: 'bg-red-100 text-red-700' });
-        if (lowerMessage.includes('prestataire')) flags.push({ label: 'Presta inconnu', color: 'bg-red-100 text-red-700' });
-        if (lowerMessage.includes('opération')) flags.push({ label: 'Opération inconnue', color: 'bg-red-100 text-red-700' });
-        if (lowerMessage.includes('unité')) flags.push({ label: 'Unité inconnue', color: 'bg-red-100 text-red-700' });
-        if (lowerMessage.includes('contenant')) flags.push({ label: 'Contenant inconnu', color: 'bg-red-100 text-red-700' });
-        if (lowerMessage.includes('déchet')) flags.push({ label: 'Déchet inconnu', color: 'bg-red-100 text-red-700' });
+        if (mentionsAnySite) addFieldFlag('site', 'inconnu');
+        if (mentionsPrestataire) addFieldFlag('presta', 'inconnu');
+        if (mentionsOperation) addFieldFlag('operation', 'inconnu');
+        if (mentionsUnite) addFieldFlag('unite', 'inconnu');
+        if (mentionsContenant) addFieldFlag('contenant', 'inconnu');
+        if (mentionsDechet) addFieldFlag('dechet', 'inconnu');
+        if (mentionsTypeBon) addFlagValue('type_bon_inconnu');
+        if (mentionsTypeFacture) addFlagValue('type_facture_inconnu');
+    }
+
+    if (mentionsCodeDr) {
+        addFlagValue('code_dr_invalide');
+    }
+
+    if (mentionsStructureCollecte) {
+        addFlagValue('structure_collecte_fausse');
+    }
+    
+    // Associations manquantes (non affilié = proximité mais pas de mapping)
+    if (lowerMessage.includes('non affili')) {
+        if (mentionsAnySite) addFieldFlag('site', 'non_affilie');
+        if (mentionsPrestataire) addFieldFlag('presta', 'non_affilie');
+        if (mentionsOperation) addFieldFlag('operation', 'non_affilie');
+        if (mentionsUnite) addFieldFlag('unite', 'non_affilie');
+        if (mentionsContenant) addFieldFlag('contenant', 'non_affilie');
     }
     
     // Tonnage
     if (lowerMessage.includes('tonnage')) {
-        if (lowerMessage.includes('manquant')) flags.push({ label: 'Tonnage non lu', color: 'bg-orange-100 text-orange-700' });
-        else if (lowerMessage.includes('non numérique')) flags.push({ label: 'Tonnage invalide', color: 'bg-orange-100 text-orange-700' });
-        else if (lowerMessage.includes('négatif')) flags.push({ label: 'Tonnage négatif', color: 'bg-orange-100 text-orange-700' });
-        else if (lowerMessage.includes('trop élevé')) flags.push({ label: 'Tonnage >50t', color: 'bg-orange-100 text-orange-700' });
+        if (lowerMessage.includes('manquant')) addFlagValue('tonnage_non_lu');
+        else if (lowerMessage.includes('non numérique')) addFlagValue('tonnage_invalide');
+        else if (lowerMessage.includes('négatif')) addFlagValue('tonnage_negatif');
+        else if (lowerMessage.includes('trop élevé')) addFlagValue('tonnage_eleve');
     }
     
     // Date
     if (lowerMessage.includes('date')) {
-        if (lowerMessage.includes('manquante')) flags.push({ label: 'Date non lue', color: 'bg-yellow-100 text-yellow-700' });
-        else if (lowerMessage.includes('invalide')) flags.push({ label: 'Date invalide', color: 'bg-yellow-100 text-yellow-700' });
+        if (lowerMessage.includes('manquante')) addFlagValue('date_non_lue');
+        else if (lowerMessage.includes('invalide')) addFlagValue('date_invalide');
     }
     
     // Numéros
     if (lowerMessage.includes('numéro bsd') || lowerMessage.includes('num_bsd')) {
-        if (lowerMessage.includes('manquant')) flags.push({ label: 'N° BSD non lu', color: 'bg-purple-100 text-purple-700' });
-        else if (lowerMessage.includes('insuffisant')) flags.push({ label: 'N° BSD invalide', color: 'bg-purple-100 text-purple-700' });
+        if (lowerMessage.includes('manquant')) addFlagValue('num_bsd_non_lu');
+        else if (lowerMessage.includes('insuffisant')) addFlagValue('num_bsd_invalide');
     }
     if (lowerMessage.includes('numéro de bon') || lowerMessage.includes('num_bon')) {
-        if (lowerMessage.includes('manquant')) flags.push({ label: 'N° Bon non lu', color: 'bg-purple-100 text-purple-700' });
-        else if (lowerMessage.includes('insuffisant')) flags.push({ label: 'N° Bon invalide', color: 'bg-purple-100 text-purple-700' });
+        if (lowerMessage.includes('manquant')) addFlagValue('num_bon_non_lu');
+        else if (lowerMessage.includes('insuffisant')) addFlagValue('num_bon_invalide');
     }
     if (lowerMessage.includes('numéro de facture') || lowerMessage.includes('num_facture')) {
-        if (lowerMessage.includes('manquant')) flags.push({ label: 'N° Facture non lu', color: 'bg-purple-100 text-purple-700' });
-        else if (lowerMessage.includes('insuffisant')) flags.push({ label: 'N° Facture invalide', color: 'bg-purple-100 text-purple-700' });
+        if (lowerMessage.includes('manquant')) addFlagValue('num_facture_non_lu');
+        else if (lowerMessage.includes('insuffisant')) addFlagValue('num_facture_invalide');
     }
     
     // Code CED
     if (lowerMessage.includes('code ced') || lowerMessage.includes('ced')) {
-        if (lowerMessage.includes('manquant')) flags.push({ label: 'CED non lu', color: 'bg-pink-100 text-pink-700' });
-        else if (lowerMessage.includes('invalide')) flags.push({ label: 'CED invalide', color: 'bg-pink-100 text-pink-700' });
+        if (lowerMessage.includes('manquant')) addFlagValue('ced_non_lu');
+        else if (lowerMessage.includes('invalide')) addFlagValue('ced_invalide');
     }
     
     if (lowerMessage.includes('lecture ocr douteuse')) {
-        flags.push({ label: 'Lecture OCR douteuse', color: 'bg-rose-100 text-rose-700' });
+        addFlagValue('large_word_review_llm_can_understand');
     }
 
     // Calculs
     if (lowerMessage.includes('calcul incorrect')) {
-        flags.push({ label: 'Calcul erroné', color: 'bg-blue-100 text-blue-700' });
+        addFlagValue('calcul_errone');
     }
     if (lowerMessage.includes('somme incorrecte')) {
-        flags.push({ label: 'Somme erronée', color: 'bg-blue-100 text-blue-700' });
+        addFlagValue('somme_erronee');
     }
     
     return flags;
+};
+
+// Interface pour les flags agrégés par priorité
+export interface AggregatedFlags {
+    must: AlerteFlag[];
+    nice: AlerteFlag[];
+}
+
+// Définition des flags MUST selon le type de document
+const getMustFlagsForDocumentType = (documentType: string | null): Set<string> => {
+    const docType = (documentType || '').toLowerCase();
+    const mustFlags = new Set<string>();
+    
+    // Flags communs à tous les types (Bon, BSD, Facture)
+    const commonMustFlags = [
+        'site_inconnu',
+        'site_non_affilie',
+        'presta_inconnu',
+        'presta_non_affilie',
+        'dechet_inconnu',
+        'dechet_non_affilie',
+        'date_non_lue',
+        'date_invalide',
+        'tonnage_non_lu',
+        'tonnage_invalide',
+        'tonnage_negatif',
+        'num_bon_non_lu',
+        'num_bon_invalide',
+        'num_bsd_non_lu',
+        'num_bsd_invalide'
+    ];
+    
+    commonMustFlags.forEach(flag => mustFlags.add(flag));
+    
+    // Flags spécifiques selon le type
+    if (docType === 'bsd') {
+        // BSD : ajouter code_dr_invalide
+        mustFlags.add('code_dr_invalide');
+    } else if (docType === 'facture') {
+        // Facture : ajouter les flags de calcul et structure
+        mustFlags.add('somme_erronee');
+        mustFlags.add('calcul_errone');
+        mustFlags.add('structure_collecte_fausse');
+        // Pour facture, on garde aussi num_facture
+        mustFlags.add('num_facture_non_lu');
+        mustFlags.add('num_facture_invalide');
+    }
+    
+    return mustFlags;
+};
+
+// Fonction pour agréger les flags en MUST et NICE
+export const aggregateFlagsByPriority = (flags: AlerteFlag[], documentType: string | null): AggregatedFlags => {
+    const mustFlagValues = getMustFlagsForDocumentType(documentType);
+    const must: AlerteFlag[] = [];
+    const nice: AlerteFlag[] = [];
+    
+    flags.forEach(flag => {
+        const flagValue = getFlagValueFromLabel(flag.label);
+        if (mustFlagValues.has(flagValue)) {
+            must.push(flag);
+        } else {
+            nice.push(flag);
+        }
+    });
+    
+    return { must, nice };
+};
+
+// Obtenir tous les flags MUST possibles (union de tous les types de documents)
+export const getAllMustFlagValues = (): string[] => {
+    const allMustFlags = new Set<string>();
+    
+    // Flags communs à tous les types
+    const commonMustFlags = [
+        'site_inconnu',
+        'site_non_affilie',
+        'presta_inconnu',
+        'presta_non_affilie',
+        'dechet_inconnu',
+        'dechet_non_affilie',
+        'date_non_lue',
+        'date_invalide',
+        'tonnage_non_lu',
+        'tonnage_invalide',
+        'tonnage_negatif',
+        'num_bon_non_lu',
+        'num_bon_invalide',
+        'num_bsd_non_lu',
+        'num_bsd_invalide'
+    ];
+    
+    commonMustFlags.forEach(flag => allMustFlags.add(flag));
+    
+    // Flags spécifiques BSD
+    allMustFlags.add('code_dr_invalide');
+    
+    // Flags spécifiques Facture
+    allMustFlags.add('somme_erronee');
+    allMustFlags.add('calcul_errone');
+    allMustFlags.add('structure_collecte_fausse');
+    allMustFlags.add('num_facture_non_lu');
+    allMustFlags.add('num_facture_invalide');
+    
+    return Array.from(allMustFlags);
+};
+
+// Obtenir tous les flags NICE possibles (tout ce qui n'est pas MUST)
+export const getAllNiceFlagValues = (): string[] => {
+    const allFlagValues = FLAG_DEFINITION_ENTRIES.map(([value]) => value);
+    const mustFlagValues = new Set(getAllMustFlagValues());
+    
+    return allFlagValues.filter(value => !mustFlagValues.has(value));
 };
 
