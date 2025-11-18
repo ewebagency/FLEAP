@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/app/component/SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
 import PdfDisplayer from '@/app/interface_admin_2/InterfaceAdmin2/PdfDisplayer';
@@ -8,6 +8,16 @@ import BoutonSplitDoc from './BoutonSplitDoc';
 import BoutonSmartSplitDoc from './BoutonSmartSplitDoc';
 import Push2RAGButton from './Push2RAGButton';
 import { MetaOcrResponse } from '../interface/pdf_interface';
+import { 
+    alerteTonnage, 
+    alerteDate, 
+    alerteNumBsd, 
+    alerteNumBon, 
+    alerteNumFacture, 
+    alerteCed,
+    alerteCalculFacture,
+    alerteSommeFacture
+} from '../utils/alerte';
 // removed PushFactureButton usage in this file per requirements
 
 // Import des interfaces depuis MetaDataInterface.ts
@@ -486,6 +496,148 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         if (al) setAlerteData(al);
     };
 
+    // Interface pour les erreurs de validation
+    interface FormValidationErrors {
+        // Erreurs générales
+        num_facture?: string;
+        montant_total_ht?: string;
+        // Erreurs par déchet (index)
+        dechets: Record<number, {
+            date?: string;
+            tonnage?: string;
+            ced?: string;
+            num_bsd?: string;
+            num_bon?: string;
+            // Erreurs de lignes de facture (index de ligne)
+            lignes_facture?: Record<number, {
+                calcul?: string;
+            }>;
+        }>;
+        // Erreur de somme facture
+        somme_facture?: string;
+    }
+
+    // Fonction de validation basée sur alerte.ts
+    const validateFormData = (data: DocInterface, docType: "bon" | "bsd" | "facture" | null): FormValidationErrors => {
+        const errors: FormValidationErrors = {
+            dechets: {}
+        };
+
+        if (!docType) return errors;
+
+        // Validation num_facture pour les factures
+        if (docType === "facture") {
+            const factureData = data as DocFactureInterface;
+            if (factureData.num_facture !== undefined) {
+                const result = alerteNumFacture(factureData.num_facture);
+                if (result.hasError) {
+                    errors.num_facture = result.message;
+                }
+            }
+        }
+
+        // Validation des déchets
+        if (data.dechet && Array.isArray(data.dechet)) {
+            data.dechet.forEach((dechet, index) => {
+                const dechetErrors: FormValidationErrors['dechets'][number] = {};
+
+                // Validation date
+                if (dechet.date !== undefined) {
+                    const result = alerteDate(dechet.date);
+                    if (result.hasError) {
+                        dechetErrors.date = result.message;
+                    }
+                }
+
+                // Validation tonnage
+                if (dechet.tonnage !== undefined) {
+                    const result = alerteTonnage(dechet.tonnage);
+                    if (result.hasError) {
+                        dechetErrors.tonnage = result.message;
+                    }
+                }
+
+                // Validation CED (pour BSD)
+                if (docType === "bsd" && dechet.ced !== undefined) {
+                    const result = alerteCed(dechet.ced);
+                    if (result.hasError) {
+                        dechetErrors.ced = result.message;
+                    }
+                }
+
+                // Validation num_bsd (existe sur DechetBsdInterface et DechetFactureInterface)
+                const dechetWithBsd = dechet as DechetBsdInterface | DechetFactureInterface;
+                if (dechetWithBsd.num_bsd !== undefined) {
+                    const result = alerteNumBsd(dechetWithBsd.num_bsd);
+                    if (result.hasError) {
+                        dechetErrors.num_bsd = result.message;
+                    }
+                }
+
+                // Validation num_bon (existe sur tous les types de déchets)
+                const dechetWithBon = dechet as DechetBonInterface | DechetBsdInterface | DechetFactureInterface;
+                if (dechetWithBon.num_bon !== undefined) {
+                    const result = alerteNumBon(dechetWithBon.num_bon);
+                    if (result.hasError) {
+                        dechetErrors.num_bon = result.message;
+                    }
+                }
+
+                // Validation des lignes de facture
+                if (docType === "facture") {
+                    const dechetFacture = dechet as DechetFactureInterface;
+                    if (dechetFacture.facture?.ligne && Array.isArray(dechetFacture.facture.ligne)) {
+                        const lignesErrors: Record<number, { calcul?: string }> = {};
+                        dechetFacture.facture.ligne.forEach((ligne, ligneIndex) => {
+                            if (ligne.quantite !== undefined && 
+                                ligne.prix_unitaire !== undefined && 
+                                ligne.montant_ht !== undefined) {
+                                const result = alerteCalculFacture(
+                                    ligne.quantite,
+                                    ligne.prix_unitaire,
+                                    ligne.montant_ht
+                                );
+                                if (result.hasError) {
+                                    lignesErrors[ligneIndex] = { calcul: result.message };
+                                }
+                            }
+                        });
+                        if (Object.keys(lignesErrors).length > 0) {
+                            dechetErrors.lignes_facture = lignesErrors;
+                        }
+                    }
+                }
+
+                if (Object.keys(dechetErrors).length > 0) {
+                    errors.dechets[index] = dechetErrors;
+                }
+            });
+        }
+
+        // Validation somme facture
+        if (docType === "facture") {
+            const factureData = data as DocFactureInterface;
+            if (factureData.montant_total_ht !== undefined && factureData.dechet) {
+                const toutesLesPrestations: Array<{ montant_ht?: number | string }> = [];
+                factureData.dechet.forEach((dechet) => {
+                    const dechetFacture = dechet as DechetFactureInterface;
+                    const lignes = dechetFacture.facture?.ligne;
+                    const prestations = Array.isArray(lignes) ? lignes : lignes ? [lignes] : [];
+                    toutesLesPrestations.push(...prestations);
+                });
+
+                if (toutesLesPrestations.length > 0) {
+                    const result = alerteSommeFacture(toutesLesPrestations, factureData.montant_total_ht);
+                    if (result.hasError) {
+                        errors.somme_facture = result.message;
+                    }
+                }
+            }
+        }
+
+        return errors;
+    };
+
     const FormulaireExtractDoc = ({ onSave, onChange, showRagButton, forceImage }: { onSave: (formData: DocInterface) => Promise<void>; onChange?: (formData: DocInterface) => void; showRagButton?: boolean; forceImage: boolean }) => {
         const [formData, setFormData] = useState<DocInterface>(() => {
             if (existingData) {
@@ -519,14 +671,141 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
             }
         });
 
+        // Validation uniquement au blur et à la sauvegarde - pas de validation en temps réel
+        const [validationErrors, setValidationErrors] = useState<FormValidationErrors>({ dechets: {} });
+        const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
+        const hasValidatedInitial = useRef(false);
+
+        // Valider un champ spécifique
+        const validateField = useCallback((fieldPath: string, value: unknown, dechetIndex?: number, ligneIndex?: number) => {
+            setValidationErrors(prev => {
+                const newErrors = { ...prev };
+                
+                // Validation selon le type de champ
+                if (fieldPath === 'num_facture' && documentType === 'facture') {
+                    const result = alerteNumFacture(value as string);
+                    if (result.hasError) {
+                        newErrors.num_facture = result.message;
+                    } else {
+                        delete newErrors.num_facture;
+                    }
+                } else if (fieldPath === 'montant_total_ht' && documentType === 'facture') {
+                    const factureData = formData as DocFactureInterface;
+                    if (factureData.dechet) {
+                        const toutesLesPrestations: Array<{ montant_ht?: number | string }> = [];
+                        factureData.dechet.forEach((dechet) => {
+                            const dechetFacture = dechet as DechetFactureInterface;
+                            const lignes = dechetFacture.facture?.ligne;
+                            const prestations = Array.isArray(lignes) ? lignes : lignes ? [lignes] : [];
+                            toutesLesPrestations.push(...prestations);
+                        }
+                        );
+                        if (toutesLesPrestations.length > 0) {
+                            const result = alerteSommeFacture(toutesLesPrestations, value as string | number);
+                            if (result.hasError) {
+                                newErrors.somme_facture = result.message;
+                            } else {
+                                delete newErrors.somme_facture;
+                            }
+                        }
+                    }
+                } else if (dechetIndex !== undefined) {
+                    // Validation d'un champ de déchet
+                    if (!newErrors.dechets[dechetIndex]) {
+                        newErrors.dechets[dechetIndex] = {};
+                    }
+                    const dechet = formData.dechet[dechetIndex];
+                    
+                    if (fieldPath === 'date') {
+                        const result = alerteDate(value as string);
+                        if (result.hasError) {
+                            newErrors.dechets[dechetIndex].date = result.message;
+                        } else {
+                            delete newErrors.dechets[dechetIndex].date;
+                        }
+                    } else if (fieldPath === 'tonnage') {
+                        const result = alerteTonnage(value as string | number);
+                        if (result.hasError) {
+                            newErrors.dechets[dechetIndex].tonnage = result.message;
+                        } else {
+                            delete newErrors.dechets[dechetIndex].tonnage;
+                        }
+                    } else if (fieldPath === 'ced' && documentType === 'bsd') {
+                        const result = alerteCed(value as string);
+                        if (result.hasError) {
+                            newErrors.dechets[dechetIndex].ced = result.message;
+                        } else {
+                            delete newErrors.dechets[dechetIndex].ced;
+                        }
+                    } else if (fieldPath === 'num_bsd') {
+                        const result = alerteNumBsd(value as string);
+                        if (result.hasError) {
+                            newErrors.dechets[dechetIndex].num_bsd = result.message;
+                        } else {
+                            delete newErrors.dechets[dechetIndex].num_bsd;
+                        }
+                    } else if (fieldPath === 'num_bon') {
+                        const result = alerteNumBon(value as string);
+                        if (result.hasError) {
+                            newErrors.dechets[dechetIndex].num_bon = result.message;
+                        } else {
+                            delete newErrors.dechets[dechetIndex].num_bon;
+                        }
+                    } else if (fieldPath.startsWith('ligne_') && ligneIndex !== undefined) {
+                        // Validation ligne de facture
+                        const dechetFacture = dechet as DechetFactureInterface;
+                        if (dechetFacture.facture?.ligne?.[ligneIndex]) {
+                            const ligne = dechetFacture.facture.ligne[ligneIndex];
+                            if (ligne.quantite && ligne.prix_unitaire && ligne.montant_ht) {
+                                const result = alerteCalculFacture(ligne.quantite, ligne.prix_unitaire, ligne.montant_ht);
+                                if (!newErrors.dechets[dechetIndex].lignes_facture) {
+                                    newErrors.dechets[dechetIndex].lignes_facture = {};
+                                }
+                                if (result.hasError) {
+                                    newErrors.dechets[dechetIndex].lignes_facture![ligneIndex] = { calcul: result.message };
+                                } else {
+                                    delete newErrors.dechets[dechetIndex].lignes_facture![ligneIndex];
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Nettoyer si plus d'erreurs pour ce déchet
+                    if (Object.keys(newErrors.dechets[dechetIndex]).length === 0) {
+                        delete newErrors.dechets[dechetIndex];
+                    }
+                }
+                
+                return newErrors;
+            });
+        }, [formData, documentType]);
+
+        // Valider tout le formulaire (utilisé à la sauvegarde)
+        const validateAll = useCallback(() => {
+            const errors = validateFormData(formData, documentType);
+            setValidationErrors(errors);
+            return errors;
+        }, [formData, documentType]);
+
         // Synchroniser formData avec existingData (extraction ou chargement)
         useEffect(() => {
             if (existingData) {
                 setFormData(existingData);
                 currentFormRef.current = existingData as unknown as Record<string, unknown>;
                 onChange?.(existingData);
+                // Réinitialiser le flag pour permettre la validation des nouvelles données
+                hasValidatedInitial.current = false;
             }
-        }, [onChange]);
+        }, [existingData, onChange]);
+
+        // Valider automatiquement UNE SEULE FOIS au chargement initial (pour afficher les erreurs existantes)
+        useEffect(() => {
+            if (formData && documentType && !hasValidatedInitial.current && existingData) {
+                const errors = validateFormData(formData, documentType);
+                setValidationErrors(errors);
+                hasValidatedInitial.current = true;
+            }
+        }, [formData, documentType, existingData]);
 
         const handleInputChange = (field: string, value: unknown) => {
             setFormData(prev => {
@@ -547,6 +826,28 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                 onChange?.(next);
                 return next;
             });
+        };
+
+        // Handler pour le blur - valider seulement quand on quitte le champ
+        const handleDechetBlur = (index: number, field: string, value: string) => {
+            setTouchedFields(prev => new Set(prev).add(`dechet_${index}_${field}`));
+            validateField(field, value, index);
+        };
+
+        const handleFieldBlur = (field: string, value: unknown) => {
+            setTouchedFields(prev => new Set(prev).add(field));
+            validateField(field, value);
+        };
+
+        // Handler pour valider une ligne de facture au blur
+        const handleLigneBlur = (dechetIndex: number, ligneIndex: number) => {
+            const dechet = formData.dechet[dechetIndex] as DechetFactureInterface;
+            if (dechet.facture?.ligne?.[ligneIndex]) {
+                const ligne = dechet.facture.ligne[ligneIndex];
+                if (ligne.quantite && ligne.prix_unitaire && ligne.montant_ht) {
+                    validateField(`ligne_${ligneIndex}`, null, dechetIndex, ligneIndex);
+                }
+            }
         };
 
         const addDechet = () => {
@@ -612,7 +913,22 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
             });
         };
 
+        // Fonction helper pour obtenir les classes CSS avec erreur
+        const getInputClasses = (hasError: boolean, baseClasses = "w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1") => {
+            if (hasError) {
+                return `${baseClasses} border-red-500 focus:ring-red-500 focus:border-red-500 bg-red-50`;
+            }
+            return `${baseClasses} border-gray-300 focus:ring-blue-500`;
+        };
+
         const renderDechetFields = (dechet: DechetMetaInterface, index: number) => {
+            const dechetErrors = validationErrors.dechets[index];
+            const hasDateError = !!dechetErrors?.date;
+            const hasTonnageError = !!dechetErrors?.tonnage;
+            const hasCedError = !!dechetErrors?.ced;
+            const hasNumBsdError = !!dechetErrors?.num_bsd;
+            const hasNumBonError = !!dechetErrors?.num_bon;
+
             return (
                 <div key={index} className="bg-gray-50 p-2 rounded mb-2">
                     <div className="flex justify-between items-center mb-2">
@@ -633,8 +949,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                 type="date"
                                 value={dechet.date || ''}
                                 onChange={(e) => handleDechetChange(index, 'date', e.target.value)}
-                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                onBlur={(e) => handleDechetBlur(index, 'date', e.target.value)}
+                                className={getInputClasses(hasDateError)}
+                                title={hasDateError ? dechetErrors.date : undefined}
                             />
+                            {hasDateError && (
+                                <p className="text-[10px] text-red-600 mt-0.5">{dechetErrors.date}</p>
+                            )}
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">Nom</label>
@@ -651,8 +972,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                 type="text"
                                 value={dechet.tonnage || ''}
                                 onChange={(e) => handleDechetChange(index, 'tonnage', e.target.value)}
-                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                onBlur={(e) => handleDechetBlur(index, 'tonnage', e.target.value)}
+                                className={getInputClasses(hasTonnageError)}
+                                title={hasTonnageError ? dechetErrors.tonnage : undefined}
                             />
+                            {hasTonnageError && (
+                                <p className="text-[10px] text-red-600 mt-0.5">{dechetErrors.tonnage}</p>
+                            )}
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">Code CED</label>
@@ -660,8 +986,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                 type="text"
                                 value={dechet.ced || ''}
                                 onChange={(e) => handleDechetChange(index, 'ced', e.target.value)}
-                                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                onBlur={(e) => handleDechetBlur(index, 'ced', e.target.value)}
+                                className={getInputClasses(hasCedError)}
+                                title={hasCedError ? dechetErrors.ced : undefined}
                             />
+                            {hasCedError && (
+                                <p className="text-[10px] text-red-600 mt-0.5">{dechetErrors.ced}</p>
+                            )}
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">D/R</label>
@@ -691,8 +1022,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                      type="text"
                                      value={(dechet as DechetBonInterface).num_bon || ''}
                                      onChange={(e) => handleDechetChange(index, 'num_bon', e.target.value)}
-                                     className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                     onBlur={(e) => handleDechetBlur(index, 'num_bon', e.target.value)}
+                                     className={getInputClasses(hasNumBonError)}
+                                     title={hasNumBonError ? dechetErrors.num_bon : undefined}
                                  />
+                                 {hasNumBonError && (
+                                     <p className="text-[10px] text-red-600 mt-0.5">{dechetErrors.num_bon}</p>
+                                 )}
                              </div>
                                  <div>
                                      <label className="block text-xs font-medium text-gray-700 mb-1">Contenant</label>
@@ -743,8 +1079,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                          type="text"
                                          value={(dechet as DechetBsdInterface).num_bon || ''}
                                          onChange={(e) => handleDechetChange(index, 'num_bon', e.target.value)}
-                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                         onBlur={(e) => handleDechetBlur(index, 'num_bon', e.target.value)}
+                                         className={getInputClasses(hasNumBonError)}
+                                         title={hasNumBonError ? dechetErrors.num_bon : undefined}
                                      />
+                                     {hasNumBonError && (
+                                         <p className="text-[10px] text-red-600 mt-0.5">{dechetErrors.num_bon}</p>
+                                     )}
                                  </div>
                                      <div>
                                          <label className="block text-xs font-medium text-gray-700 mb-1">Numéro BSD</label>
@@ -752,8 +1093,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                              type="text"
                                              value={(dechet as DechetBsdInterface).num_bsd || ''}
                                              onChange={(e) => handleDechetChange(index, 'num_bsd', e.target.value)}
-                                             className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                             onBlur={(e) => handleDechetBlur(index, 'num_bsd', e.target.value)}
+                                             className={getInputClasses(hasNumBsdError)}
+                                             title={hasNumBsdError ? dechetErrors.num_bsd : undefined}
                                          />
+                                         {hasNumBsdError && (
+                                             <p className="text-[10px] text-red-600 mt-0.5">{dechetErrors.num_bsd}</p>
+                                         )}
                                      </div>
                                  <div>
                                      <label className="block text-xs font-medium text-gray-700 mb-1">Consistance</label>
@@ -833,8 +1179,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                          type="text"
                                          value={(dechet as DechetFactureInterface).num_bon || ''}
                                          onChange={(e) => handleDechetChange(index, 'num_bon', e.target.value)}
-                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                         onBlur={(e) => handleDechetBlur(index, 'num_bon', e.target.value)}
+                                         className={getInputClasses(hasNumBonError)}
+                                         title={hasNumBonError ? dechetErrors.num_bon : undefined}
                                      />
+                                     {hasNumBonError && (
+                                         <p className="text-[10px] text-red-600 mt-0.5">{dechetErrors.num_bon}</p>
+                                     )}
                                  </div>
                                  <div>
                                      <label className="block text-xs font-medium text-gray-700 mb-1">Numéro BSD</label>
@@ -842,8 +1193,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                          type="text"
                                          value={(dechet as DechetFactureInterface).num_bsd || ''}
                                          onChange={(e) => handleDechetChange(index, 'num_bsd', e.target.value)}
-                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                         onBlur={(e) => handleDechetBlur(index, 'num_bsd', e.target.value)}
+                                         className={getInputClasses(hasNumBsdError)}
+                                         title={hasNumBsdError ? dechetErrors.num_bsd : undefined}
                                      />
+                                     {hasNumBsdError && (
+                                         <p className="text-[10px] text-red-600 mt-0.5">{dechetErrors.num_bsd}</p>
+                                     )}
                                  </div>
                                  <div>
                                      <label className="block text-xs font-medium text-gray-700 mb-1">Contenant</label>
@@ -891,8 +1247,14 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                              <div className="col-span-3 mt-2">
                                  <h5 className="font-semibold text-gray-700 mb-2 text-sm">Lignes de facturation</h5>
                                  <div className="space-y-2">
-                                     {(dechet as DechetFactureInterface).facture?.ligne?.map((ligne, ligneIndex) => (
-                                         <div key={ligneIndex} className="bg-white p-2 rounded border">
+                                     {(dechet as DechetFactureInterface).facture?.ligne?.map((ligne, ligneIndex) => {
+                                         const ligneError = dechetErrors?.lignes_facture?.[ligneIndex];
+                                         const hasCalculError = !!ligneError?.calcul;
+                                         return (
+                                         <div key={ligneIndex} className={`bg-white p-2 rounded border ${hasCalculError ? 'border-red-500' : ''}`}>
+                                            {hasCalculError && (
+                                                <p className="text-[10px] text-red-600 mb-1">{ligneError.calcul}</p>
+                                            )}
                                             <div className="flex gap-2 items-end">
                                                  <div className="flex-[2]">
                                                      <label className="block text-xs font-medium text-gray-600 mb-1">Type opération</label>
@@ -927,7 +1289,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                                                  handleInputChange('dechet', updatedDechet);
                                                              }
                                                          }}
-                                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                                         onBlur={() => handleLigneBlur(index, ligneIndex)}
+                                                         className={getInputClasses(hasCalculError, "w-full px-2 py-1 text-xs border rounded")}
                                                      />
                                                  </div>
                                                  <div className="flex-1">
@@ -963,7 +1326,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                                                  handleInputChange('dechet', updatedDechet);
                                                              }
                                                          }}
-                                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                                         onBlur={() => handleLigneBlur(index, ligneIndex)}
+                                                         className={getInputClasses(hasCalculError, "w-full px-2 py-1 text-xs border rounded")}
                                                      />
                                                  </div>
                                                  <div className="flex-1">
@@ -981,7 +1345,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                                                  handleInputChange('dechet', updatedDechet);
                                                              }
                                                          }}
-                                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                                                         onBlur={() => handleLigneBlur(index, ligneIndex)}
+                                                         className={getInputClasses(hasCalculError, "w-full px-2 py-1 text-xs border rounded")}
                                                      />
                                                  </div>
                                                 {/* Champs V2 */}
@@ -1062,7 +1427,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                                 </div>
                                              </div>
                                          </div>
-                                     ))}
+                                     );
+                                     })}
                                      <button
                                          type="button"
                                          onClick={() => {
@@ -1314,8 +1680,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                         type="text"
                                             value={(formData as DocFactureInterface).num_facture || ''}
                                         onChange={(e) => handleInputChange('num_facture', e.target.value)}
-                                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        onBlur={(e) => handleFieldBlur('num_facture', e.target.value)}
+                                        className={getInputClasses(!!validationErrors.num_facture)}
+                                        title={validationErrors.num_facture}
                                     />
+                                    {validationErrors.num_facture && (
+                                        <p className="text-[10px] text-red-600 mt-0.5">{validationErrors.num_facture}</p>
+                                    )}
                                 </div>
                                     <div>
                                         <label className="block text-xs font-medium text-gray-700 mb-1">Montant Total HT</label>
@@ -1323,8 +1694,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                             type="text"
                                             value={(formData as DocFactureInterface).montant_total_ht || ''}
                                             onChange={(e) => handleInputChange('montant_total_ht', e.target.value)}
-                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            onBlur={(e) => handleFieldBlur('montant_total_ht', e.target.value)}
+                                            className={getInputClasses(!!validationErrors.somme_facture)}
+                                            title={validationErrors.somme_facture}
                                         />
+                                        {validationErrors.somme_facture && (
+                                            <p className="text-[10px] text-red-600 mt-0.5">{validationErrors.somme_facture}</p>
+                                        )}
                             </div>
                                     <div>
                                         <label className="block text-xs font-medium text-gray-700 mb-1">Total TTC</label>
@@ -1562,6 +1938,9 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                         )}
                         <button
                             onClick={async () => {
+                                // Mettre à jour les erreurs avant de sauvegarder (pour info, mais ne bloque pas)
+                                validateAll();
+                                
                                 setIsLoading(true);
                                 try {
                                     await onSave(formData);
