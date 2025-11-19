@@ -29,6 +29,17 @@ const PAUSE_STATE_KEY = 'loopStarter:pauseState';
 // Durée d'expiration: 24h en millisecondes
 const EXPIRATION_MS = 24 * 60 * 60 * 1000;
 
+const isBackendPauseError = (error?: string | null): boolean => {
+    if (!error) return false;
+    if (error === 'RESOURCE_EXHAUSTED') return true;
+    const normalized = error.toLowerCase();
+    return (
+        normalized.includes('backend') ||
+        normalized.includes('resource exhausted') ||
+        normalized.includes('resource_exhausted')
+    );
+};
+
 // Sauvegarder l'état de pause dans localStorage
 export const savePauseState = (state: PauseState): void => {
     try {
@@ -159,6 +170,24 @@ export const refreshData = async (
             }
         });
 
+        // Construire les options pour les RAG IDs
+        const uniqueRagIds = new Set<string>();
+        let hasPdfWithoutRag = false;
+        pdfData?.forEach(pdf => {
+            if (pdf.id_rag) {
+                uniqueRagIds.add(pdf.id_rag);
+            } else {
+                hasPdfWithoutRag = true;
+            }
+        });
+        const ragIdOptions: Array<{ value: string, label: string }> = Array.from(uniqueRagIds).map(id => ({
+            value: id,
+            label: id
+        }));
+        if (hasPdfWithoutRag) {
+            ragIdOptions.unshift({ value: '__NONE__', label: 'Sans RAG' });
+        }
+
         // Mettre à jour les options de filtres avec les données de la BDD
         setFilterOptions({
             providers: Array.from(uniqueProviders.entries()).map(([id, name]) => ({ id, name })),
@@ -187,7 +216,8 @@ export const refreshData = async (
                        status === 'error' ? 'Erreur' : status
             })),
             alerteFlags: getAllPossibleAlerteFlags(),
-            linkageStatuses: getAllPossibleLinkageStatuses()
+            linkageStatuses: getAllPossibleLinkageStatuses(),
+            ragIds: ragIdOptions
         });
 
     } catch (error) {
@@ -326,7 +356,7 @@ export const handleProcessPdfs = async (
                 setShowExtractModal(true);
             } else {
                 // Si pause pour erreur backend, sauvegarder l'état et afficher Swal
-                const backendErr = result.errors.find(e => e.error && e.error.toLowerCase && e.error.toLowerCase().includes('backend'));
+                const backendErr = result.errors.find(e => isBackendPauseError(e.error));
                 if (backendErr && typeof backendErr.pdfId === 'string') {
                     const blockingPdf = pdfInfos.find(p => p.id === backendErr.pdfId);
                     const errorMessage = backendErr.error || 'Erreur backend inconnue';
@@ -908,7 +938,7 @@ export const handleExtractOnly = async (
                 setShowExtractModal(true);
             } else {
                 // Si pause pour erreur backend, sauvegarder l'état et afficher Swal
-                const backendErr = result.errors.find(e => e.error && e.error.toLowerCase && e.error.toLowerCase().includes('backend'));
+                const backendErr = result.errors.find(e => isBackendPauseError(e.error));
                 if (backendErr && typeof backendErr.pdfId === 'string') {
                     const blockingPdf = pdfInfos.find(p => p.id === backendErr.pdfId);
                     const errorMessage = backendErr.error || 'Erreur backend inconnue';

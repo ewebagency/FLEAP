@@ -16,6 +16,7 @@ export interface PdfInfo {
     alerte?: Record<string, unknown> | null; // jsonb
     bsd_linked?: Record<string, unknown> | null; // jsonb
     created_at: string; // timestamp
+    id_rag?: string | null;
 }
 
 export interface NewPdfInfo {
@@ -33,6 +34,7 @@ export interface NewPdfInfo {
     site_siret_plus: string[] | null; // text[]
     infos_raw?: Record<string, unknown> | null; // jsonb
     alerte?: Record<string, unknown> | null; // jsonb
+    id_rag?: string | null;
 }
 
 export interface SplitPdfResult {
@@ -53,6 +55,7 @@ export interface MetaOcrResponse {
         stop: boolean;
         message: string;
     };
+    rag_example_id?: string | null;
 }
 
 export interface MetaOcrParams {

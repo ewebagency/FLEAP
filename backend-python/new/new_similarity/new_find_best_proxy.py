@@ -244,12 +244,13 @@ def create_best_prompt_example(entreprise_id: int, document_type: str, raw_text:
             return {
                 "prompt": f"\n\n Voici un document similaire sur lequel te baser : {result['raw_text']} \n La réponse parfaite pour ce document est : {result['perfect_answer']}",
                 "found_example": True,
-                "force_image": force_image_from_rag
+                "force_image": force_image_from_rag,
+                "rag_example_id": result.get('neighbor_id')
             }
         else:
             print(f"⚠️ Aucun exemple trouvé pour le type {document_type}: {result['status']}")
-            return {"prompt": "Fait au mieux", "found_example": False, "force_image": False}
+            return {"prompt": "Fait au mieux", "found_example": False, "force_image": False, "rag_example_id": None}
             
     except Exception as e:
         print(f"❌ Erreur lors de la création du prompt d'exemple: {str(e)}")
-        return {"prompt": f"Erreur lors de la recherche d'exemple: {str(e)}", "found_example": False, "force_image": False}
+        return {"prompt": f"Erreur lors de la recherche d'exemple: {str(e)}", "found_example": False, "force_image": False, "rag_example_id": None}

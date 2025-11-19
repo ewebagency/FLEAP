@@ -20,6 +20,11 @@ interface LoopResult {
     pausedAtIndex?: number;
 }
 
+const isCriticalBackendError = (errorCode: string | undefined): boolean => {
+    if (!errorCode) return false;
+    return errorCode === 'BACKEND_ERROR' || errorCode === 'RESOURCE_EXHAUSTED';
+};
+
 /**
  * Traite une liste de PDFs : vérifie s'ils sont multipages, les divise si nécessaire,
  * puis extrait les métadonnées de chaque page
@@ -95,13 +100,15 @@ export const processPdfList = async (
                         };
                     }
 
-                    // Si une des pages a échoué pour une erreur backend, stopper immédiatement
-                    const backendError = extractionResults.find(r => r.success === false && r.error === 'BACKEND_ERROR');
+                    // Si une des pages a échoué pour une erreur backend critique, stopper immédiatement
+                    const backendError = extractionResults.find(r => r.success === false && isCriticalBackendError(r.error));
                     if (backendError) {
-                        errors.push({ pdfId, error: backendError.message || 'BACKEND_ERROR' });
+                        errors.push({ pdfId, error: backendError.message || backendError.error || 'BACKEND_ERROR' });
                         return {
                             success: false,
-                            message: 'Arrêt: erreur backend',
+                            message: backendError.error === 'RESOURCE_EXHAUSTED'
+                                ? 'Arrêt: backend saturé (RESOURCE_EXHAUSTED)'
+                                : 'Arrêt: erreur backend',
                             processedCount,
                             errors,
                             results,
@@ -145,12 +152,14 @@ export const processPdfList = async (
                                     pausedAtIndex: i
                                 };
                             }
-                            // Stopper immédiatement si BACKEND_ERROR
-                            if (extractionResult.error === 'BACKEND_ERROR') {
+                            // Stopper immédiatement si erreur backend critique
+                            if (isCriticalBackendError(extractionResult.error)) {
                                 errors.push({ pdfId, error: extractionResult.message });
                                 return {
                                     success: false,
-                                    message: 'Arrêt: erreur backend',
+                                    message: extractionResult.error === 'RESOURCE_EXHAUSTED'
+                                        ? 'Arrêt: backend saturé (RESOURCE_EXHAUSTED)'
+                                        : 'Arrêt: erreur backend',
                                     processedCount,
                                     errors,
                                     results,
@@ -184,11 +193,13 @@ export const processPdfList = async (
                             pausedAtIndex: i
                         };
                     }
-                    if (extractionResult.error === 'BACKEND_ERROR') {
+                    if (isCriticalBackendError(extractionResult.error)) {
                         errors.push({ pdfId, error: extractionResult.message });
                         return {
                             success: false,
-                            message: 'Arrêt: erreur backend',
+                            message: extractionResult.error === 'RESOURCE_EXHAUSTED'
+                                ? 'Arrêt: backend saturé (RESOURCE_EXHAUSTED)'
+                                : 'Arrêt: erreur backend',
                             processedCount,
                             errors,
                             results,

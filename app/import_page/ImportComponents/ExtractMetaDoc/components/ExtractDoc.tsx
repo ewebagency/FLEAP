@@ -16,7 +16,9 @@ import {
     alerteNumFacture, 
     alerteCed,
     alerteCalculFacture,
-    alerteSommeFacture
+    alerteSommeFacture,
+    shouldCheckCollecteMetrics,
+    type FactureCollecteLike
 } from '../utils/alerte';
 // removed PushFactureButton usage in this file per requirements
 
@@ -517,6 +519,10 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         somme_facture?: string;
     }
 
+    const hasNonEmptyStringValue = (value: unknown): value is string => {
+        return typeof value === 'string' && value.trim().length > 0;
+    };
+
     // Fonction de validation basée sur alerte.ts
     const validateFormData = (data: DocInterface, docType: "bon" | "bsd" | "facture" | null): FormValidationErrors => {
         const errors: FormValidationErrors = {
@@ -524,6 +530,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         };
 
         if (!docType) return errors;
+        const isFactureDoc = docType === "facture";
 
         // Validation num_facture pour les factures
         if (docType === "facture") {
@@ -540,6 +547,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         if (data.dechet && Array.isArray(data.dechet)) {
             data.dechet.forEach((dechet, index) => {
                 const dechetErrors: FormValidationErrors['dechets'][number] = {};
+                const factureLikeDechet = dechet as unknown as FactureCollecteLike;
+                const requiresCollecteMetrics = !isFactureDoc || shouldCheckCollecteMetrics(docType, factureLikeDechet);
 
                 // Validation date
                 if (dechet.date !== undefined) {
@@ -550,7 +559,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                 }
 
                 // Validation tonnage
-                if (dechet.tonnage !== undefined) {
+                if (dechet.tonnage !== undefined && requiresCollecteMetrics) {
                     const result = alerteTonnage(dechet.tonnage);
                     if (result.hasError) {
                         dechetErrors.tonnage = result.message;
@@ -567,7 +576,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
 
                 // Validation num_bsd (existe sur DechetBsdInterface et DechetFactureInterface)
                 const dechetWithBsd = dechet as DechetBsdInterface | DechetFactureInterface;
-                if (dechetWithBsd.num_bsd !== undefined) {
+                if (!isFactureDoc && dechetWithBsd.num_bsd !== undefined) {
                     const result = alerteNumBsd(dechetWithBsd.num_bsd);
                     if (result.hasError) {
                         dechetErrors.num_bsd = result.message;
@@ -576,8 +585,10 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
 
                 // Validation num_bon (existe sur tous les types de déchets)
                 const dechetWithBon = dechet as DechetBonInterface | DechetBsdInterface | DechetFactureInterface;
-                if (dechetWithBon.num_bon !== undefined) {
-                    const result = alerteNumBon(dechetWithBon.num_bon);
+                const numBonValue = dechetWithBon.num_bon;
+                const hasNumBonValue = hasNonEmptyStringValue(numBonValue);
+                if (numBonValue !== undefined && (hasNumBonValue || requiresCollecteMetrics)) {
+                    const result = alerteNumBon(numBonValue);
                     if (result.hasError) {
                         dechetErrors.num_bon = result.message;
                     }
@@ -715,6 +726,9 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                         newErrors.dechets[dechetIndex] = {};
                     }
                     const dechet = formData.dechet[dechetIndex];
+                    const isFactureDoc = documentType === 'facture';
+                    const factureLikeDechet = dechet as unknown as FactureCollecteLike;
+                    const requiresCollecteFields = !isFactureDoc || shouldCheckCollecteMetrics(documentType || undefined, factureLikeDechet);
                     
                     if (fieldPath === 'date') {
                         const result = alerteDate(value as string);
@@ -724,9 +738,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                             delete newErrors.dechets[dechetIndex].date;
                         }
                     } else if (fieldPath === 'tonnage') {
-                        const result = alerteTonnage(value as string | number);
-                        if (result.hasError) {
-                            newErrors.dechets[dechetIndex].tonnage = result.message;
+                        if (requiresCollecteFields) {
+                            const result = alerteTonnage(value as string | number);
+                            if (result.hasError) {
+                                newErrors.dechets[dechetIndex].tonnage = result.message;
+                            } else {
+                                delete newErrors.dechets[dechetIndex].tonnage;
+                            }
                         } else {
                             delete newErrors.dechets[dechetIndex].tonnage;
                         }
@@ -738,16 +756,26 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                             delete newErrors.dechets[dechetIndex].ced;
                         }
                     } else if (fieldPath === 'num_bsd') {
-                        const result = alerteNumBsd(value as string);
-                        if (result.hasError) {
-                            newErrors.dechets[dechetIndex].num_bsd = result.message;
-                        } else {
+                        if (isFactureDoc) {
                             delete newErrors.dechets[dechetIndex].num_bsd;
+                        } else {
+                            const result = alerteNumBsd(value as string);
+                            if (result.hasError) {
+                                newErrors.dechets[dechetIndex].num_bsd = result.message;
+                            } else {
+                                delete newErrors.dechets[dechetIndex].num_bsd;
+                            }
                         }
                     } else if (fieldPath === 'num_bon') {
-                        const result = alerteNumBon(value as string);
-                        if (result.hasError) {
-                            newErrors.dechets[dechetIndex].num_bon = result.message;
+                        const stringValue = typeof value === 'string' ? value : '';
+                        const hasNumBonValue = hasNonEmptyStringValue(stringValue);
+                        if (hasNumBonValue || requiresCollecteFields) {
+                            const result = alerteNumBon(stringValue);
+                            if (result.hasError) {
+                                newErrors.dechets[dechetIndex].num_bon = result.message;
+                            } else {
+                                delete newErrors.dechets[dechetIndex].num_bon;
+                            }
                         } else {
                             delete newErrors.dechets[dechetIndex].num_bon;
                         }

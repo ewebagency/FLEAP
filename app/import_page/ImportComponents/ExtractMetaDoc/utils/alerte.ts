@@ -12,7 +12,7 @@ interface ParamsMapping {
 }
 
 // Types pour les données extraites du PDF
-interface FactureLigne {
+export interface FactureLigne {
     type_operation?: string;
     unite?: string;
     quantite?: number | string;
@@ -218,6 +218,38 @@ const getMappingMatchStatus = (value: string | undefined, mapping: Record<string
 
 const normalizeSimple = (value: string): string => normalizeText(value);
 
+export type FactureCollecteLike = {
+    facture?: {
+        ligne?: FactureLigne | FactureLigne[];
+    };
+};
+
+export const hasUniteTInCollecte = (dechet: FactureCollecteLike): boolean => {
+    const lignes = dechet.facture?.ligne;
+    const lignesArray: FactureLigne[] = Array.isArray(lignes)
+        ? lignes
+        : lignes
+            ? [lignes]
+            : [];
+
+    return lignesArray.some(ligne => hasUniteTValue(ligne.unite));
+};
+
+const hasUniteTValue = (value: string | undefined): boolean => {
+    if (!value) {
+        return false;
+    }
+    return normalizeSimple(value) === 't';
+};
+
+export const shouldCheckCollecteMetrics = (typeDocValue: string | undefined, dechet: FactureCollecteLike): boolean => {
+    if ((typeDocValue || '').toLowerCase() !== 'facture') {
+        return true;
+    }
+
+    return hasUniteTInCollecte(dechet);
+};
+
 const matchesKnownKeyword = (value: string | undefined, keywords: string[]): boolean => {
     if (!value) return false;
     const normalizedValue = normalizeSimple(value);
@@ -329,7 +361,7 @@ const mapDateMessageToFlag = (message: string): string | null => {
 const mapNumberMessageToFlag = (message: string, type: 'bsd' | 'bon' | 'facture'): string | null => {
     const lower = message.toLowerCase();
     const isMissing = lower.includes('manquant');
-    const isInvalid = lower.includes('insuffisant') || lower.includes('invalide');
+    const isInvalid = lower.includes('insuffisant') || lower.includes('invalide') || lower.includes('inconnu');
     if (type === 'bsd') {
         if (isMissing) return 'num_bsd_non_lu';
         if (isInvalid) return 'num_bsd_invalide';
@@ -405,8 +437,13 @@ export const alerteNumBsd = (numBsd: string | undefined): AlerteResult => {
         return { hasError: true, message: "Numéro BSD manquant" };
     }
     
+    const rawValue = String(numBsd);
+    if (/[,\s]/.test(rawValue)) {
+        return { hasError: true, message: `Numéro BSD inconnu (format invalide): ${numBsd}` };
+    }
+    
     // Extraire tous les chiffres
-    const chiffres = String(numBsd).replace(/\D/g, '');
+    const chiffres = rawValue.replace(/\D/g, '');
     
     if (chiffres.length < 5) {
         return { hasError: true, message: `Numéro BSD insuffisant (moins de 5 chiffres): ${numBsd}` };
@@ -423,8 +460,13 @@ export const alerteNumBon = (numBon: string | undefined): AlerteResult => {
         return { hasError: true, message: "Numéro de bon manquant" };
     }
     
+    const rawValue = String(numBon);
+    if (/[,\s]/.test(rawValue)) {
+        return { hasError: true, message: `Numéro de bon inconnu (format invalide): ${numBon}` };
+    }
+    
     // Extraire tous les chiffres
-    const chiffres = String(numBon).replace(/\D/g, '');
+    const chiffres = rawValue.replace(/\D/g, '');
     
     if (chiffres.length < 5) {
         return { hasError: true, message: `Numéro de bon insuffisant (moins de 5 chiffres): ${numBon}` };
@@ -977,10 +1019,17 @@ export const mettreAJourAlerteTraductions = async (
         if (infosRaw && infosRaw.dechet && Array.isArray(infosRaw.dechet)) {
             const typeDoc = infosRaw.type_doc;
             const dechets = infosRaw.dechet;
+            const typeDocNormalized = (typeDoc || '').toLowerCase();
+            const isFactureDoc = typeDocNormalized === 'facture';
 
             // Alerte tonnage pour tous les déchets
             if (ENABLE_ALERTE_TONNAGE) {
                 for (const dechet of dechets) {
+                    const requiresCollecteMetrics = shouldCheckCollecteMetrics(typeDoc, dechet);
+                    if (!requiresCollecteMetrics) {
+                        continue;
+                    }
+
                     if (dechet.tonnage !== undefined) {
                         const result = alerteTonnage(dechet.tonnage);
                         if (result.hasError) {
@@ -1021,7 +1070,7 @@ export const mettreAJourAlerteTraductions = async (
             }
 
             // Alerte num_bsd pour tous les déchets
-            if (ENABLE_ALERTE_NUM_BSD) {
+            if (ENABLE_ALERTE_NUM_BSD && !isFactureDoc) {
                 for (const dechet of dechets) {
                     if (dechet.num_bsd !== undefined) {
                         const result = alerteNumBsd(dechet.num_bsd);
@@ -1037,8 +1086,16 @@ export const mettreAJourAlerteTraductions = async (
             // Alerte num_bon pour tous les déchets
             if (ENABLE_ALERTE_NUM_BON) {
                 for (const dechet of dechets) {
-                    if (dechet.num_bon !== undefined) {
-                        const result = alerteNumBon(dechet.num_bon);
+                    const requiresCollecteMetrics = shouldCheckCollecteMetrics(typeDoc, dechet);
+                    const numBonValue = dechet.num_bon;
+                    const hasNumBonValue = hasNonEmptyString(numBonValue);
+
+                    if (!hasNumBonValue && !requiresCollecteMetrics) {
+                        continue;
+                    }
+
+                    if (numBonValue !== undefined) {
+                        const result = alerteNumBon(numBonValue);
                         if (result.hasError) {
                             stop = true;
                             missingMessages.push(`Numéro de bon: ${result.message}`);
@@ -1049,7 +1106,7 @@ export const mettreAJourAlerteTraductions = async (
             }
 
             // Alerte num_facture (pour les factures)
-            if (ENABLE_ALERTE_NUM_FACTURE && typeDoc === 'facture' && infosRaw.num_facture) {
+            if (ENABLE_ALERTE_NUM_FACTURE && isFactureDoc && infosRaw.num_facture) {
                 const result = alerteNumFacture(infosRaw.num_facture);
                 if (result.hasError) {
                     stop = true;
@@ -1059,7 +1116,7 @@ export const mettreAJourAlerteTraductions = async (
             }
 
             // Alertes spécifiques aux factures
-            if (typeDoc === 'facture') {
+            if (isFactureDoc) {
                 const toutesLesPrestations: FactureLigne[] = [];
 
                 dechets.forEach((dechet, dechetIndex) => {
@@ -1119,20 +1176,22 @@ export const mettreAJourAlerteTraductions = async (
                     const hasPrestations = prestations.length > 0;
                     if (hasPrestations) {
                         const missingCollecteFields: string[] = [];
+                        const requiresCollecteFields = shouldCheckCollecteMetrics(typeDoc, dechet);
+
                         if (!hasNonEmptyString(dechet.date)) {
                             missingCollecteFields.push('date');
                         }
                         if (!hasNonEmptyString(dechet.nom)) {
                             missingCollecteFields.push('déchet');
                         }
-                        const hasDocumentNumber = hasNonEmptyString(dechet.num_bon) || hasNonEmptyString(dechet.num_bsd);
-                        if (!hasDocumentNumber) {
-                            missingCollecteFields.push('numéro de Bon/BSD');
+                        const hasBon = hasNonEmptyString(dechet.num_bon);
+                        if (requiresCollecteFields && !hasBon) {
+                            missingCollecteFields.push('numéro de bon');
                         }
                         /*if (!hasNonEmptyString(dechet.contenant)) {
                             missingCollecteFields.push('contenant');
                         }*/
-                        if (!hasValue(dechet.tonnage)) {
+                        if (requiresCollecteFields && !hasValue(dechet.tonnage)) {
                             missingCollecteFields.push('tonnage');
                         }
 

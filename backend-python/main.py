@@ -496,17 +496,21 @@ async def meta_ocr(
         
         # RAG processing inline
         force_image_from_rag = False
+        rag_example_id = None
         if entreprise_id and entreprise_id not in ("None", "") and entreprise_id.strip():
             try:
                 rag_result = create_best_prompt_example(int(entreprise_id), type_lu, raw_text)
                 prompt += rag_result["prompt"]
                 rag_found_example = rag_result["found_example"]
                 force_image_from_rag = rag_result.get("force_image", False)
+                rag_example_id = rag_result.get("rag_example_id")
             except ValueError:
                 print(f"❌ Erreur conversion entreprise_id: {entreprise_id}")
                 rag_found_example = False
+                rag_example_id = None
         else:
             rag_found_example = False
+            rag_example_id = None
         
         print("🧠", "Extract data with Gemini (multi-page if needed)", "🧠")
         
@@ -530,9 +534,13 @@ async def meta_ocr(
             # (voir extract_multi_page_gemini.py pour la logique de pagination)
             gemini_response = await extract_gemini_multi_page(raw_text, potential_json_from_ocr, prompt)
         
-        #print(f"🧠 Gemini_response type: {type(gemini_response)}")
-        #print(f"🧠 Gemini_response keys: {list(gemini_response.keys()) if isinstance(gemini_response, dict) else 'NOT A DICT'}")
-        print(f"🧠 Success: {gemini_response.get('success', 'NO SUCCESS KEY')}")
+        success_flag = gemini_response.get('success', None) if isinstance(gemini_response, dict) else None
+        print(f"🧠 Success: {success_flag if success_flag is not None else 'NO SUCCESS KEY'}")
+        if success_flag is None:
+            try:
+                print(f"🧠 Response sans success: {json.dumps(gemini_response, ensure_ascii=False)[:800]}")
+            except Exception:
+                print(f"🧠 Response sans success (raw repr): {gemini_response}")
         #print(f"🧠 Extracted data (100 chars): {str(gemini_response.get('extracted_data', ''))[:100]}")
         
         if "error" in gemini_response:
@@ -607,7 +615,12 @@ async def meta_ocr(
         if not rag_found_example:
             alerte = {"stop": True, "message": f"Il n'existe pas encore d'exemple rag pour ce type de document ({type_lu}). Veuillez d'abord traiter quelques documents de ce type avec le bouton RAG."}
         
-        return {"structured_response": structured_response, "confidence": confidence, "alerte": alerte}
+        return {
+            "structured_response": structured_response,
+            "confidence": confidence,
+            "alerte": alerte,
+            "rag_example_id": rag_example_id,
+        }
 
     except json.JSONDecodeError as e:
         return {"error": f"Invalid JSON format: {str(e)}"}

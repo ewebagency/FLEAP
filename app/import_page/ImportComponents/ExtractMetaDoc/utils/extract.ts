@@ -17,12 +17,30 @@ interface ExtractMetaOcrResult {
             stop: boolean;
             message: string;
         };
+        rag_example_id?: string | null;
     };
     error?: string;
 }
 
 // Cache mémoire simple pour éviter de multiplier les appels à table_autocompletion
 const siteNameCacheByEntreprise: Record<string, Map<string, string>> = {};
+
+const isResourceExhausted = (value: unknown): boolean => {
+    if (!value) return false;
+    if (typeof value === 'string') {
+        return value.toLowerCase().includes('resource exhausted');
+    }
+    if (typeof value === 'object') {
+        const candidate = value as { status?: string; message?: string };
+        if (typeof candidate.status === 'string' && candidate.status.toUpperCase() === 'RESOURCE_EXHAUSTED') {
+            return true;
+        }
+        if (typeof candidate.message === 'string' && candidate.message.toLowerCase().includes('resource exhausted')) {
+            return true;
+        }
+    }
+    return false;
+};
 
 const resolveSiteNameBySiret = async (entrepriseId: number, siret: string): Promise<string | null> => {
     const key = String(entrepriseId);
@@ -149,7 +167,7 @@ export const extractMetaOcr = async (params: MetaOcrParams): Promise<ExtractMeta
             return {
                 success: false,
                 message: `Erreur du backend: ${errorMessage}`,
-                error: 'BACKEND_ERROR'
+                error: isResourceExhausted(errorObj.error) ? 'RESOURCE_EXHAUSTED' : 'BACKEND_ERROR'
             };
         }
     }
@@ -208,7 +226,8 @@ export const extractMetaOcr = async (params: MetaOcrParams): Promise<ExtractMeta
             data: {
                 structured_response: result.structured_response,
                 confidence: result.confidence,
-                alerte: result.alerte
+                alerte: result.alerte,
+                rag_example_id: result.rag_example_id ?? null,
             }
         };
 
@@ -363,7 +382,7 @@ export const runMetaOcrForPdf = async (
             return {
                 success: false,
                 message: `Erreur du backend: ${errorMessage}`,
-                error: 'BACKEND_ERROR'
+                error: isResourceExhausted(errorObj.error) ? 'RESOURCE_EXHAUSTED' : 'BACKEND_ERROR'
             };
         }
     }
@@ -426,7 +445,8 @@ export const runMetaOcrForPdf = async (
         data: {
             structured_response: result.structured_response,
             confidence: result.confidence,
-            alerte: result.alerte
+            alerte: result.alerte,
+            rag_example_id: result.rag_example_id ?? null,
         }
     };
 };

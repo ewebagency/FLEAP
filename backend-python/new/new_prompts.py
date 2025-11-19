@@ -349,13 +349,13 @@ new_prompt_facture = """
         
         Pour chaque collecte de déchet identifie :
             Le nom du site/point de collecte, l'adresse du site (en dessous du nom_site)
-            Le numéro du bon (BE, BL, N° Dossier) et/ou le numéro de BSD, la date lié au déchet
-            La description (nom) du déchet, son code CED, le nom du contenant et son volume en m3
+            Le numéro du bon (BE, BL, N° Dossier) et/ou le numéro de BSD, la date lié au déchet (si tu as une période et que c'est un contenant met la date de début de période)
+            La description (nom) du déchet, son code CED (3 couples de chiffres : ** ** **), le nom du contenant et son volume en m3
             Le nombre de colis
             Le flag REP pour ce déchet (true si tu trouves les mentions REP, PMCB ou Valobat, false sinon)
             
             Puis pour chaque ligne comptable liée à ce déchet identifie :
-                Le type de prestation (libellé du déchet, rotation, transport, traitement...), l'unité (T:tonnes U:unité, L:Litre...), la quantité (tonnage, nombre de tour..), le prix unitaire (P.U), le montant total HT et la tva en pourcentage
+                Le type de prestation (libellé du déchet, rotation, transport, traitement...), l'unité (T:tonnes U:unité, L:Litre, J:Jour...(si c'est un nombre non entier, c'est surement T, sinon U)), la quantité (tonnage, nombre de tour..), le prix unitaire (P.U), le montant total HT et la tva en pourcentage
                 Si c'est un avoir/rachat pour cette ligne (true/false)
                 S'il y a un déclassement pour cette ligne (true/false)
                 Prend l'information même si le montant HT est 0
@@ -363,6 +363,10 @@ new_prompt_facture = """
         A la fin détecte également le montant total HT et TTC en bas de la facture
 
     Toutes les dates sont au format YYYY-MM-DD
+    Les champs chiffres ne doivent pas contenir d'unité (€, EUR), un champ chiffre vide (ou NA) doit etre un 0
+    
+    Attention parfois la 1ère ligne indique tous les numéros de bon qui vont suivre à la suite (B1, B2, B3, etc.), dans ce cas tu dois les attribuer UN par UN à la ligne correspondante, dans l'ordre.
+    Parfois le tonnage de chaque ligne est aggrégée pour le montant ht, dans ce cas tu dois le décomposer en ligne par ligne
     Utilise tous les stratèges de détection possible.
     N'invente pas d'informations, laisse "" si tu ne sais pas.
     Renvoie ce format json :

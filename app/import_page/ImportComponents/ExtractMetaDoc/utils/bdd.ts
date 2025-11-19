@@ -113,7 +113,8 @@ export const updatePdfExtractionResults = async (
     result : {
         alerte: Record<string, unknown>,
         structured_response: Record<string, unknown>,
-        confidence: Record<string, unknown>
+        confidence: Record<string, unknown>,
+        rag_example_id?: string | null,
     },
     status: string
 ) => {
@@ -223,6 +224,8 @@ export const updatePdfExtractionResults = async (
         confidence: result.confidence,
         status: newStatus
     };
+
+    (updatePayload as { id_rag?: string | null }).id_rag = result.rag_example_id ?? null;
 
     // Overwrite document_type if unknown and backend inferred type is present in structured_response
     const currentDocType = (existingPdf?.document_type || '').toLowerCase();

@@ -95,7 +95,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         
         // Vue Analyse : colonnes 1, 8-14 (Checkbox + Presta, Pages, Déchets, Lignes, Brute, Spec, Manusc)
         if (columnView === 'analyse') {
-            return [1,3,9,10,11,12,13,14,15,16,18].includes(columnIndex)
+            return [1,3,9,10,11,12,13,14,15,16,18,19].includes(columnIndex)
         }
         
         // Vue Actions : colonnes 1, 15-18 (Checkbox + Couvert, Type d'alerte, Linkage, Actions)
@@ -123,6 +123,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             importTimeValue: '',
             importTimeUnit: 'h',
             linkageStatuses: [],
+            ragIds: [],
             confidenceBruteMode: 'gte',
             confidenceSpecMode: 'gte',
             handwrittenPercentMode: 'gte',
@@ -140,7 +141,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                     // S'assurer que alerteFlags est toujours un array
                     alerteFlags: Array.isArray(parsedFilters.alerteFlags) ? parsedFilters.alerteFlags : [],
                     // S'assurer que linkageStatuses est toujours un array
-                    linkageStatuses: Array.isArray(parsedFilters.linkageStatuses) ? parsedFilters.linkageStatuses : []
+                    linkageStatuses: Array.isArray(parsedFilters.linkageStatuses) ? parsedFilters.linkageStatuses : [],
+                    ragIds: Array.isArray(parsedFilters.ragIds) ? parsedFilters.ragIds : []
                 };
             }
         } catch (error) {
@@ -184,7 +186,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         documentTypes: [],
         statuses: [],
         alerteFlags: getAllPossibleAlerteFlags(),
-        linkageStatuses: getAllPossibleLinkageStatuses()
+        linkageStatuses: getAllPossibleLinkageStatuses(),
+        ragIds: []
     });
 
     // Wrapper pour refreshData
@@ -545,6 +548,28 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                 if (!hasMatchingFlag) return false;
             }
 
+            // Filtre id_rag (traité comme texte)
+            if (filters.ragIds.length > 0) {
+                const rawRagValue = typeof pdf.id_rag === 'string' ? pdf.id_rag : String(pdf.id_rag ?? '');
+                const ragValue = rawRagValue.trim();
+                const wantsNone = filters.ragIds.includes('__NONE__');
+                const otherSelections = filters.ragIds.filter(value => value !== '__NONE__');
+
+                if (!ragValue) {
+                    if (!wantsNone) return false;
+                } else {
+                    if (
+                        otherSelections.length === 0 ||
+                        !otherSelections.some(selected => {
+                            const normalizedSelected = typeof selected === 'string' ? selected : String(selected ?? '');
+                            return ragValue.toLowerCase().includes(normalizedSelected.toLowerCase());
+                        })
+                    ) {
+                        return false;
+                    }
+                }
+            }
+
             // Filtre providers (multiselect) - filtrer sur nom ou SIRET uniquement
             if (filters.providers.length > 0 && pdf.provider) {
                 const provider = pdf.provider as Record<string, unknown>;
@@ -722,6 +747,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             importTimeValue: '',
             importTimeUnit: 'h',
             linkageStatuses: [],
+            ragIds: [],
             confidenceBruteMode: 'gte',
             confidenceSpecMode: 'gte',
             handwrittenPercentMode: 'gte',
@@ -848,7 +874,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 </select>
                                             </div>
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[160px]" style={{ display: shouldShowColumn(3) ? '' : 'none' }}>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50 w-[140px]" style={{ display: shouldShowColumn(3) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Nom</div>
                                             <input
                                                 type="text"
@@ -881,7 +907,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 label=""
                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left w-[80px] bg-gray-50" style={{ display: shouldShowColumn(7) ? '' : 'none' }}>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50" style={{ display: shouldShowColumn(7) ? '' : 'none', width: '70px' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Site</div>
                             <MultiSelect
                                 options={filterOptions.sites}
@@ -889,9 +915,10 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                 onChange={(values) => setFilters(prev => ({ ...prev, siteSirets: values }))}
                                                 placeholder="Tous"
                                                 label=""
+                                className="w-[60px]"
                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left w-[80px] bg-gray-50" style={{ display: shouldShowColumn(8) ? '' : 'none' }}>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50" style={{ display: shouldShowColumn(8) ? '' : 'none', width: '70px' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Presta</div>
                             <MultiSelect
                                 options={filterOptions.providers}
@@ -899,6 +926,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                 onChange={(values) => setFilters(prev => ({ ...prev, providers: values }))}
                                                 placeholder="Tous"
                                                 label=""
+                                className="w-[60px]"
                             />
                                         </th>
                                         <th className="px-1 py-1.5 text-left bg-gray-50 w-[45px]" style={{ display: shouldShowColumn(9) ? '' : 'none' }}>
@@ -1115,6 +1143,16 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 label=""
                             />
                                         </th>
+                                        <th className="px-1 py-1.5 text-left bg-gray-50 w-[65px]" style={{ display: shouldShowColumn(19) ? '' : 'none' }}>
+                                            <div className="text-[11px] font-medium text-gray-600 mb-1">RAG</div>
+                                            <MultiSelect
+                                                options={filterOptions.ragIds}
+                                                selectedValues={filters.ragIds}
+                                                onChange={(values) => setFilters(prev => ({ ...prev, ragIds: values }))}
+                                                placeholder="Tous"
+                                                label=""
+                                            />
+                                        </th>
                                         <th className="px-2 py-1.5 text-left bg-gray-50 min-w-[80px]" style={{ display: shouldShowColumn(18) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Actions</div>
                                         </th>
@@ -1222,13 +1260,13 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                     </span>
                                                 </td>
                                                     {/* 7. Site */}
-                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(7) ? '' : 'none' }}>
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(7) ? '' : 'none', width: '70px' }}>
                                                     {pdf.site_siret_plus && pdf.site_siret_plus.length > 0 ? (
-                                                        <div className="flex flex-wrap gap-1">
+                                                        <div className="flex flex-wrap gap-1 max-w-[70px]">
                                                                 {pdf.site_siret_plus.slice(0, 1).map((siret: string, index: number) => (
                                                                 <span
                                                                     key={index}
-                                                                        className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-sm truncate max-w-[120px]"
+                                                                        className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-sm truncate max-w-[65px]"
                                                                     title={getSiteName(siret)}
                                                                 >
                                                                         {getSiteName(siret)}
@@ -1245,9 +1283,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                     )}
                                                 </td>
                                                     {/* 8. Presta */}
-                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(8) ? '' : 'none' }}>
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(8) ? '' : 'none', width: '70px' }}>
                                                         {providerName ? (
-                                                            <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm truncate max-w-[120px] block" title={String(providerName)}>
+                                                            <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm truncate max-w-[65px] block" title={String(providerName)}>
                                                                 {String(providerName)}
                                                         </span>
                                                     ) : (
@@ -1398,6 +1436,12 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                                 </div>
                                                             );
                                                         })()}
+                                                    </td>
+                                                    {/* 19. RAG ID */}
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(19) ? '' : 'none' }}>
+                                                        <span className="text-[11px] font-mono text-gray-700 truncate block max-w-[70px]" title={pdf.id_rag ?? ''}>
+                                                            {pdf.id_rag ?? ''}
+                                                        </span>
                                                     </td>
                                                     {/* 18. Actions */}
                                                     <td className="px-2 py-2" style={{ display: shouldShowColumn(18) ? '' : 'none' }}>

@@ -5,7 +5,7 @@ import BoxIcon from '@/app/component/BoxIconWrapper';
 import { MultiSelectProps, AlerteFlag } from './LoopStarterTypes';
 
 // Composant multiselect personnalisé
-export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValues, onChange, placeholder, label }) => {
+export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValues, onChange, placeholder, label, className }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -23,7 +23,8 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValue
     }, []);
 
     const filteredOptions = options.filter(option => {
-        const name = 'name' in option ? option.name : option.label;
+        const rawName = 'name' in option ? option.name : option.label;
+        const name = typeof rawName === 'string' ? rawName : String(rawName ?? '');
         return name.toLowerCase().includes(searchTerm.toLowerCase());
     });
 
@@ -48,7 +49,8 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValue
         if (selectedValues.length === 1) {
             const option = options.find(opt => ('id' in opt ? opt.id : opt.value) === selectedValues[0]);
             if (option) {
-                return 'name' in option ? option.name : option.label;
+                const rawName = 'name' in option ? option.name : option.label;
+                return typeof rawName === 'string' ? rawName : String(rawName ?? '');
             }
             return selectedValues[0];
         }
@@ -56,7 +58,7 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValue
     };
 
     return (
-        <div className="relative" ref={dropdownRef}>
+        <div className={`relative ${className ?? ''}`} ref={dropdownRef}>
             <label className="block text-xs font-medium text-gray-700 mb-1">
                 {label}
             </label>
@@ -110,7 +112,8 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({ options, selectedValue
                             ) : (
                                 filteredOptions.map((option) => {
                                     const value = 'id' in option ? option.id : option.value;
-                                    const name = 'name' in option ? option.name : option.label;
+                                    const rawName = 'name' in option ? option.name : option.label;
+                                    const name = typeof rawName === 'string' ? rawName : String(rawName ?? '');
                                     const isSelected = selectedValues.includes(value);
                                     
                                     return (

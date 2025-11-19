@@ -14,6 +14,7 @@ export interface PdfInfo {
     provider: Record<string, unknown> | null;
     site_siret_plus: string[] | null;
     alerte: Record<string, unknown> | null;
+    id_rag?: string | null;
     confidence?: {
         brute?: number;
         spec?: number;
@@ -49,6 +50,7 @@ export interface FilterState {
     importTimeValue: string;  // Valeur numérique pour le filtre temps depuis import
     importTimeUnit: 'h' | 'd';  // Unité: heures (h) ou jours (d)
     linkageStatuses: string[];  // Filtre pour les statuts de linkage BSD
+    ragIds: string[]; // Filtre pour id_rag
 }
 
 export interface FilterOptions {
@@ -58,6 +60,7 @@ export interface FilterOptions {
     statuses: Array<{value: string, label: string}>;
     alerteFlags: Array<{value: string, label: string}>;
     linkageStatuses: Array<{value: string, label: string}>;
+    ragIds: Array<{ value: string, label: string }>;
 }
 
 export interface ProcessingResult {
@@ -91,6 +94,7 @@ export interface MultiSelectProps {
     onChange: (values: string[]) => void;
     placeholder: string;
     label: string;
+    className?: string;
 }
 
 export interface AlerteFlag {
