@@ -91,6 +91,42 @@ export const CREATE_CONFIG: AutoLinkParams = {
 	]
 };
 
+// Configuration priorisant l'usage des identifiants (numéro de bon / BSD)
+export const ID_CONFIG: AutoLinkParams = {
+	to_link: [
+		completeRule({
+			site: true,
+			num_bon: true,
+			date: true,
+			date_tresh: 4
+		}),
+		completeRule({
+			site: true,
+			num_bsd: true,
+			date: true,
+			date_tresh: 4
+		})
+	],
+	to_check_by_user: [],
+	create: []
+};
+
+// Configuration dédiée aux documents sans identifiant exploitable
+export const NO_ID_CONFIG: AutoLinkParams = {
+	to_link: [],
+	to_check_by_user: [
+		completeRule({
+			site: true,
+			presta: true,
+			nom_dechet: true,
+			nom_dechet_tresh: 80,
+			date: true,
+			date_tresh: 0
+		})
+	],
+	create: []
+};
+
 // Configuration NORMAL - configuration par défaut d'avant
 export const NORMAL_CONFIG: AutoLinkParams = {
 	to_link: [
@@ -172,6 +208,18 @@ export const DEFAULT_AUTO_LINK_PARAMS: AutoLinkParams = NORMAL_CONFIG;
 
 // Liste de toutes les configurations disponibles
 export const LINK_CONFIGS: LinkConfig[] = [
+	{
+		id: 'id_based',
+		name: 'Avec ID',
+		description: 'Priorité aux liaisons par site + numéro (bon/BSD) et fallback strict sans ID',
+		params: ID_CONFIG
+	},
+	{
+		id: 'no_id',
+		name: 'Sans ID',
+		description: 'Pour les documents sans identifiant : site + presta + nom même jour',
+		params: NO_ID_CONFIG
+	},
 	{
 		id: 'link',
 		name: 'Link',

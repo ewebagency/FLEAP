@@ -364,9 +364,8 @@ new_prompt_facture = """
 
     Toutes les dates sont au format YYYY-MM-DD
     Les champs chiffres ne doivent pas contenir d'unité (€, EUR), un champ chiffre vide (ou NA) doit etre un 0
-    
     Attention parfois la 1ère ligne indique tous les numéros de bon qui vont suivre à la suite (B1, B2, B3, etc.), dans ce cas tu dois les attribuer UN par UN à la ligne correspondante, dans l'ordre.
-    Parfois le tonnage de chaque ligne est aggrégée pour le montant ht, dans ce cas tu dois le décomposer en ligne par ligne
+    
     Utilise tous les stratèges de détection possible.
     N'invente pas d'informations, laisse "" si tu ne sais pas.
     Renvoie ce format json :

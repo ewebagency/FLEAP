@@ -33,9 +33,9 @@ const computeDateWindow = (pdfInfo: PdfInfo): { startISO: string; endISO: string
     const minDate = dates.length ? new Date(Math.min(...dates.map(d => d.getTime()))) : today;
     const maxDate = dates.length ? new Date(Math.max(...dates.map(d => d.getTime()))) : today;
     const start = new Date(minDate);
-    start.setDate(start.getDate() - 100);
+    start.setDate(start.getDate() - 31);
     const end = new Date(maxDate);
-    end.setDate(end.getDate() + 100);
+    end.setDate(end.getDate() + 31);
     return { startISO: start.toISOString(), endISO: end.toISOString() };
 };
 

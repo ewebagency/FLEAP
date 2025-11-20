@@ -108,15 +108,25 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 	const [autoAllResults, setAutoAllResults] = useState<Record<number, ProposeActionResult | undefined>>({});
 	
     // Configuration de linkage sélectionnée
-    const [selectedConfigId, setSelectedConfigId] = useState<string>('normal');
+    const [selectedConfigId, setSelectedConfigId] = useState<string>('id_based');
+
+	const dechets: DechetItem[] = useMemo(() => {
+		const raw = (pdfInfo?.infos_raw || {}) as Record<string, unknown>;
+		const maybe = (raw as { dechet?: unknown }).dechet;
+		return Array.isArray(maybe) ? (maybe as DechetItem[]) : [];
+	}, [pdfInfo]);
+
+	const normalConfig = useMemo(() => {
+		return getLinkConfigById('normal') || LINK_CONFIGS[0];
+	}, []);
 	
 	// Rôle du prestataire (déterminé via table_autocompletion comme dans create_in_bdd)
 	const [prestaRole, setPrestaRole] = useState<'destinataire' | 'transporteur' | null>(null);
 	
 	// Obtenir la configuration actuelle
 	const currentConfig = useMemo(() => {
-		return getLinkConfigById(selectedConfigId) || LINK_CONFIGS[1]; // fallback sur Normal
-	}, [selectedConfigId]);
+		return getLinkConfigById(selectedConfigId) || normalConfig; // fallback sur Normal
+	}, [selectedConfigId, normalConfig]);
 	
 	// Dictionnaire des explications pour chaque action
 	// (removed unused actionExplanations to satisfy linter)
@@ -188,12 +198,6 @@ export default function LinkMeta({ pdfId }: LinkMetaProps) {
 		fetchAllCandidates();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [entrepriseIdNum, pdfInfo]);
-
-	const dechets: DechetItem[] = useMemo(() => {
-		const raw = (pdfInfo?.infos_raw || {}) as Record<string, unknown>;
-		const maybe = (raw as { dechet?: unknown }).dechet;
-		return Array.isArray(maybe) ? (maybe as DechetItem[]) : [];
-	}, [pdfInfo]);
 
 	const rawSite = useMemo(() => {
 		const raw = (pdfInfo?.infos_raw || {}) as Record<string, unknown>;

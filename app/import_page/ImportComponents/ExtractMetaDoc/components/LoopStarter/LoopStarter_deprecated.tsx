@@ -249,12 +249,16 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const [showReview, setShowReview] = useState(false);
     
     // Configuration de linkage sélectionnée
-    const [selectedConfigId, setSelectedConfigId] = useState<string>('normal');
+    const [selectedConfigId, setSelectedConfigId] = useState<string>('id_based');
     
+    const normalConfig = useMemo(() => {
+        return getLinkConfigById('normal') || LINK_CONFIGS[0];
+    }, []);
+
     // Obtenir la configuration actuelle
     const currentConfig = useMemo(() => {
-        return getLinkConfigById(selectedConfigId) || LINK_CONFIGS[1]; // fallback sur Normal
-    }, [selectedConfigId]);
+        return getLinkConfigById(selectedConfigId) || normalConfig; // fallback sur Normal
+    }, [selectedConfigId, normalConfig]);
     
     // Pause/Reprise en cas d'absence d'exemple RAG
     const [paused, setPaused] = useState(false);
