@@ -7,6 +7,7 @@ import BoutonExtractDoc from './BoutonExtractDoc';
 import BoutonSplitDoc from './BoutonSplitDoc';
 import BoutonSmartSplitDoc from './BoutonSmartSplitDoc';
 import Push2RAGButton from './Push2RAGButton';
+import ModifyPrompts from './ModifyPrompts';
 import { MetaOcrResponse } from '../interface/pdf_interface';
 import { 
     alerteTonnage, 
@@ -198,6 +199,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
     const currentFormRef = useRef<Record<string, unknown> | null>(null);
     const [showNegociant, setShowNegociant] = useState(false);
     const [forceImage, setForceImage] = useState(false);
+    const [ragId, setRagId] = useState<string | null>(null);
 
     // Clés de persistance
     const formStorageKey = `extractDoc:form:${String(pdf_id)}`;
@@ -221,6 +223,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
 
             if (data) {
                 setDocumentType(data.document_type as "bon" | "bsd" | "facture" | null);
+
+                // Charger id_rag depuis pdf_infos
+                if (data.id_rag) {
+                    setRagId(data.id_rag as string);
+                } else {
+                    setRagId(null);
+                }
 
                 // Charger infos_raw telle quelle, sans écraser site_raw/presta_raw ici
                 if (data.infos_raw) {
@@ -1983,6 +1992,12 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                         </button>
                     </div>
                 </div>
+                    {/* Composant ModifyPrompts */}
+                    <ModifyPrompts 
+                        ragId={ragId}
+                        documentType={documentType}
+                    />
+                                    
             </div>
         );
     };

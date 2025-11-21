@@ -27,7 +27,7 @@ from utils.utils_manuscrit import classify_ocr_with_density, extract_handwritten
 # ===== CONFIGURATION DE VERSION =====
 V2 = True  # Mettre à True pour utiliser les nouveaux prompts et structures v2
 
-from new.new_prompts import get_specific_prompt
+from new.new_prompts import get_specific_prompt, new_prompts
 from new.new_extract_raw import get_raw_text_from_pdf
 from new.new_confidence import (
     get_confidence,
@@ -491,26 +491,45 @@ async def meta_ocr(
         if voir:
             print("="*43, "Données brutes :", "\n", raw_text, "\n"*4)
 
-        # Generate prompt
-        prompt = get_specific_prompt(type_lu, liste_nom_a_eviter_list, parse_or_ocr)
-        
-        # RAG processing inline
+        # RAG processing inline - récupère le prompt (RAG personnalisé ou par défaut)
         force_image_from_rag = False
         rag_example_id = None
+        prompt_rag_used = False
+        prompt_text_full = None
+        
         if entreprise_id and entreprise_id not in ("None", "") and entreprise_id.strip():
             try:
-                rag_result = create_best_prompt_example(int(entreprise_id), type_lu, raw_text)
-                prompt += rag_result["prompt"]
+                rag_result = create_best_prompt_example(
+                    int(entreprise_id), 
+                    type_lu, 
+                    raw_text,
+                    liste_nom_a_eviter_list,
+                    parse_or_ocr
+                )
+                # Le prompt_text contient déjà le prompt principal (RAG ou défaut) + les suffixes
+                prompt_text_full = rag_result["prompt_text"]
+                # Ajouter l'exemple RAG si trouvé
+                prompt = prompt_text_full + rag_result.get("example_prompt", "")
                 rag_found_example = rag_result["found_example"]
                 force_image_from_rag = rag_result.get("force_image", False)
                 rag_example_id = rag_result.get("rag_example_id")
+                prompt_rag_used = rag_result.get("prompt_rag_used", False)
             except ValueError:
                 print(f"❌ Erreur conversion entreprise_id: {entreprise_id}")
                 rag_found_example = False
                 rag_example_id = None
+                prompt_rag_used = False
+                prompt_text_full = None
+                # Fallback sur prompt par défaut
+                prompt = get_specific_prompt(type_lu, liste_nom_a_eviter_list, parse_or_ocr)
         else:
             rag_found_example = False
             rag_example_id = None
+            prompt_rag_used = False
+            prompt_text_full = None
+            # Générer le prompt par défaut
+            prompt = get_specific_prompt(type_lu, liste_nom_a_eviter_list, parse_or_ocr)
+            prompt_text_full = prompt  # Pour cohérence dans la réponse
         
         print("🧠", "Extract data with Gemini (multi-page if needed)", "🧠")
         
@@ -620,6 +639,8 @@ async def meta_ocr(
             "confidence": confidence,
             "alerte": alerte,
             "rag_example_id": rag_example_id,
+            "prompt_rag_used": prompt_rag_used,
+            "prompt_text": prompt_text_full or prompt,
         }
 
     except json.JSONDecodeError as e:
@@ -645,6 +666,37 @@ async def meta_ocr(
             gc.collect()
 
 #=============================================META OCR - Nouvelle structure Fin=============================================
+
+
+@app.get("/get-default-prompt")
+async def get_default_prompt(document_type: str = None):
+    """
+    Retourne le prompt par défaut pour un type de document donné.
+    
+    Args:
+        document_type: Type de document (bon, bsd, facture)
+    
+    Returns:
+        dict: {"prompt": str} - Le prompt par défaut pour ce type de document
+    """
+    try:
+        if not document_type:
+            return {"error": "document_type est requis (bon, bsd, facture)"}
+        
+        document_type = document_type.lower()
+        
+        # Vérifier que le type est valide
+        if document_type not in new_prompts:
+            return {"error": f"Type de document invalide: {document_type}. Types valides: {list(new_prompts.keys())}"}
+        
+        # Récupérer le prompt par défaut
+        default_prompt = new_prompts[document_type]
+        
+        return {"prompt": default_prompt}
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la récupération du prompt par défaut: {str(e)}")
+        return {"error": f"Erreur lors de la récupération du prompt: {str(e)}"}
 
 
 

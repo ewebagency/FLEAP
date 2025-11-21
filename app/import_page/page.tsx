@@ -7,6 +7,7 @@ import { ImportProvider } from "./ImportComponents/ImportContext";
 import ButtonImportFacture from "./FactureImport/ButtonImportFacture";
 import ImportsFiltre from "./ImportComponents/ImportsFiltre";
 import DownloadFactureForMe from "./FactureImport/DownloadFactureForMe";
+import ButtonExtractAllPdf from "./ImportComponents/NewExtractFacture/ButtonExtractAllPdf";
 import DownloadFactureLines from "./FactureImport/DownloadFactureLines";
 import { cofounders_user_id } from "../component/SideBar";
 import { useSession } from "@/app/component/SessionProvider";
@@ -29,6 +30,8 @@ const ImportPage = () => {
                 <ButtonImportFacture/>
                 {cofounders_user_id(user_id) && 
                 <div className="flex justify-between my-3">
+            {/* Section d'actions globales pour les cofounders */}
+                    <ButtonExtractAllPdf />
                     <DownloadFactureForMe/>
                     <DownloadFactureLines/>
                     <ButtonImportExcels/>

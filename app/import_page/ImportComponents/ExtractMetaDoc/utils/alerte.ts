@@ -115,7 +115,7 @@ const STOP_WORDS = new Set([
     'd',
     'l'
 ]);
-const KNOWN_BON_KEYWORDS = ['pesee', 'pesée', 'livraison', 'collecte', 'enlevement', 'enlèvement', 'transport', 'pese'];
+const KNOWN_BON_KEYWORDS = ['pesee', 'pesée', 'livraison', 'collecte', 'enlevement', 'enlèvement', 'transport', 'pese', 'reception', 'sortie', 'entree', 'transaction commerciale'];
 const KNOWN_FACTURE_KEYWORDS = ['facture', 'avoir', 'rachat'];
 const OPERATION_CATEGORY_KEYWORDS: Record<OperationCategory, string[]> = {
     collecte: ['collecte'],
