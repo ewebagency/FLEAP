@@ -33,7 +33,9 @@ import {
     handleCheckAlertes,
     handleDeleteLinksSelected,
     loadPauseState,
-    clearPauseState
+    clearPauseState,
+    savePauseState,
+    isBackendPauseError
 } from './LoopStarterHandlers';
 
 const ALERT_TOOLTIP_MAPPING_KEYWORDS: readonly string[] = [
@@ -2049,12 +2051,12 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                 if (resumeResult.success) {
                                     toast.success(`Reprise terminée. ${resumeResult.processedCount} PDFs traités.`);
                                 } else {
+                                    const globalIdx = (pausedAtIndex ?? -1) + 1 + (resumeResult.pausedAtIndex ?? 0);
                                     const ragErr = resumeResult.errors.find(e => {
                                         const msg = (e.error || '').toLowerCase();
                                         return msg.includes('rag') || msg.includes('exemple');
                                     });
                                     if (ragErr && typeof ragErr.pdfId === 'string') {
-                                        const globalIdx = (pausedAtIndex ?? -1) + 1 + (resumeResult.pausedAtIndex ?? 0);
                                         setPaused(true);
                                         setPausedPdfId(ragErr.pdfId);
                                         setPausedAtIndex(globalIdx);
@@ -2074,6 +2076,29 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         setShowExtractModal(true);
                                         const blockingName = pdfInfos.find(p => p.id === ragErr.pdfId)?.name_pdf || ragErr.pdfId;
                                         toast.error(`Stop: Exemple RAG manquant pour ${blockingName}`);
+                                        didPause = true;
+                                        return;
+                                    }
+                                    const backendErr = resumeResult.errors.find(e => isBackendPauseError(e.error));
+                                    if (backendErr && typeof backendErr.pdfId === 'string') {
+                                        const errorMessage = backendErr.error || 'Erreur backend inconnue';
+                                        setPaused(true);
+                                        setPausedPdfId(backendErr.pdfId);
+                                        setPausedAtIndex(globalIdx);
+                                        setResumeMode(mode);
+                                        if (entreprise_id) {
+                                            savePauseState({
+                                                selectedPdfIds,
+                                                pausedAtIndex: globalIdx,
+                                                pausedPdfId: backendErr.pdfId,
+                                                resumeMode: mode,
+                                                entreprise_id,
+                                                errorMessage,
+                                                timestamp: Date.now()
+                                            });
+                                        }
+                                        setPauseCheckDone(false);
+                                        toast.error(`Stop: backend indisponible (${errorMessage})`);
                                         didPause = true;
                                         return;
                                     }

@@ -17,6 +17,7 @@ interface RagObjects {
     preserve_prompt?: boolean;
     pdf_changed?: boolean;
     old_pdf_infos_id?: string | null;
+    embedding?: number[] | null;
 }
 
 interface ProcessDocumentForRagSuccess {
@@ -41,6 +42,7 @@ interface BddRagInsertPayload {
     perfect_answer: Record<string, unknown>;
     document_type: string;
     force_image: boolean;
+    embedding: number[] | null;
 }
 
 interface BddRagRow {
@@ -186,7 +188,8 @@ const Push2RAGButton = ({ pdfId, pdfPath, docData = null, docDataRef, documentTy
                     raw_text: ragData.raw_text,
                     perfect_answer: ragData.gemini_answer,
                     document_type: ragData.document_type,
-                    force_image: forceImage
+                    force_image: forceImage,
+                    embedding: ragData.embedding ?? null,
                 };
 
                 let newRagId: string | null = null;
@@ -204,7 +207,8 @@ const Push2RAGButton = ({ pdfId, pdfPath, docData = null, docDataRef, documentTy
                         perfect_answer: payload.perfect_answer,
                         document_type: payload.document_type,
                         force_image: payload.force_image,
-                        user_id: payload.user_id
+                        user_id: payload.user_id,
+                        embedding: payload.embedding,
                     };
                     
                     // Si le PDF a changé, mettre à jour aussi pdf_infos_id

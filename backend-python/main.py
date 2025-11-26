@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, Form
+from fastapi import FastAPI, UploadFile, Form, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -14,10 +14,12 @@ from prompts import prompt_bsd, prompt_bon
 from new.new_smart_split import smart_split_pdf, recognize_type_one_page_llm
 
 
+import io
 import json
 import psutil
 import os
 import gc
+import zipfile
 
 from utils.utils_enrich import enrich_text
 from utils.document_types import get_prompt, transform_document_data
@@ -47,6 +49,8 @@ else:
 from new.new_recognize_type import recognize_type_one_page
 from new.new_alerte import alerte_function
 from new.new_similarity.new_find_best_proxy import create_best_prompt_example
+from new.new_similarity.zip_similarity_report import generate_zip_similarity_report
+from new.zip_similarity_report import build_report_filename, build_zip_similarity_report
 import time
 from new.extract_text_layout_v2 import (
     extract_text_with_grid_for_llm,
@@ -54,7 +58,7 @@ from new.extract_text_layout_v2 import (
 )
 from new.extract_multi_page_gemini import extract_gemini_multi_page
 from new.extract_image_gemini import extract_gemini_with_images, should_use_image_mode, log_image_mode_decision
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from new.parse_or_ocr import compare_parse_and_ocr
 
 # Compteur global de pages traitées pour reset du modèle OCR
@@ -751,6 +755,30 @@ async def push_to_rag(file: UploadFile, pdf_id: str = Form(...), extracted_data:
         print(f"❌ Erreur dans push_to_rag: {str(e)}")
         return {"error": f"Erreur lors du traitement: {str(e)}"}
 #=============================================PUSH TO RAG=============================================
+
+
+#=============================================ZIP SIMILARITY REPORT=============================================
+@app.post("/zip-similarity-report")
+async def zip_similarity_report(file: UploadFile = File(...)):
+    try:
+        _, excel_bytes = await generate_zip_similarity_report(file)
+        filename = file.filename or "archive.zip"
+        response_headers = {
+            "Content-Disposition": (
+                f"attachment; filename=zip_similarity_{os.path.splitext(filename)[0]}.xlsx"
+            )
+        }
+        return Response(
+            content=excel_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers=response_headers,
+        )
+    except zipfile.BadZipFile:
+        return {"error": "Le fichier fourni n'est pas une archive ZIP valide."}
+    except Exception as error:
+        print(f"❌ Erreur zip-similarity-report: {error}")
+        return {"error": f"Impossible de générer le rapport: {str(error)}"}
+#=============================================ZIP SIMILARITY REPORT=============================================
 
 
 #=============================================VISUALIZE BOUNDING BOXES=============================================

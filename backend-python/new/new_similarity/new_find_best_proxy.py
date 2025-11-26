@@ -1,7 +1,13 @@
 import os
-from supabase import create_client, Client
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Dict, Optional
+
+from supabase import Client, create_client
+
 from .new_similarity import find_closest_neighbor
+from .new_similarity_v2 import find_closest_neighbor_retrieval_rerank
+
+
+USE_RETRIEVAL_RERANK_V2 = True
 
 
 def get_supabase_client() -> Client:
@@ -15,7 +21,7 @@ def get_supabase_client() -> Client:
     return create_client(url, key)
 
 
-def find_best_proxy_from_rag(raw_text: str, entreprise_id: Optional[int] = None):
+def find_best_proxy_from_rag(raw_text: str, entreprise_id: Optional[int] = None) -> Dict[str, Any]:
     """
     Trouve le meilleur proxy dans la table bdd_rag basé sur la similarité TF-IDF du raw_text.
     
@@ -38,7 +44,9 @@ def find_best_proxy_from_rag(raw_text: str, entreprise_id: Optional[int] = None)
         supabase = get_supabase_client()
         
         # Construire la requête
-        query = supabase.table('bdd_rag').select('id, raw_text, perfect_answer, document_type, pdf_infos_id, force_image, prompt')
+        query = supabase.table('bdd_rag').select(
+            'id, raw_text, perfect_answer, document_type, pdf_infos_id, force_image, prompt, embedding'
+        )
         
         # Filtrer par entreprise si fournie
         if entreprise_id is not None:
@@ -58,8 +66,10 @@ def find_best_proxy_from_rag(raw_text: str, entreprise_id: Optional[int] = None)
             }
         
         # Extraire les données
-        neighbor_texts = [row['raw_text'] for row in response.data if row['raw_text']]
-        neighbor_ids = [row['id'] for row in response.data if row['raw_text']]
+        rows = [row for row in response.data if row.get('raw_text')]
+        neighbor_texts = [row['raw_text'] for row in rows]
+        neighbor_ids = [row['id'] for row in rows]
+        neighbor_embeddings = [row.get('embedding') for row in rows]
         
         if not neighbor_texts:
             return {
@@ -71,8 +81,23 @@ def find_best_proxy_from_rag(raw_text: str, entreprise_id: Optional[int] = None)
                 'neighbor_id': None
             }
         
-        # Trouver le voisin le plus proche
-        result = find_closest_neighbor(raw_text, neighbor_texts, neighbor_ids)
+        # Trouver le voisin le plus proche (mode v1 ou v2)
+        if USE_RETRIEVAL_RERANK_V2:
+            if all(isinstance(vec, list) for vec in neighbor_embeddings):
+                result = find_closest_neighbor_retrieval_rerank(
+                    raw_text,
+                    neighbor_texts,
+                    neighbor_ids,
+                    neighbor_embeddings=neighbor_embeddings,  # type: ignore[arg-type]
+                )
+            else:
+                result = find_closest_neighbor_retrieval_rerank(
+                    raw_text,
+                    neighbor_texts,
+                    neighbor_ids,
+                )
+        else:
+            result = find_closest_neighbor(raw_text, neighbor_texts, neighbor_ids)
         
         # Si un voisin a été trouvé, récupérer ses données complètes
         if result['found'] and result['neighbor_id']:
@@ -120,7 +145,9 @@ def find_best_proxy_from_rag(raw_text: str, entreprise_id: Optional[int] = None)
         }
 
 
-def find_best_proxy_by_document_type(raw_text: str, document_type: str, entreprise_id: Optional[int] = None) -> Dict[str, Any]:
+def find_best_proxy_by_document_type(
+    raw_text: str, document_type: str, entreprise_id: Optional[int] = None
+) -> Dict[str, Any]:
     """
     Trouve le meilleur proxy dans la table bdd_rag filtré par type de document.
     
@@ -138,7 +165,9 @@ def find_best_proxy_by_document_type(raw_text: str, document_type: str, entrepri
         supabase = get_supabase_client()
         
         # Construire la requête avec filtre sur le type de document
-        query = supabase.table('bdd_rag').select('id, raw_text, perfect_answer, document_type, pdf_infos_id, force_image, prompt')
+        query = supabase.table('bdd_rag').select(
+            'id, raw_text, perfect_answer, document_type, pdf_infos_id, force_image, prompt, embedding'
+        )
         query = query.eq('document_type', document_type)
         
         # Filtrer par entreprise si fournie
@@ -159,8 +188,10 @@ def find_best_proxy_by_document_type(raw_text: str, document_type: str, entrepri
             }
         
         # Extraire les données
-        neighbor_texts = [row['raw_text'] for row in response.data if row['raw_text']]
-        neighbor_ids = [row['id'] for row in response.data if row['raw_text']]
+        rows = [row for row in response.data if row.get('raw_text')]
+        neighbor_texts = [row['raw_text'] for row in rows]
+        neighbor_ids = [row['id'] for row in rows]
+        neighbor_embeddings = [row.get('embedding') for row in rows]
         
         if not neighbor_texts:
             return {
@@ -172,8 +203,23 @@ def find_best_proxy_by_document_type(raw_text: str, document_type: str, entrepri
                 'neighbor_id': None
             }
         
-        # Trouver le voisin le plus proche
-        result = find_closest_neighbor(raw_text, neighbor_texts, neighbor_ids)
+        # Trouver le voisin le plus proche (mode v1 ou v2)
+        if USE_RETRIEVAL_RERANK_V2:
+            if all(isinstance(vec, list) for vec in neighbor_embeddings):
+                result = find_closest_neighbor_retrieval_rerank(
+                    raw_text,
+                    neighbor_texts,
+                    neighbor_ids,
+                    neighbor_embeddings=neighbor_embeddings,  # type: ignore[arg-type]
+                )
+            else:
+                result = find_closest_neighbor_retrieval_rerank(
+                    raw_text,
+                    neighbor_texts,
+                    neighbor_ids,
+                )
+        else:
+            result = find_closest_neighbor(raw_text, neighbor_texts, neighbor_ids)
         
         # Si un voisin a été trouvé, récupérer ses données complètes
         if result['found'] and result['neighbor_id']:

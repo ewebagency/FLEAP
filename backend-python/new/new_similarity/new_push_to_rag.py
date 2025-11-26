@@ -2,6 +2,7 @@ from new.new_extract_raw import get_raw_text_from_pdf
 from fastapi import UploadFile
 import json
 from .new_find_best_proxy import get_supabase_client
+from .embedding_similarity import encode_corpus
 
 
 async def process_document_for_rag(
@@ -102,11 +103,23 @@ async def process_document_for_rag(
         print("📄 Extraction du texte brut...")
         raw_text, _, parse_or_ocr = await get_raw_text_from_pdf(file)
         print(f"✅ Texte extrait: {len(raw_text)} caractères (méthode: {parse_or_ocr})")
+
+        # 3b. Calculer l'embedding pour le texte brut
+        embedding_vector = None
+        if raw_text.strip():
+            try:
+                emb = encode_corpus([raw_text])
+                embedding_vector = emb[0].tolist()
+                print(f"✅ Embedding calculé (dim={len(embedding_vector)})")
+            except Exception as emb_err:
+                print(f"⚠️ Impossible de calculer l'embedding: {emb_err}")
+                embedding_vector = None
         
         # 4. Créer les objets pour RAG
         rag_objects = {
             "pdf_id": pdf_id,
             "raw_text": raw_text,
+            "embedding": embedding_vector,
             "gemini_answer": gemini_data,
             "document_type": document_type,
             "extraction_method": parse_or_ocr,

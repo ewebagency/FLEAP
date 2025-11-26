@@ -29,7 +29,7 @@ const PAUSE_STATE_KEY = 'loopStarter:pauseState';
 // Durée d'expiration: 24h en millisecondes
 const EXPIRATION_MS = 24 * 60 * 60 * 1000;
 
-const isBackendPauseError = (error?: string | null): boolean => {
+export const isBackendPauseError = (error?: string | null): boolean => {
     if (!error) return false;
     if (error === 'RESOURCE_EXHAUSTED') return true;
     const normalized = error.toLowerCase();

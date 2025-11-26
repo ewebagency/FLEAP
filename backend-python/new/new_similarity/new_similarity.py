@@ -65,6 +65,7 @@ def find_closest_neighbor(subject_text: str, neighbor_texts: List[str], neighbor
     return {
         'found': found,
         'neighbor_id': best_neighbor_id if found else None,
+        'best_neighbor_id': best_neighbor_id,
         'similarity_score': best_score,
         'status': status
     }
