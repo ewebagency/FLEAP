@@ -267,26 +267,48 @@ def create_best_prompt_example(entreprise_id: int, document_type: str, raw_text:
             prompt_text = get_specific_prompt(document_type, liste_nom_a_eviter or [], parse_or_ocr)
         
         # Gérer l'exemple RAG (document similaire)
-        if result['found'] and result['perfect_answer']:
-            print(f"\n✅ Exemple trouvé - Similarité: {result['similarity_score']:.3f}")
+        if result['found']:
+            neighbor_id = result.get('neighbor_id')
+            has_perfect_answer = result.get('perfect_answer') and isinstance(result.get('perfect_answer'), dict) and len(result.get('perfect_answer', {})) > 0
             
-            # Logger si force_image détecté depuis RAG
-            force_image_from_rag = result.get('force_image', False)
-            if force_image_from_rag:
-                print(f"🖼️ 🖼️ 🖼️ 📚 DÉTECTION RAG -> Force_Image, ID: {result.get('neighbor_id')}")
-            
-            example_prompt = f"\n\n Voici un document similaire sur lequel te baser : {result['raw_text']} \n La réponse parfaite pour ce document est : {result['perfect_answer']}"
-            
-            return {
-                "prompt_text": prompt_text,
-                "prompt_rag_used": prompt_rag_used,
-                "found_example": True,
-                "force_image": force_image_from_rag,
-                "rag_example_id": result.get('neighbor_id'),
-                "example_prompt": example_prompt
-            }
+            if has_perfect_answer:
+                print(f"\n✅ Exemple trouvé - Similarité: {result['similarity_score']:.3f}")
+                
+                # Logger si force_image détecté depuis RAG
+                force_image_from_rag = result.get('force_image', False)
+                if force_image_from_rag:
+                    print(f"🖼️ 🖼️ 🖼️ 📚 DÉTECTION RAG -> Force_Image, ID: {neighbor_id}")
+                
+                example_prompt = f"\n\n Voici un document similaire sur lequel te baser : {result['raw_text']} \n La réponse parfaite pour ce document est : {result['perfect_answer']}"
+                
+                return {
+                    "prompt_text": prompt_text,
+                    "prompt_rag_used": prompt_rag_used,
+                    "found_example": True,
+                    "force_image": force_image_from_rag,
+                    "rag_example_id": neighbor_id,
+                    "example_prompt": example_prompt
+                }
+            else:
+                # Voisin trouvé mais pas de perfect_answer : on retourne quand même le rag_example_id pour lier le PDF au RAG
+                print(f"\n⚠️ Voisin trouvé (ID: {neighbor_id}) mais sans perfect_answer - Similarité: {result['similarity_score']:.3f}")
+                
+                # Logger si force_image détecté depuis RAG
+                force_image_from_rag = result.get('force_image', False)
+                if force_image_from_rag:
+                    print(f"🖼️ 🖼️ 🖼️ 📚 DÉTECTION RAG -> Force_Image, ID: {neighbor_id}")
+                
+                # Retourner le rag_example_id pour lier le PDF au RAG existant, mais sans exemple dans le prompt
+                return {
+                    "prompt_text": prompt_text,
+                    "prompt_rag_used": prompt_rag_used,
+                    "found_example": False,  # Pas d'exemple à utiliser dans le prompt
+                    "force_image": force_image_from_rag,
+                    "rag_example_id": neighbor_id,  # Mais on retourne quand même l'ID pour lier le PDF
+                    "example_prompt": ""
+                }
         else:
-            print(f"⚠️ Aucun exemple trouvé pour le type {document_type}: {result['status']}")
+            print(f"⚠️ Aucun voisin trouvé pour le type {document_type}: {result['status']}")
             return {
                 "prompt_text": prompt_text,
                 "prompt_rag_used": prompt_rag_used,

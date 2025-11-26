@@ -36,6 +36,57 @@ import {
     clearPauseState
 } from './LoopStarterHandlers';
 
+const ALERT_TOOLTIP_MAPPING_KEYWORDS: readonly string[] = [
+    'site',
+    'site(s) facture',
+    'prestataire',
+    'presta',
+    'contenant',
+    'opération',
+    'operation',
+    'unité',
+    'unite'
+];
+
+const ALERT_TOOLTIP_STATUS_KEYWORDS: readonly string[] = [
+    'inconnu',
+    'inconnue',
+    'inconnus',
+    'inconnues',
+    'non reconnu',
+    'non reconnue',
+    'non reconnus',
+    'non reconnues',
+    'non affilié',
+    'non affiliée',
+    'non affiliés',
+    'non affiliées'
+];
+
+const buildAlerteTooltip = (message: string): string => {
+    if (!message) return '';
+
+    const segments = message
+        .split(/;\s*/)
+        .map(segment => segment.trim())
+        .filter(Boolean);
+
+    const filteredSegments = segments.filter(segment => {
+        const lowerSegment = segment.toLowerCase();
+        const mentionsMappingKeyword = ALERT_TOOLTIP_MAPPING_KEYWORDS.some(keyword => lowerSegment.includes(keyword));
+        if (!mentionsMappingKeyword) {
+            return true;
+        }
+        const mentionsStatusKeyword = ALERT_TOOLTIP_STATUS_KEYWORDS.some(keyword => lowerSegment.includes(keyword));
+        if (!mentionsStatusKeyword) {
+            return true;
+        }
+        return false;
+    });
+
+    return filteredSegments.join('\n');
+};
+
 const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => {
     const { entreprise_id, user_id } = useSession();
     const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
@@ -1207,6 +1258,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                             const alerteFlags = explicitFlagValues.length > 0
                                                 ? getFlagsFromValues(explicitFlagValues)
                                                 : getAlerteFlags(alerteMessage);
+                                            const alerteTooltip = buildAlerteTooltip(alerteMessage);
                                             
                                             // Scores de confiance
                                             const confidence = pdf.confidence as { brute?: number; spec?: number; handwritten?: [number, boolean] } | null | undefined;
@@ -1386,7 +1438,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                     {/* 16. Type d'alerte */}
                                                     <td className="px-2 py-2" style={{ display: shouldShowColumn(16) ? '' : 'none' }}>
                                                         {alerteFlags.length > 0 ? (
-                                                            <div className="flex flex-wrap gap-1" title={alerteMessage}>
+                                                            <div className="flex flex-wrap gap-1" title={alerteTooltip || undefined}>
                                                                 {alerteFlags.map((flag, idx) => (
                                                                     <span key={idx} className={`text-xs px-1.5 py-0.5 rounded-sm ${flag.color}`}>
                                                                         {flag.label}

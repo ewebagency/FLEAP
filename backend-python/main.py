@@ -710,14 +710,27 @@ async def detect_type(files: list[UploadFile]):
 
 #=============================================PUSH TO RAG=============================================
 @app.post("/push_to_rag")
-async def push_to_rag(file: UploadFile, pdf_id: str = Form(...), extracted_data: str = Form(...), document_type: str = Form("inconnu")):
+async def push_to_rag(file: UploadFile, pdf_id: str = Form(...), extracted_data: str = Form(...), document_type: str = Form("inconnu"), entreprise_id: str = Form(None), force_image: str = Form("false")):
     try:
         # Parser les données extraites
         extracted_data_dict = json.loads(extracted_data)
         
+        # Convertir entreprise_id en int ou utiliser None
+        entreprise_id_int = None
+        if entreprise_id and entreprise_id not in ("None", ""):
+            try:
+                entreprise_id_int = int(entreprise_id)
+            except ValueError:
+                print(f"⚠️ Entreprise ID invalide: {entreprise_id}")
+                return {"error": "entreprise_id invalide"}
+        
+        if entreprise_id_int is None:
+            return {"error": "entreprise_id requis"}
+        
         print(f"📂 Fichier PDF reçu: {file.filename}")
         print(f"📂 PDF ID: {pdf_id}")
         print(f"📂 Type de document: {document_type}")
+        print(f"📂 Entreprise ID: {entreprise_id_int}")
         print(f"📂 Données extraites: {extracted_data_dict}")
         
         # Importer et utiliser la fonction de traitement RAG
@@ -728,7 +741,8 @@ async def push_to_rag(file: UploadFile, pdf_id: str = Form(...), extracted_data:
             file=file,
             pdf_id=pdf_id,
             extracted_data=extracted_data_dict,
-            document_type=document_type
+            document_type=document_type,
+            entreprise_id=entreprise_id_int
         )
         
         return result

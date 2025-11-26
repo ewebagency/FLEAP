@@ -1,13 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/app/database/supabaseClient";
 import { toast } from "react-hot-toast";
+import Swal from "sweetalert2";
+import { useSession } from "@/app/component/SessionProvider";
 
 interface ModifyPromptsProps {
     ragId: string | null;
     documentType: "bon" | "bsd" | "facture" | null;
+    pdfId?: string | number;
+    pdfPath?: string;
+    onReloadRagId?: () => Promise<void>;
 }
 
-const ModifyPrompts = ({ ragId, documentType }: ModifyPromptsProps) => {
+const ModifyPrompts = ({ ragId, documentType, pdfId, pdfPath, onReloadRagId }: ModifyPromptsProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [prompt, setPrompt] = useState<string>("");
     const [isLoading, setIsLoading] = useState(false);
@@ -15,6 +20,7 @@ const ModifyPrompts = ({ ragId, documentType }: ModifyPromptsProps) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [hasPrompt, setHasPrompt] = useState<boolean | null>(null); // null = en chargement, true = existe, false = n'existe pas
     const [showModal, setShowModal] = useState(false);
+    const { entreprise_id } = useSession();
 
     // URL du backend Python
     const BACKEND_URL = process.env.NEXT_PUBLIC_SERVER_PYTHON || "http://localhost:8000";
@@ -29,6 +35,7 @@ const ModifyPrompts = ({ ragId, documentType }: ModifyPromptsProps) => {
                 .from('bdd_rag')
                 .select('prompt')
                 .eq('id', ragId)
+                .eq('entreprise_id', entreprise_id)
                 .single();
 
             if (error) {
@@ -92,7 +99,7 @@ const ModifyPrompts = ({ ragId, documentType }: ModifyPromptsProps) => {
         }
     }, [documentType, BACKEND_URL]);
 
-    // Sauvegarder le prompt dans la BDD
+    // Sauvegarder le prompt dans la BDD avec Swal et gestion de la relance
     const savePrompt = useCallback(async () => {
         if (!ragId) {
             toast.error("Aucun RAG ID disponible");
@@ -106,17 +113,120 @@ const ModifyPrompts = ({ ragId, documentType }: ModifyPromptsProps) => {
 
         setIsSaving(true);
         try {
-            const { error } = await supabase
+            // Vérifier les données du RAG : perfect_answer et pdf_infos_id
+            const { data: ragData, error: fetchError } = await supabase
+                .from('bdd_rag')
+                .select('perfect_answer, pdf_infos_id')
+                .eq('id', ragId)
+                .eq('entreprise_id', entreprise_id)
+                .maybeSingle();
+
+            if (fetchError) {
+                throw fetchError;
+            }
+
+            const hasPerfectAnswer = ragData?.perfect_answer && 
+                typeof ragData.perfect_answer === 'object' &&
+                Object.keys(ragData.perfect_answer).length > 0;
+
+            // Vérifier si le PDF actuel est différent du PDF du RAG
+            const ragPdfId = ragData?.pdf_infos_id ? String(ragData.pdf_infos_id) : null;
+            const currentPdfId = pdfId ? String(pdfId) : null;
+            const pdfChanged = currentPdfId && ragPdfId && currentPdfId !== ragPdfId;
+
+            // Swal 1 : Demander si on supprime le perfect_answer
+            let shouldDeletePerfectAnswer = false;
+            if (hasPerfectAnswer) {
+                const result1 = await Swal.fire({
+                    title: 'Supprimer les réponses précédentes ?',
+                    html: pdfChanged 
+                        ? `Vous modifiez le prompt depuis un PDF différent de celui utilisé précédemment.<br/><br/>`
+                        + `Souhaitez-vous <strong>supprimer les réponses extraites précédemment</strong> pour ce RAG ?<br/><br/>`
+                        + `<em>Ces réponses seront recalculées lors de la prochaine extraction avec le nouveau prompt.</em>`
+                        : `Souhaitez-vous <strong>supprimer les réponses extraites précédemment</strong> pour ce RAG ?<br/><br/>`
+                        + `<em>Ces réponses seront recalculées lors de la prochaine extraction avec le nouveau prompt.</em>`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#3085d6',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'Oui, supprimer',
+                    cancelButtonText: 'Non, conserver'
+                });
+
+                shouldDeletePerfectAnswer = result1.isConfirmed;
+            }
+
+            // Sauvegarder le prompt
+            const { error: updateError } = await supabase
                 .from('bdd_rag')
                 .update({ prompt: prompt.trim() })
-                .eq('id', ragId);
+                .eq('id', ragId)
+                .eq('entreprise_id', entreprise_id);
 
-            if (error) {
-                throw error;
+            if (updateError) {
+                throw updateError;
+            }
+
+            // Si le PDF a changé, supprimer perfect_answer et préparer la mise à jour
+            if (pdfChanged && shouldDeletePerfectAnswer) {
+                // Supprimer perfect_answer car il était lié à l'ancien PDF
+                const { error: deleteError } = await supabase
+                    .from('bdd_rag')
+                    .update({ perfect_answer: null })
+                    .eq('id', ragId)
+                    .eq('entreprise_id', entreprise_id);
+
+                if (deleteError) {
+                    console.error('Erreur lors de la suppression du perfect_answer:', deleteError);
+                }
+
+                // Swal 2 : Informer l'utilisateur (PDF changé)
+                await Swal.fire({
+                    title: 'PDF différent détecté',
+                    html: `<strong>Le prompt a été modifié avec succès.</strong><br/><br/>`
+                        + `Vous modifiez depuis un PDF différent de celui utilisé initialement.<br/><br/>`
+                        + `<strong>Pour appliquer les changements :</strong><br/>`
+                        + `1️⃣ Cliquez sur <strong>&quot;Extraire&quot;</strong> pour relancer l&apos;extraction avec le nouveau prompt<br/>`
+                        + `2️⃣ Puis cliquez sur <strong>&quot;Push to RAG&quot;</strong> pour mettre à jour les données du RAG<br/><br/>`
+                        + `<em>Les deux PDFs resteront liés au même RAG.</em>`,
+                    icon: 'info',
+                    confirmButtonColor: '#3085d6',
+                    confirmButtonText: 'Compris'
+                });
+            } else if (shouldDeletePerfectAnswer) {
+                // Supprimer perfect_answer si demandé (même PDF)
+                const { error: deleteError } = await supabase
+                    .from('bdd_rag')
+                    .update({ perfect_answer: null })
+                    .eq('id', ragId)
+                    .eq('entreprise_id', entreprise_id);
+
+                if (deleteError) {
+                    console.error('Erreur lors de la suppression du perfect_answer:', deleteError);
+                }
+
+                // Swal 2 : Informer l'utilisateur de relancer l'extraction (même PDF)
+                await Swal.fire({
+                    title: 'Prompt modifié avec succès',
+                    html: `<strong>Les réponses précédentes ont été supprimées.</strong><br/><br/>`
+                        + `N&apos;oubliez pas de cliquer sur <strong>&quot;Extraire&quot;</strong> pour relancer l&apos;extraction avec le nouveau prompt !<br/><br/>`
+                        + `<em>Les nouvelles réponses seront calculées avec le prompt personnalisé.</em>`,
+                    icon: 'success',
+                    confirmButtonColor: '#3085d6',
+                    confirmButtonText: 'Compris'
+                });
             }
 
             setHasPrompt(true);
             toast.success("Prompt sauvegardé avec succès");
+            
+            // Toast final pour rappeler de mettre à jour la perfect_answer
+            if (!shouldDeletePerfectAnswer) {
+                toast("N&apos;oubliez pas de pousser vers RAG après l&apos;extraction pour sauvegarder les nouvelles réponses", {
+                    duration: 5000,
+                    icon: 'ℹ️'
+                });
+            }
         } catch (error) {
             console.error('Erreur lors de la sauvegarde du prompt:', error);
             toast.error(`Erreur lors de la sauvegarde: ${error instanceof Error ? error.message : "Erreur inconnue"}`);
@@ -142,7 +252,8 @@ const ModifyPrompts = ({ ragId, documentType }: ModifyPromptsProps) => {
             const { error } = await supabase
                 .from('bdd_rag')
                 .update({ prompt: null })
-                .eq('id', ragId);
+                .eq('id', ragId)
+                .eq('entreprise_id', entreprise_id);
 
             if (error) {
                 throw error;
@@ -166,11 +277,6 @@ const ModifyPrompts = ({ ragId, documentType }: ModifyPromptsProps) => {
         }
     }, [isOpen, ragId, hasPrompt, loadPromptFromRAG]);
 
-    // Ne rien afficher si pas de ragId
-    if (!ragId) {
-        return null;
-    }
-
     return (
         <div className="bg-white rounded-lg p-2 mb-2 shadow-sm border border-gray-200">
             {/* Toggle Header */}
@@ -178,10 +284,33 @@ const ModifyPrompts = ({ ragId, documentType }: ModifyPromptsProps) => {
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 className="flex items-center justify-between w-full text-sm font-semibold text-gray-700 hover:text-blue-600 transition-colors"
+                disabled={!ragId}
             >
                 <span>Modifier le prompt RAG</span>
                 <span className="text-xs">{isOpen ? '▼' : '▶'}</span>
             </button>
+            
+            {/* Message si pas de ragId */}
+            {!ragId && (
+                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-xs text-yellow-800 mb-2">
+                        <strong>💡 Pour modifier le prompt RAG :</strong><br/>
+                        Ce document peut déjà être lié au RAG. Cliquez sur le bouton ci-dessous pour vérifier, ou envoyez ce document vers le RAG en cliquant sur le bouton <strong>&quot;Push to RAG&quot;</strong> dans l&apos;en-tête.
+                    </p>
+                    {onReloadRagId && (
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                await onReloadRagId();
+                                toast.success('Vérification effectuée');
+                            }}
+                            className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors"
+                        >
+                            🔍 Vérifier le lien RAG
+                        </button>
+                    )}
+                </div>
+            )}
 
             {/* Contenu collapsible */}
             {isOpen && (
@@ -214,7 +343,7 @@ const ModifyPrompts = ({ ragId, documentType }: ModifyPromptsProps) => {
                                     onChange={(e) => setPrompt(e.target.value)}
                                     className="w-full px-3 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
                                     rows={12}
-                                    placeholder={hasPrompt === false ? "Aucun prompt défini. Cliquez sur 'Charger prompt par défaut' pour en ajouter un." : "Modifiez le prompt ici..."}
+                                    placeholder={hasPrompt === false ? "Aucun prompt défini. Cliquez sur &quot;Charger prompt par défaut&quot; pour en ajouter un." : "Modifiez le prompt ici..."}
                                 />
                             </div>
 

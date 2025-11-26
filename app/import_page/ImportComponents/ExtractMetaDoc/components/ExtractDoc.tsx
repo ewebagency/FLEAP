@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { useSession } from "@/app/component/SessionProvider";
 import { supabase } from "@/app/database/supabaseClient";
 import PdfDisplayer from '@/app/interface_admin_2/InterfaceAdmin2/PdfDisplayer';
@@ -191,7 +191,8 @@ interface ExtractDocProps {
 const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, openedFromLoopStarter = false }: ExtractDocProps) => {
     const [isOpen, setIsOpen] = useState(autoOpen);
     const { entreprise_id } = useSession();
-    const [existingData, setExistingData] = useState<DocInterface | null>(null);
+    const [existingDataRaw, setExistingDataRaw] = useState<DocInterface | null>(null);
+    const existingData = useMemo(() => existingDataRaw, [JSON.stringify(existingDataRaw)]);
     const [documentType, setDocumentType] = useState<"bon" | "bsd" | "facture" | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [confidenceData, setConfidenceData] = useState<{brute?: number, spec?: number, handwritten?: [number, boolean]} | null>(null);
@@ -204,6 +205,35 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
     // Clés de persistance
     const formStorageKey = `extractDoc:form:${String(pdf_id)}`;
     const pdfUrlStorageKey = `extractDoc:pdfUrl:${pdf_path}`;
+
+    // Fonction pour recharger uniquement id_rag depuis la BDD
+    const reloadRagId = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('pdf_infos')
+                .select('id_rag')
+                .eq('id', String(pdf_id))
+                .single();
+
+            if (error) {
+                if ((error as { code?: string }).code !== 'PGRST116') {
+                    console.error('Error loading id_rag:', error);
+                }
+                return;
+            }
+
+            if (data) {
+                if (data.id_rag) {
+                    setRagId(data.id_rag as string);
+                    console.log('✅ ragId rechargé depuis la BDD:', data.id_rag);
+                } else {
+                    setRagId(null);
+                }
+            }
+        } catch (error) {
+            console.error('Error reloading id_rag:', error);
+        }
+    }, [pdf_id]);
 
     // Fonction pour charger les données depuis la BDD
     const loadExistingData = useCallback(async () => {
@@ -233,7 +263,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
 
                 // Charger infos_raw telle quelle, sans écraser site_raw/presta_raw ici
                 if (data.infos_raw) {
-                    setExistingData(data.infos_raw as DocInterface);
+                    setExistingDataRaw(data.infos_raw as DocInterface);
                 }
                 if (data.confidence) {
                     setConfidenceData(data.confidence as {brute?: number, spec?: number, handwritten?: [number, boolean]});
@@ -247,43 +277,99 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         }
     }, [pdf_id]);
 
-    // Sauvegarde automatique du formulaire
-    useEffect(() => {
-        if (!isOpen) return;
-        if (!existingData) return;
-        try {
-            localStorage.setItem(formStorageKey, JSON.stringify(existingData));
-        } catch {
-            // ignore storage errors
-        }
-    }, [existingData, formStorageKey, isOpen]);
-
-    // Charger les données depuis la BDD à l'ouverture, puis depuis localStorage si disponible
+    // Sauvegarde automatique du formulaire dans localStorage
+    // PRIORITÉ au ref (modifications en cours) sur existingData pour éviter d'écraser les modifications
     useEffect(() => {
         if (!isOpen) return;
         
-        const loadData = async () => {
-            // D'abord charger depuis la BDD
-            await loadExistingData();
+        // Sauvegarder le ref en priorité (contient les modifications les plus récentes)
+        if (currentFormRef.current) {
+            try {
+                localStorage.setItem(formStorageKey, JSON.stringify(currentFormRef.current));
+                return; // Ne pas sauvegarder existingData si on a des modifications en cours
+            } catch {
+                // ignore storage errors
+            }
+        }
+        
+        // Sinon, sauvegarder existingData si disponible
+        if (existingData) {
+            try {
+                localStorage.setItem(formStorageKey, JSON.stringify(existingData));
+            } catch {
+                // ignore storage errors
+            }
+        }
+    }, [existingData, formStorageKey, isOpen]);
+
+    // Charger les données depuis localStorage en priorité, puis depuis la BDD seulement si pas de modifications locales
+    const hasLoadedDataRef = useRef<string | number | null>(null);
+    
+    useEffect(() => {
+        if (!isOpen) {
+            // Ne pas réinitialiser hasLoadedDataRef ici, pour éviter de recharger à chaque ouverture/fermeture
+            return;
+        }
+        
+        // Si on a déjà chargé les données pour ce PDF, ne PAS recharger (même si la fenêtre se ferme/réouvre)
+        // Cela préserve les modifications même si l'utilisateur réduit/réouvre la fenêtre
+        if (hasLoadedDataRef.current === pdf_id) {
+            console.log('⏭️ Données déjà chargées pour ce PDF, préservation des modifications');
             
-            // Puis vérifier si localStorage a un brouillon plus récent
+            // Vérifier et charger depuis localStorage si disponible (au cas où il y aurait des modifications récentes)
+            try {
+                const raw = localStorage.getItem(formStorageKey);
+                if (raw) {
+                    const parsed = JSON.parse(raw) as DocInterface;
+                    if (parsed && parsed.type_doc && Array.isArray(parsed.dechet)) {
+                        // Mettre à jour seulement le ref, pas existingData pour éviter les re-renders
+                        currentFormRef.current = parsed as unknown as Record<string, unknown>;
+                        console.log('📦 Ref mis à jour depuis localStorage (modifications préservées)');
+                    }
+                }
+            } catch {
+                // ignore
+            }
+            // Toujours recharger le ragId depuis la BDD même si les données sont déjà chargées
+            void reloadRagId();
+            return;
+        }
+        
+        const loadData = async () => {
+            // PRIORITÉ 1: Vérifier d'abord localStorage pour préserver les modifications en cours
             try {
                 const raw = localStorage.getItem(formStorageKey);
                 if (raw) {
                     const parsed = JSON.parse(raw) as DocInterface;
                     // Contrôles basiques
                     if (parsed && parsed.type_doc && Array.isArray(parsed.dechet)) {
-                        setExistingData(parsed);
+                        console.log('📦 Chargement depuis localStorage (modifications préservées)');
+                        setExistingDataRaw(parsed);
                         setDocumentType(parsed.type_doc);
+                        hasLoadedDataRef.current = pdf_id;
+                        // Initialiser aussi le ref pour que Push2RAGButton puisse l'utiliser
+                        currentFormRef.current = parsed as unknown as Record<string, unknown>;
+                        // Toujours charger le ragId depuis la BDD même si on a les données du formulaire en localStorage
+                        await reloadRagId();
+                        return; // Ne pas charger depuis la BDD si on a des données dans localStorage
                     }
                 }
             } catch {
                 // ignore
             }
+            
+            // PRIORITÉ 2: Charger depuis la BDD seulement si localStorage est vide
+            console.log('💾 Chargement depuis la BDD (pas de données locales)');
+            await loadExistingData();
+            hasLoadedDataRef.current = pdf_id;
+            
+            // Charger aussi le ragId depuis la BDD
+            await reloadRagId();
         };
         
         loadData();
-    }, [isOpen, formStorageKey, loadExistingData]);
+    }, [isOpen, formStorageKey, loadExistingData, pdf_id, reloadRagId]);
+
 
     const handleSave = async (formData: DocInterface) => {
         setIsLoading(true);
@@ -303,7 +389,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
             }
 
             // Mettre à jour l'état local et persister
-            setExistingData(formData);
+            setExistingDataRaw(formData);
             try {
                 localStorage.setItem(formStorageKey, JSON.stringify(formData));
             } catch {}
@@ -495,7 +581,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
     const applyExtractionToForm = (response: MetaOcrResponse) => {
         const structured = (response as { structured_response?: unknown }).structured_response;
         if (isDocInterface(structured)) {
-            setExistingData(structured);
+            setExistingDataRaw(structured);
             setDocumentType(structured.type_doc);
             try {
                 localStorage.setItem(formStorageKey, JSON.stringify(structured));
@@ -659,12 +745,30 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
     };
 
     const FormulaireExtractDoc = ({ onSave, onChange, showRagButton, forceImage }: { onSave: (formData: DocInterface) => Promise<void>; onChange?: (formData: DocInterface) => void; showRagButton?: boolean; forceImage: boolean }) => {
+        // Initialiser depuis localStorage en priorité pour préserver les modifications
         const [formData, setFormData] = useState<DocInterface>(() => {
+            // PRIORITÉ 1: Charger depuis localStorage si disponible (pour préserver les modifications)
+            try {
+                const raw = localStorage.getItem(formStorageKey);
+                if (raw) {
+                    const parsed = JSON.parse(raw) as DocInterface;
+                    if (parsed && parsed.type_doc && Array.isArray(parsed.dechet)) {
+                        console.log('📦 FormulaireExtractDoc: Initialisation depuis localStorage');
+                        // Initialiser aussi le ref pour que Push2RAGButton puisse l'utiliser
+                        currentFormRef.current = parsed as unknown as Record<string, unknown>;
+                        return parsed;
+                    }
+                }
+            } catch {
+                // ignore
+            }
+            
+            // PRIORITÉ 2: Utiliser existingData si disponible
             if (existingData) {
                 return existingData;
             }
             
-            // Créer un formulaire vide selon le type de document
+            // PRIORITÉ 3: Créer un formulaire vide selon le type de document
             const baseData = {
                 type_doc: documentType || "bon",
                 site_raw: '',
@@ -824,16 +928,52 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
             return errors;
         }, [formData, documentType]);
 
-        // Synchroniser formData avec existingData (extraction ou chargement)
+        // Synchroniser formData avec existingData UNIQUEMENT au chargement initial
+        // Utiliser une clé unique basée sur le pdf_id pour réinitialiser uniquement lors d'un changement de PDF
+        const hasUserModifiedForm = useRef(false);
+        const lastPdfIdRef = useRef<string | number | null>(null);
+        
+        // Fonction pour vérifier si on a des données dans localStorage
+        const hasLocalStorageData = useCallback(() => {
+            try {
+                const raw = localStorage.getItem(formStorageKey);
+                if (raw) {
+                    const parsed = JSON.parse(raw) as DocInterface;
+                    if (parsed && parsed.type_doc && Array.isArray(parsed.dechet)) {
+                        return true;
+                    }
+                }
+            } catch {
+                // ignore
+            }
+            return false;
+        }, [formStorageKey]);
+        
         useEffect(() => {
-            if (existingData) {
+            // Si le pdf_id a changé, réinitialiser les flags
+            const currentPdfId = pdf_id;
+            if (lastPdfIdRef.current !== currentPdfId) {
+                hasUserModifiedForm.current = false;
+                lastPdfIdRef.current = currentPdfId;
+            }
+            
+            // NE JAMAIS synchroniser si on a des données dans localStorage (pour préserver les modifications)
+            // Vérifier localStorage à chaque fois avant de synchroniser
+            if (hasLocalStorageData()) {
+                // On a des données dans localStorage, ne pas synchroniser avec existingData
+                return;
+            }
+            
+            // Synchroniser seulement si :
+            // 1. existingData existe
+            // 2. L'utilisateur n'a pas encore modifié le formulaire
+            // 3. On n'a PAS de données dans localStorage (pas de modifications à préserver)
+            if (existingData && !hasUserModifiedForm.current) {
                 setFormData(existingData);
                 currentFormRef.current = existingData as unknown as Record<string, unknown>;
-                onChange?.(existingData);
-                // Réinitialiser le flag pour permettre la validation des nouvelles données
                 hasValidatedInitial.current = false;
             }
-        }, [existingData, onChange]);
+        }, [existingData, pdf_id, hasLocalStorageData]);
 
         // Valider automatiquement UNE SEULE FOIS au chargement initial (pour afficher les erreurs existantes)
         useEffect(() => {
@@ -845,6 +985,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         }, [formData, documentType, existingData]);
 
         const handleInputChange = (field: string, value: unknown) => {
+            hasUserModifiedForm.current = true;
             setFormData(prev => {
                 const next = { ...prev, [field]: value } as DocInterface;
                 currentFormRef.current = next as unknown as Record<string, unknown>;
@@ -854,6 +995,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         };
 
         const handleDechetChange = (index: number, field: string, value: string) => {
+            hasUserModifiedForm.current = true;
             setFormData(prev => {
                 const next = {
                     ...prev,
@@ -1992,12 +2134,6 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                         </button>
                     </div>
                 </div>
-                    {/* Composant ModifyPrompts */}
-                    <ModifyPrompts 
-                        ragId={ragId}
-                        documentType={documentType}
-                    />
-                                    
             </div>
         );
     };
@@ -2068,10 +2204,11 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                             <Push2RAGButton 
                                 pdfId={pdf_id}
                                 pdfPath={pdf_path}
-                                docData={currentFormRef.current}
+                                docDataRef={currentFormRef}
                                 documentType={documentType || 'inconnu'}
                                 disabled={!currentFormRef.current}
                                 forceImage={forceImage}
+                                onRagPushSuccess={reloadRagId}
                             />
                             {/* PushFactureButton now rendered in LinkMeta.tsx */}
                         </div>
@@ -2127,8 +2264,37 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                         <div className="w-1/2 h-full">
                             <DisplayDocPDF pdf_path={pdf_path}/>
                         </div>
-                        <div className="w-1/2 h-full">
-                            <FormulaireExtractDoc onSave={handleSave} onChange={(fd) => { currentFormRef.current = fd as unknown as Record<string, unknown>; }} showRagButton={openedFromLoopStarter} forceImage={forceImage}/>
+                        <div className="w-1/2 h-full flex flex-col">
+                            <div className="flex-1 overflow-y-auto">
+                                <FormulaireExtractDoc 
+                                    onSave={handleSave} 
+                                    onChange={(fd) => { 
+                                        // Mettre à jour seulement le ref pour éviter les re-renders
+                                        const formDataAsRecord = fd as unknown as Record<string, unknown>;
+                                        currentFormRef.current = formDataAsRecord;
+                                        
+                                        // Sauvegarder dans localStorage pour préserver les modifications même si la fenêtre se ferme
+                                        try {
+                                            localStorage.setItem(formStorageKey, JSON.stringify(fd));
+                                        } catch {
+                                            // ignore storage errors
+                                        }
+                                    }} 
+                                    showRagButton={openedFromLoopStarter} 
+                                    forceImage={forceImage}
+                                />
+                            </div>
+                            
+                            {/* Composant ModifyPrompts */}
+                            <div className="mt-2">
+                                <ModifyPrompts 
+                                    ragId={ragId}
+                                    documentType={documentType}
+                                    pdfId={pdf_id}
+                                    pdfPath={pdf_path}
+                                    onReloadRagId={reloadRagId}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
