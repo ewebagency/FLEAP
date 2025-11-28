@@ -80,7 +80,15 @@ export interface ProcessingResult {
     };
     wasSplit?: boolean;
     originalPdfName?: string;
-    autoLinkDetails?: Array<{ index: number; performed: 'linked' | 'created' | 'to_check_by_user' | 'skipped'; bsd_id?: string }>;
+    autoLinkDetails?: Array<{ 
+        index: number; 
+        performed: 'linked' | 'created' | 'to_check_by_user' | 'skipped'; 
+        bsd_id?: string;
+        pdf_num_bon?: string; // Numéro de bon du PDF
+        candidate_num_bon?: string; // Numéro de bon du candidat (si match)
+        candidate_num_bsd?: string; // Numéro BSD du candidat
+    }>;
+    oldestDate?: string; // Date la plus ancienne extraite du PDF (format ISO)
 }
 
 export interface LoopStarterProps {

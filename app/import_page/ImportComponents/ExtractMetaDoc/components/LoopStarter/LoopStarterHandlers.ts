@@ -1095,6 +1095,77 @@ export const handleExtractOnly = async (
     }
 };
 
+// Fonction pour extraire la date la plus ancienne d'un PDF depuis infos_raw
+const extractOldestDate = (pdfInfo: PdfInfo | undefined): string | undefined => {
+    if (!pdfInfo?.infos_raw) return undefined;
+    
+    const raw = pdfInfo.infos_raw as Record<string, unknown>;
+    const maybeDechets = raw.dechet;
+    const dechets = Array.isArray(maybeDechets) ? (maybeDechets as Array<{ date?: string }>) : [];
+    
+    const dates = dechets
+        .map(d => {
+            if (!d?.date) return null;
+            const dateStr = String(d.date).trim();
+            if (!dateStr) return null;
+            
+            // Essayer de parser la date (supporte plusieurs formats)
+            const parsedDate = new Date(dateStr);
+            if (isNaN(parsedDate.getTime())) return null;
+            
+            return parsedDate;
+        })
+        .filter((d): d is Date => d !== null);
+    
+    if (dates.length === 0) return undefined;
+    
+    // Trouver la date la plus ancienne
+    const oldestDate = new Date(Math.min(...dates.map(d => d.getTime())));
+    return oldestDate.toISOString();
+};
+
+// Fonction pour extraire le num_bon d'un déchet depuis infos_raw
+const extractPdfNumBon = (pdfInfo: PdfInfo | undefined, dechetIndex: number): string | undefined => {
+    if (!pdfInfo?.infos_raw) return undefined;
+    
+    const raw = pdfInfo.infos_raw as Record<string, unknown>;
+    const maybeDechets = raw.dechet;
+    const dechets = Array.isArray(maybeDechets) ? (maybeDechets as Array<{ num_bon?: string }>) : [];
+    
+    if (dechets.length <= dechetIndex) return undefined;
+    
+    const numBon = dechets[dechetIndex]?.num_bon;
+    return numBon ? String(numBon).trim() : undefined;
+};
+
+// Fonction pour récupérer les infos d'un candidat BSD
+const getCandidateInfo = async (bsdId: string | undefined, entrepriseId: number): Promise<{ num_bon?: string; num_bsd?: string }> => {
+    if (!bsdId || bsdId === 'SIMULATED_ID') return {};
+    
+    try {
+        const { data, error } = await supabase
+            .from('bsd')
+            .select('readable_id_track_dechets, other_infos')
+            .eq('id', bsdId)
+            .eq('entreprise_id', entrepriseId)
+            .maybeSingle();
+        
+        if (error || !data) return {};
+        
+        const numBsd = data.readable_id_track_dechets || undefined;
+        const otherInfos = data.other_infos as { numeroBon?: string } | null | undefined;
+        const numBon = otherInfos?.numeroBon || undefined;
+        
+        return {
+            num_bon: numBon ? String(numBon).trim() : undefined,
+            num_bsd: numBsd ? String(numBsd).trim() : undefined
+        };
+    } catch (error) {
+        console.error('Erreur récupération infos candidat:', error);
+        return {};
+    }
+};
+
 // Auto-link selected PDFs (simulation + confirmation + application)
 export const handleAutoLinkSelected = async (
     selectedPdfIds: string[],
@@ -1135,32 +1206,49 @@ export const handleAutoLinkSelected = async (
         toast('Simulation de l\'auto-link en cours...', { icon: '🔍' });
         const simulationOutcome: BulkAutoLinkOutcome = await autoLinkDocs(selectedPdfIds, parseInt(entreprise_id), user_id, true, currentConfig.params);
 
-        // Construire les résultats détaillés
+        // Construire les résultats détaillés avec infos de bon/BSD
         const detailedResults: ProcessingResult[] = [];
-        simulationOutcome.results.forEach(item => {
+        for (const item of simulationOutcome.results) {
             const originalPdf = pdfInfos.find(pdf => pdf.id === item.pdfId);
-            const autoLinkDetails = (item.results || []).map(r => ({
-                index: r.index_dechet,
-                performed: r.performed,
-                bsd_id: r.bsd_id
-            }));
+            const oldestDate = extractOldestDate(originalPdf);
+            
+            // Construire les détails avec infos de bon/BSD
+            const autoLinkDetails = await Promise.all(
+                (item.results || []).map(async r => {
+                    const pdfNumBon = extractPdfNumBon(originalPdf, r.index_dechet);
+                    const candidateInfo = await getCandidateInfo(r.bsd_id, parseInt(entreprise_id));
+                    
+                    return {
+                        index: r.index_dechet,
+                        performed: r.performed,
+                        bsd_id: r.bsd_id,
+                        pdf_num_bon: pdfNumBon,
+                        candidate_num_bon: candidateInfo.num_bon,
+                        candidate_num_bsd: candidateInfo.num_bsd
+                    };
+                })
+            );
+            
             detailedResults.push({
                 pdfId: item.pdfId,
                 success: item.success,
                 message: item.message,
                 originalPdfName: originalPdf?.name_pdf || 'Inconnu',
-                autoLinkDetails
+                autoLinkDetails,
+                oldestDate
             });
-        });
+        }
 
         simulationOutcome.errors.forEach(err => {
             const originalPdf = pdfInfos.find(pdf => pdf.id === err.pdfId);
+            const oldestDate = extractOldestDate(originalPdf);
             detailedResults.push({
                 pdfId: err.pdfId,
                 success: false,
                 message: err.error,
                 error: err.error,
-                originalPdfName: originalPdf?.name_pdf || 'Inconnu'
+                originalPdfName: originalPdf?.name_pdf || 'Inconnu',
+                oldestDate
             });
         });
 
@@ -1208,15 +1296,45 @@ export const handleAutoLinkSelected = async (
             // Trouver le pdfId correspondant
             const resultItem = detailedResults.find(r => r.originalPdfName === pdfName);
             const pdfId = resultItem?.pdfId || '';
+            const pdfOldestDate = resultItem?.oldestDate;
+            const formattedPdfDate = pdfOldestDate
+                ? new Date(pdfOldestDate).toLocaleDateString('fr-FR', { 
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    year: 'numeric' 
+                })
+                : null;
             
             const actionsHtml = actions.map(action => {
+                // Trouver les détails complets pour ce déchet
+                const detailItem = resultItem?.autoLinkDetails?.find(d => d.index === action.index);
+                
                 const actionLabel = action.action === 'linked' ? '🔗 Lié au BSD'
                     : action.action === 'created' ? '✨ BSD créé'
                     : action.action === 'to_check_by_user' ? '👀 À vérifier manuellement'
                     : '⏭️ Déjà traité';
                 
-                const bsdInfo = action.bsdId ? ` (BSD: ${action.bsdId})` : '';
-                return `<div class="ml-4 mb-1 text-sm">• Déchet #${action.index + 1}: ${actionLabel}${bsdInfo}</div>`;
+                // Construire les infos de bon/BSD
+                let bonBsdInfo = '';
+                if (detailItem) {
+                    const parts: string[] = [];
+                    if (detailItem.pdf_num_bon) {
+                        parts.push(`Bon PDF: ${detailItem.pdf_num_bon}`);
+                    }
+                    if (detailItem.candidate_num_bon && detailItem.pdf_num_bon === detailItem.candidate_num_bon) {
+                        parts.push(`Bon candidat: ${detailItem.candidate_num_bon}`);
+                    } else if (detailItem.candidate_num_bon) {
+                        parts.push(`Bon candidat: ${detailItem.candidate_num_bon}`);
+                    }
+                    if (detailItem.candidate_num_bsd && !detailItem.candidate_num_bon) {
+                        parts.push(`BSD: ${detailItem.candidate_num_bsd}`);
+                    }
+                    if (parts.length > 0) {
+                        bonBsdInfo = ` <span class="text-xs text-gray-500">(${parts.join(', ')})</span>`;
+                    }
+                }
+                
+                return `<div class="ml-4 mb-1 text-sm">• Déchet #${action.index + 1}: ${actionLabel}${bonBsdInfo}${formattedPdfDate ? ` <span class="text-xs text-gray-400">(${formattedPdfDate})</span>` : ''}</div>`;
             }).join('');
             
             return `
@@ -1345,30 +1463,47 @@ export const handleAutoLinkSelected = async (
 
         // Mettre à jour les résultats avec les actions réelles
         const finalResults: ProcessingResult[] = [];
-        realOutcome.results.forEach(item => {
+        for (const item of realOutcome.results) {
             const originalPdf = pdfInfos.find(pdf => pdf.id === item.pdfId);
-            const autoLinkDetails = (item.results || []).map(r => ({
-                index: r.index_dechet,
-                performed: r.performed,
-                bsd_id: r.bsd_id
-            }));
+            const oldestDate = extractOldestDate(originalPdf);
+            
+            // Construire les détails avec infos de bon/BSD
+            const autoLinkDetails = await Promise.all(
+                (item.results || []).map(async r => {
+                    const pdfNumBon = extractPdfNumBon(originalPdf, r.index_dechet);
+                    const candidateInfo = await getCandidateInfo(r.bsd_id, parseInt(entreprise_id));
+                    
+                    return {
+                        index: r.index_dechet,
+                        performed: r.performed,
+                        bsd_id: r.bsd_id,
+                        pdf_num_bon: pdfNumBon,
+                        candidate_num_bon: candidateInfo.num_bon,
+                        candidate_num_bsd: candidateInfo.num_bsd
+                    };
+                })
+            );
+            
             finalResults.push({
                 pdfId: item.pdfId,
                 success: item.success,
                 message: item.message,
                 originalPdfName: originalPdf?.name_pdf || 'Inconnu',
-                autoLinkDetails
+                autoLinkDetails,
+                oldestDate
             });
-        });
+        }
 
         realOutcome.errors.forEach(err => {
             const originalPdf = pdfInfos.find(pdf => pdf.id === err.pdfId);
+            const oldestDate = extractOldestDate(originalPdf);
             finalResults.push({
                 pdfId: err.pdfId,
                 success: false,
                 message: err.error,
                 error: err.error,
-                originalPdfName: originalPdf?.name_pdf || 'Inconnu'
+                originalPdfName: originalPdf?.name_pdf || 'Inconnu',
+                oldestDate
             });
         });
 
