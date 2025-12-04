@@ -36,6 +36,8 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
   const [derivedDefs, setDerivedDefs] = useState<DerivedColumnDef[]>([]);
   const [columnMappings, setColumnMappings] = useState<{[key: string]: string}>({});
   const [clickedColumn, setClickedColumn] = useState<string | null>(null);
+  const [clickedColumnForType, setClickedColumnForType] = useState<string | null>(null); // Colonne pour changer le type
+  const [columnTypeOverrides, setColumnTypeOverrides] = useState<Record<string, string>>({}); // Overrides de types par colonne
   const [displayingMergedPattern, setDisplayingMergedPattern] = useState<{
     pattern: ColumnPattern;
     rows: ExcelRow[];
@@ -488,6 +490,52 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
     setClickedColumn(null);
   };
 
+  // Fonction pour obtenir le type effectif d'une colonne (avec override si présent)
+  const getEffectiveColumnType = (columnName: string, originalPattern: ColumnPattern): string => {
+    // Clé unique pour identifier la colonne dans le contexte actuel
+    const overrideKey = displayingMergedPattern 
+      ? `merged_${columnName}` 
+      : `pattern_${adjustedSelectedIndex}_${columnName}`;
+    
+    return columnTypeOverrides[overrideKey] || originalPattern[columnName] || 'text';
+  };
+
+  // Fonction pour changer le type d'une colonne
+  const changeColumnType = (columnName: string, newType: string) => {
+    // Clé unique pour identifier la colonne dans le contexte actuel
+    const overrideKey = displayingMergedPattern 
+      ? `merged_${columnName}` 
+      : `pattern_${adjustedSelectedIndex}_${columnName}`;
+    
+    // Mettre à jour les overrides
+    setColumnTypeOverrides(prev => ({
+      ...prev,
+      [overrideKey]: newType
+    }));
+
+    // Si c'est un pattern fusionné, mettre à jour aussi l'objet displayingMergedPattern
+    if (displayingMergedPattern) {
+      const updatedPattern = { ...displayingMergedPattern.pattern };
+      updatedPattern[columnName] = newType as ColumnPattern[string];
+      setDisplayingMergedPattern({
+        ...displayingMergedPattern,
+        pattern: updatedPattern
+      });
+    }
+
+    setClickedColumnForType(null);
+  };
+
+  // Types disponibles pour les colonnes
+  const availableTypes: Array<{ value: string; label: string; icon: string }> = [
+    { value: 'text', label: 'Texte', icon: '📝' },
+    { value: 'number', label: 'Nombre', icon: '🔢' },
+    { value: 'date', label: 'Date', icon: '📅' },
+    { value: 'boolean', label: 'Booléen', icon: '✅' },
+    { value: 'id', label: 'ID', icon: '🆔' },
+    { value: 'null', label: 'Vide', icon: '⚪' }
+  ];
+
   // Fonction pour toggle le dropdown de mapping
   const toggleMappingDropdown = (columnName: string) => {
     if (clickedColumn === columnName) {
@@ -647,6 +695,12 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
     const columns = [...baseColumns, ...derivedColumnNames];
     const headerRow = headerPatternIndex !== null ? getHeaderRow(headerPatternIndex) : null;
     
+    // Créer un pattern avec les types effectifs (incluant les overrides)
+    const effectivePattern: ColumnPattern = {};
+    baseColumns.forEach(col => {
+      effectivePattern[col] = getEffectiveColumnType(col, pattern) as ColumnPattern[string];
+    });
+    
     return (
       <div className="h-full border border-gray-200 rounded-lg bg-white shadow-sm">
         <div className="h-full overflow-auto">
@@ -674,12 +728,32 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
                       }`}
                     >
                       <div 
-                        className="flex items-center gap-1 cursor-pointer"
-                        onClick={(e) => { if (showStep2) { e.stopPropagation(); toggleMappingDropdown(displayName); } }}
-                        title={showStep2 ? "Clic pour voir les suggestions de mapping" : `Colonne: ${columnName}`}
+                        className="flex items-center gap-1"
                       >
-                        <span className="text-sm">{pattern[columnName] ? getTypeIcon(pattern[columnName]) : '🧮'}</span>
-                        <span className="truncate font-medium">
+                        {/* Icône de type cliquable pour changer le type */}
+                        <span 
+                          className="text-sm cursor-pointer hover:bg-gray-200 rounded px-1 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (clickedColumnForType === columnName) {
+                              setClickedColumnForType(null);
+                            } else {
+                              setClickedColumnForType(columnName);
+                              setClickedColumn(null); // Fermer le dropdown de mapping si ouvert
+                            }
+                          }}
+                          title="Clic pour changer le type de cette colonne"
+                        >
+                          {(() => {
+                            const effectiveType = getEffectiveColumnType(columnName, pattern);
+                            return effectiveType ? getTypeIcon(effectiveType) : '🧮';
+                          })()}
+                        </span>
+                        <span 
+                          className="truncate font-medium cursor-pointer"
+                          onClick={(e) => { if (showStep2) { e.stopPropagation(); toggleMappingDropdown(displayName); } }}
+                          title={showStep2 ? "Clic pour voir les suggestions de mapping" : `Colonne: ${columnName}`}
+                        >
                           {finalDisplayName}
                         </span>
                         {headerRow && headerRow[columnName] && (
@@ -711,6 +785,85 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
                         </button>
                       )}
                       
+                      {/* Menu pour changer le type - affiché pour la colonne cliquée */}
+                      {clickedColumnForType === columnName && (() => {
+                        const effectiveType = getEffectiveColumnType(columnName, pattern);
+                        const originalType = pattern[columnName] || 'text';
+                        const isOverridden = effectiveType !== originalType;
+                        return (
+                          <div 
+                            className="absolute top-full left-0 z-30 mt-1 bg-white border border-gray-300 rounded shadow-lg min-w-[200px]" 
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="p-2 border-b">
+                              <div className="text-xs font-medium text-gray-700 mb-1">Changer le type de la colonne</div>
+                              <div className="text-[10px] text-gray-500">
+                                Type actuel: {effectiveType}
+                                {isOverridden && <span className="text-blue-600 ml-1">(forcé depuis {originalType})</span>}
+                              </div>
+                            </div>
+                            <div className="max-h-48 overflow-auto">
+                              {availableTypes.map((type) => {
+                                const isCurrentType = type.value === effectiveType;
+                                return (
+                                  <button
+                                    key={type.value}
+                                    onClick={() => changeColumnType(columnName, type.value)}
+                                    disabled={isCurrentType}
+                                    className={`w-full text-left px-2 py-1.5 text-xs transition-colors flex items-center gap-2 ${
+                                      isCurrentType 
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                        : 'text-gray-700 hover:bg-blue-50'
+                                    }`}
+                                  >
+                                    <span className="text-sm">{type.icon}</span>
+                                    <span>{type.label}</span>
+                                    {isCurrentType && <span className="ml-auto text-[10px]">(actuel)</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {isOverridden && (
+                              <div className="border-t p-1">
+                                <button
+                                  onClick={() => {
+                                    // Supprimer l'override pour revenir au type original
+                                    const overrideKey = displayingMergedPattern 
+                                      ? `merged_${columnName}` 
+                                      : `pattern_${adjustedSelectedIndex}_${columnName}`;
+                                    setColumnTypeOverrides(prev => {
+                                      const newOverrides = { ...prev };
+                                      delete newOverrides[overrideKey];
+                                      return newOverrides;
+                                    });
+                                    if (displayingMergedPattern) {
+                                      const updatedPattern = { ...displayingMergedPattern.pattern };
+                                      updatedPattern[columnName] = originalType as ColumnPattern[string];
+                                      setDisplayingMergedPattern({
+                                        ...displayingMergedPattern,
+                                        pattern: updatedPattern
+                                      });
+                                    }
+                                    setClickedColumnForType(null);
+                                  }}
+                                  className="w-full text-left px-2 py-1 text-xs text-orange-600 hover:bg-orange-50"
+                                >
+                                  ↺ Réinitialiser au type original ({originalType})
+                                </button>
+                              </div>
+                            )}
+                            <div className="border-t p-1">
+                              <button
+                                onClick={() => setClickedColumnForType(null)}
+                                className="w-full text-left px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                              >
+                                Annuler
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {/* Menu de mapping - affiché seulement pour la colonne cliquée */}
                       {showStep2 && clickedColumn === displayName && (() => {
                         const filteredFields = Object.keys(columnMappingDictionary)
@@ -823,7 +976,11 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
                     {columns.map((columnName) => {
                       const derived = derivedDefs.find((d) => d.name === columnName);
                       let value: unknown = row[columnName];
-                      let type: string = pattern[columnName] || 'number';
+                      // Utiliser le type effectif (avec override) pour les colonnes de base
+                      const baseType = baseColumns.includes(columnName) 
+                        ? getEffectiveColumnType(columnName, pattern)
+                        : (pattern[columnName] || 'number');
+                      let type: string = baseType;
                       if (derived) {
                         if (derived.kind === 'formula') {
                           // Utiliser le même mapping que dans l'étape 3
@@ -1689,7 +1846,7 @@ const MetaExcel: React.FC<MetaExcelProps> = ({ data, isOpen, onClose }) => {
           </div>
 
         {/* Tableau des données */}
-        <div className="flex-1 min-h-[300px]" onClick={closeMappingDropdown}>
+        <div className="flex-1 min-h-[300px]" onClick={() => { closeMappingDropdown(); setClickedColumnForType(null); }}>
           {displayingMergedPattern ? 
             renderDataTable(
               displayingMergedPattern.rows, 

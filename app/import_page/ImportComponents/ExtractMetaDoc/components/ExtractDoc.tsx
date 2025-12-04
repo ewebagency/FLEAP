@@ -182,13 +182,16 @@ interface ExtractDocProps {
     pdf_id: string | number;
     pdf_path: string;
     pdf_status?: string;
+    pdf_name?: string; // Nom du fichier pour affichage dans le header
     autoOpen?: boolean;
     onClose?: () => void;
     onSave?: (formData: DocInterface) => void;
     openedFromLoopStarter?: boolean; // Pour afficher le bouton RAG
+    filteredPdfIds?: (string | number)[]; // Liste des IDs des PDFs filtrés pour la navigation
+    onNavigateToPdf?: (pdfId: string | number, pdfPath: string) => void; // Callback pour naviguer vers un autre PDF
 }
 
-const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, openedFromLoopStarter = false }: ExtractDocProps) => {
+const ExtractDoc = ({ pdf_id, pdf_path, pdf_name, autoOpen = false, onClose, onSave, openedFromLoopStarter = false, filteredPdfIds, onNavigateToPdf }: ExtractDocProps) => {
     const [isOpen, setIsOpen] = useState(autoOpen);
     const { entreprise_id } = useSession();
     const [existingDataRaw, setExistingDataRaw] = useState<DocInterface | null>(null);
@@ -201,10 +204,20 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
     const [showNegociant, setShowNegociant] = useState(false);
     const [forceImage, setForceImage] = useState(false);
     const [ragId, setRagId] = useState<string | null>(null);
+    // État pour le pdf_path (peut changer lors de la navigation)
+    const [currentPdfPath, setCurrentPdfPath] = useState(pdf_path);
+
+    // Nom de fichier affiché (utilisé dans le header et le formulaire)
+    const displayedFileName = useMemo(() => {
+        if (pdf_name && pdf_name.trim().length > 0) return pdf_name;
+        if (!currentPdfPath) return '';
+        const parts = currentPdfPath.split('/');
+        return parts[parts.length - 1] || currentPdfPath;
+    }, [pdf_name, currentPdfPath]);
 
     // Clés de persistance
     const formStorageKey = `extractDoc:form:${String(pdf_id)}`;
-    const pdfUrlStorageKey = `extractDoc:pdfUrl:${pdf_path}`;
+    const pdfUrlStorageKey = `extractDoc:pdfUrl:${currentPdfPath}`;
 
     // Fonction pour recharger uniquement id_rag depuis la BDD
     const reloadRagId = useCallback(async () => {
@@ -261,6 +274,11 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                     setRagId(null);
                 }
 
+                // Mettre à jour le pdf_path depuis la BDD (important pour la navigation)
+                if (data.name_pdf_in_bucket) {
+                    setCurrentPdfPath(data.name_pdf_in_bucket);
+                }
+
                 // Charger infos_raw telle quelle, sans écraser site_raw/presta_raw ici
                 if (data.infos_raw) {
                     setExistingDataRaw(data.infos_raw as DocInterface);
@@ -275,12 +293,29 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         } catch (error) {
             console.error('Error loading existing data:', error);
         }
-    }, [pdf_id]);
+    }, [pdf_id, openedFromLoopStarter]);
+    
+    // Mettre à jour currentPdfPath quand pdf_path change (prop externe)
+    useEffect(() => {
+        setCurrentPdfPath(pdf_path);
+    }, [pdf_path]);
+
+    // Réfs pour le suivi du chargement par PDF
+    // hasLoadedDataRef : indique pour quel pdf_id les données ont été réellement chargées
+    // previousPdfIdRef : permet de détecter un changement de PDF
+    const hasLoadedDataRef = useRef<string | number | null>(null);
+    const previousPdfIdRef = useRef<string | number | null>(null);
 
     // Sauvegarde automatique du formulaire dans localStorage
     // PRIORITÉ au ref (modifications en cours) sur existingData pour éviter d'écraser les modifications
     useEffect(() => {
         if (!isOpen) return;
+
+        // IMPORTANT : si les données actuellement en mémoire appartiennent à un AUTRE pdf_id,
+        // ne rien sauvegarder dans le localStorage de ce nouveau PDF (sinon fuite de données).
+        if (hasLoadedDataRef.current !== null && hasLoadedDataRef.current !== pdf_id) {
+            return;
+        }
         
         // Sauvegarder le ref en priorité (contient les modifications les plus récentes)
         if (currentFormRef.current) {
@@ -300,10 +335,28 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                 // ignore storage errors
             }
         }
-    }, [existingData, formStorageKey, isOpen]);
-
-    // Charger les données depuis localStorage en priorité, puis depuis la BDD seulement si pas de modifications locales
-    const hasLoadedDataRef = useRef<string | number | null>(null);
+    }, [existingData, formStorageKey, isOpen, pdf_id]);
+    
+    // CRITIQUE : Réinitialiser les états quand pdf_id change pour éviter d'afficher les données du PDF précédent
+    useEffect(() => {
+        // Si le pdf_id a changé, réinitialiser tous les états liés aux données
+        if (previousPdfIdRef.current !== null && previousPdfIdRef.current !== pdf_id) {
+            console.log('🔄 Changement de PDF détecté, réinitialisation des états:', {
+                ancien: previousPdfIdRef.current,
+                nouveau: pdf_id
+            });
+            
+            // Réinitialiser les états pour éviter d'afficher les données du PDF précédent
+            setExistingDataRaw(null);
+            setDocumentType(null);
+            setConfidenceData(null);
+            setAlerteData(null);
+            currentFormRef.current = null;
+            hasLoadedDataRef.current = null; // Forcer le rechargement pour le nouveau PDF
+        }
+        
+        previousPdfIdRef.current = pdf_id;
+    }, [pdf_id]);
     
     useEffect(() => {
         if (!isOpen) {
@@ -744,7 +797,21 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         return errors;
     };
 
-    const FormulaireExtractDoc = ({ onSave, onChange, showRagButton, forceImage }: { onSave: (formData: DocInterface) => Promise<void>; onChange?: (formData: DocInterface) => void; showRagButton?: boolean; forceImage: boolean }) => {
+    const FormulaireExtractDoc = ({ 
+        onSave, 
+        onChange, 
+        showRagButton, 
+        forceImage, 
+        fileName,
+        dataIsFromCurrentPdf,
+    }: { 
+        onSave: (formData: DocInterface) => Promise<void>; 
+        onChange?: (formData: DocInterface) => void; 
+        showRagButton?: boolean; 
+        forceImage: boolean; 
+        fileName?: string;
+        dataIsFromCurrentPdf: boolean;
+    }) => {
         // Initialiser depuis localStorage en priorité pour préserver les modifications
         const [formData, setFormData] = useState<DocInterface>(() => {
             // PRIORITÉ 1: Charger depuis localStorage si disponible (pour préserver les modifications)
@@ -763,12 +830,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                 // ignore
             }
             
-            // PRIORITÉ 2: Utiliser existingData si disponible
-            if (existingData) {
-                return existingData;
-            }
-            
-            // PRIORITÉ 3: Créer un formulaire vide selon le type de document
+            // PRIORITÉ 2: Créer un formulaire vide selon le type de document
             const baseData = {
                 type_doc: documentType || "bon",
                 site_raw: '',
@@ -966,14 +1028,15 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
             
             // Synchroniser seulement si :
             // 1. existingData existe
-            // 2. L'utilisateur n'a pas encore modifié le formulaire
-            // 3. On n'a PAS de données dans localStorage (pas de modifications à préserver)
-            if (existingData && !hasUserModifiedForm.current) {
+            // 2. Les données appartiennent bien au pdf_id courant (dataIsFromCurrentPdf)
+            // 3. L'utilisateur n'a pas encore modifié le formulaire
+            // 4. On n'a PAS de données dans localStorage (pas de modifications à préserver)
+            if (existingData && dataIsFromCurrentPdf && !hasUserModifiedForm.current) {
                 setFormData(existingData);
                 currentFormRef.current = existingData as unknown as Record<string, unknown>;
                 hasValidatedInitial.current = false;
             }
-        }, [existingData, pdf_id, hasLocalStorageData]);
+        }, [existingData, pdf_id, hasLocalStorageData, dataIsFromCurrentPdf]);
 
         // Valider automatiquement UNE SEULE FOIS au chargement initial (pour afficher les erreurs existantes)
         useEffect(() => {
@@ -1659,8 +1722,10 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
         return (
             <div className="h-full overflow-y-auto p-1 bg-gray-50">
                 <div className="mb-3">
-                    <h2 className="text-lg font-bold text-gray-800 mb-2">
-                        Extraction Document - {documentType?.toUpperCase() || 'Type inconnu'}
+                    <h2 className="text-base font-semibold text-gray-800 mb-2">
+                        {fileName && fileName.trim().length > 0
+                            ? fileName
+                            : (documentType?.toUpperCase() || 'Document')}
                     </h2>
                     
                     {/* Sélecteur de type de document */}
@@ -1954,6 +2019,54 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                         )}
                     </div>
                         
+                    {/* Section Déchets */}
+                    <div className="bg-white rounded-lg p-2 mb-1 shadow-sm">
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="text-base font-semibold text-green-600">Déchets</h3>
+                            <div className="flex items-center gap-2">
+                                {documentType === "facture" && formData.dechet.length > 1 && (
+                                    <label className="flex items-center text-xs text-gray-700">
+                                        <input
+                                            type="checkbox"
+                                            onChange={(e) => {
+                                                if (e.target.checked && formData.dechet.length > 0) {
+                                                    const factureData = formData as DocFactureInterface;
+                                                    const firstDechet = factureData.dechet[0];
+                                                    const nom_site_ref = firstDechet.nom_site || '';
+                                                    const adresse_site_ref = firstDechet.adresse_site || '';
+                                                    
+                                                    const updatedDechet = factureData.dechet.map((d, i) => 
+                                                        i === 0 ? d : {
+                                                            ...d,
+                                                            nom_site: nom_site_ref,
+                                                            adresse_site: adresse_site_ref
+                                                        }
+                                                    );
+                                                    handleInputChange('dechet', updatedDechet);
+                                                }
+                                            }}
+                                            className="mr-1"
+                                        />
+                                        Même site pour tous
+                                    </label>
+                                )}
+                            <button
+                                type="button"
+                                onClick={addDechet}
+                                className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
+                            >
+                                Ajouter un déchet
+                            </button>
+                            </div>
+                        </div>
+                        
+                        {formData.dechet.length === 0 ? (
+                            <p className="text-gray-500 text-center py-2 text-sm">Aucun déchet ajouté</p>
+                        ) : (
+                            formData.dechet.map((dechet, index) => renderDechetFields(dechet, index))
+                        )}
+                    </div>
+
                     {/* Section BSD Acteurs */}
                     {documentType === "bsd" && (
                         <div className="bg-white rounded-lg p-2 mb-1 shadow-sm">
@@ -2055,60 +2168,12 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                         </div>
                     )}
 
-                    {/* Section Déchets */}
-                    <div className="bg-white rounded-lg p-2 mb-1 shadow-sm">
-                        <div className="flex justify-between items-center mb-2">
-                            <h3 className="text-base font-semibold text-green-600">Déchets</h3>
-                            <div className="flex items-center gap-2">
-                                {documentType === "facture" && formData.dechet.length > 1 && (
-                                    <label className="flex items-center text-xs text-gray-700">
-                                        <input
-                                            type="checkbox"
-                                            onChange={(e) => {
-                                                if (e.target.checked && formData.dechet.length > 0) {
-                                                    const factureData = formData as DocFactureInterface;
-                                                    const firstDechet = factureData.dechet[0];
-                                                    const nom_site_ref = firstDechet.nom_site || '';
-                                                    const adresse_site_ref = firstDechet.adresse_site || '';
-                                                    
-                                                    const updatedDechet = factureData.dechet.map((d, i) => 
-                                                        i === 0 ? d : {
-                                                            ...d,
-                                                            nom_site: nom_site_ref,
-                                                            adresse_site: adresse_site_ref
-                                                        }
-                                                    );
-                                                    handleInputChange('dechet', updatedDechet);
-                                                }
-                                            }}
-                                            className="mr-1"
-                                        />
-                                        Même site pour tous
-                                    </label>
-                                )}
-                            <button
-                                type="button"
-                                onClick={addDechet}
-                                className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
-                            >
-                                Ajouter un déchet
-                            </button>
-                            </div>
-                        </div>
-                        
-                        {formData.dechet.length === 0 ? (
-                            <p className="text-gray-500 text-center py-2 text-sm">Aucun déchet ajouté</p>
-                        ) : (
-                            formData.dechet.map((dechet, index) => renderDechetFields(dechet, index))
-                        )}
-                    </div>
-
                     {/* Boutons d'action */}
                     <div className="flex justify-end gap-2">
                         {showRagButton && (
                             <Push2RAGButton 
                                 pdfId={String(pdf_id)}
-                                pdfPath={pdf_path}
+                                pdfPath={currentPdfPath}
                                 docData={formData as unknown as Record<string, unknown>}
                                 documentType={formData.type_doc}
                                 disabled={false}
@@ -2139,11 +2204,115 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
     };
 
     const ModalExtractDoc = () => {
+        // Sauvegarde silencieuse avant navigation (sans fermer le modal)
+        const saveCurrentFormSilently = useCallback(async () => {
+            const current = currentFormRef.current;
+            if (!current || !isDocInterface(current)) {
+                return;
+            }
+
+            const formData = current;
+            try {
+                const { error } = await supabase
+                    .from('pdf_infos')
+                    .update({
+                        infos_raw: formData
+                    })
+                    .eq('id', String(pdf_id))
+                    .eq('entreprise_id', entreprise_id);
+
+                if (error) {
+                    console.error('Error auto-saving data before navigation:', error);
+                    return;
+                }
+
+                // Mettre à jour l'état local et persister dans le localStorage
+                setExistingDataRaw(formData);
+                try {
+                    localStorage.setItem(formStorageKey, JSON.stringify(formData));
+                } catch {
+                    // ignore storage errors
+                }
+            } catch (e) {
+                console.error('Unexpected error during auto-save before navigation:', e);
+            }
+        }, [pdf_id, entreprise_id, formStorageKey]);
+
+        // Calculer l'index actuel dans la liste filtrée
+        const currentIndex = useMemo(() => {
+            if (!filteredPdfIds || filteredPdfIds.length === 0) return -1;
+            const index = filteredPdfIds.findIndex(id => String(id) === String(pdf_id));
+            return index;
+        }, [filteredPdfIds, pdf_id]);
+
+        // Fonction pour naviguer vers le PDF précédent
+        const navigateToPrevious = useCallback(async () => {
+            if (!filteredPdfIds || !onNavigateToPdf || currentIndex <= 0) return;
+            // Sauvegarder automatiquement avant de changer de document
+            await saveCurrentFormSilently();
+
+            const previousIndex = currentIndex - 1;
+            const previousPdfId = filteredPdfIds[previousIndex];
+            // Le path sera récupéré par LoopStarter
+            onNavigateToPdf(previousPdfId, '');
+        }, [filteredPdfIds, onNavigateToPdf, currentIndex, saveCurrentFormSilently]);
+
+        // Fonction pour naviguer vers le PDF suivant
+        const navigateToNext = useCallback(async () => {
+            if (!filteredPdfIds || !onNavigateToPdf || currentIndex < 0 || currentIndex >= filteredPdfIds.length - 1) return;
+            // Sauvegarder automatiquement avant de changer de document
+            await saveCurrentFormSilently();
+
+            const nextIndex = currentIndex + 1;
+            const nextPdfId = filteredPdfIds[nextIndex];
+            // Le path sera récupéré par LoopStarter
+            onNavigateToPdf(nextPdfId, '');
+        }, [filteredPdfIds, onNavigateToPdf, currentIndex, saveCurrentFormSilently]);
+
+        const canNavigatePrevious = filteredPdfIds && currentIndex > 0;
+        const canNavigateNext = filteredPdfIds && currentIndex >= 0 && currentIndex < filteredPdfIds.length - 1;
+
         return (
             <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-lg w-full h-[95vh] max-w-[95vw] relative">
-                    {/* Header avec bouton de fermeture */}
-                    <div className="absolute top-0 right-0 p-4 z-10">
+                    {/* Header avec navigation et fermeture (côté droit) */}
+                    <div className="absolute top-0 right-0 p-3 z-10 flex items-center gap-2">
+                            {/* Boutons de navigation */}
+                        {filteredPdfIds && filteredPdfIds.length > 1 && (
+                            <div className="flex items-center gap-1 bg-white rounded-lg shadow-sm border border-gray-200">
+                                <button
+                                    onClick={navigateToPrevious}
+                                    disabled={!canNavigatePrevious}
+                                    className={`p-2 rounded-l-lg transition-colors ${
+                                        canNavigatePrevious
+                                            ? 'text-gray-700 hover:bg-gray-100 hover:text-blue-600'
+                                            : 'text-gray-300 cursor-not-allowed'
+                                    }`}
+                                    title="PDF précédent (sauvegarde automatique avant changement)"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                </button>
+                                <div className="px-2 py-1 text-xs text-gray-600 border-x border-gray-200">
+                                    {currentIndex >= 0 ? `${currentIndex + 1} / ${filteredPdfIds.length}` : '-'}
+                                </div>
+                                <button
+                                    onClick={navigateToNext}
+                                    disabled={!canNavigateNext}
+                                    className={`p-2 rounded-r-lg transition-colors ${
+                                        canNavigateNext
+                                            ? 'text-gray-700 hover:bg-gray-100 hover:text-blue-600'
+                                            : 'text-gray-300 cursor-not-allowed'
+                                    }`}
+                                    title="PDF suivant (sauvegarde automatique avant changement)"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </button>
+                            </div>
+                        )}
                         <button
                             onClick={() => {
                                 setIsOpen(false);
@@ -2203,7 +2372,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                             />
                             <Push2RAGButton 
                                 pdfId={pdf_id}
-                                pdfPath={pdf_path}
+                                pdfPath={currentPdfPath}
                                 docDataRef={currentFormRef}
                                 documentType={documentType || 'inconnu'}
                                 disabled={!currentFormRef.current}
@@ -2262,11 +2431,13 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                     {/* Contenu principal */}
                     <div className="flex h-full p-4 gap-4 pt-16">
                         <div className="w-1/2 h-full">
-                            <DisplayDocPDF pdf_path={pdf_path}/>
+                            <DisplayDocPDF pdf_path={currentPdfPath}/>
                         </div>
                         <div className="w-1/2 h-full flex flex-col">
                             <div className="flex-1 overflow-y-auto">
+                                {/* key sur pdf_id pour forcer un remontage complet du formulaire à chaque changement de document */}
                                 <FormulaireExtractDoc 
+                                    key={String(pdf_id)}
                                     onSave={handleSave} 
                                     onChange={(fd) => { 
                                         // Mettre à jour seulement le ref pour éviter les re-renders
@@ -2282,6 +2453,8 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                     }} 
                                     showRagButton={openedFromLoopStarter} 
                                     forceImage={forceImage}
+                                    fileName={displayedFileName}
+                                    dataIsFromCurrentPdf={hasLoadedDataRef.current === pdf_id}
                                 />
                             </div>
                             
@@ -2291,7 +2464,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, autoOpen = false, onClose, onSave, opene
                                     ragId={ragId}
                                     documentType={documentType}
                                     pdfId={pdf_id}
-                                    pdfPath={pdf_path}
+                                    pdfPath={currentPdfPath}
                                     onReloadRagId={reloadRagId}
                                 />
                             </div>

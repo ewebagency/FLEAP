@@ -304,6 +304,7 @@ export default function MappingSection({
                                                     pdf_id={item.pdfId}
                                                     pdf_path={item.pdf_path}
                                                     pdf_status={item.pdf_status}
+                                                    pdf_name={item.pdf_name}
                                                 />
                                             )}
                                         </div>

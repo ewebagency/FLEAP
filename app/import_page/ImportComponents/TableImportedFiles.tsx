@@ -618,6 +618,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                                     pdf_id={pdf.id}
                                                     pdf_path={pdf.name_pdf_in_bucket}
                                                     pdf_status={pdf.status}
+                                                    pdf_name={pdf.name_pdf}
                                                 />
                                                 {pdf.alerte && (pdf.alerte as {stop?: boolean}).stop && (
                                                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>

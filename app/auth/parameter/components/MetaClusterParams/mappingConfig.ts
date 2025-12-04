@@ -92,6 +92,7 @@ export interface RawValue {
     pdf_id: string;
     pdf_path?: string; // name_pdf_in_bucket pour ExtractDoc
     pdf_status?: string; // status pour ExtractDoc
+    pdf_name?: string; // nom du fichier pour affichage dans ExtractDoc
 }
 
 export interface Mapping {

@@ -343,7 +343,7 @@ async def extract_gemini_multi_page(raw_text: str, potential_json_from_ocr: Dict
         num_pages = len(pages)
         
         # 2. Vérifier si le document a plus de 4 pages
-        if num_pages <= 4:
+        if num_pages <= 3:
             print(f"📄 Document de {num_pages} pages -> Pas besoin de multi-page processing")
             return await extract_gemini(raw_text, prompt)
         

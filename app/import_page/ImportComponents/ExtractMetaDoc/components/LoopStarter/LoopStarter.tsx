@@ -131,6 +131,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const [manualExtractPdfId, setManualExtractPdfId] = useState<string | null>(null);
     const [manualExtractPdfData, setManualExtractPdfData] = useState<PdfInfo | null>(null);
     const [loadingManualPdf, setLoadingManualPdf] = useState(false);
+    // Dernier PDF ouvert/extrait (pour surlignage dans le tableau)
+    const [lastOpenedPdfId, setLastOpenedPdfId] = useState<string | null>(null);
     
     // Modal d'association des mots-clés
     const [showAssociationModal, setShowAssociationModal] = useState(false);
@@ -1271,7 +1273,11 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                             return (
                                             <tr
                                                 key={pdf.id}
-                                                className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                                                className={`border-b transition-colors ${
+                                                    (lastOpenedPdfId && String(pdf.id) === String(lastOpenedPdfId))
+                                                        ? 'bg-blue-100 border-blue-400'
+                                                        : 'border-gray-50 hover:bg-gray-50'
+                                                }`}
                                             >
                                                     {/* 1. Checkbox */}
                                                     <td className="px-2 py-2 pt-3" style={{ display: shouldShowColumn(1) ? '' : 'none' }}>
@@ -1504,7 +1510,10 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                     {/* 18. Actions */}
                                                     <td className="px-2 py-2" style={{ display: shouldShowColumn(18) ? '' : 'none' }}>
                                                         <button
-                                                            onClick={() => setManualExtractPdfId(pdf.id)}
+                                                            onClick={() => {
+                                                                setManualExtractPdfId(pdf.id);
+                                                                setLastOpenedPdfId(pdf.id);
+                                                            }}
                                                             className="text-xs px-2 py-1 bg-blue-500 text-white rounded-sm hover:bg-blue-600 transition-colors flex items-center gap-1"
                                                             title="Extraire les données de ce document"
                                                         >
@@ -2009,6 +2018,25 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                             name_pdf_in_bucket: blocking.name_pdf_in_bucket,
                             pdf_path: blocking.pdf_path
                         });
+                        // Mémoriser ce PDF comme le dernier ouvert
+                        setLastOpenedPdfId(String(blocking.id));
+                        
+                        // Fonction pour naviguer vers un autre PDF
+                        const handleNavigateToPdf = (newPdfId: string | number, _pdfPath: string) => {
+                            // Trouver le PDF dans filteredPdfs ou pdfInfos
+                            const targetPdf = filteredPdfs.find(p => String(p.id) === String(newPdfId)) 
+                                || pdfInfos.find(p => String(p.id) === String(newPdfId));
+                            
+                            if (targetPdf) {
+                                setPausedPdfId(String(targetPdf.id));
+                                setLastOpenedPdfId(String(targetPdf.id));
+                                // Le composant ExtractDoc se rechargera automatiquement avec le nouveau PDF
+                                // Le pdf_path sera rechargé depuis la BDD dans loadExistingData
+                            }
+                        };
+                        
+                        // Créer la liste des IDs filtrés pour la navigation
+                        const filteredPdfIds = filteredPdfs.map(p => p.id);
                         const handleResume = async () => {
                             let didPause = false;
                             try {
@@ -2157,8 +2185,11 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                             <ExtractDoc
                                 pdf_id={pausedPdfId}
                                 pdf_path={blocking.name_pdf_in_bucket}
+                                pdf_name={blocking.name_pdf}
                                 autoOpen={true}
                                 openedFromLoopStarter={true}
+                                filteredPdfIds={filteredPdfIds}
+                                onNavigateToPdf={handleNavigateToPdf}
                                 onClose={() => {
                                     setShowExtractModal(false);
                                     setPaused(false);
@@ -2189,14 +2220,30 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
 
                 // Utiliser les données chargées (locales ou depuis la BDD)
                 if (!manualExtractPdfData) return null;
+
+                // Navigation dans les PDFs filtrés (mêmes filtres que dans le tableau)
+                const filteredPdfIds = filteredPdfs.map(p => p.id);
+                const handleNavigateToPdf = (newPdfId: string | number, _pdfPath: string) => {
+                    const targetPdf = filteredPdfs.find(p => String(p.id) === String(newPdfId))
+                        || pdfInfos.find(p => String(p.id) === String(newPdfId));
+
+                    if (targetPdf) {
+                        setManualExtractPdfId(String(targetPdf.id));
+                        setManualExtractPdfData(targetPdf);
+                        setLastOpenedPdfId(String(targetPdf.id));
+                    }
+                };
                 
                 return (
                     <div className="fixed inset-0 z-[60]">
                         <ExtractDoc
                             pdf_id={manualExtractPdfId}
                             pdf_path={manualExtractPdfData.name_pdf_in_bucket}
+                            pdf_name={manualExtractPdfData.name_pdf}
                             autoOpen={true}
-                            openedFromLoopStarter={false}
+                            openedFromLoopStarter={true}
+                            filteredPdfIds={filteredPdfIds}
+                            onNavigateToPdf={handleNavigateToPdf}
                             onClose={() => {
                                 setManualExtractPdfId(null);
                                 setManualExtractPdfData(null);
