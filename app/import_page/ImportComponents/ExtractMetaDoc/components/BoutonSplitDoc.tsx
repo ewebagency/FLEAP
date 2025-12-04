@@ -69,7 +69,7 @@ export default function BoutonSplitDoc({
                         Division en cours...
                     </div>
                 ) : (
-                    'Split'
+                    'Diviser'
                 )}
             </button>
             

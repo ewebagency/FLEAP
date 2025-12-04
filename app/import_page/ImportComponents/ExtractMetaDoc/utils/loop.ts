@@ -2,6 +2,7 @@ import { runMetaOcrForPdf } from './extract';
 import { splitPdfByPages } from './split';
 import { getPdfInfoById } from './bdd';
 import { PdfInfo } from '../interface/pdf_interface';
+import { createRagPlaceholder } from './rag';
 
 interface LoopResult {
     success: boolean;
@@ -32,7 +33,8 @@ const isCriticalBackendError = (errorCode: string | undefined): boolean => {
 export const processPdfList = async (
     pdfIds: string[],
     entrepriseId: number,
-    mode: 'split_then_extract' | 'split_only' | 'extract_only' = 'split_then_extract'
+    mode: 'split_then_extract' | 'split_only' | 'extract_only' = 'split_then_extract',
+    enable_rag: boolean = false
 ): Promise<LoopResult> => {
     const results: LoopResult['results'] = [];
     const errors: LoopResult['errors'] = [];
@@ -85,47 +87,79 @@ export const processPdfList = async (
 
                     const extractionResults = await Promise.all(extractionPromises);
                     const failedExtractions = extractionResults.filter(result => !result.success);
+                    
+                    // Filtrer les erreurs RAG pour le calcul du résultat final (si enable_rag=false)
+                    const failedWithoutRag = enable_rag 
+                        ? failedExtractions 
+                        : failedExtractions.filter(f => f.error !== 'RAG_MISSING');
 
-                    // Si une des pages a échoué pour cause RAG_MISSING, stopper immédiatement
+                    // Si une des pages a échoué pour cause RAG_MISSING
                     const ragMissing = extractionResults.find(r => r.success === false && r.error === 'RAG_MISSING');
                     if (ragMissing) {
-                        errors.push({ pdfId, error: ragMissing.message || 'RAG_MISSING' });
-                        return {
-                            success: false,
-                            message: 'Arrêt: exemple RAG manquant',
-                            processedCount,
-                            errors,
-                            results,
-                            pausedAtIndex: i
-                        };
-                    }
+                        // Si enable_rag est false, continuer sans arrêter
+                        if (!enable_rag) {
+                            errors.push({ pdfId, error: ragMissing.message || 'RAG_MISSING' });
+                            // Créer un placeholder RAG pour ce PDF
+                            if (pdfInfo && (pdfInfo as PdfInfo).user_id) {
+                                try {
+                                    await createRagPlaceholder(
+                                        pdfId,
+                                        entrepriseId,
+                                        (pdfInfo as PdfInfo).user_id,
+                                        (pdfInfo as PdfInfo).document_type || 'inconnu'
+                                    );
+                                } catch (ragErr) {
+                                    console.error('Erreur lors de la création du placeholder RAG:', ragErr);
+                                    // On continue même si la création du placeholder échoue
+                                }
+                            }
+                            // Ajouter une erreur générale seulement s'il y a d'autres erreurs en plus du RAG
+                            if (failedWithoutRag.length > 0) {
+                                errors.push({
+                                    pdfId,
+                                    error: `Échec de l'extraction pour ${failedWithoutRag.length} pages sur ${splitResult.newPdfIds.length}`
+                                });
+                            }
+                        } else {
+                            // Si enable_rag est true, arrêter immédiatement
+                            errors.push({ pdfId, error: ragMissing.message || 'RAG_MISSING' });
+                            return {
+                                success: false,
+                                message: 'Arrêt: exemple RAG manquant',
+                                processedCount,
+                                errors,
+                                results,
+                                pausedAtIndex: i
+                            };
+                        }
+                    } else {
+                        // Si une des pages a échoué pour une erreur backend critique, stopper immédiatement
+                        const backendError = extractionResults.find(r => r.success === false && isCriticalBackendError(r.error));
+                        if (backendError) {
+                            errors.push({ pdfId, error: backendError.message || backendError.error || 'BACKEND_ERROR' });
+                            return {
+                                success: false,
+                                message: backendError.error === 'RESOURCE_EXHAUSTED'
+                                    ? 'Arrêt: backend saturé (RESOURCE_EXHAUSTED)'
+                                    : 'Arrêt: erreur backend',
+                                processedCount,
+                                errors,
+                                results,
+                                pausedAtIndex: i
+                            };
+                        }
 
-                    // Si une des pages a échoué pour une erreur backend critique, stopper immédiatement
-                    const backendError = extractionResults.find(r => r.success === false && isCriticalBackendError(r.error));
-                    if (backendError) {
-                        errors.push({ pdfId, error: backendError.message || backendError.error || 'BACKEND_ERROR' });
-                        return {
-                            success: false,
-                            message: backendError.error === 'RESOURCE_EXHAUSTED'
-                                ? 'Arrêt: backend saturé (RESOURCE_EXHAUSTED)'
-                                : 'Arrêt: erreur backend',
-                            processedCount,
-                            errors,
-                            results,
-                            pausedAtIndex: i
-                        };
-                    }
-
-                    if (failedExtractions.length > 0) {
-                        errors.push({
-                            pdfId,
-                            error: `Échec de l'extraction pour ${failedExtractions.length} pages sur ${splitResult.newPdfIds.length}`
-                        });
+                        if (failedExtractions.length > 0) {
+                            errors.push({
+                                pdfId,
+                                error: `Échec de l'extraction pour ${failedExtractions.length} pages sur ${splitResult.newPdfIds.length}`
+                            });
+                        }
                     }
 
                     results.push({
                         pdfId,
-                        success: failedExtractions.length === 0,
+                        success: failedWithoutRag.length === 0,
                         message: `PDF multipage divisé en ${splitResult.newPdfIds.length} pages et extrait`,
                         newPdfIds: splitResult.newPdfIds
                     });
@@ -140,17 +174,36 @@ export const processPdfList = async (
                     } else {
                         const extractionResult = await runMetaOcrForPdf(pdfId, entrepriseId);
                         if (!extractionResult.success) {
-                            // Stopper immédiatement si RAG_MISSING
+                            // Gérer RAG_MISSING selon enable_rag
                             if (extractionResult.error === 'RAG_MISSING') {
                                 errors.push({ pdfId, error: extractionResult.message });
-                                return {
-                                    success: false,
-                                    message: 'Arrêt: exemple RAG manquant',
-                                    processedCount,
-                                    errors,
-                                    results,
-                                    pausedAtIndex: i
-                                };
+                                // Si enable_rag est true, arrêter immédiatement
+                                if (enable_rag) {
+                                    return {
+                                        success: false,
+                                        message: 'Arrêt: exemple RAG manquant',
+                                        processedCount,
+                                        errors,
+                                        results,
+                                        pausedAtIndex: i
+                                    };
+                                }
+                                // Si enable_rag est false, créer un placeholder RAG et continuer
+                                if (pdfInfo && (pdfInfo as PdfInfo).user_id) {
+                                    try {
+                                        await createRagPlaceholder(
+                                            pdfId,
+                                            entrepriseId,
+                                            (pdfInfo as PdfInfo).user_id,
+                                            (pdfInfo as PdfInfo).document_type || 'inconnu'
+                                        );
+                                    } catch (ragErr) {
+                                        console.error('Erreur lors de la création du placeholder RAG:', ragErr);
+                                        // On continue même si la création du placeholder échoue
+                                    }
+                                }
+                                // Si enable_rag est false, continuer avec les autres PDFs
+                                continue;
                             }
                             // Stopper immédiatement si erreur backend critique
                             if (isCriticalBackendError(extractionResult.error)) {
@@ -184,14 +237,33 @@ export const processPdfList = async (
                 if (!extractionResult.success) {
                     if (extractionResult.error === 'RAG_MISSING') {
                         errors.push({ pdfId, error: extractionResult.message });
-                        return {
-                            success: false,
-                            message: 'Arrêt: exemple RAG manquant',
-                            processedCount,
-                            errors,
-                            results,
-                            pausedAtIndex: i
-                        };
+                        // Si enable_rag est true, arrêter immédiatement
+                        if (enable_rag) {
+                            return {
+                                success: false,
+                                message: 'Arrêt: exemple RAG manquant',
+                                processedCount,
+                                errors,
+                                results,
+                                pausedAtIndex: i
+                            };
+                        }
+                        // Si enable_rag est false, créer un placeholder RAG et continuer
+                        if (pdfInfo && (pdfInfo as PdfInfo).user_id) {
+                            try {
+                                await createRagPlaceholder(
+                                    pdfId,
+                                    entrepriseId,
+                                    (pdfInfo as PdfInfo).user_id,
+                                    (pdfInfo as PdfInfo).document_type || 'inconnu'
+                                );
+                            } catch (ragErr) {
+                                console.error('Erreur lors de la création du placeholder RAG:', ragErr);
+                                // On continue même si la création du placeholder échoue
+                            }
+                        }
+                        // Si enable_rag est false, continuer avec les autres PDFs
+                        continue;
                     }
                     if (isCriticalBackendError(extractionResult.error)) {
                         errors.push({ pdfId, error: extractionResult.message });

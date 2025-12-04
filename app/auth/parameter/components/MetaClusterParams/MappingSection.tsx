@@ -153,7 +153,7 @@ export default function MappingSection({
         setSelectedRaw(newSelected);
     }, [selectedRaw]);
 
-    // Associer les valeurs brutes sélectionnées au meta (modifications locales uniquement)
+    // Affilier les valeurs brutes sélectionnées au meta (modifications locales uniquement)
     const handleAssociate = useCallback(() => {
         if (!selectedMeta || selectedRaw.size === 0) return;
 
@@ -340,7 +340,7 @@ export default function MappingSection({
                                 onClick={handleAssociate}
                                 className="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
                             >
-                                Associer {selectedRaw.size} valeur(s) à &quot;{selectedMeta.label}&quot;
+                                Affilier {selectedRaw.size} valeur(s) à &quot;{selectedMeta.label}&quot;
                             </button>
                         )}
                     </div>

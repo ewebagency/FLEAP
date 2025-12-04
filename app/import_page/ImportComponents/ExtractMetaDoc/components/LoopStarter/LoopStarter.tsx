@@ -10,6 +10,7 @@ import Swal from 'sweetalert2';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 import ExtractDoc from '../ExtractDoc';
 import MetaClusterParamsTab from '@/app/auth/parameter/components/MetaClusterParams/MetaClusterParamsTab';
+import { cofounders_user_id } from '@/app/component/SideBar';
 import {
     PdfInfo,
     SiteInfo,
@@ -65,6 +66,32 @@ const ALERT_TOOLTIP_STATUS_KEYWORDS: readonly string[] = [
     'non affiliées'
 ];
 
+const getFrontendStatusLabel = (statusValue: string | null | undefined, rawLabel?: string): string => {
+    const base = (rawLabel || statusValue || '').toString();
+    const normalized = base.toLowerCase();
+
+    if (normalized === 'splitted') {
+        return 'Non lu';
+    }
+    if (normalized === 'extrait') {
+        return 'Extrait';
+    }
+    if (normalized === 'lu') {
+        return 'Extrait';
+    }
+    if (normalized === 'splitted extrait' || normalized === 'splitted_extrait') {
+        return 'Extrait';
+    }
+    if (normalized === 'non lu' || normalized === 'non_lu' || normalized === 'unread' || normalized === 'uploaded') {
+        return 'Non lu';
+    }
+    if (normalized === 'lié' || normalized === 'lie' || normalized === 'linked') {
+        return 'Lié';
+    }
+
+    return base;
+};
+
 const buildAlerteTooltip = (message: string): string => {
     if (!message) return '';
 
@@ -91,6 +118,13 @@ const buildAlerteTooltip = (message: string): string => {
 
 const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => {
     const { entreprise_id, user_id } = useSession();
+    const isCofounder = cofounders_user_id(user_id);
+    
+    // Variable enable_rag : false par défaut, true si cofounder (préparé pour futur paramètre modifiable)
+    const [enable_rag, setEnable_rag] = useState(() => {
+        return cofounders_user_id(user_id);
+    });
+    
     const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
     const [sites, setSites] = useState<SiteInfo[]>([]);
     const [loading, setLoading] = useState(true);
@@ -138,7 +172,9 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const [showAssociationModal, setShowAssociationModal] = useState(false);
     
     // Vue des colonnes (pour simplifier l'affichage)
-    const [columnView, setColumnView] = useState<'all' | 'info' | 'analyse' | 'actions'>('all');
+    const [columnView, setColumnView] = useState<'all' | 'info' | 'analyse' | 'actions' | 'simple'>(() => 
+        isCofounder ? 'all' : 'simple'
+    );
     
     // Déterminer quelles colonnes afficher selon la vue
     const shouldShowColumn = (columnIndex: number): boolean => {
@@ -146,6 +182,12 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         if (columnIndex === 4 || columnIndex === 13 || columnIndex === 14) return false;
         
         if (columnView === 'all') return true;
+        
+        // Vue Simple : masquer Déchets (10), Lignes (11), Brute (12), Couverture (15) et RAG (19)
+        if (columnView === 'simple') {
+            if ([10, 11, 12, 15, 19].includes(columnIndex)) return false;
+            return true;
+        }
         
         // Vue Info : colonnes 1-7 (Checkbox, Temps, Nom, Taille, Type, Statut, Site, Provider)
         if (columnView === 'info') {
@@ -249,6 +291,38 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
         ragIds: []
     });
 
+    // Options de statut côté front (labels unifiés)
+    const frontendStatusOptions = useMemo(() => {
+        const seenLabels = new Set<string>();
+        const options: { label: string; value: string }[] = [];
+
+        for (const statusOption of filterOptions.statuses) {
+            const rawValue = typeof statusOption.value === 'string'
+                ? statusOption.value
+                : String(statusOption.value);
+            const displayLabel = getFrontendStatusLabel(rawValue, statusOption.label);
+
+            if (!displayLabel) continue;
+            if (seenLabels.has(displayLabel)) continue;
+            seenLabels.add(displayLabel);
+
+            options.push({
+                ...statusOption,
+                label: displayLabel,
+                value: displayLabel
+            });
+        }
+
+        return options;
+    }, [filterOptions.statuses]);
+
+    // Synchroniser enable_rag avec le statut cofounder
+    useEffect(() => {
+        if (isCofounder) {
+            setEnable_rag(true);
+        }
+    }, [isCofounder]);
+
     // Wrapper pour refreshData
     const handleRefreshData = useCallback(async () => {
         await refreshData(entreprise_id || undefined, setPdfInfos, setSites, setFilterOptions);
@@ -335,6 +409,13 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
             setPauseCheckDone(false);
         }
     }, [isOpen]);
+    
+    // Mettre à jour lastOpenedPdfId quand pausedPdfId change (pour surlignage dans le tableau)
+    useEffect(() => {
+        if (pausedPdfId) {
+            setLastOpenedPdfId(pausedPdfId);
+        }
+    }, [pausedPdfId]);
     
     // Vérifier au mount s'il existe un état de pause sauvegardé dans localStorage
     useEffect(() => {
@@ -436,6 +517,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                         setShowExtractModal,
                         setSelectedPdfIds,
                         handleRefreshData,
+                        enable_rag,
                         true // isResuming = true
                     );
                 } else if (pauseState.resumeMode === 'extract_only') {
@@ -453,6 +535,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                         setShowExtractModal,
                         setSelectedPdfIds,
                         handleRefreshData,
+                        enable_rag,
                         true // isResuming = true
                     );
                 }
@@ -506,6 +589,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                         setShowExtractModal,
                         setSelectedPdfIds,
                         handleRefreshData,
+                        enable_rag,
                         true
                     );
                 } else if (pauseState.resumeMode === 'extract_only') {
@@ -523,6 +607,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                         setShowExtractModal,
                         setSelectedPdfIds,
                         handleRefreshData,
+                        enable_rag,
                         true
                     );
                 }
@@ -660,9 +745,18 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                 }
             }
 
-            // Filtre status (multiselect)
+            // Filtre status (multiselect) - basé sur le statut "front" unifié
             if (filters.statuses.length > 0 && pdf.status) {
-                if (!filters.statuses.includes(pdf.status)) {
+                const statusOption = filterOptions.statuses.find(s => s.value === pdf.status);
+                const frontendLabel = getFrontendStatusLabel(
+                    pdf.status,
+                    statusOption?.label
+                );
+
+                const matchesFrontend = filters.statuses.includes(frontendLabel);
+                const matchesRaw = filters.statuses.includes(pdf.status);
+
+                if (!matchesFrontend && !matchesRaw) {
                     return false;
                 }
             }
@@ -875,7 +969,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         title="Rafraîchir les données"
                                     >
                                         <BoxIcon name="bx-refresh" size="14" />
-                                        Refresh
+                                        Rafraîchir
                                     </button>
                                     <button
                                         onClick={handleResetFilters}
@@ -883,7 +977,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         title="Réinitialiser les filtres"
                                     >
                                         <BoxIcon name="bx-reset" size="14" />
-                                        Reset
+                                        Réinitialiser les filtres
                                     </button>
                                     <button
                                         onClick={() => setShowAssociationModal(true)}
@@ -891,7 +985,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         title="Associer les mots-clés aux entités de référence"
                                     >
                                         <BoxIcon name="bx-link-alt" size="14" />
-                                        Association
+                                        Affilier les mots-clefs
                                     </button>
                                 </div>
                             </div>
@@ -909,7 +1003,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 className="h-3.5 w-3.5 text-blue-500 focus:ring-0.5 focus:ring-blue-300 border-gray-200 rounded-sm"
                                             />
                                         </th>
-                                        <th className="px-1 py-1.5 text-left bg-gray-50 w-[55px]" style={{ display: shouldShowColumn(2) ? '' : 'none' }}>
+                                        <th className="px-1 py-1.5 text-left bg-gray-50 w-[80px]" style={{ display: shouldShowColumn(2) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-0.5">Temps</div>
                                             <div className="flex gap-0.5">
                                                 <input
@@ -917,7 +1011,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                     placeholder="≤"
                                                     value={filters.importTimeValue}
                                                     onChange={(e) => setFilters(prev => ({ ...prev, importTimeValue: e.target.value }))}
-                                                    className="w-[28px] p-0.5 text-[10px] border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
+                                                    className="w-[32px] p-0.5 text-[10px] border border-gray-200 rounded-sm focus:outline-none focus:ring-0.5 focus:ring-blue-300 bg-white"
                                                     title="Filtrer par temps depuis import (ex: 6)"
                                                     min="0"
                                                     step="0.5"
@@ -958,15 +1052,15 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         </th>
                                         <th className="px-2 py-1.5 text-left w-[100px] bg-gray-50" style={{ display: shouldShowColumn(6) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Statut</div>
-                            <MultiSelect
-                                options={filterOptions.statuses}
-                                selectedValues={filters.statuses}
-                                onChange={(values) => setFilters(prev => ({ ...prev, statuses: values }))}
+                                            <MultiSelect
+                                                options={frontendStatusOptions}
+                                                selectedValues={filters.statuses}
+                                                onChange={(values) => setFilters(prev => ({ ...prev, statuses: values }))}
                                                 placeholder="Tous"
                                                 label=""
-                            />
+                                            />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50" style={{ display: shouldShowColumn(7) ? '' : 'none', width: '70px' }}>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50" style={{ display: shouldShowColumn(7) ? '' : 'none', width: '140px' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Site</div>
                             <MultiSelect
                                 options={filterOptions.sites}
@@ -974,10 +1068,10 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                 onChange={(values) => setFilters(prev => ({ ...prev, siteSirets: values }))}
                                                 placeholder="Tous"
                                                 label=""
-                                className="w-[60px]"
+                                className="w-[130px]"
                             />
                                         </th>
-                                        <th className="px-2 py-1.5 text-left bg-gray-50" style={{ display: shouldShowColumn(8) ? '' : 'none', width: '70px' }}>
+                                        <th className="px-2 py-1.5 text-left bg-gray-50" style={{ display: shouldShowColumn(8) ? '' : 'none', width: '140px' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Presta</div>
                             <MultiSelect
                                 options={filterOptions.providers}
@@ -985,7 +1079,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                 onChange={(values) => setFilters(prev => ({ ...prev, providers: values }))}
                                                 placeholder="Tous"
                                                 label=""
-                                className="w-[60px]"
+                                className="w-[130px]"
                             />
                                         </th>
                                         <th className="px-1 py-1.5 text-left bg-gray-50 w-[45px]" style={{ display: shouldShowColumn(9) ? '' : 'none' }}>
@@ -1114,7 +1208,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 </button>
                                             </div>
                                         </th>
-                                        <th className="px-2 py-1.5 text-left min-w-[180px] bg-gray-50" style={{ display: shouldShowColumn(16) ? '' : 'none' }}>
+                                        <th className="px-2 py-1.5 text-left min-w-[84px] bg-gray-50" style={{ display: shouldShowColumn(16) ? '' : 'none' }}>
                                             <div className="text-xs font-medium text-gray-600 mb-1">Type d&apos;alerte</div>
                                             <div className="flex gap-1 items-center">
                                                 <div className="flex-1">
@@ -1136,57 +1230,59 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         const allNiceSelected = niceFlags.every(flag => currentFlags.has(flag)) && mustFlags.every(flag => currentFlags.has(flag));
                                                         
                                                         return (
-                                                            <>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        if (allMustSelected) {
-                                                                            // Retirer tous les flags MUST
-                                                                            setFilters(prev => ({
-                                                                                ...prev,
-                                                                                alerteFlags: prev.alerteFlags.filter(flag => !mustFlags.includes(flag))
-                                                                            }));
-                                                                        } else {
-                                                                            // Ajouter tous les flags MUST
-                                                                            const combinedFlags = filters.alerteFlags.concat(mustFlags);
-                                                                            const newFlagsSet = new Set(combinedFlags);
-                                                                            const newFlags = Array.from(newFlagsSet);
-                                                                            setFilters(prev => ({ ...prev, alerteFlags: newFlags }));
-                                                                        }
-                                                                    }}
-                                                                    className={`text-xs px-2 py-1 rounded-sm transition-colors border ${
-                                                                        allMustSelected
-                                                                            ? 'bg-red-500 text-white border-red-600 hover:bg-red-600'
-                                                                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                                                                    }`}
-                                                                    title={allMustSelected ? "Désactiver tous les flags MUST" : "Activer tous les flags MUST"}
-                                                                >
-                                                                    MUST
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        if (allNiceSelected) {
-                                                                            // Retirer tous les flags (MUST + NICE)
-                                                                            setFilters(prev => ({
-                                                                                ...prev,
-                                                                                alerteFlags: []
-                                                                            }));
-                                                                        } else {
-                                                                            // Ajouter tous les flags (MUST + NICE)
-                                                                            setFilters(prev => ({ ...prev, alerteFlags: allFlags }));
-                                                                        }
-                                                                    }}
-                                                                    className={`text-xs px-2 py-1 rounded-sm transition-colors border ${
-                                                                        allNiceSelected
-                                                                            ? 'bg-gray-500 text-white border-gray-600 hover:bg-gray-600'
-                                                                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                                                                    }`}
-                                                                    title={allNiceSelected ? "Désactiver tous les flags (MUST + NICE)" : "Activer tous les flags (MUST + NICE)"}
-                                                                >
-                                                                    NICE
-                                                                </button>
-                                                            </>
+                                                            isCofounder ? (
+                                                                <>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            if (allMustSelected) {
+                                                                                // Retirer tous les flags MUST
+                                                                                setFilters(prev => ({
+                                                                                    ...prev,
+                                                                                    alerteFlags: prev.alerteFlags.filter(flag => !mustFlags.includes(flag))
+                                                                                }));
+                                                                            } else {
+                                                                                // Ajouter tous les flags MUST
+                                                                                const combinedFlags = filters.alerteFlags.concat(mustFlags);
+                                                                                const newFlagsSet = new Set(combinedFlags);
+                                                                                const newFlags = Array.from(newFlagsSet);
+                                                                                setFilters(prev => ({ ...prev, alerteFlags: newFlags }));
+                                                                            }
+                                                                        }}
+                                                                        className={`text-xs px-2 py-1 rounded-sm transition-colors border ${
+                                                                            allMustSelected
+                                                                                ? 'bg-red-500 text-white border-red-600 hover:bg-red-600'
+                                                                                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                                                        }`}
+                                                                        title={allMustSelected ? "Désactiver tous les flags MUST" : "Activer tous les flags MUST"}
+                                                                    >
+                                                                        MUST
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            if (allNiceSelected) {
+                                                                                // Retirer tous les flags (MUST + NICE)
+                                                                                setFilters(prev => ({
+                                                                                    ...prev,
+                                                                                    alerteFlags: []
+                                                                                }));
+                                                                            } else {
+                                                                                // Ajouter tous les flags (MUST + NICE)
+                                                                                setFilters(prev => ({ ...prev, alerteFlags: allFlags }));
+                                                                            }
+                                                                        }}
+                                                                        className={`text-xs px-2 py-1 rounded-sm transition-colors border ${
+                                                                            allNiceSelected
+                                                                                ? 'bg-gray-500 text-white border-gray-600 hover:bg-gray-600'
+                                                                                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                                                        }`}
+                                                                        title={allNiceSelected ? "Désactiver tous les flags (MUST + NICE)" : "Activer tous les flags (MUST + NICE)"}
+                                                                    >
+                                                                        NICE
+                                                                    </button>
+                                                                </>
+                                                            ) : null
                                                         );
                                                     })()}
                                                 </div>
@@ -1314,48 +1410,69 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 </td>
                                                     {/* 6. Statut */}
                                                     <td className="px-2 py-2" style={{ display: shouldShowColumn(6) ? '' : 'none' }}>
-                                                    <span className={`text-xs px-1.5 py-0.5 rounded-sm ${
-                                                            pdf.status === 'processed' || pdf.status === 'extracted' || pdf.status === 'linked' || pdf.status === 'pushed' ? 'bg-green-50 text-green-600' :
-                                                        pdf.status === 'error' ? 'bg-red-50 text-red-600' :
-                                                        pdf.status === 'splitted' || pdf.status === 'splitted_extracted' ? 'bg-blue-50 text-blue-600' :
-                                                        'bg-yellow-50 text-yellow-600'
-                                                    }`}>
-                                                        {filterOptions.statuses.find(s => s.value === pdf.status)?.label || pdf.status}
-                                                    </span>
-                                                </td>
+                                                        {(() => {
+                                                            const statusOption = filterOptions.statuses.find(s => s.value === pdf.status);
+                                                            const displayLabel = getFrontendStatusLabel(
+                                                                pdf.status,
+                                                                statusOption?.label
+                                                            );
+
+                                                            let colorClass = 'bg-gray-50 text-gray-600';
+                                                            const normalized = displayLabel.toLowerCase();
+
+                                                            if (pdf.status === 'error') {
+                                                                colorClass = 'bg-red-50 text-red-600';
+                                                            } else if (normalized === 'lié') {
+                                                                colorClass = 'bg-green-50 text-green-600';
+                                                            } else if (normalized === 'extrait') {
+                                                                colorClass = 'bg-blue-50 text-blue-600';
+                                                            } else if (normalized === 'non lu') {
+                                                                colorClass = 'bg-yellow-50 text-yellow-600';
+                                                            }
+                                                            
+                                                            return (
+                                                                <span className={`text-xs px-1.5 py-0.5 rounded-sm ${colorClass}`}>
+                                                                    {displayLabel || pdf.status}
+                                                                </span>
+                                                            );
+                                                        })()}
+                                                    </td>
                                                     {/* 7. Site */}
-                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(7) ? '' : 'none', width: '70px' }}>
-                                                    {pdf.site_siret_plus && pdf.site_siret_plus.length > 0 ? (
-                                                        <div className="flex flex-wrap gap-1 max-w-[70px]">
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(7) ? '' : 'none', width: '140px' }}>
+                                                        {pdf.site_siret_plus && pdf.site_siret_plus.length > 0 ? (
+                                                            <div className="flex flex-wrap gap-1 max-w-[140px]">
                                                                 {pdf.site_siret_plus.slice(0, 1).map((siret: string, index: number) => (
-                                                                <span
-                                                                    key={index}
-                                                                        className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-sm truncate max-w-[65px]"
-                                                                    title={getSiteName(siret)}
-                                                                >
+                                                                    <span
+                                                                        key={index}
+                                                                        className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-sm truncate max-w-[130px]"
+                                                                        title={getSiteName(siret)}
+                                                                    >
                                                                         {getSiteName(siret)}
-                                                                </span>
-                                                            ))}
+                                                                    </span>
+                                                                ))}
                                                                 {pdf.site_siret_plus.length > 1 && (
-                                                                <span className="text-xs text-gray-400">
+                                                                    <span className="text-xs text-gray-400">
                                                                         +{pdf.site_siret_plus.length - 1}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-xs text-gray-400">-</span>
-                                                    )}
-                                                </td>
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">-</span>
+                                                        )}
+                                                    </td>
                                                     {/* 8. Presta */}
-                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(8) ? '' : 'none', width: '70px' }}>
+                                                    <td className="px-2 py-2" style={{ display: shouldShowColumn(8) ? '' : 'none', width: '140px' }}>
                                                         {providerName ? (
-                                                            <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm truncate max-w-[65px] block" title={String(providerName)}>
+                                                            <span
+                                                                className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-sm truncate max-w-[130px] block"
+                                                                title={String(providerName)}
+                                                            >
                                                                 {String(providerName)}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-xs text-gray-400">-</span>
-                                                    )}
-                                                </td>
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">-</span>
+                                                        )}
+                                                    </td>
                                                     {/* 9. Pages */}
                                                     <td className="px-2 py-2" style={{ display: shouldShowColumn(9) ? '' : 'none' }}>
                                                     <span className="text-xs text-gray-600">
@@ -1533,26 +1650,28 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                         {/* Statistiques et boutons d'action */}
                     <div className="mb-3 mt-3">
                         <div className="p-2.5 bg-blue-50 rounded-md">
-                            {/* Sélecteur de configuration */}
-                            <div className="mb-1 border-b pb-1 border-b border-blue-200">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <span className="text-xs font-medium text-blue-700">Configuration de linkage :</span>
-                                        <div className="text-xs text-blue-600 mt-0.5 hidden">{currentConfig.description}</div>
+                            {/* Sélecteur de configuration - visible uniquement pour les cofondateurs */}
+                            {cofounders_user_id(user_id) && (
+                                <div className="mb-1 border-b pb-1 border-b border-blue-200">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="text-xs font-medium text-blue-700">Configuration de linkage :</span>
+                                            <div className="text-xs text-blue-600 mt-0.5 hidden">{currentConfig.description}</div>
+                                        </div>
+                                        <select
+                                            value={selectedConfigId}
+                                            onChange={(e) => setSelectedConfigId(e.target.value)}
+                                            className="text-xs border border-blue-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                        >
+                                            {LINK_CONFIGS.map(config => (
+                                                <option key={config.id} value={config.id}>
+                                                    {config.name}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
-                                    <select
-                                        value={selectedConfigId}
-                                        onChange={(e) => setSelectedConfigId(e.target.value)}
-                                        className="text-xs border border-blue-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
-                                    >
-                                        {LINK_CONFIGS.map(config => (
-                                            <option key={config.id} value={config.id}>
-                                                {config.name}
-                                            </option>
-                                        ))}
-                                    </select>
                                 </div>
-                            </div>
+                            )}
                             <div className="flex items-center justify-between h-full pb-4">
                                 <div className="flex items-center space-x-3">
                                     <div className="text-center">
@@ -1578,43 +1697,58 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                             Toutes
                                         </button>
                                         <button
-                                            onClick={() => setColumnView('info')}
+                                            onClick={() => setColumnView('simple')}
                                             className={`text-xs px-2 py-1 rounded-sm transition-colors ${
-                                                columnView === 'info' 
+                                                columnView === 'simple' 
                                                     ? 'bg-blue-500 text-white' 
                                                     : 'bg-white text-blue-600 hover:bg-blue-100'
                                             }`}
-                                            title="Infos de base (7 colonnes)"
+                                            title="Vue simple (colonnes principales uniquement)"
                                         >
-                                            Info
+                                            Simple
                                         </button>
-                                        <button
-                                            onClick={() => setColumnView('analyse')}
-                                            className={`text-xs px-2 py-1 rounded-sm transition-colors ${
-                                                columnView === 'analyse' 
-                                                    ? 'bg-blue-500 text-white' 
-                                                    : 'bg-white text-blue-600 hover:bg-blue-100'
-                                            }`}
-                                            title="Analyse et scores (7 colonnes)"
-                                        >
-                                            Analyse
-                                        </button>
-                                        <button
-                                            onClick={() => setColumnView('actions')}
-                                            className={`text-xs px-2 py-1 rounded-sm transition-colors ${
-                                                columnView === 'actions' 
-                                                    ? 'bg-blue-500 text-white' 
-                                                    : 'bg-white text-blue-600 hover:bg-blue-100'
-                                            }`}
-                                            title="Linkage et actions (4 colonnes)"
-                                        >
-                                            Actions
-                                        </button>
+                                        {isCofounder && (
+                                            <>
+                                                <button
+                                                    onClick={() => setColumnView('info')}
+                                                    className={`text-xs px-2 py-1 rounded-sm transition-colors ${
+                                                        columnView === 'info' 
+                                                            ? 'bg-blue-500 text-white' 
+                                                            : 'bg-white text-blue-600 hover:bg-blue-100'
+                                                    }`}
+                                                    title="Infos de base (7 colonnes)"
+                                                >
+                                                    Info
+                                                </button>
+                                                <button
+                                                    onClick={() => setColumnView('analyse')}
+                                                    className={`text-xs px-2 py-1 rounded-sm transition-colors ${
+                                                        columnView === 'analyse' 
+                                                            ? 'bg-blue-500 text-white' 
+                                                            : 'bg-white text-blue-600 hover:bg-blue-100'
+                                                    }`}
+                                                    title="Analyse et scores (7 colonnes)"
+                                                >
+                                                    Analyse
+                                                </button>
+                                                <button
+                                                    onClick={() => setColumnView('actions')}
+                                                    className={`text-xs px-2 py-1 rounded-sm transition-colors ${
+                                                        columnView === 'actions' 
+                                                            ? 'bg-blue-500 text-white' 
+                                                            : 'bg-white text-blue-600 hover:bg-blue-100'
+                                                    }`}
+                                                    title="Linkage et actions (4 colonnes)"
+                                                >
+                                                    Actions
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
-                                <div className="flex items-center space-x-1.5">
+                                <div className="flex items-start space-x-8">
                                     <div className="flex flex-col items-stretch gap-2">
-                                        <button
+                                        {/*<button
                                             onClick={() => handleProcessPdfs(
                                                 selectedPdfIds,
                                                 entreprise_id || '',
@@ -1644,7 +1778,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                     <span>Diviser puis extraire ({selectedPdfIds.length})</span>
                                                 </>
                                             )}
-                                        </button>
+                                        </button>*/}
                                         <div className="grid grid-cols-3 gap-2">
                                             <button
                                                 onClick={() => handleSplitOnly(
@@ -1659,6 +1793,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 )}
                                                 disabled={anyProcessing || processingAlertes || processingAutoLink || selectedPdfIds.length === 0}
                                                 className="w-full px-3 py-1.5 bg-purple-500 text-white rounded-sm text-xs hover:bg-purple-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5 transition-colors"
+                                                title="Divise chaque document sélectionné en plusieurs documents d'une seule page (1 PDF par page)"
                                             >
                                                 {processingSplitOnly ? (
                                                     <>
@@ -1672,6 +1807,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                     </>
                                                 )}
                                             </button>
+                                            {cofounders_user_id(user_id) && (
                                             <button
                                                 onClick={() => handleSmartSplit(
                                                     selectedPdfIds,
@@ -1696,7 +1832,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         <span>Smart split</span>
                                                     </>
                                                 )}
-                                            </button>
+                                            </button>)}
                                             <button
                                                 onClick={() => handleExtractOnly(
                                                     selectedPdfIds,
@@ -1711,7 +1847,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                     setPausedAtIndex,
                                                     setShowExtractModal,
                                                     setSelectedPdfIds,
-                                                    handleRefreshData
+                                                    handleRefreshData,
+                                                    enable_rag
                                                 )}
                                                 disabled={anyProcessing || processingAlertes || processingAutoLink || selectedPdfIds.length === 0}
                                                 className="w-full px-3 py-1.5 bg-green-600 text-white rounded-sm text-xs hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5 transition-colors"
@@ -1743,7 +1880,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                         )}
                                         disabled={processingAlertes || selectedPdfIds.length === 0 || anyProcessing}
                                         className="px-2.5 py-1.5 bg-orange-500 text-white rounded-sm text-xs hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
-                                        title="Mettre à jour les notifications après changement dans les cluster parameters"
+                                        title="Mettre à jour les alertes après changement dans l'affiliation des mots-clefs"
                                     >
                                         {processingAlertes ? (
                                             <>
@@ -1802,7 +1939,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                             )}
                                             disabled={processingAutoLink || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
                                             className="px-2.5 py-1.5 bg-indigo-500 text-white rounded-sm text-xs hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
-                                            title="Auto-linker les documents sélectionnés (simulation puis confirmation)"
+                                            title="Lier ou créer les documents sélectionnés (simulation puis confirmation)"
                                         >
                                         {processingAutoLink ? (
                                             <>
@@ -1811,17 +1948,17 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                     {autoLinkPhase === 'simulation' && 'Simulation...'}
                                                     {autoLinkPhase === 'confirmation' && 'En attente confirmation...'}
                                                     {autoLinkPhase === 'applying' && 'Application...'}
-                                                    {autoLinkPhase === 'idle' && 'Auto-link...'}
+                                                    {autoLinkPhase === 'idle' && 'Lier ou Créer...'}
                                                 </span>
                                             </>
                                         ) : (
                                             <>
                                                 <BoxIcon name="bx-link" size="16" />
-                                                <span>Auto-link ({selectedPdfIds.length})</span>
+                                                <span>Lier ou Créer ({selectedPdfIds.length})</span>
                                             </>
                                         )}
                                     </button>
-                                        <button
+                                        {cofounders_user_id(user_id) && <button
                                             onClick={() => handlePushSelected(
                                                 selectedPdfIds,
                                                 entreprise_id || '',
@@ -1846,7 +1983,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                     <span>Push ({selectedPdfIds.length})</span>
                                                 </>
                                             )}
-                                        </button>
+                                        </button>}
                                         <button
                                             onClick={() => handleDeleteLinksSelected(
                                                 selectedPdfIds,
@@ -1858,7 +1995,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 handleRefreshData
                                             )}
                                             disabled={processingDeleteLinks || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
-                                            className="px-2.5 py-1.5 bg-red-600 text-white rounded-sm text-xs hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
+                                            className="mt-2 px-2.5 py-1.5 bg-red-600 text-white rounded-sm text-xs hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
                                             title="Supprimer les liens BSD des documents sélectionnés"
                                         >
                                             {processingDeleteLinks ? (
@@ -1932,20 +2069,31 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                             <div className="space-y-2">
                                 <h4 className="font-medium text-gray-600 text-sm">Détails par document :</h4>
                                 <div className="max-h-80 overflow-y-auto space-y-1.5">
-                                    {processingResults.map((result, index) => (
+                                    {processingResults.map((result, index) => {
+                                        // Détecter si c'est une erreur RAG
+                                        const isRagError = !result.success && result.error && 
+                                            (result.error.toLowerCase().includes('rag') || 
+                                             result.error.toLowerCase().includes('exemple'));
+                                        const shouldShowRagWarning = isRagError && !enable_rag;
+                                        
+                                        return (
                                         <div
                                             key={index}
                                             className={`p-3 rounded-md border ${
                                                 result.success
                                                     ? 'bg-green-50 border-green-100'
-                                                    : 'bg-red-50 border-red-100'
+                                                    : shouldShowRagWarning
+                                                        ? 'bg-green-50 border-green-200'
+                                                        : 'bg-red-50 border-red-100'
                                             }`}
                                         >
                                             <div className="flex justify-between items-start">
                                                 <div className="flex-1">
                                                     <div className="font-medium text-xs mb-1.5">{result.originalPdfName}</div>
                                                     {result.error && (
-                                                        <div className="text-xs text-red-500 mb-1.5">{result.error}</div>
+                                                        <div className={`text-xs mb-1.5 ${shouldShowRagWarning ? 'text-green-700' : 'text-red-500'}`}>
+                                                            {shouldShowRagWarning ? '⚠️ Attention : nouveau PDF, à vérifier' : result.error}
+                                                        </div>
                                                     )}
                                                     {/* Liste des déchets auto-linkés */}
                                                     {Array.isArray(result.autoLinkDetails) && result.autoLinkDetails.length > 0 ? (
@@ -1993,14 +2141,18 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         </span>
                                                     )}
                                                     {!result.success && (
-                                                        <span className="px-1.5 py-0.5 rounded-sm text-xs font-medium bg-red-50 text-red-600">
-                                                            Échec
+                                                        <span className={`px-1.5 py-0.5 rounded-sm text-xs font-medium ${
+                                                            shouldShowRagWarning
+                                                                ? 'bg-green-50 text-green-600'
+                                                                : 'bg-red-50 text-red-600'
+                                                        }`}>
+                                                            {shouldShowRagWarning ? 'À vérifier' : 'Échec'}
                                                         </span>
                                                     )}
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
+                                    )})}
                                 </div>
                             </div>
                         </div>
@@ -2018,8 +2170,6 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                             name_pdf_in_bucket: blocking.name_pdf_in_bucket,
                             pdf_path: blocking.pdf_path
                         });
-                        // Mémoriser ce PDF comme le dernier ouvert
-                        setLastOpenedPdfId(String(blocking.id));
                         
                         // Fonction pour naviguer vers un autre PDF
                         const handleNavigateToPdf = (newPdfId: string | number, _pdfPath: string) => {
@@ -2058,7 +2208,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                 setProcessingSplitThenExtract(resumeMode === 'split_then_extract');
                                 
                                 const mode = resumeMode === 'extract_only' ? 'extract_only' : 'split_then_extract';
-                                const resumeResult = await processPdfList(remainingPdfIds, entrepriseIdNumber, mode);
+                                const resumeResult = await processPdfList(remainingPdfIds, entrepriseIdNumber, mode, enable_rag);
                                 
                                 setProcessingResults(prev => [
                                     ...prev,
@@ -2264,7 +2414,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                     <div className="bg-white rounded-lg shadow-xl w-full max-w-[95%] max-h-[95%] overflow-hidden flex flex-col">
                         {/* Header du modal */}
                         <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                            <h2 className="text-xl font-semibold text-gray-800">Association des mots-clés</h2>
+                            <h2 className="text-xl font-semibold text-gray-800">Affiliation des mots-clefs</h2>
                             <button
                                 onClick={() => setShowAssociationModal(false)}
                                 className="text-gray-400 hover:text-gray-600 p-2 rounded-sm hover:bg-gray-100 transition-colors"

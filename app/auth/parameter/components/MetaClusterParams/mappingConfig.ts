@@ -16,7 +16,7 @@ export const MAPPING_CONFIGS: MappingTypeConfig[] = [
     {
         key: 'params_mapping_site',
         label: 'Sites',
-        description: 'Associer les sites bruts aux sites métas (incluant nom_site dans factures)',
+        description: 'Affilier les sites bruts aux sites de référence',
         rawField: 'site_raw',
         rawFieldType: 'simple',
         metaSource: 'autocompletion',
@@ -26,7 +26,7 @@ export const MAPPING_CONFIGS: MappingTypeConfig[] = [
     {
         key: 'params_mapping_presta',
         label: 'Prestataires',
-        description: 'Associer les prestataires bruts aux prestataires métas (transporteurs et destinataires, incluant prestataire 2)',
+        description: 'Affilier les prestataires bruts aux prestataires de référence (transporteurs et destinataires)',
         rawField: 'presta_raw',
         rawFieldType: 'simple',
         metaSource: 'autocompletion',
@@ -47,7 +47,7 @@ export const MAPPING_CONFIGS: MappingTypeConfig[] = [
     {
         key: 'params_mapping_operation',
         label: 'Opérations',
-        description: 'Associer les opérations brutes aux opérations métas',
+        description: 'Affilier les opérations brutes aux opérations de référence',
         rawField: 'dechet',
         rawFieldType: 'array',
         rawFieldPath: 'facture.ligne.type_operation',
@@ -57,7 +57,7 @@ export const MAPPING_CONFIGS: MappingTypeConfig[] = [
     {
         key: 'params_mapping_unite',
         label: 'Unités',
-        description: 'Associer les unités brutes aux unités métas',
+        description: 'Affilier les unités brutes aux unités de référence',
         rawField: 'dechet',
         rawFieldType: 'array',
         rawFieldPath: 'facture.ligne.unite',
@@ -67,7 +67,7 @@ export const MAPPING_CONFIGS: MappingTypeConfig[] = [
     {
         key: 'params_mapping_contenant',
         label: 'Contenants',
-        description: 'Associer les contenants bruts aux contenants métas',
+        description: 'Affilier les contenants bruts aux contenants de référence',
         rawField: 'dechet',
         rawFieldType: 'array',
         rawFieldPath: 'contenant',

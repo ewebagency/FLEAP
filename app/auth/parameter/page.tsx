@@ -1,7 +1,7 @@
 "use client";
 import { supabase } from '@/app/database/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { SessionMore, useSession } from '@/app/component/SessionProvider';
+import { useSession } from '@/app/component/SessionProvider';
 import { useState, useEffect } from 'react';
 import BoxIcon from '@/app/component/BoxIconWrapper';
 import { cofounders_user_id } from '@/app/component/SideBar';
@@ -19,8 +19,7 @@ import { RAW_FIELD_CLASS, REFERENCE_ENTITY_CLASS, ENTITY_CATEGORY_CLASS } from '
 
 export default function UserSettings() {
     const router = useRouter();
-    const session = useSession() as SessionMore;
-    const email = session?.user_email;
+    const { user_email: email, user_id, display_features } = useSession();
     const [activeTab, setActiveTab] = useState('tab_personal');
     const [showSiteSection, setShowSiteSection] = useState<boolean>(true);
     const [showFiliereNomSection, setShowFiliereNomSection] = useState<boolean>(true);
@@ -28,17 +27,17 @@ export default function UserSettings() {
 
     useEffect(() => {
         const fetchProfile = async () => {
-            if (session) {
+            if (user_id) {
                 const { data } = await supabase
                     .from('profiles')
                     .select('first_name, last_name, phone')
-                    .eq('user_id', session.user_id)
+                    .eq('user_id', user_id)
                     .single();
                 setCurrentProfile(data);
             }
         };
         fetchProfile();
-    }, [session]);
+    }, [user_id]);
 
     const handleSignOut = async () => {
         await supabase.auth.signOut();
@@ -75,11 +74,11 @@ export default function UserSettings() {
                        onClick={() => handleTabClick('tab_autocompletion')}>
                        Entités de référence
                     </a>
-                    {cofounders_user_id(session?.user_id) && (
+                    {(cofounders_user_id(user_id) || display_features?.extract_ocr) && (
                         <a role="tab" 
                             className={`tab border-0 ${activeTab === 'tab_meta_cluster_params' ? 'border-b-4 border-green-500' : ''}`}
                             onClick={() => handleTabClick('tab_meta_cluster_params')}>
-                            Association des champs bruts
+                            Affiliation des champs bruts
                         </a>
                     )}
                     <a role="tab" 
@@ -174,7 +173,7 @@ export default function UserSettings() {
                 {activeTab === 'tab_parametrage' && <ParametrageTab />}
                 {activeTab === 'tab_autocompletion' && <AutocompletionTab />}
                 {/*activeTab === 'tab_format_data' && <FormatDataTab />*/}
-                {activeTab === 'tab_meta_cluster_params' && <MetaClusterParamsTab />}
+                {activeTab === 'tab_meta_cluster_params' && (cofounders_user_id(user_id) || display_features?.extract_ocr) && <MetaClusterParamsTab />}
             </div>
         </div>
     );

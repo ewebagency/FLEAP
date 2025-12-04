@@ -714,10 +714,24 @@ async def detect_type(files: list[UploadFile]):
 
 #=============================================PUSH TO RAG=============================================
 @app.post("/push_to_rag")
-async def push_to_rag(file: UploadFile, pdf_id: str = Form(...), extracted_data: str = Form(...), document_type: str = Form("inconnu"), entreprise_id: str = Form(None), force_image: str = Form("false")):
+async def push_to_rag(
+    file: UploadFile, 
+    pdf_id: str = Form(...), 
+    extracted_data: str = Form("{}"), 
+    document_type: str = Form("inconnu"), 
+    entreprise_id: str = Form(None), 
+    force_image: str = Form("false"),
+    create_placeholder_only: str = Form("false")
+):
     try:
-        # Parser les données extraites
-        extracted_data_dict = json.loads(extracted_data)
+        # Convertir create_placeholder_only en booléen
+        is_placeholder = create_placeholder_only.lower() in ("true", "1", "yes")
+        
+        # Parser les données extraites (peut être vide si create_placeholder_only)
+        try:
+            extracted_data_dict = json.loads(extracted_data) if extracted_data else {}
+        except json.JSONDecodeError:
+            extracted_data_dict = {}
         
         # Convertir entreprise_id en int ou utiliser None
         entreprise_id_int = None
@@ -735,7 +749,10 @@ async def push_to_rag(file: UploadFile, pdf_id: str = Form(...), extracted_data:
         print(f"📂 PDF ID: {pdf_id}")
         print(f"📂 Type de document: {document_type}")
         print(f"📂 Entreprise ID: {entreprise_id_int}")
-        print(f"📂 Données extraites: {extracted_data_dict}")
+        if is_placeholder:
+            print(f"📂 Mode: Création placeholder (sans perfect_answer)")
+        else:
+            print(f"📂 Données extraites: {extracted_data_dict}")
         
         # Importer et utiliser la fonction de traitement RAG
         from new.new_similarity.new_push_to_rag import process_document_for_rag
@@ -746,7 +763,8 @@ async def push_to_rag(file: UploadFile, pdf_id: str = Form(...), extracted_data:
             pdf_id=pdf_id,
             extracted_data=extracted_data_dict,
             document_type=document_type,
-            entreprise_id=entreprise_id_int
+            entreprise_id=entreprise_id_int,
+            create_placeholder_only=is_placeholder
         )
         
         return result

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { useSession } from "@/app/component/SessionProvider";
+import { cofounders_user_id } from "@/app/component/SideBar";
 import { supabase } from "@/app/database/supabaseClient";
 import PdfDisplayer from '@/app/interface_admin_2/InterfaceAdmin2/PdfDisplayer';
 import { toast } from 'react-hot-toast';
@@ -21,6 +22,7 @@ import {
     shouldCheckCollecteMetrics,
     type FactureCollecteLike
 } from '../utils/alerte';
+import { formatNumber } from "@/app/utils/formatNumber";
 // removed PushFactureButton usage in this file per requirements
 
 // Import des interfaces depuis MetaDataInterface.ts
@@ -193,7 +195,7 @@ interface ExtractDocProps {
 
 const ExtractDoc = ({ pdf_id, pdf_path, pdf_name, autoOpen = false, onClose, onSave, openedFromLoopStarter = false, filteredPdfIds, onNavigateToPdf }: ExtractDocProps) => {
     const [isOpen, setIsOpen] = useState(autoOpen);
-    const { entreprise_id } = useSession();
+    const { entreprise_id, user_id } = useSession();
     const [existingDataRaw, setExistingDataRaw] = useState<DocInterface | null>(null);
     const existingData = useMemo(() => existingDataRaw, [JSON.stringify(existingDataRaw)]);
     const [documentType, setDocumentType] = useState<"bon" | "bsd" | "facture" | null>(null);
@@ -206,6 +208,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_name, autoOpen = false, onClose, onS
     const [ragId, setRagId] = useState<string | null>(null);
     // État pour le pdf_path (peut changer lors de la navigation)
     const [currentPdfPath, setCurrentPdfPath] = useState(pdf_path);
+    const isCofounder = cofounders_user_id(user_id ?? null);
 
     // Nom de fichier affiché (utilisé dans le header et le formulaire)
     const displayedFileName = useMemo(() => {
@@ -2329,16 +2332,18 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_name, autoOpen = false, onClose, onS
                     {/* Boutons d'action et Scores en haut */}
                     <div className="absolute top-4 left-4 z-10 flex items-center gap-4">
                         <div className="flex gap-2 items-center">
-                            {/* Checkbox Force Image */}
-                            <label className="flex items-center gap-1.5 bg-white rounded-lg px-2 py-1 shadow-sm border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
-                                <input
-                                    type="checkbox"
-                                    checked={forceImage}
-                                    onChange={(e) => setForceImage(e.target.checked)}
-                                    className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-1"
-                                />
-                                <span className="text-xs font-medium text-gray-700 whitespace-nowrap">Force Image</span>
-                            </label>
+                            {/* Checkbox Force Image (réservée aux cofounders) */}
+                            {isCofounder && (
+                                <label className="flex items-center gap-1.5 bg-white rounded-lg px-2 py-1 shadow-sm border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={forceImage}
+                                        onChange={(e) => setForceImage(e.target.checked)}
+                                        className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-1"
+                                    />
+                                    <span className="text-xs font-medium text-gray-700 whitespace-nowrap">Force Image</span>
+                                </label>
+                            )}
                             
                             <BoutonExtractDoc 
                                 pdfId={String(pdf_id)}
@@ -2362,23 +2367,27 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_name, autoOpen = false, onClose, onS
                                     setIsOpen(false);
                                 }}
                             />
-                            <BoutonSmartSplitDoc 
-                                pdfId={pdf_id}
-                                entrepriseId={Number(entreprise_id) || 0}
-                                onSplitComplete={(newPdfIds) => {
-                                    console.log('Smart split terminé:', newPdfIds);
-                                    setIsOpen(false);
-                                }}
-                            />
-                            <Push2RAGButton 
-                                pdfId={pdf_id}
-                                pdfPath={currentPdfPath}
-                                docDataRef={currentFormRef}
-                                documentType={documentType || 'inconnu'}
-                                disabled={!currentFormRef.current}
-                                forceImage={forceImage}
-                                onRagPushSuccess={reloadRagId}
-                            />
+                            {isCofounder && (
+                                <>
+                                    <BoutonSmartSplitDoc 
+                                        pdfId={pdf_id}
+                                        entrepriseId={Number(entreprise_id) || 0}
+                                        onSplitComplete={(newPdfIds) => {
+                                            console.log('Smart split terminé:', newPdfIds);
+                                            setIsOpen(false);
+                                        }}
+                                    />
+                                    <Push2RAGButton 
+                                        pdfId={pdf_id}
+                                        pdfPath={currentPdfPath}
+                                        docDataRef={currentFormRef}
+                                        documentType={documentType || 'inconnu'}
+                                        disabled={!currentFormRef.current}
+                                        forceImage={forceImage}
+                                        onRagPushSuccess={reloadRagId}
+                                    />
+                                </>
+                            )}
                             {/* PushFactureButton now rendered in LinkMeta.tsx */}
                         </div>
                         
@@ -2388,20 +2397,20 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_name, autoOpen = false, onClose, onS
                                 {/* Scores de confiance */}
                                 {confidenceData && (
                                     <div className="flex items-center gap-2">
-                                        <span className="text-xs font-medium text-gray-600">Confidence:</span>
+                                        <span className="text-xs font-medium text-gray-600">Score :</span>
                                         {confidenceData.brute !== undefined && (
                                             <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                                Brute: {confidenceData.brute}%
+                                                Brut: {formatNumber(confidenceData.brute)}%
                                             </span>
                                         )}
                                         {confidenceData.spec !== undefined && (
                                             <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                                                Spec: {confidenceData.spec}%
+                                                Spec: {formatNumber(confidenceData.spec)}%
                                             </span>
                                         )}
                                         {confidenceData.handwritten && (
                                             <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                                                Manuscrit: {confidenceData.handwritten[0]}% {confidenceData.handwritten[1] ? '(Oui)' : '(Non)'}
+                                                Manuscrit: {formatNumber(confidenceData.handwritten[0])}% {confidenceData.handwritten[1] ? '(Oui)' : '(Non)'}
                                             </span>
                                         )}
                                     </div>
@@ -2436,7 +2445,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_name, autoOpen = false, onClose, onS
                         <div className="w-1/2 h-full flex flex-col">
                             <div className="flex-1 overflow-y-auto">
                                 {/* key sur pdf_id pour forcer un remontage complet du formulaire à chaque changement de document */}
-                                <FormulaireExtractDoc 
+                                    <FormulaireExtractDoc 
                                     key={String(pdf_id)}
                                     onSave={handleSave} 
                                     onChange={(fd) => { 
@@ -2451,7 +2460,7 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_name, autoOpen = false, onClose, onS
                                             // ignore storage errors
                                         }
                                     }} 
-                                    showRagButton={openedFromLoopStarter} 
+                                    showRagButton={openedFromLoopStarter && isCofounder} 
                                     forceImage={forceImage}
                                     fileName={displayedFileName}
                                     dataIsFromCurrentPdf={hasLoadedDataRef.current === pdf_id}
@@ -2460,13 +2469,15 @@ const ExtractDoc = ({ pdf_id, pdf_path, pdf_name, autoOpen = false, onClose, onS
                             
                             {/* Composant ModifyPrompts */}
                             <div className="mt-2">
-                                <ModifyPrompts 
-                                    ragId={ragId}
-                                    documentType={documentType}
-                                    pdfId={pdf_id}
-                                    pdfPath={currentPdfPath}
-                                    onReloadRagId={reloadRagId}
-                                />
+                                {isCofounder && (
+                                    <ModifyPrompts 
+                                        ragId={ragId}
+                                        documentType={documentType}
+                                        pdfId={pdf_id}
+                                        pdfPath={currentPdfPath}
+                                        onReloadRagId={reloadRagId}
+                                    />
+                                )}
                             </div>
                         </div>
                     </div>

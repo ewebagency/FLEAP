@@ -10,21 +10,23 @@ async def process_document_for_rag(
     pdf_id: str,
     extracted_data: dict,
     document_type: str,
-    entreprise_id: int
+    entreprise_id: int,
+    create_placeholder_only: bool = False
 ) -> dict:
     """
     Traite un document pour le système RAG :
     1. Vérifie si un RAG existe déjà pour ce PDF
-    2. Reconstruit gemini_data avec reverse_structure
+    2. Reconstruit gemini_data avec reverse_structure (sauf si create_placeholder_only=True)
     3. Extrait le texte brut du PDF
     4. Met à jour le RAG existant ou crée un nouveau RAG
     
     Args:
         file: Fichier PDF uploadé
         pdf_id: ID du PDF
-        extracted_data: Données structurées extraites
+        extracted_data: Données structurées extraites (peut être vide si create_placeholder_only=True)
         document_type: Type de document (bon, bsd, facture)
         entreprise_id: ID de l'entreprise
+        create_placeholder_only: Si True, crée un placeholder sans perfect_answer
     
     Returns:
         dict: Objets pour RAG (pdf_id, raw_text, gemini_answer, document_type, requires_pdf_info_link, is_update, existing_rag_id)
@@ -83,21 +85,27 @@ async def process_document_for_rag(
             print(f"⚠️ Erreur lors de la recherche de RAG existant: {str(e)}")
             # Continue même si la recherche échoue
         
-        # Importer reverse_structure selon la version V2 depuis main
-        try:
-            from main import V2
-        except ImportError:
-            V2 = False
-        
-        if V2:
-            from new.new_structure_v2 import reverse_structure
+        # 2. Reconstruire gemini_data avec reverse_structure (sauf si create_placeholder_only)
+        if create_placeholder_only:
+            # Mode placeholder : pas de perfect_answer
+            print("📋 Mode placeholder : pas de reconstruction gemini_data")
+            gemini_data = {}
         else:
-            from new.new_structure import reverse_structure
-        
-        # 2. Reconstruire gemini_data avec reverse_structure
-        print("📋 Reconstruction des données Gemini...")
-        gemini_data = reverse_structure(document_type, extracted_data)
-        print(f"✅ Données Gemini reconstruites: {len(gemini_data)} champs")
+            # Importer reverse_structure selon la version V2 depuis main
+            try:
+                from main import V2
+            except ImportError:
+                V2 = False
+            
+            if V2:
+                from new.new_structure_v2 import reverse_structure
+            else:
+                from new.new_structure import reverse_structure
+            
+            # Reconstruire gemini_data avec reverse_structure
+            print("📋 Reconstruction des données Gemini...")
+            gemini_data = reverse_structure(document_type, extracted_data)
+            print(f"✅ Données Gemini reconstruites: {len(gemini_data)} champs")
         
         # 3. Extraire le texte brut du PDF
         print("📄 Extraction du texte brut...")
@@ -137,8 +145,12 @@ async def process_document_for_rag(
         }
         
         action = "mis à jour" if existing_rag_id else "créé"
-        print(f"✅ Traitement RAG terminé pour PDF {pdf_id} (RAG {action})")
-        print(f"📊 Résumé: {len(raw_text)} caractères, {len(gemini_data)} champs Gemini")
+        placeholder_note = " (placeholder sans perfect_answer)" if create_placeholder_only else ""
+        print(f"✅ Traitement RAG terminé pour PDF {pdf_id} (RAG {action}{placeholder_note})")
+        if create_placeholder_only:
+            print(f"📊 Résumé: {len(raw_text)} caractères, placeholder créé")
+        else:
+            print(f"📊 Résumé: {len(raw_text)} caractères, {len(gemini_data)} champs Gemini")
         
         return {
             "success": True,

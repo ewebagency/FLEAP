@@ -165,7 +165,7 @@ export default function MetaClusterParamsTab() {
                     </div>
                 )}
 
-				<h2 className="text-2xl font-bold text-gray-800 mb-6">Associer les données brutes aux entités de référence</h2>
+				<h2 className="text-2xl font-bold text-gray-800 mb-6">Affilier les champs brutes aux entités de référence</h2>
 				<div className="mb-6 px-10">
 					<div className="flex items-center justify-center gap-3 text-sm select-none">
 						<span className={`px-2 py-1 rounded ${RAW_FIELD_CLASS}`}>Champs bruts PDF</span>

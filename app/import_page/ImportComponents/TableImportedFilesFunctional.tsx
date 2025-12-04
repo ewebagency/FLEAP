@@ -15,7 +15,7 @@ const TableImportedFilesFunctional: React.FC = () => {
     const [pdfInfos, setPdfInfos] = useState<PdfInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const { entreprise_id, user_id } = useSession();
+    const { entreprise_id, user_id, display_features } = useSession();
     const { importReload, documentTypeFilter, statusFilter, setUpdatePdfInfosFunction } = useImport();
 
     // Vérifier si l'utilisateur est un cofounder
@@ -186,7 +186,7 @@ const TableImportedFilesFunctional: React.FC = () => {
                     filteredDocuments={getFilteredDocumentsCount()}
                 />
                 <div className="flex justify-end">
-                    {cofounders_user_id(user_id) &&  
+                    {display_features?.extract_ocr &&  
                         <div className="flex items-center justify-between">
                             {/*<ExtractBonProcessor />*/}
                             <LoopStarterButton/>

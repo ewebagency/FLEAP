@@ -125,7 +125,7 @@ const BoutonExtractDoc: React.FC<BoutonExtractDocProps> = ({
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                     : 'bg-blue-600 text-white hover:bg-blue-700 border-blue-600'
             }`}
-            title="Extraire les métadonnées du document"
+            title="Extraire les données du document"
         >
             {isLoading ? (
                 <span className="flex items-center gap-1">

@@ -245,6 +245,7 @@ export const handleProcessPdfs = async (
     setShowExtractModal: (value: boolean) => void,
     setSelectedPdfIds: (ids: string[]) => void,
     onRefreshData: () => Promise<void>,
+    enable_rag: boolean = false,
     isResuming: boolean = false
 ) => {
     if (selectedPdfIds.length === 0) {
@@ -266,7 +267,7 @@ export const handleProcessPdfs = async (
     setShowReview(false);
     
     try {
-        const result = await processPdfList(selectedPdfIds, parseInt(entreprise_id), 'split_then_extract');
+        const result = await processPdfList(selectedPdfIds, parseInt(entreprise_id), 'split_then_extract', enable_rag);
         
         // Construire les résultats détaillés
         const detailedResults: ProcessingResult[] = [];
@@ -330,9 +331,9 @@ export const handleProcessPdfs = async (
             }
             // setSelectedPdfIds([]); // Gardé sélectionné pour enchaîner les actions
         } else {
-            // Si pause pour RAG manquant, ouvrir le modal d'extraction pour le PDF fautif
+            // Si pause pour RAG manquant, ouvrir le modal d'extraction pour le PDF fautif (seulement si enable_rag=true)
             const ragErr = result.errors.find(e => e.error && e.error.toLowerCase && e.error.toLowerCase().includes('rag'));
-            if (ragErr && typeof ragErr.pdfId === 'string') {
+            if (ragErr && typeof ragErr.pdfId === 'string' && enable_rag) {
                 const blockingPdf = pdfInfos.find(p => p.id === ragErr.pdfId);
                 toast.error(`Stop: Exemple RAG manquant pour ${blockingPdf?.name_pdf || ragErr.pdfId}`);
                 setPaused(true);
@@ -438,6 +439,7 @@ export const handleProcessPdfs = async (
                                 setShowExtractModal,
                                 setSelectedPdfIds,
                                 onRefreshData,
+                                enable_rag,
                                 true // isResuming = true
                             );
                         } else if (swalResult.isDenied) {
@@ -489,6 +491,7 @@ export const handleProcessPdfs = async (
                                 setShowExtractModal,
                                 setSelectedPdfIds,
                                 onRefreshData,
+                                enable_rag,
                                 true
                             );
                         } else {
@@ -830,6 +833,7 @@ export const handleExtractOnly = async (
     setShowExtractModal: (value: boolean) => void,
     setSelectedPdfIds: (ids: string[]) => void,
     onRefreshData: () => Promise<void>,
+    enable_rag: boolean = false,
     isResuming: boolean = false
 ) => {
     if (selectedPdfIds.length === 0) {
@@ -851,7 +855,7 @@ export const handleExtractOnly = async (
     setShowReview(false);
 
     try {
-        const result = await processPdfList(selectedPdfIds, parseInt(entreprise_id), 'extract_only');
+        const result = await processPdfList(selectedPdfIds, parseInt(entreprise_id), 'extract_only', enable_rag);
 
         const detailedResults: ProcessingResult[] = [];
         result.results.forEach(item => {
@@ -915,7 +919,7 @@ export const handleExtractOnly = async (
             // setSelectedPdfIds([]); // Gardé sélectionné pour enchaîner les actions
         } else {
             const ragErr = result.errors.find(e => e.error && e.error.toLowerCase && e.error.toLowerCase().includes('rag'));
-            if (ragErr && typeof ragErr.pdfId === 'string') {
+            if (ragErr && typeof ragErr.pdfId === 'string' && enable_rag) {
                 const blockingPdf = pdfInfos.find(p => p.id === ragErr.pdfId);
                 toast.error(`Stop: Exemple RAG manquant pour ${blockingPdf?.name_pdf || ragErr.pdfId}`);
                 setPaused(true);
@@ -1020,6 +1024,7 @@ export const handleExtractOnly = async (
                                 setShowExtractModal,
                                 setSelectedPdfIds,
                                 onRefreshData,
+                                enable_rag,
                                 true // isResuming = true
                             );
                         } else if (swalResult.isDenied) {
@@ -1071,6 +1076,7 @@ export const handleExtractOnly = async (
                                 setShowExtractModal,
                                 setSelectedPdfIds,
                                 onRefreshData,
+                                enable_rag,
                                 true
                             );
                         } else {

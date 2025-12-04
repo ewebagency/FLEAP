@@ -139,7 +139,7 @@ export const ExcelIcon = () => (
 
 const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDelete, onPdfStatusUpdate }) => {
     const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-    const {entreprise_id, user_id} = useSession();
+    const {entreprise_id, user_id, display_features} = useSession();
     const [loadingUrls, setLoadingUrls] = useState<Record<number, boolean>>({});
     const [pdfUrls, setPdfUrls] = useState<Record<number, string>>({});
     const [numberPage, setNumberPage] = useState(1);
@@ -450,7 +450,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                             className="text-xs font-normal text-gray-500 mb-0 hidden">Date extraite</th>                            
                         <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '16%', textAlign: 'left' }}
                             className="text-xs font-normal text-gray-500 mb-0">Site</th>
-                        {cofounders_permission(user_id) && (
+                        {display_features?.extract_ocr && (
                             <th style={{ padding: '2px', borderBottom: '1px solid #ddd', width: '16%', textAlign: 'left' }}
                                 className="text-xs font-normal text-gray-500 mb-0">Prestataire</th>
                         )}
@@ -553,7 +553,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                     initialSite={pdf.site_siret_plus}
                                 />
                             </td>
-                            {cofounders_permission(user_id) && (
+                            {display_features?.extract_ocr && (
                                 <td style={{ padding: '6px', height: '40px' }} className="align-middle">
                                     <SelectProvider 
                                         entreprise_id={entreprise_id} 
@@ -611,7 +611,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             pdf_path={pdf.name_pdf_in_bucket} 
                                         /> ---> ancien extract facture
                                     */} 
-                                    {cofounders_permission(user_id) &&
+                                    {display_features?.extract_ocr &&
                                         <div className="flex flex-col gap-0.5">
                                             <div className="relative">
                                                 <ExtractDoc //pour ouvrir le modal d'extraction
@@ -632,7 +632,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                             </div>
                                         </div>
                                     }   
-                                    {cofounders_permission(user_id) && pdf.document_type === 'facture' && 
+                                    {/*cofounders_permission(user_id) && pdf.document_type === 'facture' && 
                                         <ButtonExtractFacture
                                             pdf_id={pdf.id} 
                                             pdf_path={pdf.name_pdf_in_bucket}
@@ -642,8 +642,8 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                                 }
                                             }}
                                         />
-                                    }                                    
-                                    {cofounders_permission(user_id) && pdf.document_type === 'bsd' && 
+                                    */}                                    
+                                    {/*cofounders_permission(user_id) && pdf.document_type === 'bsd' && 
                                         <ExtractBSD 
                                             pdf_id={pdf.id} 
                                             pdf_path={pdf.name_pdf_in_bucket}
@@ -654,8 +654,8 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                                 }
                                             }}
                                         />
-                                    }
-                                    {cofounders_permission(user_id) && pdf.document_type === 'bon' && 
+                                    */}
+                                    {/*cofounders_permission(user_id) && pdf.document_type === 'bon' && 
                                         <ExtractBon 
                                             pdf_id={pdf.id} 
                                             pdf_path={pdf.name_pdf_in_bucket}
@@ -666,7 +666,7 @@ const TableImportedFiles: React.FC<TableImportedFilesProps> = ({ pdfInfos, onDel
                                                 }
                                             }}
                                         />
-                                    }
+                                    */}
                                     {/*cofounders_permission(user_id) && ['read','extracted','splitted_extracted'].includes(pdf.status) && (
                                         pdf.document_type === 'bsd' &&
                                         <LinkBSD
