@@ -787,6 +787,7 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
     const [searchTerm, setSearchTerm] = useState('');
     // removed unused sitesFromContext
     const dropdownRef = React.useRef<HTMLDivElement>(null);
+    const searchInputRef = React.useRef<HTMLInputElement>(null);
     
     // Utiliser le hook SWR pour récupérer tous les sites
     const { sites, isLoading, isError } = useSites(entreprise_id);
@@ -815,6 +816,16 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
+
+    // Focus automatique sur le champ de recherche quand le dropdown s'ouvre
+    useEffect(() => {
+        if (isOpen && searchInputRef.current && sites.length > 5) {
+            // Petit délai pour s'assurer que le DOM est rendu
+            setTimeout(() => {
+                searchInputRef.current?.focus();
+            }, 0);
+        }
+    }, [isOpen, sites.length]);
 
     const handleSelectSite = async (siret: string) => {
         const newSelectedSites = selectedSites.includes(siret)
@@ -871,6 +882,7 @@ const SelectSite: React.FC<{ entreprise_id: string | null; pdf_id: number; initi
                         {sites.length > 5 && (
                             <div className="px-3 py-2 sticky top-0 bg-white border-b">
                                 <input
+                                    ref={searchInputRef}
                                     type="text"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
