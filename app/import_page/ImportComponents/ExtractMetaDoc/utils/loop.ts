@@ -4,6 +4,9 @@ import { getPdfInfoById } from './bdd';
 import { PdfInfo } from '../interface/pdf_interface';
 import { createRagPlaceholder } from './rag';
 
+// Type pour le callback de notification des retries
+type RetryNotificationCallback = (attempt: number, delay: number, error: string) => void;
+
 interface LoopResult {
     success: boolean;
     message: string;
@@ -34,7 +37,8 @@ export const processPdfList = async (
     pdfIds: string[],
     entrepriseId: number,
     mode: 'split_then_extract' | 'split_only' | 'extract_only' = 'split_then_extract',
-    enable_rag: boolean = false
+    enable_rag: boolean = false,
+    onRetry?: RetryNotificationCallback
 ): Promise<LoopResult> => {
     const results: LoopResult['results'] = [];
     const errors: LoopResult['errors'] = [];
@@ -82,7 +86,7 @@ export const processPdfList = async (
 
                     // mode === 'split_then_extract' → Extraire chaque page divisée
                     const extractionPromises = splitResult.newPdfIds.map(async (newPdfId) => {
-                        return await runMetaOcrForPdf(newPdfId, entrepriseId);
+                        return await runMetaOcrForPdf(newPdfId, entrepriseId, false, onRetry);
                     });
 
                     const extractionResults = await Promise.all(extractionPromises);
@@ -172,7 +176,7 @@ export const processPdfList = async (
                             message: 'PDF unipage (aucune division nécessaire)'
                         });
                     } else {
-                        const extractionResult = await runMetaOcrForPdf(pdfId, entrepriseId);
+                        const extractionResult = await runMetaOcrForPdf(pdfId, entrepriseId, false, onRetry);
                         if (!extractionResult.success) {
                             // Gérer RAG_MISSING selon enable_rag
                             if (extractionResult.error === 'RAG_MISSING') {
@@ -233,7 +237,7 @@ export const processPdfList = async (
                 }
             } else {
                 // mode === 'extract_only' → Extraire directement sans tentative de split
-                const extractionResult = await runMetaOcrForPdf(pdfId, entrepriseId);
+                const extractionResult = await runMetaOcrForPdf(pdfId, entrepriseId, false, onRetry);
                 if (!extractionResult.success) {
                     if (extractionResult.error === 'RAG_MISSING') {
                         errors.push({ pdfId, error: extractionResult.message });

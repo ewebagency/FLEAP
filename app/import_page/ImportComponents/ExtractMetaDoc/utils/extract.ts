@@ -22,6 +22,153 @@ interface ExtractMetaOcrResult {
     error?: string;
 }
 
+// Callback pour notifier les retries (optionnel)
+type RetryNotificationCallback = (attempt: number, delay: number, error: string) => void;
+
+// Configuration du retry avec backoff exponentiel
+const RETRY_CONFIG = {
+    maxRetries: 10,
+    initialDelay: 4000, // 4 secondes
+    maxDelay: 32 * 60 * 1000, // 32 minutes en millisecondes
+    multiplier: 2
+};
+
+/**
+ * Vérifie si une erreur est retryable (backend temporairement indisponible)
+ */
+const isRetryableError = (error: string | undefined, statusCode?: number): boolean => {
+    if (!error) return false;
+    
+    // Erreurs backend critiques
+    if (error === 'RESOURCE_EXHAUSTED' || error === 'BACKEND_ERROR') {
+        return true;
+    }
+    
+    // Erreurs HTTP 5xx (erreurs serveur)
+    if (statusCode && statusCode >= 500 && statusCode < 600) {
+        return true;
+    }
+    
+    // Erreurs réseau
+    const errorLower = error.toLowerCase();
+    if (errorLower.includes('network') || 
+        errorLower.includes('fetch') || 
+        errorLower.includes('timeout') ||
+        errorLower.includes('connection')) {
+        return true;
+    }
+    
+    return false;
+};
+
+/**
+ * Calcule le délai avant le prochain retry avec backoff exponentiel
+ */
+const calculateRetryDelay = (attempt: number): number => {
+    const delay = RETRY_CONFIG.initialDelay * Math.pow(RETRY_CONFIG.multiplier, attempt - 1);
+    return Math.min(delay, RETRY_CONFIG.maxDelay);
+};
+
+/**
+ * Formate le délai en texte lisible
+ */
+const formatDelay = (ms: number): string => {
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${Math.round(ms / 1000)}s`;
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.round((ms % 60000) / 1000);
+    return seconds > 0 ? `${minutes}min ${seconds}s` : `${minutes}min`;
+};
+
+/**
+ * Effectue un fetch avec retry automatique en cas d'erreur backend retryable
+ * Accepte une fonction pour recréer le FormData à chaque tentative (car FormData ne peut pas être réutilisé)
+ */
+const fetchWithRetry = async (
+    url: string,
+    createFormData: () => FormData,
+    onRetry?: RetryNotificationCallback
+): Promise<Response> => {
+    let lastError: Error | null = null;
+    let lastStatusCode: number | undefined = undefined;
+    
+    for (let attempt = 1; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+        // Recréer le FormData à chaque tentative (car il ne peut pas être réutilisé après un fetch)
+        const formData = createFormData();
+        
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData,
+            });
+            
+            // Si succès, retourner immédiatement
+            if (response.ok) {
+                return response;
+            }
+            
+            // Vérifier si l'erreur HTTP est retryable
+            const statusCode = response.status;
+            const statusText = response.statusText || 'Unknown error';
+            const errorCode = statusCode >= 500 ? 'BACKEND_ERROR' : undefined;
+            
+            if (isRetryableError(errorCode, statusCode)) {
+                lastStatusCode = statusCode;
+                lastError = new Error(`HTTP ${statusCode}: ${statusText}`);
+                
+                // Si ce n'est pas la dernière tentative, retry
+                if (attempt < RETRY_CONFIG.maxRetries) {
+                    const delay = calculateRetryDelay(attempt);
+                    const errorMsg = statusCode >= 500 
+                        ? `Erreur serveur ${statusCode}` 
+                        : 'Erreur backend temporaire';
+                    
+                    // Notifier le frontend
+                    if (onRetry) {
+                        onRetry(attempt, delay, errorMsg);
+                    }
+                    
+                    // Attendre avant de retry
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+            } else {
+                // Erreur non-retryable, retourner immédiatement
+                return response;
+            }
+        } catch (fetchError) {
+            const errorMessage = fetchError instanceof Error ? fetchError.message : 'Network error';
+            const errorCode = errorMessage.toLowerCase().includes('resource exhausted') 
+                ? 'RESOURCE_EXHAUSTED' 
+                : 'BACKEND_ERROR';
+            
+            if (isRetryableError(errorCode)) {
+                lastError = fetchError instanceof Error ? fetchError : new Error(errorMessage);
+                
+                // Si ce n'est pas la dernière tentative, retry
+                if (attempt < RETRY_CONFIG.maxRetries) {
+                    const delay = calculateRetryDelay(attempt);
+                    
+                    // Notifier le frontend
+                    if (onRetry) {
+                        onRetry(attempt, delay, errorMessage);
+                    }
+                    
+                    // Attendre avant de retry
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+            } else {
+                // Erreur non-retryable, propager immédiatement
+                throw fetchError;
+            }
+        }
+    }
+    
+    // Toutes les tentatives ont échoué
+    throw lastError || new Error('Toutes les tentatives ont échoué');
+};
+
 // Cache mémoire simple pour éviter de multiplier les appels à table_autocompletion
 const siteNameCacheByEntreprise: Record<string, Map<string, string>> = {};
 
@@ -91,7 +238,10 @@ export const useParamsMapping = (entrepriseId: number | null) => {
  * Extrait les métadonnées d'un PDF en utilisant l'API meta-ocr du backend Python
  * et met à jour la base de données avec les résultats
  */
-export const extractMetaOcr = async (params: MetaOcrParams): Promise<ExtractMetaOcrResult> => {
+export const extractMetaOcr = async (
+    params: MetaOcrParams,
+    onRetry?: RetryNotificationCallback
+): Promise<ExtractMetaOcrResult> => {
     try {
         if (params.infos_pdf.entreprise_id == null) {
             return {
@@ -101,43 +251,32 @@ export const extractMetaOcr = async (params: MetaOcrParams): Promise<ExtractMeta
             };
         }
 
-        // Préparer les données pour l'API
-        const formData = new FormData();
-        formData.append('file', params.file);
-        formData.append('doc_type', params.type);
-        formData.append('liste_nom_eviter', JSON.stringify(params.liste_nom_eviter));
-        formData.append('pdfInfos', JSON.stringify(params.infos_pdf));
-        formData.append('clusterParams', JSON.stringify(params.cluster_params));
-        formData.append('entreprise_id', String(params.infos_pdf.entreprise_id));
-        
         console.log('🔍 Debug extractMetaOcr - entreprise_id envoyé:', params.infos_pdf.entreprise_id, 'type:', typeof params.infos_pdf.entreprise_id);
 
-        // Appeler l'API backend Python
+        // Appeler l'API backend Python avec retry automatique
         const url = `${process.env.NEXT_PUBLIC_SERVER_PYTHON}/meta-ocr`;
         
-        // Détecter les erreurs réseau/backend
-        let response;
+        // Fonction pour créer le FormData (nécessaire car FormData ne peut pas être réutilisé)
+        const createFormData = () => {
+            const formData = new FormData();
+            formData.append('file', params.file);
+            formData.append('doc_type', params.type);
+            formData.append('liste_nom_eviter', JSON.stringify(params.liste_nom_eviter));
+            formData.append('pdfInfos', JSON.stringify(params.infos_pdf));
+            formData.append('clusterParams', JSON.stringify(params.cluster_params));
+            formData.append('entreprise_id', String(params.infos_pdf.entreprise_id));
+            return formData;
+        };
+        
+        let response: Response;
         try {
-            response = await fetch(url, {
-                method: 'POST',
-                body: formData,
-            });
+            response = await fetchWithRetry(url, createFormData, onRetry);
         } catch (fetchError) {
-            // Erreur réseau (failed to fetch, network error, etc.)
+            // Erreur après tous les retries
             const errorMessage = fetchError instanceof Error ? fetchError.message : 'Network error';
             return {
                 success: false,
-                message: `Erreur réseau lors de l'appel au backend: ${errorMessage}`,
-                error: 'BACKEND_ERROR'
-            };
-        }
-
-        // Vérifier le statut HTTP
-        if (!response.ok) {
-            const statusText = response.statusText || 'Unknown error';
-            return {
-                success: false,
-                message: `Erreur backend HTTP ${response.status}: ${statusText}`,
+                message: `Erreur réseau après ${RETRY_CONFIG.maxRetries} tentatives: ${errorMessage}`,
                 error: 'BACKEND_ERROR'
             };
         }
@@ -273,7 +412,8 @@ export const extractMetaOcrSimple = async (
 export const runMetaOcrForPdf = async (
     pdfId: string,
     entrepriseId: number,
-    forceImage: boolean = false
+    forceImage: boolean = false,
+    onRetry?: RetryNotificationCallback
 ): Promise<ExtractMetaOcrResult> => {
     // 1) Récupérer pdf_info
     const { data: pdfInfo, error: pdfErr } = await getPdfInfoById(pdfId, entrepriseId);
@@ -319,41 +459,34 @@ export const runMetaOcrForPdf = async (
     // 5) Type de document
     const docType = pdfInfo.document_type || 'inconnu';
 
-    // 6) Appel extraction
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('doc_type', docType);
-    formData.append('liste_nom_eviter', JSON.stringify([ent.name]));
-    formData.append('pdfInfos', JSON.stringify(pdfInfo));
-    formData.append('clusterParams', JSON.stringify(clusterParams));
-    formData.append('entreprise_id', String(entrepriseId));
-    formData.append('force_image', String(forceImage));
-    
     console.log('🔍 Debug runMetaOcrForPdf - entreprise_id envoyé:', entrepriseId, 'type:', typeof entrepriseId);
     console.log('🔍 Debug runMetaOcrForPdf - force_image envoyé:', forceImage);
 
     const url = `${process.env.NEXT_PUBLIC_SERVER_PYTHON}/meta-ocr`;
     
-    // Détecter les erreurs réseau/backend
-    let response;
+    // Fonction pour créer le FormData (nécessaire car FormData ne peut pas être réutilisé)
+    const createFormData = () => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('doc_type', docType);
+        formData.append('liste_nom_eviter', JSON.stringify([ent.name]));
+        formData.append('pdfInfos', JSON.stringify(pdfInfo));
+        formData.append('clusterParams', JSON.stringify(clusterParams));
+        formData.append('entreprise_id', String(entrepriseId));
+        formData.append('force_image', String(forceImage));
+        return formData;
+    };
+    
+    // Appeler l'API avec retry automatique
+    let response: Response;
     try {
-        response = await fetch(url, { method: 'POST', body: formData });
+        response = await fetchWithRetry(url, createFormData, onRetry);
     } catch (fetchError) {
-        // Erreur réseau (failed to fetch, network error, etc.)
+        // Erreur après tous les retries
         const errorMessage = fetchError instanceof Error ? fetchError.message : 'Network error';
         return { 
             success: false, 
-            message: `Erreur réseau lors de l'appel au backend: ${errorMessage}`, 
-            error: 'BACKEND_ERROR' 
-        };
-    }
-    
-    // Vérifier le statut HTTP
-    if (!response.ok) {
-        const statusText = response.statusText || 'Unknown error';
-        return { 
-            success: false, 
-            message: `Erreur backend HTTP ${response.status}: ${statusText}`, 
+            message: `Erreur réseau après ${RETRY_CONFIG.maxRetries} tentatives: ${errorMessage}`, 
             error: 'BACKEND_ERROR' 
         };
     }

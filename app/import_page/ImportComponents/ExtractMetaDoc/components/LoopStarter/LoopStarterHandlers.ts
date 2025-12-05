@@ -29,6 +29,11 @@ const PAUSE_STATE_KEY = 'loopStarter:pauseState';
 // Durée d'expiration: 24h en millisecondes
 const EXPIRATION_MS = 24 * 60 * 60 * 1000;
 
+// Configuration du retry (doit correspondre à extract.ts)
+const RETRY_CONFIG = {
+    maxRetries: 10
+};
+
 export const isBackendPauseError = (error?: string | null): boolean => {
     if (!error) return false;
     if (error === 'RESOURCE_EXHAUSTED') return true;
@@ -267,7 +272,16 @@ export const handleProcessPdfs = async (
     setShowReview(false);
     
     try {
-        const result = await processPdfList(selectedPdfIds, parseInt(entreprise_id), 'split_then_extract', enable_rag);
+        // Callback pour notifier les retries avec toast
+        const onRetry = (attempt: number, delay: number, error: string) => {
+            const delayText = delay < 1000 ? `${delay}ms` : delay < 60000 ? `${Math.round(delay / 1000)}s` : `${Math.round(delay / 60000)}min`;
+            toast(`🔄 Retry ${attempt}/${RETRY_CONFIG.maxRetries}: ${error} - Nouvelle tentative dans ${delayText}...`, {
+                icon: '⏳',
+                duration: Math.min(delay, 5000) // Afficher max 5s ou le délai si < 5s
+            });
+        };
+        
+        const result = await processPdfList(selectedPdfIds, parseInt(entreprise_id), 'split_then_extract', enable_rag, onRetry);
         
         // Construire les résultats détaillés
         const detailedResults: ProcessingResult[] = [];
@@ -855,7 +869,16 @@ export const handleExtractOnly = async (
     setShowReview(false);
 
     try {
-        const result = await processPdfList(selectedPdfIds, parseInt(entreprise_id), 'extract_only', enable_rag);
+        // Callback pour notifier les retries avec toast
+        const onRetry = (attempt: number, delay: number, error: string) => {
+            const delayText = delay < 1000 ? `${delay}ms` : delay < 60000 ? `${Math.round(delay / 1000)}s` : `${Math.round(delay / 60000)}min`;
+            toast(`🔄 Retry ${attempt}/${RETRY_CONFIG.maxRetries}: ${error} - Nouvelle tentative dans ${delayText}...`, {
+                icon: '⏳',
+                duration: Math.min(delay, 5000) // Afficher max 5s ou le délai si < 5s
+            });
+        };
+        
+        const result = await processPdfList(selectedPdfIds, parseInt(entreprise_id), 'extract_only', enable_rag, onRetry);
 
         const detailedResults: ProcessingResult[] = [];
         result.results.forEach(item => {
