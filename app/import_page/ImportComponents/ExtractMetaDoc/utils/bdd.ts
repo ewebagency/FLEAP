@@ -11,12 +11,31 @@ export const downloadPdfFromStorage = async (pdfPath: string) => {
 
 // Récupérer les informations d'un PDF depuis la base de données
 export const getPdfInfoById = async (pdfId: string, entrepriseId: number) => {
-    return await supabase
+    // Utiliser maybeSingle() pour éviter l'erreur si plusieurs lignes ou aucune ligne
+    const result = await supabase
         .from('pdf_infos')
         .select('*')
         .eq('id', pdfId)
         .eq('entreprise_id', entrepriseId)
-        .single();
+        .maybeSingle();
+    
+    // Si maybeSingle() retourne null mais qu'on a des données (cas de plusieurs lignes), prendre la première
+    if (!result.data && !result.error) {
+        const { data: allData, error: allError } = await supabase
+            .from('pdf_infos')
+            .select('*')
+            .eq('id', pdfId)
+            .eq('entreprise_id', entrepriseId)
+            .limit(1);
+        
+        if (allError) {
+            return { data: null, error: allError };
+        }
+        
+        return { data: allData?.[0] || null, error: null };
+    }
+    
+    return result;
 };
 
 // Récupérer le nom de l'entreprise

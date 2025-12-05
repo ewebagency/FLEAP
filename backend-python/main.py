@@ -635,7 +635,9 @@ async def meta_ocr(
         
         # Generate alerts inline
         alerte = alerte_function(alerte_type, confidence, structured_response, pdfInfos_dict, clusterParams_dict)
-        if not rag_found_example:
+        # RAG_MISSING uniquement si aucun voisin n'a été trouvé (rag_example_id is None)
+        # Si un voisin est trouvé mais sans perfect_answer, on considère que ce n'est pas RAG_MISSING
+        if not rag_found_example and rag_example_id is None:
             alerte = {"stop": True, "message": f"Il n'existe pas encore d'exemple rag pour ce type de document ({type_lu}). Veuillez d'abord traiter quelques documents de ce type avec le bouton RAG."}
         
         return {

@@ -336,7 +336,8 @@ def create_best_prompt_example(entreprise_id: int, document_type: str, raw_text:
                     "example_prompt": example_prompt
                 }
             else:
-                # Voisin trouvé mais pas de perfect_answer : on retourne quand même le rag_example_id pour lier le PDF au RAG
+                # Voisin trouvé mais pas de perfect_answer : on considère quand même qu'un voisin a été trouvé
+                # (pour éviter RAG_MISSING), mais on ne peut pas utiliser d'exemple dans le prompt
                 print(f"\n⚠️ Voisin trouvé (ID: {neighbor_id}) mais sans perfect_answer - Similarité: {result['similarity_score']:.3f}")
                 
                 # Logger si force_image détecté depuis RAG
@@ -344,14 +345,15 @@ def create_best_prompt_example(entreprise_id: int, document_type: str, raw_text:
                 if force_image_from_rag:
                     print(f"🖼️ 🖼️ 🖼️ 📚 DÉTECTION RAG -> Force_Image, ID: {neighbor_id}")
                 
-                # Retourner le rag_example_id pour lier le PDF au RAG existant, mais sans exemple dans le prompt
+                # Retourner found_example=True car un voisin similaire a été trouvé
+                # (même sans perfect_answer, c'est un voisin valide pour éviter RAG_MISSING)
                 return {
                     "prompt_text": prompt_text,
                     "prompt_rag_used": prompt_rag_used,
-                    "found_example": False,  # Pas d'exemple à utiliser dans le prompt
+                    "found_example": True,  # Un voisin similaire a été trouvé (même sans perfect_answer)
                     "force_image": force_image_from_rag,
-                    "rag_example_id": neighbor_id,  # Mais on retourne quand même l'ID pour lier le PDF
-                    "example_prompt": ""
+                    "rag_example_id": neighbor_id,  # ID pour lier le PDF au RAG
+                    "example_prompt": ""  # Pas d'exemple à utiliser dans le prompt car pas de perfect_answer
                 }
         else:
             print(f"⚠️ Aucun voisin trouvé pour le type {document_type}: {result['status']}")
