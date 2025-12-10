@@ -37,6 +37,7 @@ import { siteAttributes, transporteurAttributes, dechetAttributes, destinataireA
 import ImportEntityFromExcel from './ImportEntityFromExcel';
 import { cofounders_user_id } from '@/app/component/SideBar';
 import { code_ced_DICTIONNAIRE } from '@/app/component/CodeCED';
+import Swal from 'sweetalert2';
 interface AutocompletionRecord {
   id: string;
   transport_link?: BaseLink[];
@@ -330,6 +331,19 @@ const AutocompletionTab: React.FC = () => {
   };
 
   const handleDelete = async (type: string, id: string) => {
+    const result = await Swal.fire({
+      title: 'Êtes-vous sûr ?',
+      text: "Cette action est irréversible !",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Oui, supprimer',
+      cancelButtonText: 'Annuler'
+    });
+
+    if (!result.isConfirmed) return;
+
     try {
       // Mettre à jour l'état local
       switch (type) {
@@ -395,13 +409,30 @@ const AutocompletionTab: React.FC = () => {
       }
 
       // Mettre à jour les liens dans la base de données
-      const { data: allRecords, error: fetchError } = await supabase
-        .from('table_autocompletion')
-        .select('*');
+      // Charger toutes les données avec une boucle pour éviter la limite de 1000
+      const allRecords: AutocompletionRecord[] = [];
+      const batchSize = 1000;
+      let offset = 0;
+      let hasMore = true;
 
-      if (fetchError) {
-        console.error('Error fetching records for link cleanup:', fetchError);
-        return;
+      while (hasMore) {
+        const { data, error: fetchError } = await supabase
+          .from('table_autocompletion')
+          .select('*')
+          .range(offset, offset + batchSize - 1);
+
+        if (fetchError) {
+          console.error('Error fetching records for link cleanup:', fetchError);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          allRecords.push(...data);
+          offset += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
       }
 
       // Mettre à jour chaque enregistrement pour supprimer les liens associés

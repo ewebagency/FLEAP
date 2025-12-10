@@ -2,6 +2,29 @@ import { Site, Transporteur, Dechet, Destinataire, Contenant, Negociant, Courtie
 
 import { supabase } from "@/app/database/supabaseClient";
 
+interface AutocompletionRecord {
+  id: string;
+  entreprise_id: number;
+  site?: Site;
+  transporteur?: Transporteur;
+  dechet?: Dechet;
+  destinataire?: Destinataire;
+  contenant?: Contenant;
+  negociant?: Negociant;
+  courtier?: Courtier;
+  eco_organisme?: Ecorganisme;
+  code_traitement?: CodeTreatment;
+  contrat?: Contrat;
+  transport_link?: BaseLink[];
+  dest_link?: BaseLink[];
+  contenant_link?: BaseLink[];
+  code_traitement_link?: BaseLink[];
+  negociant_link?: BaseLink[];
+  courtier_link?: BaseLink[];
+  eco_organisme_link?: BaseLink[];
+  contrat_link?: BaseLink[];
+}
+
 export const fetchAutocompletionData = async (
   entrepriseId: number,
   setSites: (sites: Site[]) => void,
@@ -25,17 +48,35 @@ export const fetchAutocompletionData = async (
 ) => {
   try {
     console.log('Fetching autocompletion data for entreprise:', entrepriseId);
-    const { data, error } = await supabase
-      .from('table_autocompletion')
-      .select('*')
-      .eq('entreprise_id', entrepriseId);
+    
+    // Charger toutes les données avec une boucle pour éviter la limite de 1000
+    const allData: AutocompletionRecord[] = [];
+    const batchSize = 1000;
+    let offset = 0;
+    let hasMore = true;
 
-    if (error) {
-      console.error('Error fetching autocompletion data:', error);
-      return;
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('table_autocompletion')
+        .select('*')
+        .eq('entreprise_id', entrepriseId)
+        .range(offset, offset + batchSize - 1);
+
+      if (error) {
+        console.error('Error fetching autocompletion data:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        allData.push(...(data as AutocompletionRecord[]));
+        offset += batchSize;
+        hasMore = data.length === batchSize;
+      } else {
+        hasMore = false;
+      }
     }
 
-    if (data) {
+    if (allData.length > 0) {
       const sites: Site[] = [];
       const transporteurs: Transporteur[] = [];
       const dechets: Dechet[] = [];
@@ -55,7 +96,7 @@ export const fetchAutocompletionData = async (
       const ecoorganismesLinks: BaseLink[] = [];
       const contratLinks: BaseLink[] = [];
 
-      data.forEach(record => {
+      allData.forEach(record => {
         if (record.site) {
           sites.push({
             ...record.site,
@@ -75,7 +116,7 @@ export const fetchAutocompletionData = async (
             id: record.id.toString()
           });
           if (record.transport_link) {
-            record.transport_link.forEach((link: { site: string; dechet: string, mail: boolean }) => {
+            record.transport_link.forEach((link: BaseLink) => {
               transportLinks.push({
                 id: record.id.toString(),
                 site: link.site,
@@ -92,7 +133,7 @@ export const fetchAutocompletionData = async (
             id: record.id.toString()
           });
           if (record.dest_link) {
-            record.dest_link.forEach((link: { site: string; dechet: string, mail: boolean }) => {
+            record.dest_link.forEach((link: BaseLink) => {
               destLinks.push({
                 id: record.id.toString(),
                 site: link.site,
@@ -109,7 +150,7 @@ export const fetchAutocompletionData = async (
             id: record.id.toString()
           });
           if (record.contenant_link) {
-            record.contenant_link.forEach((link: { site: string; dechet: string }) => {
+            record.contenant_link.forEach((link: BaseLink) => {
               contenantLinks.push({
                 id: record.id.toString(),
                 site: link.site,
@@ -126,7 +167,7 @@ export const fetchAutocompletionData = async (
           });
         }
         if (record.negociant_link) {
-          record.negociant_link.forEach((link: { site: string; dechet: string, mail: boolean }) => {
+          record.negociant_link.forEach((link: BaseLink) => {
             negociantLinks.push({
               id: record.id.toString(),
               site: link.site,
@@ -143,7 +184,7 @@ export const fetchAutocompletionData = async (
           });
         }
         if (record.courtier_link) {
-          record.courtier_link.forEach((link: { site: string; dechet: string, mail: boolean }) => {
+          record.courtier_link.forEach((link: BaseLink) => {
             courtierLinks.push({
               id: record.id.toString(),
               site: link.site,
@@ -160,7 +201,7 @@ export const fetchAutocompletionData = async (
           });
         }
         if (record.eco_organisme_link) {
-          record.eco_organisme_link.forEach((link: { site: string; dechet: string, mail: boolean }) => {
+          record.eco_organisme_link.forEach((link: BaseLink) => {
             ecoorganismesLinks.push({
               id: record.id.toString(),
               site: link.site,
@@ -177,7 +218,7 @@ export const fetchAutocompletionData = async (
           });
         }
         if (record.code_traitement_link) {
-          record.code_traitement_link.forEach((link: { site: string; dechet: string, mail: boolean }) => {
+          record.code_traitement_link.forEach((link: BaseLink) => {
             codeTreatmentLinks.push({
               id: record.id.toString(),
               site: link.site,
@@ -193,7 +234,7 @@ export const fetchAutocompletionData = async (
           });
         }
         if (record.contrat_link) {
-          record.contrat_link.forEach((link: { site: string; dechet: string }) => {
+          record.contrat_link.forEach((link: BaseLink) => {
             contratLinks.push({
               id: record.id.toString(),
               site: link.site,
