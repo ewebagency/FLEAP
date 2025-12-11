@@ -137,6 +137,15 @@ const FiltreDate = () => {
     };
 
     useEffect(() => {
+        if (!entreprise_id) return;
+
+        // Sur la page registre, on force toujours le mode "Tout voir" - permet de ne pas avoir de bug de truc mal filtré
+        if (isRegisterPage) {
+            setServerDateSearch(false);
+            getDatesFromEntreprise();
+            return;
+        }
+
         // Charger les dates sauvegardées au démarrage
         const savedDates = localStorage.getItem('selectedDates');
         const savedSegment = localStorage.getItem('activeSegment');
@@ -156,7 +165,7 @@ const FiltreDate = () => {
             getDatesFromEntreprise();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [entreprise_id]);
+    }, [entreprise_id, isRegisterPage]);
 
     const handleSegmentSelect = (segment: DateSegment) => {
         setSegmentDates({ debut: segment.debut, fin: segment.fin });
