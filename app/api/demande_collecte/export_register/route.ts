@@ -125,64 +125,255 @@ interface Facture_Info_Interface {
 }
 
 export async function GET(request: Request) {
+    const startTime = Date.now();
     try {
     const { searchParams } = new URL(request.url);
     const entreprise_id = searchParams.get('entreprise_id');
-    const bsdIds = searchParams.get('bsd_ids')?.split(',') || [];
+    const bsdIds = searchParams.get('bsd_ids')?.split(',').filter(id => id) || [];
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const siteIds = searchParams.get('siteIds')?.split(',').filter(id => id) || [];
+    const filiereNames = searchParams.get('filiereNames')?.split(',').filter(name => name) || [];
+    const mode = searchParams.get('mode') || 'ced'; // 'ced' ou 'nom'
         
         if (!entreprise_id) {
             console.error('Pas d\'entreprise_id fourni');
             return NextResponse.json({ message: 'entreprise_id manquant' }, { status: 400 });
         }
     
-    // Récupérer les données BSD
-    let query = supabase
-        .from('bsd')
-        .select('id, infos_json, created_at, facture_treated, facture_infos, readable_id_track_dechets, other_infos')
-        .eq('entreprise_id', entreprise_id)
-        .order('created_at', { ascending: false });
+    // Type pour les données BSD récupérées (doit correspondre au type attendu par formatBSDData)
+    type BSDData = {
+        id: string;
+        infos_json: {formAPI: {createFormInput: FormInput}};
+        created_at: string;
+        facture_treated: boolean;
+        facture_infos: Facture_Info_Interface;
+        readable_id_track_dechets: string;
+        other_infos?: {
+            containerDescription: string;
+            mentionAdr?: string;
+            codeBale?: string;
+            numero_bon?: string;
+            numero_facture?: string;
+            travauxAmiante?: {
+                nom: string;
+                siret: string;
+            };
+            rep?: {
+                sent_to_rep: boolean;
+                montant_rep: number;
+            };
+            declassement?: {
+                declassement_boolean: boolean;
+                montant_declasse: number;
+                justificatif_declassement: string;
+            };
+            tri?: boolean;
+            other_transporters?: Array<{
+                company: {
+                    name: string;
+                    siret: string;
+                    address: string;
+                    contact: string;
+                    phone: string;
+                    mail: string;
+                    orgId: string;
+                    country: string;
+                    vatNumber: string;
+                };
+                receipt: string;
+                department: string;
+                numberPlate: string;
+                takenOverAt: string;
+                validityLimit: string;
+                isExemptedOfReceipt: boolean;
+            }>;
+            other_recipients?: Array<{
+                company: {
+                    name: string;
+                    siret: string;
+                    address: string;
+                    contact: string;
+                    phone: string;
+                    mail: string;
+                    orgId: string;
+                    country: string;
+                    vatNumber: string;
+                };
+                cap: string;
+                processingOperation: string;
+                valoParts: Array<{
+                    tonnage: number;
+                    code_valo: string;
+                }>;
+            }>;
+        } | null;
+        status_track_dechets: string;
+    };
 
-    // Si des IDs sont fournis, filtrer par ces IDs
-    if (bsdIds.length > 0) {
-        query = query.in('id', bsdIds);
-    }
+    // Récupérer les données BSD avec pagination (limite Supabase = 1000)
+    const limit = 1000;
+    const allBsdData: BSDData[] = [];
+    let from = 0;
+    let hasMore = true;
 
-    const {data: bsdData, error: bsdError} = await query;
+    while (hasMore) {
+        let query = supabase
+            .from('bsd')
+            .select('id, infos_json, created_at, facture_treated, facture_infos, readable_id_track_dechets, other_infos, status_track_dechets')
+            .eq('entreprise_id', entreprise_id)
+            .order('created_at', { ascending: false })
+            .range(from, from + limit - 1);
+
+        // Si des IDs sont fournis, filtrer par ces IDs (ancien mode)
+        if (bsdIds.length > 0 && bsdIds[0] !== '') {
+            query = query.in('id', bsdIds);
+        } else {
+            // Nouveau mode : filtrer par dates si fournies
+            if (startDate) {
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                query = query.gte('created_at', start.toISOString());
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                query = query.lte('created_at', end.toISOString());
+            }
+        }
+
+        const {data: bsdDataBatch, error: bsdError} = await query;
 
         if (bsdError) {
             console.error('Erreur lors de la récupération des BSDs:', bsdError);
             return NextResponse.json({ message: 'Erreur lors de la récupération des BSDs' }, { status: 500 });
         }
 
+        if (!bsdDataBatch || bsdDataBatch.length === 0) {
+            hasMore = false;
+        } else {
+            allBsdData.push(...(bsdDataBatch as BSDData[]));
+            hasMore = bsdDataBatch.length === limit; // Continue si on a récupéré exactement la limite
+            from += limit;
+        }
+    }
+
+    const bsdData = allBsdData;
+
         if (!bsdData || bsdData.length === 0) {
             console.log('Aucun BSD trouvé pour cette entreprise');
             return NextResponse.json({ message: 'Aucun BSD trouvé' }, { status: 404 });
         }
 
-    // Récupérer les informations de l'entreprise
-    const {data: entrepriseData, error: entrepriseError} = await supabase
-    .from('entreprise')
-    .select('name, mapping_nom_filiere')
-    .eq('id', entreprise_id)
-    .single();
-
-        if (entrepriseError) {
-            console.error('Erreur lors de la récupération des infos entreprise:', entrepriseError);
-            return NextResponse.json({ message: 'Erreur lors de la récupération des infos entreprise' }, { status: 500 });
+    // Appliquer les filtres supplémentaires côté serveur si nécessaire
+    let filteredData = bsdData;
+    
+    // Filtrer par sites si fournis
+    if (siteIds.length > 0 && bsdIds.length === 0) {
+        filteredData = filteredData.filter((bsd: BSDData) => {
+            const emitterSiret = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret;
+            return siteIds.includes('----') ? (!emitterSiret || emitterSiret === '' || siteIds.includes(emitterSiret)) : siteIds.includes(emitterSiret);
+        });
     }
 
+    // Récupérer les informations de l'entreprise (pour le mapping et le nom)
+    const {data: entrepriseData, error: entrepriseError} = await supabase
+        .from('entreprise')
+        .select('name, mapping_nom_filiere, mapping_ced_filiere')
+        .eq('id', entreprise_id)
+        .single();
+
+    if (entrepriseError) {
+        console.error('Erreur lors de la récupération des infos entreprise:', entrepriseError);
+        return NextResponse.json({ message: 'Erreur lors de la récupération des infos entreprise' }, { status: 500 });
+    }
+
+    // Filtrer par filières si fournies (nécessite le mapping)
+    if (filiereNames.length > 0 && bsdIds.length === 0) {
         const mapping_filiere_nom = (entrepriseData as { name: string; mapping_nom_filiere?: { nom: string; filiere: string }[] }).mapping_nom_filiere || [];
-        console.log('Mapping filière (nom) récupéré:', mapping_filiere_nom);
+        const mapping_ced_filiere = (entrepriseData as { mapping_ced_filiere?: { ced: string; filiere: string }[] }).mapping_ced_filiere || [];
+
+        if (mode === 'nom') {
+            const selectedFiliereNames = new Set(
+                mapping_filiere_nom
+                    .filter(m => filiereNames.filter(f => f !== 'Autres').includes(m.filiere))
+                    .map(m => (m.nom || '').trim())
+            );
+            const allMappedNames = new Set(mapping_filiere_nom.map(m => (m.nom || '').trim()));
+            const hasAutres = filiereNames.includes('Autres');
+
+            filteredData = filteredData.filter((bsd: BSDData) => {
+                const wasteName = (bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.name || '').trim();
+                if (hasAutres && filiereNames.length === 1) {
+                    return !allMappedNames.has(wasteName);
+                } else if (hasAutres) {
+                    return selectedFiliereNames.has(wasteName) || !allMappedNames.has(wasteName);
+                } else {
+                    return selectedFiliereNames.has(wasteName);
+                }
+            });
+        } else {
+            // Mode CED
+            const cleanCED = (ced: string): string => ced.replace(/[^\d]/g, '');
+            const formatCEDs = (ceds: string[]) => {
+                return ceds.flatMap(ced => {
+                    const base = ced.replace('*', '');
+                    const spaced = base.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+                    return [base, base + '*', spaced, spaced + '*'];
+                });
+            };
+
+            const allMappedCEDs = new Set(formatCEDs(mapping_ced_filiere.map(m => cleanCED(m.ced || ''))));
+            const selectedFiliereCEDs = new Set(
+                formatCEDs(
+                    mapping_ced_filiere
+                        .filter(m => filiereNames.filter(f => f !== 'Autres').includes(m.filiere))
+                        .map(m => cleanCED(m.ced || ''))
+                )
+            );
+            const hasAutres = filiereNames.includes('Autres');
+
+            filteredData = filteredData.filter((bsd: BSDData) => {
+                const wasteCode = bsd.infos_json?.formAPI?.createFormInput?.wasteDetails?.code || '';
+                const cleanedWasteCode = cleanCED(wasteCode);
+                const formattedWasteCodes = formatCEDs([cleanedWasteCode]);
+                if (hasAutres && filiereNames.length === 1) {
+                    return !formattedWasteCodes.some(code => allMappedCEDs.has(code));
+                } else if (hasAutres) {
+                    return formattedWasteCodes.some(code => selectedFiliereCEDs.has(code)) || 
+                           !formattedWasteCodes.some(code => allMappedCEDs.has(code));
+                } else {
+                    return formattedWasteCodes.some(code => selectedFiliereCEDs.has(code));
+                }
+            });
+        }
+    }
+
+    // Utiliser le mapping déjà récupéré
+    const mapping_filiere_nom = (entrepriseData as { name: string; mapping_nom_filiere?: { nom: string; filiere: string }[] }).mapping_nom_filiere || [];
+    console.log('Mapping filière (nom) récupéré:', mapping_filiere_nom);
 
         try {
-    const var_to_export = formatBSDData(bsdData, mapping_filiere_nom as { nom: string; filiere: string }[]) as BSD_Export_Interface[];
+    const var_to_export = formatBSDData(filteredData, mapping_filiere_nom as { nom: string; filiere: string }[]) as BSD_Export_Interface[];
             console.log('Données formatées avec succès, nombre d\'entrées:', var_to_export.length);
     
-    return exportToExcel(
+    const excelResponse = exportToExcel(
         var_to_export, 
         'export_register',
         entrepriseData?.name ?? 'Entreprise'
     );
+    
+    // Calculer le temps d'exécution
+    const executionTime = Date.now() - startTime;
+    const executionTimeSeconds = (executionTime / 1000).toFixed(2);
+    
+    // Ajouter le temps d'exécution dans les headers
+    if (excelResponse instanceof NextResponse) {
+        excelResponse.headers.set('X-Execution-Time', `${executionTimeSeconds}s`);
+        excelResponse.headers.set('X-Execution-Time-Ms', executionTime.toString());
+    }
+    
+    return excelResponse;
         } catch (formatError) {
             console.error('Erreur lors du formatage des données:', formatError);
             return NextResponse.json({ 
