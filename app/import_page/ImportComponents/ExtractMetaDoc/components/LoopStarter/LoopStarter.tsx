@@ -38,6 +38,7 @@ import {
     savePauseState,
     isBackendPauseError
 } from './LoopStarterHandlers';
+import { exportPdfsToExcel } from '../../utils/export';
 
 const ALERT_TOOLTIP_MAPPING_KEYWORDS: readonly string[] = [
     'site',
@@ -137,6 +138,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
     const [processingPush, setProcessingPush] = useState(false);
     const [processingSmartSplit, setProcessingSmartSplit] = useState(false);
     const [processingDeleteLinks, setProcessingDeleteLinks] = useState(false);
+    const [processingExport, setProcessingExport] = useState(false);
     const [autoLinkPhase, setAutoLinkPhase] = useState<'idle' | 'simulation' | 'confirmation' | 'applying'>('idle');
     const [selectedPdfIds, setSelectedPdfIds] = useState<string[]>([]);
     const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([]);
@@ -1672,7 +1674,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                     </div>
                                 </div>
                             )}
-                            <div className="flex items-center justify-between h-full pb-4">
+                            <div className="flex items-center justify-between h-full pb-2">
                                 <div className="flex items-center space-x-3">
                                     <div className="text-center">
                                         <div className="text-base font-semibold text-blue-500">{filteredPdfs.length}</div>
@@ -1984,34 +1986,72 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 </>
                                             )}
                                         </button>}
-                                        <button
-                                            onClick={() => handleDeleteLinksSelected(
-                                                selectedPdfIds,
-                                                entreprise_id || '',
-                                                user_id || '',
-                                                pdfInfos,
-                                                setProcessingDeleteLinks,
-                                                setSelectedPdfIds,
-                                                handleRefreshData
-                                            )}
-                                            disabled={processingDeleteLinks || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
-                                            className="mt-2 px-2.5 py-1.5 bg-red-600 text-white rounded-sm text-xs hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
-                                            title="Supprimer les liens BSD des documents sélectionnés"
-                                        >
-                                            {processingDeleteLinks ? (
-                                                <>
-                                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                                    <span>Suppression...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <BoxIcon name="bx-trash" size="16" />
-                                                    <span>Supprimer liens ({selectedPdfIds.length})</span>
-                                                </>
-                                            )}
-                                        </button>
                                     </div>
                                 </div>
+                            </div>
+                            {/* Barre inférieure : export (texte) à gauche, suppression liens à droite */}
+                            <div className="mt-2 pt-2 border-t border-blue-200 flex items-center justify-between">
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        if (selectedPdfIds.length === 0) {
+                                            toast.error('Veuillez sélectionner au moins un PDF');
+                                            return;
+                                        }
+                                        if (!entreprise_id || !user_id) {
+                                            toast.error('Session manquante');
+                                            return;
+                                        }
+                                        setProcessingExport(true);
+                                        try {
+                                            await exportPdfsToExcel(
+                                                selectedPdfIds,
+                                                Number(entreprise_id),
+                                                user_id,
+                                                currentConfig
+                                            );
+                                            toast.success('Export réussi !');
+                                        } catch (error) {
+                                            console.error('Erreur lors de l\'export:', error);
+                                            toast.error(error instanceof Error ? error.message : 'Erreur lors de l\'export');
+                                        } finally {
+                                            setProcessingExport(false);
+                                        }
+                                    }}
+                                    disabled={processingExport || selectedPdfIds.length === 0 || anyProcessing || processingAlertes || processingAutoLink}
+                                    className="text-[11px] text-blue-700 hover:text-blue-900 hover:underline disabled:text-gray-300 disabled:no-underline inline-flex items-center gap-1"
+                                >
+                                    <BoxIcon name="bx-export" size="12" />
+                                    <span>
+                                        Exporter les lignes ({selectedPdfIds.length})
+                                    </span>
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteLinksSelected(
+                                        selectedPdfIds,
+                                        entreprise_id || '',
+                                        user_id || '',
+                                        pdfInfos,
+                                        setProcessingDeleteLinks,
+                                        setSelectedPdfIds,
+                                        handleRefreshData
+                                    )}
+                                    disabled={processingDeleteLinks || anyProcessing || processingAlertes || selectedPdfIds.length === 0}
+                                    className="px-2.5 py-1.5 bg-red-600 text-white rounded-sm text-xs hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center space-x-1.5 transition-colors"
+                                    title="Supprimer les liens BSD des documents sélectionnés"
+                                >
+                                    {processingDeleteLinks ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                            <span>Suppression...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <BoxIcon name="bx-trash" size="16" />
+                                            <span>Supprimer liens ({selectedPdfIds.length})</span>
+                                        </>
+                                    )}
+                                </button>
                             </div>
                         </div>
                     </div>
