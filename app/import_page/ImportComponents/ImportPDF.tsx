@@ -107,21 +107,58 @@ const ImportPDF = () => {
     const [showSiteDropdown, setShowSiteDropdown] = useState(false);
     const [showPrestaDropdown, setShowPrestaDropdown] = useState(false);
 
-    // Charger les données d'autocomplétion (comme dans l'import Excel)
+    // Charger les données d'autocomplétion (comme dans l'import Excel) avec pagination pour dépasser la limite de 1000 lignes
     useEffect(() => {
       const fetchAutocompletionData = async () => {
         if (!entreprise_id) return;
         try {
-          const { data, error } = await supabase
-            .from('table_autocompletion')
-            .select('*')
-            .eq('entreprise_id', entreprise_id);
-          if (error) throw error;
-          if (data) {
+          const pageSize = 1000;
+          let from = 0;
+          const allRows: {
+            id: number;
+            site?: SiteInterface['value'];
+            transporteur?: TransporteurInterface['value'];
+            destinataire?: DestinataireInterface['value'];
+          }[] = [];
+
+          // Boucler tant qu'on récupère un "plein" batch de pageSize lignes
+          while (true) {
+            const { data, error } = await supabase
+              .from('table_autocompletion')
+              .select('*')
+              .eq('entreprise_id', entreprise_id)
+              .range(from, from + pageSize - 1);
+
+            if (error) {
+              throw error;
+            }
+
+            if (!data || data.length === 0) {
+              break;
+            }
+
+            allRows.push(
+              ...data.map((item) => ({
+                id: item.id as number,
+                site: item.site as SiteInterface['value'] | undefined,
+                transporteur: item.transporteur as TransporteurInterface['value'] | undefined,
+                destinataire: item.destinataire as DestinataireInterface['value'] | undefined,
+              }))
+            );
+
+            if (data.length < pageSize) {
+              break;
+            }
+
+            from += pageSize;
+          }
+
+          if (allRows.length > 0) {
             const sites: SiteInterface[] = [];
             const transporteurs: TransporteurInterface[] = [];
             const destinataires: DestinataireInterface[] = [];
-            data.forEach((item: { id: number; site?: SiteInterface['value']; transporteur?: TransporteurInterface['value']; destinataire?: DestinataireInterface['value']; }) => {
+
+            allRows.forEach((item) => {
               if (item.site) {
                 sites.push({ table_id: item.id, value: item.site });
               }
@@ -132,13 +169,14 @@ const ImportPDF = () => {
                 destinataires.push({ table_id: item.id, value: item.destinataire });
               }
             });
+
             setAutocompletionData({ sites, transporteurs, destinataires });
           }
         } catch (error) {
           console.error('Erreur lors du chargement des données d\'autocomplétion:', error);
         }
       };
-      fetchAutocompletionData();
+      void fetchAutocompletionData();
     }, [entreprise_id]);
 
     // Liste des prestataires (transporteurs + destinataires)

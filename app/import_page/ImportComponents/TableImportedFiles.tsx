@@ -733,28 +733,46 @@ const useSites = (entreprise_id: string | null) => {
     const fetcher = async () => {
         if (!entreprise_id) return [];
         
-        const { data, error } = await supabase
-            .from('table_autocompletion')
-            .select('site')
-            .eq('entreprise_id', entreprise_id);
-
-        if (error) {
-            console.error('Erreur lors de la récupération des sites:', error);
-            throw error;
-        }
-
-        if (!data) return [];
-
-        // Extraire les sites avec nom et siret
+        const pageSize = 1000;
+        let from = 0;
         const allSites: SiteInfo[] = [];
-        data.forEach((item: { site?: { nom?: string; siret?: string } }) => {
-            if (item.site?.nom && item.site?.siret) {
-                allSites.push({
-                    siret: item.site.siret,
-                    name: item.site.nom
-                });
+
+        // Pagination pour dépasser la limite de 1000 lignes
+        // On s'arrête dès qu'on récupère moins de pageSize lignes
+        // ou qu'il n'y a plus de données.
+        // On ne sélectionne que la colonne "site" pour limiter la charge.
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+            const { data, error } = await supabase
+                .from('table_autocompletion')
+                .select('site')
+                .eq('entreprise_id', entreprise_id)
+                .range(from, from + pageSize - 1);
+
+            if (error) {
+                console.error('Erreur lors de la récupération des sites:', error);
+                throw error;
             }
-        });
+
+            if (!data || data.length === 0) {
+                break;
+            }
+
+            data.forEach((item: { site?: { nom?: string; siret?: string } }) => {
+                if (item.site?.nom && item.site?.siret) {
+                    allSites.push({
+                        siret: item.site.siret,
+                        name: item.site.nom
+                    });
+                }
+            });
+
+            if (data.length < pageSize) {
+                break;
+            }
+
+            from += pageSize;
+        }
 
         return allSites;
     };
@@ -979,44 +997,65 @@ const SelectProvider: React.FC<{ entreprise_id: string | null; pdf_id: number; i
             
             setIsLoading(true);
             try {
-                const { data, error } = await supabase
-                    .from('table_autocompletion')
-                    .select('*')
-                    .eq('entreprise_id', entreprise_id);
-
-                if (error) throw error;
-
+                const pageSize = 1000;
+                let from = 0;
                 const providerOptions: ProviderOption[] = [];
-                
-                if (data) {
-                    data.forEach((item: { id: number; transporteur?: { nomBoite?: string; siret?: string }; destinataire?: { nomBoite?: string; siret?: string } }) => {
-                        // Ajouter les transporteurs
-                        if (item.transporteur && item.transporteur.nomBoite) {
+
+                // Pagination sur table_autocompletion pour récupérer tous les transporteurs/destinataires
+                // eslint-disable-next-line no-constant-condition
+                while (true) {
+                    const { data, error } = await supabase
+                        .from('table_autocompletion')
+                        .select('*')
+                        .eq('entreprise_id', entreprise_id)
+                        .range(from, from + pageSize - 1);
+
+                    if (error) {
+                        throw error;
+                    }
+
+                    if (!data || data.length === 0) {
+                        break;
+                    }
+
+                    data.forEach((item) => {
+                        const typedItem = item as {
+                            id: number;
+                            transporteur?: { nomBoite?: string; siret?: string };
+                            destinataire?: { nomBoite?: string; siret?: string };
+                        };
+
+                        if (typedItem.transporteur && typedItem.transporteur.nomBoite) {
                             providerOptions.push({
-                                id: `transporteur_${item.id}`,
-                                name: item.transporteur.nomBoite,
-                                siret: item.transporteur.siret || '',
+                                id: `transporteur_${typedItem.id}`,
+                                name: typedItem.transporteur.nomBoite,
+                                siret: typedItem.transporteur.siret || '',
                                 type: 'transporteur'
                             });
                         }
                         
-                        // Ajouter les destinataires
-                        if (item.destinataire && item.destinataire.nomBoite) {
+                        if (typedItem.destinataire && typedItem.destinataire.nomBoite) {
                             providerOptions.push({
-                                id: `destinataire_${item.id}`,
-                                name: item.destinataire.nomBoite,
-                                siret: item.destinataire.siret || '',
+                                id: `destinataire_${typedItem.id}`,
+                                name: typedItem.destinataire.nomBoite,
+                                siret: typedItem.destinataire.siret || '',
                                 type: 'destinataire'
                             });
                         }
                     });
+
+                    if (data.length < pageSize) {
+                        break;
+                    }
+
+                    from += pageSize;
                 }
 
                 setProviders(providerOptions);
                 
                 // Définir le prestataire sélectionné initialement
                 if (initialProvider?.name) {
-                    const matchingProvider = providerOptions.find(p => p.name === initialProvider.name);
+                    const matchingProvider = providerOptions.find((p) => p.name === initialProvider.name);
                     if (matchingProvider) {
                         setSelectedProvider(matchingProvider.id);
                     }
@@ -1029,7 +1068,7 @@ const SelectProvider: React.FC<{ entreprise_id: string | null; pdf_id: number; i
             }
         };
 
-        fetchProviders();
+        void fetchProviders();
     }, [entreprise_id, initialProvider]);
 
     useEffect(() => {
