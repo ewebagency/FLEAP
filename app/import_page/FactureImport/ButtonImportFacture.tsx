@@ -10,10 +10,11 @@ import BoxIcon from "../../component/BoxIconWrapper";
 import { Row } from "../../register/ImportRegisterButton";
 
 function siretFunction(input: string | number): string {
-    const inputStr = String(input).replace(/\s+/g, '').trim(); // Suppression des espaces
-    const siretRegex = /^[0-9]{14}$/; // Le SIRET est un numéro à 14 chiffres
+    //const inputStr = String(input).replace(/\s+/g, '').trim(); // Suppression des espaces
+    //const siretRegex = /^[0-9]{14}$/; // Le SIRET est un numéro à 14 chiffres
   
-    return siretRegex.test(inputStr) ? inputStr : ""; // Retourne le SIRET valide ou ""
+    //return siretRegex.test(inputStr) ? inputStr : ""; // Retourne le SIRET valide ou ""
+    return String(input)
   }
 
 const cofounders_user_id = (user_id:string|null) => {
@@ -286,6 +287,7 @@ export const mapToFactureFormat: (row: Row) => FactureData = (row) => {
 };
 
 const sendToSupabase = async (factureData: FactureData) => {
+    console.log("facture", factureData);
     const { error } = await supabase
         .from('facture')
         .insert(factureData);
