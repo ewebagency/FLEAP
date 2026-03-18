@@ -1782,7 +1782,7 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                             )}
                                         </button>*/}
                                         <div className="grid grid-cols-3 gap-2">
-                                            <button
+                                            {false && (<button
                                                 onClick={() => handleSplitOnly(
                                                     selectedPdfIds,
                                                     entreprise_id || '',
@@ -1808,8 +1808,8 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                         <span>Diviser</span>
                                                     </>
                                                 )}
-                                            </button>
-                                            {cofounders_user_id(user_id) && (
+                                            </button>)}
+                                            {(cofounders_user_id(user_id) || true) && (
                                             <button
                                                 onClick={() => handleSmartSplit(
                                                     selectedPdfIds,
@@ -1826,12 +1826,12 @@ const LoopStarter: React.FC<LoopStarterProps> = ({ isOpen = true, onClose }) => 
                                                 {processingSmartSplit ? (
                                                     <>
                                                         <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                                        <span>Smart split...</span>
+                                                        <span>Smart Split...</span>
                                                     </>
                                                 ) : (
                                                     <>
                                                         <BoxIcon name="bx-brain" size="16" />
-                                                        <span>Smart split</span>
+                                                        <span>Smart Split</span>
                                                     </>
                                                 )}
                                             </button>)}
