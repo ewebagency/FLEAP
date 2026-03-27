@@ -268,11 +268,21 @@ export async function GET(request: Request) {
     // Appliquer les filtres supplémentaires côté serveur si nécessaire
     let filteredData = bsdData;
     
-    // Filtrer par sites si fournis
+    // Filtrer par sites si fournis (accepte siret OU orgId pour coller au filtre UI)
     if (siteIds.length > 0 && bsdIds.length === 0) {
         filteredData = filteredData.filter((bsd: BSDData) => {
-            const emitterSiret = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company?.siret;
-            return siteIds.includes('----') ? (!emitterSiret || emitterSiret === '' || siteIds.includes(emitterSiret)) : siteIds.includes(emitterSiret);
+            const emitterCompany = bsd.infos_json?.formAPI?.createFormInput?.emitter?.company;
+            const emitterSiret = (emitterCompany?.siret || '').trim();
+            const emitterOrgId = (emitterCompany?.orgId || '').trim();
+            const hasAutres = siteIds.includes('----');
+            const hasKnownSite = Boolean(emitterSiret || emitterOrgId);
+            const matchesSelectedSite = siteIds.includes(emitterSiret) || siteIds.includes(emitterOrgId);
+
+            if (hasAutres) {
+                return !hasKnownSite || matchesSelectedSite;
+            }
+
+            return matchesSelectedSite;
         });
     }
 

@@ -13,6 +13,9 @@ const ExportRegisterButton = () => {
 
     const calculateMonths = (start: Date | null, end: Date | null): number => {
         if (!start || !end) return 0;
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+        if (start > end) return 0;
+        if (start.getFullYear() < 2000 || end.getFullYear() > 2100) return 0;
         const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
         return Math.max(1, months + 1); // Au moins 1 mois
     };
@@ -28,13 +31,19 @@ const ExportRegisterButton = () => {
         const startDate = segmentDates.debut;
         const endDate = segmentDates.fin;
         const monthsCount = calculateMonths(startDate, endDate);
+        const selectedSites = sites.filter(s => s.checked).map(s => s.orgId);
+        const totalSites = sites.length;
+        const selectedSitesCount = selectedSites.length;
+        const siteSummary = selectedSitesCount === totalSites
+            ? `${selectedSitesCount} site${selectedSitesCount > 1 ? 's' : ''} (tous)`
+            : `${selectedSitesCount} site${selectedSitesCount > 1 ? 's' : ''} sélectionné${selectedSitesCount > 1 ? 's' : ''}`;
 
         // Préparer le message de confirmation
         let confirmationText = '';
-        if (startDate && endDate) {
-            confirmationText = `Vous allez exporter les données sur ${monthsCount} mois (${startDate.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })} - ${endDate.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}).`;
+        if (startDate && endDate && monthsCount > 0) {
+            confirmationText = `Vous allez exporter ${siteSummary} sur ${monthsCount} mois (${startDate.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })} - ${endDate.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}).`;
         } else {
-            confirmationText = 'Vous allez exporter toutes les données disponibles.';
+            confirmationText = `Vous allez exporter ${siteSummary} sur toutes les dates disponibles.`;
         }
         confirmationText += ' Cela peut représenter un grand nombre de lignes.';
 
@@ -66,9 +75,9 @@ const ExportRegisterButton = () => {
             }
             
             // Ajouter les sites sélectionnés
-            const selectedSites = sites.filter(s => s.checked).map(s => s.orgId);
             if (selectedSites.length > 0) {
                 params.append('siteIds', selectedSites.join(','));
+                console.log("Site dans filtres :", selectedSites);
             }
             
             // Ajouter les filières sélectionnées

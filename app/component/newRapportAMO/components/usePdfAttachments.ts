@@ -28,14 +28,14 @@ export function usePdfAttachments(
   const [renderedAttachments, setRenderedAttachments] = useState<RenderedAttachment[]>([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
   const [downloadComplete, setDownloadComplete] = useState(false);
+  const [expectedPdfIdList, setExpectedPdfIdList] = useState<string[]>([]);
   const renderingRef = useRef<Set<string>>(new Set());
 
   // Expected vs rendered attachments tracking
   const expectedPdfIds = useMemo(() => {
     if (!state.exportOptions.includeLinePdfs) return new Set<string>();
-    const allIds = Array.from(new Set((tableRows.flatMap(r => r.pdf_ids || [])).filter(Boolean)));
-    return new Set(allIds);
-  }, [state.exportOptions.includeLinePdfs, tableRows]);
+    return new Set(expectedPdfIdList);
+  }, [state.exportOptions.includeLinePdfs, expectedPdfIdList]);
 
   const { totalExpected, readyCount, allAttachmentsReady } = useMemo(() => {
     const expected = expectedPdfIds;
@@ -57,6 +57,7 @@ export function usePdfAttachments(
         setAttachedPdfs([]); 
         setRenderedAttachments([]);
         setDownloadComplete(false);
+        setExpectedPdfIdList([]);
         return; 
       }
       
@@ -68,6 +69,7 @@ export function usePdfAttachments(
         setAttachedPdfs([]); 
         setRenderedAttachments([]);
         setDownloadComplete(false);
+        setExpectedPdfIdList([]);
         return; 
       }
       
@@ -76,7 +78,7 @@ export function usePdfAttachments(
         console.log('☁️ Supabase: fetch pdf_infos');
         const { data: infos, error } = await supabase
           .from('pdf_infos')
-          .select('id, name_pdf_in_bucket')
+          .select('id, name_pdf_in_bucket, document_type')
           .in('id', allIds);
           
         if (error) {
@@ -84,20 +86,45 @@ export function usePdfAttachments(
           setAttachedPdfs([]); 
           setRenderedAttachments([]);
           setDownloadComplete(false);
+          setExpectedPdfIdList([]);
           return;
         }
         
         console.log('📄 pdf_infos:', infos?.length || 0);
+        const infoMap = new Map(
+          (infos || []).map((info) => {
+            const cast = info as { id: string; name_pdf_in_bucket?: string; document_type?: string | null };
+            return [cast.id, cast];
+          })
+        );
+        const selectedIds: string[] = [];
+        const selectedIdSet = new Set<string>();
+        for (const row of tableRows) {
+          const rowIds = row.pdf_ids || [];
+          const firstAllowed = rowIds.find((id) => {
+            const info = infoMap.get(id);
+            const type = (info?.document_type || '').toLowerCase().trim();
+            return type === 'bon' || type === 'bsd';
+          });
+          if (firstAllowed && !selectedIdSet.has(firstAllowed)) {
+            selectedIds.push(firstAllowed);
+            selectedIdSet.add(firstAllowed);
+          }
+        }
+        console.log('🎯 Selected PDFs after document_type filter:', selectedIds.length);
         
         // Reset before downloading
         setAttachedPdfs([]);
         setRenderedAttachments([]);
         setDownloadComplete(false);
+        setExpectedPdfIdList([]);
         renderingRef.current.clear();
         
         const downloadedPdfs: AttachedPdf[] = [];
+        const downloadedIds: string[] = [];
         
-        for (const info of infos || []) {
+        for (const selectedId of selectedIds) {
+          const info = infoMap.get(selectedId);
           const cast = info as { id: string; name_pdf_in_bucket?: string };
           if (!cast || !cast.name_pdf_in_bucket) {
             console.log('⚠️ Skipping PDF info without bucket name:', cast);
@@ -134,12 +161,15 @@ export function usePdfAttachments(
           const buf = await fileData.arrayBuffer();
           const newPdf = { id: cast.id, data: buf };
           downloadedPdfs.push(newPdf);
+          downloadedIds.push(cast.id);
           // Update state incrementally for progress tracking (download phase)
           setAttachedPdfs([...downloadedPdfs]);
         console.log('✅ DL', cast.id, 'size=', buf.byteLength);
         }
         
-        console.log('🎉 DL complete, total downloaded:', downloadedPdfs.length, '/', allIds.length);
+        console.log('🎉 DL complete, total downloaded:', downloadedPdfs.length, '/', selectedIds.length);
+        // Only expect successfully downloaded PDFs to avoid blocking the export on missing files
+        setExpectedPdfIdList(downloadedIds);
         // Mark download as complete - this will trigger rendering
         setDownloadComplete(true);
       } catch (e) {
@@ -147,6 +177,7 @@ export function usePdfAttachments(
         setAttachedPdfs([]);
         setRenderedAttachments([]);
         setDownloadComplete(false);
+        setExpectedPdfIdList([]);
       }
     };
 
@@ -231,8 +262,11 @@ export function usePdfAttachments(
             console.log('✅ Rendered', p.id, 'pages=', images.length);
           } catch (e) {
             console.error('❌ Render fail', p.id, e);
-            // Remove from rendering set on failure so it can be retried
-            renderingRef.current.delete(p.id);
+            // Keep a placeholder so one bad PDF does not block the whole export flow
+            setRenderedAttachments(prev => {
+              if (prev.some(item => item.id === p.id)) return prev;
+              return [...prev, { id: p.id, images: [] }];
+            });
           }
         }
         
@@ -273,6 +307,7 @@ export function usePdfAttachments(
     setAttachedPdfs([]);
     setRenderedAttachments([]);
     setDownloadComplete(false);
+    setExpectedPdfIdList([]);
     renderingRef.current.clear();
   };
 

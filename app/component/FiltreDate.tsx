@@ -24,6 +24,11 @@ const FiltreDate = () => {
     const [activeSegment, setActiveSegment] = useState<string>('');
     const pathname = usePathname();
     const isRegisterPage = pathname?.includes('/register');
+    const isReasonableDate = (date: Date | null): date is Date => {
+        if (!date || Number.isNaN(date.getTime())) return false;
+        const year = date.getFullYear();
+        return year >= 2000 && year <= 2100;
+    };
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -95,7 +100,7 @@ const FiltreDate = () => {
                 return;
             }
 
-            // Version desktop : comportement existant
+            // Version desktop : bornes réelles min/max des BSD de l'entreprise
             const { data: minData, error: minError } = await supabase
                 .from('bsd')
                 .select('created_at')
@@ -103,36 +108,66 @@ const FiltreDate = () => {
                 .order('created_at', { ascending: true })
                 .limit(1)
                 .single();
-            
-            if (minError) {
-                console.error('Error fetching dates:', minError);
+
+            const { data: maxData, error: maxError } = await supabase
+                .from('bsd')
+                .select('created_at')
+                .eq('entreprise_id', entreprise_id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (minError || maxError) {
+                console.error('Error fetching min/max dates:', minError || maxError);
                 return;
             }
 
-            console.log("minData", minData);
-
-            const maxDate = new Date();
-            if (isRegisterPage) {
-                maxDate.setFullYear(maxDate.getFullYear() + 1);
+            if (!minData?.created_at || !maxData?.created_at) {
+                return;
             }
+
+            const minDate = new Date(minData.created_at);
+            minDate.setDate(1);
+            minDate.setHours(0, 0, 0, 0);
+
+            const maxDate = new Date(maxData.created_at);
+            maxDate.setMonth(maxDate.getMonth() + 1);
+            maxDate.setDate(0);
             maxDate.setHours(23, 59, 59, 999);
 
-            if (minData) {
-                const minDate = new Date(minData.created_at);
-                minDate.setDate(1);
-                minDate.setHours(0, 0, 0, 0);
+            // Garde-fou: éviter les bornes aberrantes (ex: année 0026) qui cassent les calculs.
+            // On ne touche pas à l'UI, seulement aux dates appliquées en état.
+            if (!isReasonableDate(minDate) || !isReasonableDate(maxDate) || minDate > maxDate) {
+                const fallbackMax = new Date();
+                fallbackMax.setHours(23, 59, 59, 999);
+                const fallbackMin = new Date();
+                fallbackMin.setFullYear(fallbackMin.getFullYear() - 5);
+                fallbackMin.setDate(1);
+                fallbackMin.setHours(0, 0, 0, 0);
 
-                setSegmentDates({ debut: minDate, fin: maxDate });
-                setCustomStartDate(minDate);
-                setCustomEndDate(maxDate);
+                setSegmentDates({ debut: fallbackMin, fin: fallbackMax });
+                setCustomStartDate(fallbackMin);
+                setCustomEndDate(fallbackMax);
                 setActiveSegment('custom');
-                
-                localStorage.setItem('selectedDates', JSON.stringify({ 
-                    debut: minDate, 
-                    fin: maxDate 
+
+                localStorage.setItem('selectedDates', JSON.stringify({
+                    debut: fallbackMin,
+                    fin: fallbackMax
                 }));
                 localStorage.setItem('activeSegment', 'custom');
+                return;
             }
+
+            setSegmentDates({ debut: minDate, fin: maxDate });
+            setCustomStartDate(minDate);
+            setCustomEndDate(maxDate);
+            setActiveSegment('custom');
+            
+            localStorage.setItem('selectedDates', JSON.stringify({ 
+                debut: minDate, 
+                fin: maxDate 
+            }));
+            localStorage.setItem('activeSegment', 'custom');
         }
     };
 

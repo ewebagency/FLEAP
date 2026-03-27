@@ -2036,7 +2036,7 @@ const ModifyCard = () => {
                                         >
                                             {loadingUrls[pdf.id] ? 'Chargement...' : 'Ouvrir'}
                                         </button>
-                                       {modalId && modalId !== null && modalId !== undefined && modalId !== "" && cofounders_user_id(user_id) && (
+                                       {modalId && modalId !== null && modalId !== undefined && modalId !== "" && /*cofounders_user_id(user_id) &&*/ (
                                             <button
                                                 onClick={() => {
                                                     if(pdf.bsd_linked!==null && pdf.bsd_linked && pdf.bsd_linked.filter((b:{bsd_id:string})=>b.bsd_id===modalId).length>0) {
