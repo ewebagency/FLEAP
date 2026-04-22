@@ -24,7 +24,7 @@ async def extract_gemini(text: str | dict, prompt: str) -> Dict[str, Any]:
         
         # Call Gemini API
         gemini_response = requests.post(
-            "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent",
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
             headers={
                 "Content-Type": "application/json",
                 "x-goog-api-key": os.getenv('GEMINI_API_KEY')

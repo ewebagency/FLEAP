@@ -154,7 +154,7 @@ def extract_data_with_gemini(text: str) -> Dict[str, Any]:
     Extrait les données structurées d'une facture avec Gemini
     """
     try:
-        gemini_url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent"
+        gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
         headers = {
             "Content-Type": "application/json",
             "x-goog-api-key": os.getenv('GEMINI_API_KEY')
