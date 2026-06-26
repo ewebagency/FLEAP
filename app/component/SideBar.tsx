@@ -8,6 +8,7 @@ import FiltrePointCollecte from './FiltrePointCollecte';
 import FiltreSiteEtablissement from '../import_page/FiltreSiteEtablissement';
 import dynamic from 'next/dynamic';
 import FiltreDate from './FiltreDate';
+import EntrepriseSelector from './EntrepriseSelector';
 import CreationFiltrePerso from './FiltresPerso/CreationFiltrePerso';
 import { FiltresPersoProvider } from './FiltresPerso/FiltresPersoProvider';
 import Image from 'next/image';
@@ -40,7 +41,7 @@ export const cofounders_user_id = (user_id:string|null) => {
 
 const SideBar = (props:SideBarProps) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
-    const { display_features, user_id, session } = useSession();
+    const { display_features, user_id, session, entreprise_name: session_entreprise_name } = useSession();
     const router = useRouter();
     const pathname = usePathname();
     const [userNames, setUserNames] = useState({first_name:'', last_name:''});
@@ -151,6 +152,7 @@ const SideBar = (props:SideBarProps) => {
                         
                         {!isCollapsed && (
                             <>
+                                <EntrepriseSelector/>
                                 <FiltreSiteEtablissement/>
                                 <FiltrePointCollecte/>
                                 <FiltreDate/> 
@@ -222,7 +224,7 @@ const SideBar = (props:SideBarProps) => {
                             )}*/}
                         </ul>
                     </div>
-                    {!isCollapsed && <h1 className="w-[200px] font-bold text-xl ml-2">{entreprise_name}</h1>}
+                    {!isCollapsed && <h1 className="w-[200px] font-bold text-xl ml-2">{session_entreprise_name || entreprise_name}</h1>}
                     {!isCollapsed && <DetailsSideBar 
                         session={!!session}
                         userNames={userNames} 
