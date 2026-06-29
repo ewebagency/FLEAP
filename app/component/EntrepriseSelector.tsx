@@ -28,15 +28,17 @@ const EntrepriseSelector = () => {
     if (!is_super_admin || entreprises.length === 0) return null;
 
     return (
-        <div
-            ref={containerRef}
-            className="my-1 relative"
-            onClick={(e) => {
-                e.stopPropagation();
-                setIsOpen(!isOpen);
-            }}
-        >
-            <div className="btn flex items-center justify-between px-2 py-1 bg-white rounded-lg hover:bg-gray-50 transition-all duration-200 w-full">
+        <div ref={containerRef} className="my-1 relative">
+            <span className="block text-xs font-semibold text-gray-400 mb-0.5 ml-1">
+                Entreprise (admin)
+            </span>
+            <div
+                className="btn flex items-center justify-between px-2 py-1 bg-white rounded-lg hover:bg-gray-50 transition-all duration-200 w-full cursor-pointer"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setIsOpen(!isOpen);
+                }}
+            >
                 <div className="flex items-center space-x-2">
                     <BoxIcon name='building' type='solid' size="18px" />
                     <h1 className="text-sm font-semibold text-gray-700 truncate">
