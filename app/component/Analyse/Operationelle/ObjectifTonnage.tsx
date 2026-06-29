@@ -16,7 +16,8 @@ import {
   Tooltip,
   Legend,
   Scale,
-  CoreScaleOptions
+  CoreScaleOptions,
+  TooltipItem
 } from 'chart.js';
 import BoxIcon from '../../BoxIconWrapper';
 
@@ -499,9 +500,9 @@ const ObjectifTonnage = () => {
       },
       tooltip: {
         callbacks: {
-          label: function(context: { dataset: { label?: string }, parsed: { y: number } }) {
+          label: function(context: TooltipItem<'line'>) {
             const label = context.dataset.label || '';
-            const value = context.parsed.y;
+            const value = context.parsed.y ?? 0;
             return `${label}: ${formatNumber(value)} tonnes`;
           }
         }
