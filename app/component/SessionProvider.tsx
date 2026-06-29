@@ -6,6 +6,11 @@ import { supabase } from '../database/supabaseClient';
 import { Session } from '@supabase/supabase-js';
 import { identifyUser, resetUser } from '../utils/mixpanel';
 
+export type EntrepriseOption = { id: number; name: string };
+
+// Clé localStorage utilisée par les super-admins pour mémoriser l'entreprise active
+export const SUPERADMIN_ENTREPRISE_KEY = 'superadmin_entreprise_id';
+
 type SessionContextType = {
     session: Session | null;
     user_id: string | null;
@@ -15,6 +20,9 @@ type SessionContextType = {
     user_contact: string | null;
     user_phone: string | null;
     display_features: Record<string, boolean> | null;
+    is_super_admin: boolean;
+    entreprises: EntrepriseOption[];
+    selectEntreprise: (id: number) => void;
 };
 
 export interface SessionMore extends Session {
@@ -26,6 +34,9 @@ export interface SessionMore extends Session {
     user_contact: string | null;
     user_phone: string | null;
     display_features: Record<string, boolean> | null;
+    is_super_admin: boolean;
+    entreprises: EntrepriseOption[];
+    selectEntreprise: (id: number) => void;
 }
 
 const SessionContext = createContext<SessionContextType>({
@@ -36,7 +47,10 @@ const SessionContext = createContext<SessionContextType>({
     user_email: null,
     user_contact: null,
     user_phone: null,
-    display_features: null
+    display_features: null,
+    is_super_admin: false,
+    entreprises: [],
+    selectEntreprise: () => {}
 });
 
 export const useSession = () => useContext(SessionContext);
@@ -50,6 +64,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const [user_contact, setUserContact] = useState<string | null>(null);
     const [user_phone, setUserPhone] = useState<string | null>(null);
     const [display_features, setDisplayFeatures] = useState<Record<string, boolean> | null>(null);
+    const [is_super_admin, setIsSuperAdmin] = useState<boolean>(false);
+    const [entreprises, setEntreprises] = useState<EntrepriseOption[]>([]);
+
+    // Permet à un super-admin de changer l'entreprise active.
+    // On mémorise le choix puis on recharge pour réinitialiser proprement
+    // tous les providers / caches indexés par entreprise_id.
+    const selectEntreprise = (id: number) => {
+        if (typeof window === 'undefined') return;
+        localStorage.setItem(SUPERADMIN_ENTREPRISE_KEY, String(id));
+        window.location.reload();
+    };
 
     useEffect(() => {
         setUserEmail(session?.user.email ?? null);
@@ -78,34 +103,52 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             try {
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
-                    .select('entreprise_id, first_name, last_name, phone, display_features')
+                    .select('entreprise_id, first_name, last_name, phone, display_features, is_super_admin')
                     .eq('user_id', userId)
                     .single();
 
                 if (profileError) throw profileError;
-                
+
                 if (profile) {
                     // Set user contact (first_name + last_name)
                     const firstName = profile.first_name || '';
                     const lastName = profile.last_name || '';
                     setUserContact(firstName && lastName ? `${firstName} ${lastName}` : firstName || lastName || null);
-                    
+
                     // Set user phone
                     setUserPhone(profile.phone || null);
-                    
+
                     // Set display features
                     setDisplayFeatures(profile.display_features || null);
-                    
-                    if (profile.entreprise_id) {
-                        setEntrepriseId(profile.entreprise_id);
 
-                        // Récupérer le nom de l'entreprise
+                    const superAdmin = !!profile.is_super_admin;
+                    setIsSuperAdmin(superAdmin);
+
+                    // Pour un super-admin : l'entreprise active est celle choisie via le
+                    // sélecteur (mémorisée en localStorage), sinon celle de son profil.
+                    let activeEntrepriseId = profile.entreprise_id;
+                    if (superAdmin && typeof window !== 'undefined') {
+                        const saved = localStorage.getItem(SUPERADMIN_ENTREPRISE_KEY);
+                        if (saved) activeEntrepriseId = Number(saved);
+
+                        // Charger la liste de toutes les entreprises pour le sélecteur
+                        const { data: allEntreprises } = await supabase
+                            .from('entreprise')
+                            .select('id, name')
+                            .order('name');
+                        setEntreprises(allEntreprises || []);
+                    }
+
+                    if (activeEntrepriseId) {
+                        setEntrepriseId(activeEntrepriseId);
+
+                        // Récupérer le nom de l'entreprise active
                         const { data: entreprise, error: entrepriseError } = await supabase
                             .from('entreprise')
                             .select('name')
-                            .eq('id', profile.entreprise_id)
+                            .eq('id', activeEntrepriseId)
                             .single();
-                        
+
                         if (entrepriseError) throw entrepriseError;
                         setEntrepriseName(entreprise?.name || null);
                     }
@@ -178,7 +221,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             user_email: user_email,
             user_contact: user_contact,
             user_phone: user_phone,
-            display_features: display_features
+            display_features: display_features,
+            is_super_admin: is_super_admin,
+            entreprises: entreprises,
+            selectEntreprise: selectEntreprise
         }}>
             {children}
         </SessionContext.Provider>
