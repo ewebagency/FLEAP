@@ -4,8 +4,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const siret = searchParams.get('siret');
 
-    if (process.env.NEXT_PUBLIC_API_SIRET_TOKEN) {
-        const apiKey: string = process.env.NEXT_PUBLIC_API_SIRET_TOKEN;
+    if (process.env.API_SIRET_TOKEN) {
+        const apiKey: string = process.env.API_SIRET_TOKEN;
 
         try {
             const response = await fetch(`https://api.insee.fr/api-sirene/3.11/siret/${siret}`, {

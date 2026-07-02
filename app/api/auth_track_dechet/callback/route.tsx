@@ -8,10 +8,10 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   
   let client_id = process.env.NEXT_PUBLIC_TRACK_CLIENT_ID_SANDBOX;
-  let client_secret = process.env.NEXT_PUBLIC_TRACK_CLIENT_SECRET_SANDBOX;
+  let client_secret = process.env.TRACK_CLIENT_SECRET_SANDBOX;
   if (process.env.NEXT_PUBLIC_TRACK_TYPE === "app") {
     client_id = process.env.NEXT_PUBLIC_TRACK_CLIENT_ID_APP;
-    client_secret = process.env.NEXT_PUBLIC_TRACK_CLIENT_SECRET_APP;
+    client_secret = process.env.TRACK_CLIENT_SECRET_APP;
   }
   if (!code || !client_id || !client_secret) {
     return NextResponse.json({ error: "Paramètres manquants" }, { status: 400 });

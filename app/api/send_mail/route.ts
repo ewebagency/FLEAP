@@ -24,7 +24,7 @@ export async function POST(req: Request) {
         secure: false,
         auth: {
             user: 'contact.prestataire.fleap@gmail.com',
-            pass: process.env.NEXT_PUBLIC_PASSWORD_GMAIL_SMTP,
+            pass: process.env.PASSWORD_GMAIL_SMTP,
         }
     } as nodemailer.TransportOptions);
 
